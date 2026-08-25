@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-25 · M0-008 embed 打通：单二进制全链路贯通
+
+- **做了**：webui embed 包+同步脚本（接入 make build 管线）；NoRoute 三分支路由（API Problem 化/静态回写/SPA fallback）；离线零外链断言脚本；fallback 单测 3 例。
+- **验证结果**：build/vet/test 绿；冒烟 / 与深路由 200 html、API json、404 problem；离线断言 PASS（产物 3.9M）；`make build` 一键产出 27M 单二进制。
+- **踩坑**：gin FileFromFS 对根路径 301 → 改 c.Data 直写；embed 空目录编译失败 → 被跟踪 .gitkeep 兜底。
+- **发现**：⚠️ Iconify 在线图标服务字符串（运行时拉取风险），P2 用 unplugin-icons/@iconify/json 离线化加固。
+
 ## 2026-08-25 · M0-007 Vben Admin v5.7.0 底座引入与裁剪
 
 - **做了**：锁定 v5.7.0 引入 web/；按官方精简指南删除 4 个备用 UI 应用/backend-mock/playground/docs；web-antd→web-ipam 改造；根 scripts 同步。

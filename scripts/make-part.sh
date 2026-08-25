@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # 分部执行器：按工具链就绪情况执行 build/test/lint，未就绪部分明确跳过。
+root="$(cd "$(dirname "$0")/.." && pwd)"
 # 用法: make-part.sh <build|test|lint>
 set -u
 part="${1:?usage: make-part.sh <build|test|lint>}"
@@ -15,7 +16,7 @@ case "$part" in
   build)
     run_go go build -o bin/ ./cmd/... || rc=1
     if [ -f web/package.json ]; then
-      command -v pnpm >/dev/null 2>&1 && (cd web && pnpm run build) || { echo "skip web: pnpm 未启用(corepack enable)"; [ -f web/apps/web-ipam ] && rc=1; }
+      command -v pnpm >/dev/null 2>&1 && (cd web && pnpm run build:ipam) && bash "$root/scripts/sync-webui.sh" || { echo "skip web: pnpm 未启用(corepack enable)"; [ -f web/apps/web-ipam ] && rc=1; }
     else
       echo "skip web: Vben 底座未引入(M0-007)"
     fi
