@@ -30,10 +30,7 @@ func (h *Handler) SetDBProbe(fn func() error) { h.dbProbe = fn }
 
 // GetSystemInfo GET /system/info —— 仪表盘服务健康卡片数据源与探活。
 func (h *Handler) GetSystemInfo(c *gin.Context) {
-	ready := true
-	if h.dbProbe != nil && h.dbProbe() != nil {
-		ready = false
-	}
+	ready := h.dbProbe == nil || h.dbProbe() == nil
 	c.JSON(http.StatusOK, apigen.SystemInfo{
 		Name:      "ipam-control-plane",
 		Version:   h.version,

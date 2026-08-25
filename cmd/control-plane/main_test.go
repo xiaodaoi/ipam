@@ -10,7 +10,7 @@ import (
 )
 
 func TestRoutesCoveredBySpec(t *testing.T) {
-	sw, err := apigen.GetSwagger()
+	sw, err := apigen.GetSpec()
 	if err != nil {
 		t.Fatalf("load embedded spec: %v", err)
 	}
