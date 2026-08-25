@@ -109,5 +109,9 @@ jobs:
         if: failure()
         run: |
           cd deploy/compose
-          docker compose ps -a || true
-          docker compose logs --tail=100 || true
+          { docker compose ps -a; echo; docker compose logs --tail=200; } > diag.txt 2>&1 || true
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: compose-smoke-diag
+          path: deploy/compose/diag.txt

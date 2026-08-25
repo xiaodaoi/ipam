@@ -12,10 +12,16 @@ RUN pnpm install --frozen-lockfile --ignore-scripts \
  && pnpm --filter @vben/web-ipam run typecheck \
  && pnpm run build:ipam
 
-FROM golang:1.27-bookworm AS build
+FROM ubuntu:jammy AS build
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git \
+ && rm -rf /var/lib/apt/lists/*
+# 不依赖 Docker Hub golang 标签（新版本镜像发布滞后）；版本与 go.mod 对齐
+RUN curl -fsSL https://go.dev/dl/go1.27.0.linux-amd64.tar.gz | tar -C /usr/local -xz
+ENV PATH=/usr/local/go/bin:$PATH \
+    GOPATH=/go \
+    GOPROXY=https://goproxy.cn,direct \
+    GOTOOLCHAIN=local
 WORKDIR /src
-ENV GOPROXY=https://goproxy.cn,direct \
-    GOTOOLCHAIN=auto
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
