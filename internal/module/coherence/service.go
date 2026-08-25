@@ -110,3 +110,14 @@ func (s *MemStore) Has(mac string) bool {
 	_, ok := s.Get(mac)
 	return ok
 }
+
+// All 全量导出（快照与对账循环使用）。
+func (s *MemStore) All() []Binding {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]Binding, 0, len(s.m))
+	for _, b := range s.m {
+		out = append(out, b)
+	}
+	return out
+}

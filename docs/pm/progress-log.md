@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-25 · M1-004 完成：快照+PG 对账+unbound 下发通道
+
+- **做了**：原子快照（5s 循环）；PG 全量加载+NOTIFY 订阅（断线重连）；§4.4 四 RR 生成与 Reconciler 差分对账（幂等/失败重试语义）；0002 触发器迁移；daemon 三 flag 接线。
+- **验证结果**：coherence 包 13 单测全绿；build/vet/lint 零问题。
+- **遗留**：live-PG 与 unbound-control 实测在 M1-005 环境；grace 状态机 M2。
+
 ## 2026-08-25 · M1 启动：M1-001/M1-002 完成
 
 - **做了**：工具链用户态安装（protoc36.0+gen-go/grpc 钉版）；coherence.proto 契约落地并生成；daemon 核心——B/A 型映射算法（§4.3 样例断言）、ResolveBinding 三态、ReportLease 生命周期、MemStore、UDS 入口。
