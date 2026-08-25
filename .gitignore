@@ -1,0 +1,28 @@
+# Go
+*.test
+*.out
+/bin/
+
+# Node / Vben
+node_modules/
+web/.turbo/
+**/.turbo/
+**/*.tsbuildinfo
+web/apps/*/dist/
+cmd/control-plane/webui/dist/
+
+# Env & secrets（密钥一律不入库）
+.env
+.env.*
+!.env.example
+secrets/
+/run/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# 运行产物
+/var/lib/ipam/
+*.log
