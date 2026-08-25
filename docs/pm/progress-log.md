@@ -4,6 +4,18 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-25 · M0-002 仓库目录骨架落地
+
+- **做了**：领取 M0-002 任务卡（backlog→doing→review）；按 §14 创建全量目录树并配 README；新增 `LICENSES.md` 许可矩阵初版与 `docs/README.md`。
+- **改动范围**：39 个目录路径 + 13 个一级 README + LICENSES.md；无代码。
+- **验证结果**：逐项比对脚本输出 `VERIFY-OK`，与 §14 无缺漏。
+- **遗留**：web/、api/gen 空壳待 M0-007/M0-004 填充；卡片在 review 列待人工确认转 done。
+
+## 2026-08-25 · Git 远端接入 GitHub
+
+- **做了**：生成 ed25519 SSH 密钥，远端切换 `git@github.com:xiaodaoi/ipam.git`，main 推送成功并建立跟踪（464ee7d）。
+- **遗留**：建议网页端启用 main 分支保护（PR 必审）。
+
 ## 2026-08-25 · 项目管理地基落盘（M0 前置）
 
 - **做了**：git 初始化（main 分支）；建立强项目管理资产——根 AGENTS.md 协作纪律、`.opencode/agent/` 四角色代理、`docs/pm/`（路线图 roadmap、风险登记 risks、进度日志 progress-log、四列看板 board/ 与任务卡模板）；生成 M0 任务卡 8 张入 backlog；`.gitignore`（密钥/构建产物忽略）。
