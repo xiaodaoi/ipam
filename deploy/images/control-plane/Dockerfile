@@ -2,6 +2,8 @@
 FROM node:22-bookworm-slim AS web
 WORKDIR /src/web
 RUN npm install -g pnpm@10.33.4
+# 容器内无 git 且不继承宿主 CI 变量：跳过根项目 prepare(lefthook)，否则 install 失败
+ENV IS_CI=true CI=true
 COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml web/.npmrc ./
 COPY web/apps ./apps
 COPY web/packages ./packages
