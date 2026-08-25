@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-25 · M0-006 compose 骨架（验证交由 CI 闸⑥）
+
+- **做了**：compose 双服务（PG16 健康检查+§3 八表迁移挂载 / control-plane 三阶段镜像）；install.sh 预检+冒烟；闸⑥解除自跳过，本次推送即首次真实验证。
+- **验证结果**：YAML/Shell 语法通过；运行时冒烟由 Actions ubuntu-latest docker 执行。
+- **遗留**：DSN→handler 探针接线在 M1/M2；TLS 留 M5。
+
 ## 2026-08-25 · M0-005 验收通过：CI 六道闸全绿
 
 - **做了**：修复 golangci-lint 首跑两处 staticcheck（GetSpec 替换弃用 API、QF1007 条件合并）；二次运行 success（32815471234）。

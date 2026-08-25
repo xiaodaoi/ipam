@@ -28,3 +28,4 @@ secrets/
 /var/lib/ipam/
 *.log
 web/apps/*/dist.zip
+deploy/compose/.env
