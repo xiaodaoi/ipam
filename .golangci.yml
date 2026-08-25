@@ -1,0 +1,10 @@
+version: "2"
+run:
+  timeout: 5m
+linters:
+  default: standard
+formatters:
+  default: standard
+issues:
+  exclude-dirs:
+    - api/gen   # 生成物禁改区，不参与 lint

@@ -1,0 +1,35 @@
+# Spectral 规则集：§12.2/§12.4 门禁落地
+extends: ["spectral:oas"]
+rules:
+  # 文档完备性三件套升为 error
+  operation-operationId: error
+  operation-description: error
+  # §12.2：每个 operation 必须有 summary
+  operation-has-summary:
+    description: 每个 operation 必须提供 summary
+    given: $.paths[*][get,post,put,patch,delete]
+    severity: error
+    then:
+      field: summary
+      function: truthy
+  operation-tags: error
+  # §12.2-2：每个响应内容必须带 examples（成功或典型错误样例）
+  operation-examples:
+    description: 每个响应的 content 必须提供 examples（§12.2 LLM 友好约定）
+    given: $.paths[*][get,post,put,patch,delete].responses[*].content[*]
+    severity: error
+    then:
+      field: examples
+      function: truthy
+  # §12.2-1：operationId 必须稳定动词命名（小驼峰）
+  operation-id-style:
+    description: operationId 必须为小驼峰动词命名，发布后不可改
+    given: $.paths[*][*].operationId
+    severity: error
+    then:
+      function: pattern
+      functionOptions:
+        match: "^[a-z][a-zA-Z0-9]+$"
+  info-contact: off
+  info-license: off
+  oas3-unused-component: warn

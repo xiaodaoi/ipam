@@ -5,7 +5,41 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	apigen "github.com/xiaodaoi/ipam/api/gen/go"
 )
+
+func TestRoutesCoveredBySpec(t *testing.T) {
+	sw, err := apigen.GetSwagger()
+	if err != nil {
+		t.Fatalf("load embedded spec: %v", err)
+	}
+	r := newEngine("test")
+	for _, ri := range r.Routes() {
+		if !strings.HasPrefix(ri.Path, "/api/v1/") {
+			continue
+		}
+		p := strings.TrimPrefix(ri.Path, "/api/v1")
+		item := sw.Paths.Find(normalizeToOpenAPIPath(p))
+		if item == nil {
+			t.Errorf("route %s %s 未在 spec 中文档化（缺 paths.%s）", ri.Method, p, p)
+			continue
+		}
+		if op := item.GetOperation(ri.Method); op == nil {
+			t.Errorf("route %s %s 存在 path 但缺少对应 operation", ri.Method, p)
+		}
+	}
+}
+
+func normalizeToOpenAPIPath(p string) string {
+	segs := strings.Split(p, "/")
+	for i, s := range segs {
+		if strings.HasPrefix(s, ":") || strings.HasPrefix(s, "*") {
+			segs[i] = "{" + s[1:] + "}"
+		}
+	}
+	return strings.Join(segs, "/")
+}
 
 func TestSPAIndexServed(t *testing.T) {
 	r := newEngine("test")

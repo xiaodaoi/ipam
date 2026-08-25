@@ -19,6 +19,9 @@ test: ## 运行全部测试（go test + web 单测）
 lint: ## 运行全部静态检查（golangci-lint + eslint/oxlint）
 	@bash scripts/make-part.sh lint
 
+lint-api: ## 闸① spec lint（Spectral，§12.4）
+	@npx --yes @stoplight/spectral-cli@6 lint api/openapi/openapi.yaml --ruleset .spectral.yaml --fail-severity=error
+
 gen: ## 从 api/openapi 再生 api/gen（唯一再生途径，禁止手改）
 	@bash scripts/gen-openapi.sh
 

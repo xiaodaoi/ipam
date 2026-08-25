@@ -1,0 +1,105 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.27"
+  NODE_VERSION: "22"
+
+jobs:
+  # ── 闸① spec lint：§12.4 文档完备性（description/example/operationId）──
+  api-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: spectral lint
+        run: npx --yes @stoplight/spectral-cli@6 lint api/openapi/openapi.yaml --ruleset .spectral.yaml --fail-severity=error
+
+  # ── 闸② 路由覆盖率(TestRoutesCoveredBySpec) + 闸④ go test/vet/lint ──
+  go-ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.0"
+      - name: stub webui（fresh clone 无前端产物时保证 embed 编译与 fallback 测试有效）
+        run: |
+          mkdir -p cmd/control-plane/webui/dist
+          grep -q index.html cmd/control-plane/webui/dist/index.html 2>/dev/null || \
+            printf '<!doctype html><meta charset="utf-8"><title>stub</title>' > cmd/control-plane/webui/dist/index.html
+      - name: build & vet
+        run: go build ./... && go vet ./...
+      - name: golangci-lint
+        run: |
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+          "$(go env GOPATH)/bin/golangci-lint" run
+      - name: test（含闸② TestRoutesCoveredBySpec）
+        run: go test ./...
+
+  # ── 闸③ 破坏性变更检测（PR 时对基线分支比对）──
+  openapi-diff:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: oasdiff breaking
+        run: |
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          npx --yes oasdiff breaking \
+            "origin/${{ github.base_ref }}:api/openapi/openapi.yaml" \
+            "api/openapi/openapi.yaml" \
+            --fail-on ERR
+
+  # ── 闸⑤ web 构建+typecheck+零外链断言 ──
+  web-ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: install & typecheck & build
+        working-directory: web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @vben/web-ipam run typecheck
+          pnpm run build:ipam
+      - name: sync & 零外链断言
+        run: |
+          bash scripts/sync-webui.sh
+          bash scripts/check-webui-offline.sh
+
+  # ── 闸⑥ compose 冒烟（M0-006 落地前自动跳过）──
+  compose-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: smoke
+        run: |
+          if [ ! -f deploy/compose/compose.yaml ]; then
+            echo "skip: compose.yaml 未落地（M0-006）"; exit 0
+          fi
+          cd deploy/compose && docker compose up -d --wait
+          curl -fsS http://127.0.0.1:8443/api/v1/system/info | grep -q ipam-control-plane
+          docker compose down -v

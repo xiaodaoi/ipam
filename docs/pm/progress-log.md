@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-25 · M0-005 CI 六道闸落地
+
+- **做了**：GitHub Actions 五 job（api-lint/go-ci/openapi-diff/web-ci/compose-smoke）对应 §12.4 六闸；闸②固化为 Go 测试 TestRoutesCoveredBySpec；.spectral.yaml 规则集（examples 强制+驼峰 operationId）；.golangci.yml；Makefile lint-api。
+- **验证结果**：本地 spectral 无 error、go test 4 用例全绿；工作流已推送，首跑跟踪中。
+- **踩坑**：spectral 内置规则名差异；kin-openapi 大写方法名；CI stub webui 策略。
+- **遗留**：Actions 首跑结果确认后卡片转 done；main 分支保护待网页启用。
+
 ## 2026-08-25 · M0-008 embed 打通：单二进制全链路贯通
 
 - **做了**：webui embed 包+同步脚本（接入 make build 管线）；NoRoute 三分支路由（API Problem 化/静态回写/SPA fallback）；离线零外链断言脚本；fallback 单测 3 例。
