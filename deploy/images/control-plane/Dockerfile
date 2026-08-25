@@ -8,7 +8,8 @@ COPY web/packages ./packages
 COPY web/internal ./internal
 COPY web/scripts ./scripts
 COPY web/turbo.json web/vitest.config.ts ./
-RUN pnpm install --frozen-lockfile --ignore-scripts \
+RUN pnpm install --frozen-lockfile \
+ && pnpm -r run stub --if-present \
  && pnpm --filter @vben/web-ipam run typecheck \
  && pnpm run build:ipam
 
