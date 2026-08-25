@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-25 · M0-005 验收通过：CI 六道闸全绿
+
+- **做了**：修复 golangci-lint 首跑两处 staticcheck（GetSpec 替换弃用 API、QF1007 条件合并）；二次运行 success（32815471234）。
+- **验证结果**：api-lint/go-ci/web-ci/compose-smoke 四 job 全绿；闸②路由覆盖率测试随 go-ci 常驻生效。
+- **里程碑状态**：M0 进度 88%，仅剩 M0-006 compose 骨架（需 docker 环境实施与验证）。
+
 ## 2026-08-25 · M0-005 CI 六道闸落地
 
 - **做了**：GitHub Actions 五 job（api-lint/go-ci/openapi-diff/web-ci/compose-smoke）对应 §12.4 六闸；闸②固化为 Go 测试 TestRoutesCoveredBySpec；.spectral.yaml 规则集（examples 强制+驼峰 operationId）；.golangci.yml；Makefile lint-api。
