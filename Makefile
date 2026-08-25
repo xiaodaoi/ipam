@@ -31,3 +31,6 @@ gen-check: ## 校验 api/gen 与重新生成结果一致（CI 门禁用，diff �
 clean: ## 清理构建产物
 	@rm -rf bin cmd/control-plane/webui/dist
 	@echo "cleaned"
+
+gen-proto: ## 再生 proto/gen/coherence（插件版本钉于脚本注释）
+	@bash scripts/gen-proto.sh

@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package ipam.coherence.v1;
+
+option go_package = "github.com/xiaodaoi/ipam/proto/gen/coherence/v1;coherencev1";
+
+// Coherence 服务：Kea hook(libcoherence.so) ↔ coherence-daemon 的唯一通道。
+// 传输：gRPC over UDS(/run/ipam/coherence.sock)，契约原文见架构文档 §2.1。
+service Coherence {
+  // hook 在 pkt6_receive 时同步调用：<1ms 目标，超时 50ms 即走本地降级
+  rpc ResolveBinding(ResolveRequest) returns (ResolveResponse);
+  // hook 在 lease6_commit/lease4_commit 时异步上报（fire-and-forget）
+  rpc ReportLease(LeaseReport) returns (Ack);
+}
+
+message ResolveRequest {
+  // 归一化小写冒号格式 aa:bb:cc:dd:ee:ff
+  string mac = 1;
+  // 原始 DUID（供审计）
+  string duid = 2;
+  // Kea subnet-id
+  uint32 subnet_id = 3;
+}
+
+message ResolveResponse {
+  bool hit = 1;
+  // 计算结果，如 2406::10:61:172:10
+  string ipv6 = 2;
+  string template_id = 3;
+  enum Source {
+    CACHE = 0;
+    COMPUTED = 1;
+    NONE = 2;
+  }
+  Source source = 4;
+}
+
+enum LeaseEvent {
+  COMMIT = 0;
+  RENEW = 1;
+  EXPIRE = 2;
+  RELEASE = 3;
+}
+
+message LeaseReport {
+  string mac = 1;
+  string duid = 2;
+  uint32 subnet_id = 3;
+  LeaseEvent event = 4;
+  string ipv4 = 5;
+  string ipv6 = 6;
+  // 来自 option12/FQDN，可空
+  string hostname = 7;
+}
+
+message Ack {
+  bool ok = 1;
+  string message = 2;
+}

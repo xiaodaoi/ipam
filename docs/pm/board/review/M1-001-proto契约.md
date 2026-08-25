@@ -2,7 +2,7 @@
 
 | 字段 | 内容 |
 |---|---|
-| ID | M1-001 | 状态 | backlog | 来源 | §2.1、D5 |
+| ID | M1-001 | 状态 | done | 来源 | §2.1、D5 |
 | 负责 | opencode(backend) | 创建/更新 | 2026-08-25 |
 
 ## 目标
@@ -14,3 +14,9 @@
 
 ## DoD
 单测 N/A / lint / 文档同步 §2.1 无偏差 / spec N/A / commit [M1-001]
+
+## 实施记录
+
+### 2026-08-25 · 会话1
+- **做了**：coherence.proto（ResolveBinding/ReportLease+LeaseEvent 枚举）；scripts/gen-proto.sh（protoc36.0+插件钉版 v1.36.10/v1.6.2）；生成物入 proto/gen；Makefile gen-proto；grpc 依赖入 go.mod。
+- **验证**：build ✓；枚举命名踩坑一次（双重前缀→改裸值名由生成器剥离）。

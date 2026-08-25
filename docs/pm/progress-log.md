@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-25 · M1 启动：M1-001/M1-002 完成
+
+- **做了**：工具链用户态安装（protoc36.0+gen-go/grpc 钉版）；coherence.proto 契约落地并生成；daemon 核心——B/A 型映射算法（§4.3 样例断言）、ResolveBinding 三态、ReportLease 生命周期、MemStore、UDS 入口。
+- **验证结果**：5 单测全绿；build/vet/golangci-lint 0 issues。
+- **遗留**：PG 接线与快照(M1-004)、C++ hook(M1-003)、PoC 环境(M1-005)。
+
 ## 2026-08-25 · M0-006 验收通过：闸⑥真实 docker 冒烟全绿
 
 - **迭代过程（4 轮红→绿，诊断经 ci-diag 分支匿名可读）**：①CI 无 .env→注入 POSTGRES_PASSWORD；②corepack 签名坑→npm 直装 pnpm+补 .npmrc；③--ignore-scripts 跳过 stub 致 @vben/vite-config 无法解析→显式执行 stub；④容器无 git/不继承 CI 变量致 lefthook prepare 失败→注入 IS_CI/CI。
