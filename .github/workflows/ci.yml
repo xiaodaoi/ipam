@@ -93,6 +93,8 @@ jobs:
   # ── 闸⑥ compose 冒烟（M0-006 落地前自动跳过）──
   compose-smoke:
     runs-on: ubuntu-latest
+    env:
+      POSTGRES_PASSWORD: ci-smoke-password
     steps:
       - uses: actions/checkout@v4
       - name: smoke
