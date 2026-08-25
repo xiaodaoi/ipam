@@ -93,6 +93,8 @@ jobs:
   # ── 闸⑥ compose 冒烟（M0-006 落地前自动跳过）──
   compose-smoke:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       POSTGRES_PASSWORD: ci-smoke-password
     steps:
@@ -105,13 +107,22 @@ jobs:
           cd deploy/compose && docker compose up -d --wait
           curl -fsS http://127.0.0.1:8443/api/v1/system/info | grep -q ipam-control-plane
           docker compose down -v
-      - name: diagnostics
+      - name: collect diagnostics
         if: failure()
         run: |
           cd deploy/compose
-          { docker compose ps -a; echo; docker compose logs --tail=200; } > diag.txt 2>&1 || true
-      - uses: actions/upload-artifact@v4
+          {
+            echo "== compose build (retry, captured) =="
+            docker compose build --no-cache --progress=plain 2>&1 | tail -150
+            echo; echo "== ps ==";       docker compose ps -a
+            echo; echo "== logs ==";     docker compose logs --tail=200
+            echo; echo "== versions =="; docker version --format '{{.Server.Version}}'
+          } > diag.txt 2>&1 || true
+      - name: push diagnostics branch
         if: failure()
-        with:
-          name: compose-smoke-diag
-          path: deploy/compose/diag.txt
+        run: |
+          git config user.email "ci@ipam.local"
+          git config user.name "ci-diag"
+          cp deploy/compose/diag.txt diag-latest.txt
+          git add diag-latest.txt && git commit -m "ci diag ${GITHUB_RUN_ID}"
+          git push -f origin "HEAD:refs/heads/ci-diag"
