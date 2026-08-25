@@ -1,8 +1,8 @@
 # control-plane 单镜像：前端构建 → Go embed 编译 → jammy 运行时（D9/§13.3）
 FROM node:22-bookworm-slim AS web
 WORKDIR /src/web
-RUN corepack enable
-COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
+RUN npm install -g pnpm@10.33.4
+COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml web/.npmrc ./
 COPY web/apps ./apps
 COPY web/packages ./packages
 COPY web/internal ./internal
@@ -14,7 +14,8 @@ RUN pnpm install --frozen-lockfile --ignore-scripts \
 
 FROM golang:1.27-bookworm AS build
 WORKDIR /src
-ENV GOPROXY=https://goproxy.cn,direct
+ENV GOPROXY=https://goproxy.cn,direct \
+    GOTOOLCHAIN=auto
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .

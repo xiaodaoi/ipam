@@ -105,3 +105,9 @@ jobs:
           cd deploy/compose && docker compose up -d --wait
           curl -fsS http://127.0.0.1:8443/api/v1/system/info | grep -q ipam-control-plane
           docker compose down -v
+      - name: diagnostics
+        if: failure()
+        run: |
+          cd deploy/compose
+          docker compose ps -a || true
+          docker compose logs --tail=100 || true
