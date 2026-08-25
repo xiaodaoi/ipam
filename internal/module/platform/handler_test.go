@@ -1,0 +1,80 @@
+package platform
+
+import (
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/gin-gonic/gin"
+
+	apigen "github.com/xiaodaoi/ipam/api/gen/go"
+)
+
+func newTestRouter(h *Handler) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	apigen.RegisterHandlersWithOptions(r, h, apigen.GinServerOptions{BaseURL: "/api/v1"})
+	return r
+}
+
+func TestGetSystemInfo_OK(t *testing.T) {
+	r := newTestRouter(NewHandler("9.9.9-test"))
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/system/info", nil))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var info apigen.SystemInfo
+	if err := json.Unmarshal(w.Body.Bytes(), &info); err != nil {
+		t.Fatalf("body not json: %v", err)
+	}
+	if info.Name != "ipam-control-plane" || info.Version != "9.9.9-test" || !info.Ready || info.GoVersion == "" {
+		t.Fatalf("unexpected info: %+v", info)
+	}
+}
+
+func TestGetSystemInfo_DBDown_NotReady(t *testing.T) {
+	h := NewHandler("9.9.9-test")
+	h.SetDBProbe(func() error { return errors.New("db down") })
+
+	w := httptest.NewRecorder()
+	newTestRouter(h).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/system/info", nil))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200（降级而非失败）", w.Code)
+	}
+	var info apigen.SystemInfo
+	_ = json.Unmarshal(w.Body.Bytes(), &info)
+	if info.Ready {
+		t.Fatal("ready = true, want false when dbProbe fails")
+	}
+}
+
+func TestWriteProblem_RFC9457(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.GET("/boom", func(c *gin.Context) {
+		WriteProblem(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "PLATFORM_DB_DOWN", "数据库暂不可用")
+	})
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/boom", nil))
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", w.Code)
+	}
+	if ct := w.Header().Get("Content-Type"); ct != "application/problem+json" {
+		t.Fatalf("content-type = %q, want application/problem+json", ct)
+	}
+	var p apigen.Problem
+	if err := json.Unmarshal(w.Body.Bytes(), &p); err != nil {
+		t.Fatalf("bad problem body: %v", err)
+	}
+	if p.Code == nil || *p.Code != "PLATFORM_DB_DOWN" || p.Status != 500 || p.Type == "" {
+		t.Fatalf("problem fields incomplete: %+v", p)
+	}
+}

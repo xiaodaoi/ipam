@@ -1,0 +1,112 @@
+openapi: 3.1.0
+info:
+  title: IPAM Control Plane API
+  version: 0.1.0
+  description: |
+    IPAM 一体化产品控制面 REST API（唯一事实源，D14 Spec-First）。
+
+    规范要点（架构文档 §12）：operationId 即 AI 工具名，发布后不可改；
+    错误模型统一 RFC 9457 Problem；每个 operation 必含描述与成功/错误双示例；
+    写操作支持 dry_run 预检与 Idempotency-Key 幂等头。
+servers:
+  - url: /api/v1
+tags:
+  - name: platform
+    description: 平台能力（系统信息/健康/认证/审计）
+paths:
+  /system/info:
+    get:
+      operationId: getSystemInfo
+      tags: [platform]
+      summary: 查询控制面系统信息
+      description: |
+        返回控制面版本、运行时与就绪状态。
+        用途：仪表盘「服务健康」卡片数据源与负载均衡探活。
+        所需权限：匿名可读（登录页即需探活）；管理类端点默认 bearerAuth。
+      security: []
+      responses:
+        '200':
+          description: 系统信息
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemInfo'
+              examples:
+                ok:
+                  summary: 正常运行
+                  value:
+                    name: ipam-control-plane
+                    version: 0.1.0-dev
+                    goVersion: go1.27.0
+                    now: '2026-08-25T08:00:00Z'
+                    ready: true
+        '500':
+          $ref: '#/components/responses/Problem'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 登录颁发的访问令牌；权限 scope 与前端按钮权限码同源定义（§13.2）。
+  schemas:
+    SystemInfo:
+      type: object
+      required: [name, version, goVersion, now, ready]
+      properties:
+        name:
+          type: string
+          description: 服务标识，固定值 ipam-control-plane
+        version:
+          type: string
+          description: 语义化版本号，构建期经 ldflags 注入
+        goVersion:
+          type: string
+          description: 编译所用 Go 运行时版本（runtime.Version()）
+        now:
+          type: string
+          format: date-time
+          description: 服务端当前时间（UTC，RFC3339）
+        ready:
+          type: boolean
+          description: 关键依赖（PostgreSQL）可达则为 true；false 时仪表盘服务健康亮黄
+    Problem:
+      type: object
+      description: RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          description: 问题类型 URI，稳定不变供程序匹配
+        title:
+          type: string
+          description: 人类可读摘要
+        status:
+          type: integer
+          description: HTTP 状态码
+        detail:
+          type: string
+          description: 具体原因说明（不含敏感信息）
+        code:
+          type: string
+          description: 业务错误码（如 PLATFORM_DB_DOWN），枚举随端点文档化
+        instance:
+          type: string
+          description: 出错请求的路径
+  responses:
+    Problem:
+      description: 错误响应（RFC 9457 Problem Details）
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            internalError:
+              summary: 内部错误典型样例
+              value:
+                type: 'https://ipam.local/problems/internal'
+                title: Internal Server Error
+                status: 500
+                detail: 数据库暂不可用
+                code: PLATFORM_DB_DOWN
+                instance: /api/v1/system/info

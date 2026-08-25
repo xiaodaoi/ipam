@@ -1,0 +1,8 @@
+# oapi-codegen 生成配置（M0-004 定义）
+# 再生唯一途径：make gen（scripts/gen-openapi.sh）；api/gen 禁止手改（AGENTS.md 禁改区）
+package: apigen
+output: api/gen/go/api.gen.go
+generate:
+  models: true        # SystemInfo / Problem 强类型
+  gin-server: true    # Gin ServerInterface + 注册器
+  embedded-spec: true # spec 内嵌，供运行时校验与 /openapi.json 导出

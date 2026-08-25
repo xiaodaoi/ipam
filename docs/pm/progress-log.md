@@ -4,6 +4,14 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-25 · M0-004 后端腿：OpenAPI→Gin 端到端贯通
+
+- **做了**：Go1.27 用户态安装+GOPROXY 切 goproxy.cn；仓库首个 spec（GET /api/v1/system/info，§12.2 全要素示范）；oapi-codegen v2.8.0 生成 Gin 接口；platform.Handler + WriteProblem（RFC9457）；main.go 装配 :8443。
+- **改动范围**：api/openapi、api/gen/go、internal/module/platform、cmd/control-plane、go.mod/sum、LICENSES.md。
+- **验证结果**：build/vet/test(3) 全绿；gen-check 一致性 OK；二进制冒烟 curl 返回正确 JSON。
+- **踩坑**：oapi 配置键 generate:；v2.8 前缀走 GinServerOptions.BaseURL（已留痕卡片作模板）。
+- **遗留**：TS 客户端与页面调用并入 M0-007/M0-008 补验；golangci-lint 入 M0-005 CI；PG 探针接线在 M0-006。
+
 ## 2026-08-25 · M0-003 Makefile 统一构建入口落地
 
 - **做了**：Makefile（help/doctor/build/test/lint/gen/gen-check/clean）薄封装化；三个支撑脚本——make-part.sh 分部执行器、gen-openapi.sh 再生+一致性门禁、doctor.sh 九项工具自检（--strict CI 模式）；AGENTS.md 命令节转正。
