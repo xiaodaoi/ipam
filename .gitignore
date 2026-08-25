@@ -7,6 +7,7 @@
 node_modules/
 web/.turbo/
 **/.turbo/
+web/packages/**/dist/
 **/*.tsbuildinfo
 web/apps/*/dist/
 cmd/control-plane/webui/dist/
@@ -26,3 +27,4 @@ secrets/
 # 运行产物
 /var/lib/ipam/
 *.log
+web/apps/*/dist.zip

@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-25 · M0-007 Vben Admin v5.7.0 底座引入与裁剪
+
+- **做了**：锁定 v5.7.0 引入 web/；按官方精简指南删除 4 个备用 UI 应用/backend-mock/playground/docs；web-antd→web-ipam 改造；根 scripts 同步。
+- **验证结果**：pnpm install(2m36s)/build:ipam(11 tasks)/typecheck 三绿；packages/** 与上游源码零差异（禁改区基线确立）。
+- **踩坑**：Node26 无 corepack → npm 用户态装 pnpm@10；mv 嵌套目录陷阱已纠正。
+- **遗留**：登录 Bearer 对接与 TS 客户端页面接入（补 M0-004 前端腿）→ M0-008。
+
 ## 2026-08-25 · M0-004 后端腿：OpenAPI→Gin 端到端贯通
 
 - **做了**：Go1.27 用户态安装+GOPROXY 切 goproxy.cn；仓库首个 spec（GET /api/v1/system/info，§12.2 全要素示范）；oapi-codegen v2.8.0 生成 Gin 接口；platform.Handler + WriteProblem（RFC9457）；main.go 装配 :8443。
