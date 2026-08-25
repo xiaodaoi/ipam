@@ -4,6 +4,18 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-25 · M0-003 Makefile 统一构建入口落地
+
+- **做了**：Makefile（help/doctor/build/test/lint/gen/gen-check/clean）薄封装化；三个支撑脚本——make-part.sh 分部执行器、gen-openapi.sh 再生+一致性门禁、doctor.sh 九项工具自检（--strict CI 模式）；AGENTS.md 命令节转正。
+- **改动范围**：Makefile、scripts/×3、AGENTS.md；卡片 backlog→doing→review。
+- **验证结果**：四路守卫 skip 且 rc=0；doctor 报告与实际工具链一致；strict 模式缺硬依赖正确退出 1。
+- **环境事实**：沙箱无 make/root，验证走 scripts 直调路径（已写入 AGENTS.md 回退说明）。
+- **遗留**：gen 端到端一致性待 M0-004 spec 就绪补跑；shellcheck 列入 M0-005 CI。
+
+## 2026-08-25 · M0-002 验收通过
+
+- review→done（人工确认）；M0 进度 2/8。
+
 ## 2026-08-25 · M0-002 仓库目录骨架落地
 
 - **做了**：领取 M0-002 任务卡（backlog→doing→review）；按 §14 创建全量目录树并配 README；新增 `LICENSES.md` 许可矩阵初版与 `docs/README.md`。

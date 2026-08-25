@@ -8,14 +8,15 @@ IPAM 一体化产品：IPAM + DHCPv4/v6(Kea) + DNS(Unbound) + 统一日志(Click
 
 ## 常用命令
 
-> M0-003 落地后生效；当前阶段按任务卡内注明的临时命令执行。
-
 ```bash
-make build        # 构建全部
+make build        # 构建全部（Go + 前端；未就绪部分自动跳过）
 make test         # go test + web 单测
 make lint         # golangci-lint + eslint/oxlint
-make gen          # 从 api/openapi 重新生成代码（api/gen 唯一再生途径）
+make gen          # 从 api/openapi 再生 api/gen（唯一再生途径）
+make doctor       # 工具链自检（首次使用先跑这个）
 ```
+
+> 目标均为薄封装：实际逻辑在 `scripts/*.sh`；无 make 的环境可直接调用同名脚本（`bash scripts/make-part.sh test` 等）。工具缺失时目标会明确 skip 而非报错，CI 侧用 `--strict` 收紧。
 
 ## 禁改区
 
