@@ -3,7 +3,7 @@
 | 字段 | 内容 |
 |---|---|
 | ID | M0-006 |
-| 状态 | review（代码完备；运行时验证由 CI 闸⑥在 docker 环境真实执行） |
+| 状态 | done |
 | 来源 | D9、§7 |
 | 负责 | opencode(devops) |
 | 创建 | 2026-08-25 |
@@ -36,6 +36,10 @@
 ## 实施记录
 
 ### 2026-08-25 · 会话1
+
+### 2026-08-25 · 验收
+
+- CI 闸⑥真实冒烟通过（历经4轮迭代：env注入→stub→IS_CI/git），卡片转 done。
 
 - **做了**：compose 双服务（PG16-alpine 带健康检查+迁移挂载、control-plane 三阶段镜像 build）；install.sh 预检（docker/compose v2/端口占用/.env 弱口令拦截）→up --wait→curl 冒烟；0001_init.sql 落地 §3 全部核心表（幂等 IF NOT EXISTS）。
 - **设计取舍**：① 运行时用 jammy 非 root 用户(10001)；② TLS 终结留 M5（当前 HTTP 冒烟，卡片如实记录）；③ GOPROXY 内置 goproxy.cn 保证构建网络。

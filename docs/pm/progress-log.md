@@ -4,6 +4,11 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-25 · M0-006 验收通过：闸⑥真实 docker 冒烟全绿
+
+- **迭代过程（4 轮红→绿，诊断经 ci-diag 分支匿名可读）**：①CI 无 .env→注入 POSTGRES_PASSWORD；②corepack 签名坑→npm 直装 pnpm+补 .npmrc；③--ignore-scripts 跳过 stub 致 @vben/vite-config 无法解析→显式执行 stub；④容器无 git/不继承 CI 变量致 lefthook prepare 失败→注入 IS_CI/CI。
+- **里程碑状态**：**M0 地基 100% 完成**（8/8 卡交付，4 张 review 待批量归档）；M1 五张卡已生成入 backlog。
+
 ## 2026-08-25 · M0-006 compose 骨架（验证交由 CI 闸⑥）
 
 - **做了**：compose 双服务（PG16 健康检查+§3 八表迁移挂载 / control-plane 三阶段镜像）；install.sh 预检+冒烟；闸⑥解除自跳过，本次推送即首次真实验证。
