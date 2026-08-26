@@ -10,7 +10,8 @@ COPY . .
 RUN go build -ldflags "-s -w" -o /out/coherence-daemon ./cmd/coherence-daemon
 
 FROM ubuntu:jammy
-RUN sed -i 's|http://archive.ubuntu.com|https://mirrors.aliyun.com|g' /etc/apt/sources.list
+ARG APT_MIRROR=""
+RUN if [ -n "$APT_MIRROR" ]; then sed -i "s|http://archive.ubuntu.com|$APT_MIRROR|g; s|http://security.ubuntu.com|$APT_MIRROR|g" /etc/apt/sources.list; fi \
 COPY --from=build /out/coherence-daemon /usr/local/bin/coherence-daemon
 RUN mkdir -p /run/ipam
 ENTRYPOINT ["/usr/local/bin/coherence-daemon"]

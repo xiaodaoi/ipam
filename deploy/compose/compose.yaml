@@ -21,6 +21,7 @@ services:
     build:
       context: ../..
       dockerfile: deploy/images/control-plane/Dockerfile
+      args: { APT_MIRROR: "${APT_MIRROR:-}" }
     image: ipam/control-plane:${IPAM_VERSION:-0.1.0-dev}
     depends_on:
       postgresql:
@@ -35,6 +36,7 @@ services:
     build:
       context: ../..
       dockerfile: deploy/images/coherence-daemon/Dockerfile
+      args: { APT_MIRROR: "${APT_MIRROR:-}" }
     image: ipam/coherence-daemon:${IPAM_VERSION:-0.1.0-dev}
     depends_on:
       postgresql:
@@ -52,6 +54,7 @@ services:
     build:
       context: ../..
       dockerfile: deploy/images/unbound/Dockerfile
+      args: { APT_MIRROR: "${APT_MIRROR:-}" }
     image: ipam/unbound:${IPAM_VERSION:-0.1.0-dev}
     depends_on:
       coherence-daemon:
@@ -78,7 +81,7 @@ services:
     build:
       context: ../..
       dockerfile: deploy/images/kea/Dockerfile
-      args: { COMPONENT: kea-dhcp6-server }
+      args: { COMPONENT: kea-dhcp6-server , APT_MIRROR: "${APT_MIRROR:-}" }
     command: ["kea-dhcp6", "-c", "/etc/kea/kea-dhcp6.conf"]
     volumes:
       - ../../config/kea/kea-dhcp6.conf:/etc/kea/kea-dhcp6.conf:ro
@@ -89,7 +92,7 @@ services:
     build:
       context: ../..
       dockerfile: deploy/images/kea/Dockerfile
-      args: { COMPONENT: kea-ctrl-agent }
+      args: { COMPONENT: kea-ctrl-agent , APT_MIRROR: "${APT_MIRROR:-}" }
     depends_on:
       - kea-dhcp4
       - kea-dhcp6

@@ -1,7 +1,8 @@
 # unbound — K8 约束：jammy 系统源仅 1.13.1；NLnetLabs apt 源域名在部分网络不可解析，
 # 故采用 GitHub Releases 源码钉版自编译（版本完全确定性，满足 ≥1.16）。
 FROM ubuntu:jammy
-RUN sed -i 's|http://archive.ubuntu.com|https://mirrors.aliyun.com|g; s|http://security.ubuntu.com|https://mirrors.aliyun.com|g' /etc/apt/sources.list
+ARG APT_MIRROR=""
+RUN if [ -n "$APT_MIRROR" ]; then sed -i "s|http://archive.ubuntu.com|$APT_MIRROR|g; s|http://security.ubuntu.com|$APT_MIRROR|g" /etc/apt/sources.list; fi \
 ARG UNBOUND_VERSION=1.26.0
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
