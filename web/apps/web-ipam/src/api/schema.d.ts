@@ -4,6 +4,103 @@
  */
 
 export interface paths {
+    "/dns/blocklists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询封禁名单库 */
+        get: operations["listBlocklists"];
+        put?: never;
+        /** 创建名单库 */
+        post: operations["createBlocklist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dns/blocklists/{listId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 订阅源同步（失败保留旧版）
+         * @description kind=feed 时从 syncUrl 拉取域名列表；逐行解析+去重入库；版本+1。
+         *     拉取/解析失败返回 502 且保留旧数据（K 风险项）。
+         *     所需 scope 为 blocklist.write。
+         */
+        post: operations["syncBlocklist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dns/blocklists/{listId}/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询名单条目 */
+        get: operations["listBlocklistEntries"];
+        put?: never;
+        /** 添加条目 */
+        post: operations["addBlocklistEntry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dns/policy-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询策略分组 */
+        get: operations["listPolicyGroups"];
+        put?: never;
+        /** 创建策略分组（view 唯一） */
+        post: operations["createPolicyGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dns/policy-groups/{groupId}/compile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 增量编译该分组的 RPZ zone 并单区刷新
+         * @description 仅重写受影响策略组 zonefile（增量，§5.3）；去重后条目→zonefile→auth_zone_reload。
+         *     返回编译结果与重载命令。所需 scope 为 blocklist.write。
+         */
+        post: operations["compilePolicyGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dns/zones": {
         parameters: {
             query?: never;
@@ -743,6 +840,106 @@ export interface components {
             items: components["schemas"]["DnsRecord"][];
             total?: number;
         };
+        /** @description 封禁名单库（内置/自定义/订阅源，FR-B-11~14、D13）。 */
+        Blocklist: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @enum {string} */
+            kind: "builtin" | "custom" | "feed";
+            /** @description kind=feed 的订阅地址(HTTP) */
+            syncUrl?: string | null;
+            /** Format: date-time */
+            lastSync?: string | null;
+            /** @description 版本号（每次同步+1，回滚用） */
+            version: number;
+        };
+        BlocklistCreate: {
+            name: string;
+            /**
+             * @default custom
+             * @enum {string}
+             */
+            kind: "builtin" | "custom" | "feed";
+            syncUrl?: string | null;
+        };
+        /** @description 名单条目（RPZ 语义）。 */
+        BlocklistEntry: {
+            /** Format: uuid */
+            listId: string;
+            /** @enum {string} */
+            triggerType: "qname" | "response_ip";
+            /** @description 域名（*.bad.com 通配）或 CIDR */
+            pattern: string;
+            /**
+             * @default nxdomain
+             * @enum {string}
+             */
+            action: "nxdomain" | "drop" | "tcp_only" | "redirect";
+            /** @description action=redirect 的提示页记录名 */
+            redirectTarget?: string | null;
+            /** @description 拦截报表分类标签 */
+            category?: string;
+        };
+        BlocklistEntryCreate: {
+            /** @enum {string} */
+            triggerType: "qname" | "response_ip";
+            pattern: string;
+            /** @enum {string} */
+            action: "nxdomain" | "drop" | "tcp_only" | "redirect";
+            redirectTarget?: string | null;
+            category?: string;
+        };
+        /** @description 订阅源同步结果。 */
+        BlocklistSyncResult: {
+            /** Format: uuid */
+            listId: string;
+            version: number;
+            /** @description 本次新增去重后条数 */
+            added: number;
+            /** @description 同步后库内条数 */
+            total: number;
+        };
+        BlocklistList: {
+            items: components["schemas"]["Blocklist"][];
+            total?: number;
+        };
+        BlocklistEntryList: {
+            items: components["schemas"]["BlocklistEntry"][];
+            total?: number;
+        };
+        /** @description 封禁策略分组（view×网段×名单×时段，FR-B-15/16、§5.1）。 */
+        PolicyGroup: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @description 对应 unbound view 名（唯一） */
+            viewName: string;
+            /** @description 匹配来源网段 */
+            cidrs: string[];
+            /** @description 生效名单集合(白单优先) */
+            listIds: string[];
+            /** @description 时段表（cron 展开） */
+            schedule?: Record<string, never> | null;
+        };
+        PolicyGroupCreate: {
+            name: string;
+            viewName: string;
+            cidrs: string[];
+            listIds: string[];
+            schedule?: Record<string, never> | null;
+        };
+        /** @description RPZ 增量编译结果。 */
+        RpzCompileResult: {
+            /** @description rpz zone 名（view_name.rpz） */
+            zone: string;
+            /** @description 去重后条目数 */
+            entries: number;
+            /** @description zonefile 路径 */
+            path: string;
+            /** @description 如 unbound-control auth_zone_reload students.rpz */
+            reloadCommand: string;
+        };
         /** @description RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。 */
         Problem: {
             /** @description 问题类型 URI，稳定不变供程序匹配 */
@@ -871,6 +1068,209 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listBlocklists: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 名单列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlocklistList"];
+                    examples: unknown;
+                };
+            };
+        };
+    };
+    createBlocklist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BlocklistCreate"];
+            };
+        };
+        responses: {
+            /** @description 已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Blocklist"];
+                };
+            };
+        };
+    };
+    syncBlocklist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 同步完成 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlocklistSyncResult"];
+                };
+            };
+            /** @description 订阅源不可达/解析失败（旧版保留） */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        code?: string;
+                    };
+                    examples: unknown;
+                };
+            };
+        };
+    };
+    listBlocklistEntries: {
+        parameters: {
+            query?: {
+                /** @description 关键字（pattern 模糊） */
+                q?: string;
+            };
+            header?: never;
+            path: {
+                listId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 条目列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlocklistEntryList"];
+                    examples: unknown;
+                };
+            };
+        };
+    };
+    addBlocklistEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BlocklistEntryCreate"];
+            };
+        };
+        responses: {
+            /** @description 已添加 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlocklistEntry"];
+                };
+            };
+        };
+    };
+    listPolicyGroups: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 分组列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["PolicyGroup"][];
+                    };
+                    examples: unknown;
+                };
+            };
+        };
+    };
+    createPolicyGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PolicyGroupCreate"];
+            };
+        };
+        responses: {
+            /** @description 已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PolicyGroup"];
+                };
+            };
+        };
+    };
+    compilePolicyGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                groupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 编译完成 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RpzCompileResult"];
+                };
+            };
+        };
+    };
     listDnsZones: {
         parameters: {
             query?: never;

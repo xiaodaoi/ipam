@@ -1,0 +1,97 @@
+Blocklist:
+  type: object
+  description: 封禁名单库（内置/自定义/订阅源，FR-B-11~14、D13）。
+  required: [id, name, kind, version]
+  properties:
+    id: { type: string, format: uuid }
+    name: { type: string }
+    kind: { type: string, enum: [builtin, custom, feed] }
+    syncUrl: { type: string, nullable: true, description: kind=feed 的订阅地址(HTTP) }
+    lastSync: { type: string, format: date-time, nullable: true }
+    version: { type: integer, description: 版本号（每次同步+1，回滚用） }
+
+BlocklistCreate:
+  type: object
+  required: [name]
+  properties:
+    name: { type: string }
+    kind: { type: string, enum: [builtin, custom, feed], default: custom }
+    syncUrl: { type: string, nullable: true }
+
+BlocklistEntry:
+  type: object
+  description: 名单条目（RPZ 语义）。
+  required: [listId, triggerType, pattern, action]
+  properties:
+    listId: { type: string, format: uuid }
+    triggerType: { type: string, enum: [qname, response_ip] }
+    pattern: { type: string, description: "域名（*.bad.com 通配）或 CIDR" }
+    action: { type: string, enum: [nxdomain, drop, tcp_only, redirect], default: nxdomain }
+    redirectTarget: { type: string, nullable: true, description: action=redirect 的提示页记录名 }
+    category: { type: string, description: 拦截报表分类标签 }
+
+BlocklistEntryCreate:
+  type: object
+  required: [triggerType, pattern, action]
+  properties:
+    triggerType: { type: string, enum: [qname, response_ip] }
+    pattern: { type: string }
+    action: { type: string, enum: [nxdomain, drop, tcp_only, redirect] }
+    redirectTarget: { type: string, nullable: true }
+    category: { type: string }
+
+BlocklistSyncResult:
+  type: object
+  description: 订阅源同步结果。
+  required: [listId, version, added, total]
+  properties:
+    listId: { type: string, format: uuid }
+    version: { type: integer }
+    added: { type: integer, description: 本次新增去重后条数 }
+    total: { type: integer, description: 同步后库内条数 }
+
+BlocklistList:
+  type: object
+  required: [items]
+  properties:
+    items: { type: array, items: { $ref: 'blocklist.yaml#/Blocklist' } }
+    total: { type: integer }
+
+BlocklistEntryList:
+  type: object
+  required: [items]
+  properties:
+    items: { type: array, items: { $ref: 'blocklist.yaml#/BlocklistEntry' } }
+    total: { type: integer }
+
+PolicyGroup:
+  type: object
+  description: 封禁策略分组（view×网段×名单×时段，FR-B-15/16、§5.1）。
+  required: [id, name, viewName, cidrs, listIds]
+  properties:
+    id: { type: string, format: uuid }
+    name: { type: string }
+    viewName: { type: string, description: 对应 unbound view 名（唯一） }
+    cidrs: { type: array, items: { type: string }, description: 匹配来源网段 }
+    listIds: { type: array, items: { type: string, format: uuid }, description: 生效名单集合(白单优先) }
+    schedule: { type: object, nullable: true, description: 时段表（cron 展开） }
+
+PolicyGroupCreate:
+  type: object
+  required: [name, viewName, cidrs, listIds]
+  properties:
+    name: { type: string }
+    viewName: { type: string }
+    cidrs: { type: array, items: { type: string } }
+    listIds: { type: array, items: { type: string, format: uuid } }
+    schedule: { type: object, nullable: true }
+
+RpzCompileResult:
+  type: object
+  description: RPZ 增量编译结果。
+  required: [zone, entries, path, reloadCommand]
+  properties:
+    zone: { type: string, description: rpz zone 名（view_name.rpz） }
+    entries: { type: integer, description: 去重后条目数 }
+    path: { type: string, description: zonefile 路径 }
+    reloadCommand: { type: string, description: 如 unbound-control auth_zone_reload students.rpz }

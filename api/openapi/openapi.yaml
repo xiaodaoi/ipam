@@ -25,7 +25,19 @@ tags:
     description: 保留与静态绑定批量管理（FR-A-04、§13.4）
   - name: dns
     description: DNS 服务（上游/转发/解析记录/封禁，FR-B、§13.4）
+  - name: blocklist
+    description: DNS 封禁管控（RPZ 名单/策略分组/订阅源，FR-B-11~18、D13）
 paths:
+  /dns/blocklists:
+    $ref: './paths/blocklist.yaml#/BlocklistsCollection'
+  /dns/blocklists/{listId}:
+    $ref: './paths/blocklist.yaml#/BlocklistItem'
+  /dns/blocklists/{listId}/entries:
+    $ref: './paths/blocklist.yaml#/BlocklistEntriesCollection'
+  /dns/policy-groups:
+    $ref: './paths/blocklist.yaml#/PolicyGroupsCollection'
+  /dns/policy-groups/{groupId}/compile:
+    $ref: './paths/blocklist.yaml#/PolicyGroupItem'
   /dns/zones:
     $ref: './paths/dnszone.yaml#/DnsZonesCollection'
   /dns/zones/{zoneId}/records:
@@ -186,6 +198,26 @@ components:
       $ref: './components/schemas/dnszone.yaml#/DnsZoneList'
     DnsRecordList:
       $ref: './components/schemas/dnszone.yaml#/DnsRecordList'
+    Blocklist:
+      $ref: './components/schemas/blocklist.yaml#/Blocklist'
+    BlocklistCreate:
+      $ref: './components/schemas/blocklist.yaml#/BlocklistCreate'
+    BlocklistEntry:
+      $ref: './components/schemas/blocklist.yaml#/BlocklistEntry'
+    BlocklistEntryCreate:
+      $ref: './components/schemas/blocklist.yaml#/BlocklistEntryCreate'
+    BlocklistSyncResult:
+      $ref: './components/schemas/blocklist.yaml#/BlocklistSyncResult'
+    BlocklistList:
+      $ref: './components/schemas/blocklist.yaml#/BlocklistList'
+    BlocklistEntryList:
+      $ref: './components/schemas/blocklist.yaml#/BlocklistEntryList'
+    PolicyGroup:
+      $ref: './components/schemas/blocklist.yaml#/PolicyGroup'
+    PolicyGroupCreate:
+      $ref: './components/schemas/blocklist.yaml#/PolicyGroupCreate'
+    RpzCompileResult:
+      $ref: './components/schemas/blocklist.yaml#/RpzCompileResult'
     Problem:
       type: object
       description: RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。

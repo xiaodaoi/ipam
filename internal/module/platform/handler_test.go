@@ -38,6 +38,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		*dnsmodule.DnsHandler
 		*dnsmodule.ForwardHandler
 		*dnsmodule.ZoneHandler
+		*dnsmodule.BlocklistHandler
 	}{h,
 		ipam.NewOrgHandler(ipam.NewOrgService(orgStore)),
 		ipam.NewSubnetHandler(ipam.NewSubnetService(subRepo, orgStore, kea)),
@@ -46,6 +47,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		dnsmodule.NewDnsHandler(dnsSvc),
 		dnsmodule.NewForwardHandler(dnsmodule.NewForwardService(dnsmodule.NewMemForwardRuleRepo(), dnsmodule.NewMemUpstreamRepo(), fakeUnbound{})),
 		dnsmodule.NewZoneHandler(dnsmodule.NewZoneService(dnsmodule.NewMemZoneRepo(), fakeUnbound{}), nil),
+		dnsmodule.NewBlocklistHandler(dnsmodule.NewBlocklistService(dnsmodule.NewMemBlocklistRepo(), nil, fakeUnbound{}, "/tmp/rpz")),
 	}
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 	return r

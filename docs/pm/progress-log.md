@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-26 · M3-004 完成：封禁管控 API（RPZ 编译管线）
+
+- **做了**：blocklist 五端点+迁移 0007；订阅源同步（拉取/解析/去重/版本递增/失败保旧版）；增量编译（聚合名单→RPZ zone 动作映射→auth_zone_reload）；Pg/Mem 双仓储。
+- **验证结果**：5 新单测全绿；全仓 lint 0 issues。
+- **遗留**：zonefile 写盘+checkconf 容器实测 M3-006。
+
 ## 2026-08-26 · M3-003 完成：解析记录 API（auth-zone/联动视图）
 
 - **做了**：zones/records/linked/export 六端点 spec+迁移 0006；记录类型语法校验；zonefile 导出；变更触发 auth_zone_reload 单区刷新；联动只读视图（绑定→A/AAAA）。
