@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /tmp/unbound* /var/lib/apt/lists/*
 
 COPY config/unbound/unbound.conf /etc/unbound/unbound.conf
-RUN mkdir -p /run/ipam /var/lib/unbound \
+RUN useradd -r unbound && mkdir -p /run/ipam /var/lib/unbound \
     && unbound -V | head -2
 
 EXPOSE 53/udp 53/tcp
