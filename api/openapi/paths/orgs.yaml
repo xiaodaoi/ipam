@@ -1,0 +1,132 @@
+OrgsCollection:
+  get:
+    operationId: listOrgTree
+    tags: [org]
+    summary: 查询组织分组树
+    description: |
+      返回完整嵌套组织树（多级自定义分组，§13.4 主数据）。
+      用途：地址台账/DHCP 子网页左侧组织树、日志中心按组织展开 CIDR 过滤。
+    security: []
+    responses:
+      '200':
+        $ref: '../components/responses/org.yaml#/OrgTree'
+  post:
+    operationId: createOrg
+    tags: [org]
+    summary: 创建组织分组节点
+    description: |
+      在指定父节点下创建；parentId 缺省创建根。
+      所需 scope：org.write。同父下重名将返回 409 ORG_NAME_DUP。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/org.yaml#/OrgCreate'
+          examples:
+            underCompany:
+              summary: A公司下建研发部
+              value:
+                parentId: "11111111-1111-1111-1111-111111111111"
+                name: 研发部
+            root:
+              summary: 创建根节点
+              value:
+                name: 集团总部
+    responses:
+      '201':
+        $ref: '../components/responses/org.yaml#/OrgCreated'
+      '409':
+        description: 同父重名 / 父不存在
+        content:
+          application/problem+json:
+            schema:
+              schema:
+                            type: object
+                            description: RFC 9457 Problem (same shape as root spec components/schemas/Problem)
+                            required: [type, title, status]
+                            properties:
+                              type: { type: string }
+                              title: { type: string }
+                              status: { type: integer }
+                              detail: { type: string }
+                              code: { type: string }
+                              instance: { type: string }
+            examples:
+              dup:
+                value:
+                  type: "https://ipam.local/problems/org-name-dup"
+                  title: Conflict
+                  status: 409
+                  code: ORG_NAME_DUP
+                  detail: 同父下已存在同名分组
+                  instance: "/api/v1/orgs"
+
+OrgItem:
+  patch:
+    operationId: updateOrg
+    tags: [org]
+    summary: 改名与/或移动组织节点
+    description: |
+      移动目标不得为自身或其子孙（409 ORG_CYCLE）；移动将级联更新整棵子树的物化路径。
+      所需 scope：org.write。支持 Idempotency-Key。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - $ref: '../parameters/org.yaml#/OrgId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/org.yaml#/OrgUpdate'
+          examples:
+            rename:
+              value: { name: 新研发部 }
+    responses:
+      '200':
+        $ref: '../components/responses/org.yaml#/OrgUpdated'
+      '404':
+        $ref: '../components/responses/org.yaml#/NotFound404'
+      '409':
+        description: 目标父为自身子孙（ORG_CYCLE）
+        content:
+          application/problem+json:
+            schema:
+              schema:
+                            type: object
+                            description: RFC 9457 Problem (same shape as root spec components/schemas/Problem)
+                            required: [type, title, status]
+                            properties:
+                              type: { type: string }
+                              title: { type: string }
+                              status: { type: integer }
+                              detail: { type: string }
+                              code: { type: string }
+                              instance: { type: string }
+            examples:
+              cycle:
+                value:
+                  type: "https://ipam.local/problems/org-cycle"
+                  title: Conflict
+                  status: 409
+                  code: ORG_CYCLE
+                  instance: "/api/v1/orgs/22222222-2222-2222-2222-222222222222"
+  delete:
+    operationId: deleteOrg
+    tags: [org]
+    summary: 删除空组织节点
+    description: |
+      删除保护：存在子节点、或仍被子网/资产引用时返回 409 ORG_IN_USE（§13.4 删除保护）。
+      所需 scope：org.write。危险操作：x-risk-level destructive。
+    security: [{ bearerAuth: [] }]
+    x-risk-level: destructive
+    parameters:
+      - $ref: '../parameters/org.yaml#/OrgId'
+    responses:
+      '204':
+        description: 删除成功
+      '404':
+        $ref: '../components/responses/org.yaml#/NotFound404'
+      '409':
+        $ref: '../components/responses/org.yaml#/OrgInUseError'

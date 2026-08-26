@@ -12,6 +12,7 @@ import (
 
 	apigen "github.com/xiaodaoi/ipam/api/gen/go"
 	"github.com/xiaodaoi/ipam/cmd/control-plane/webui"
+	"github.com/xiaodaoi/ipam/internal/module/ipam"
 	"github.com/xiaodaoi/ipam/internal/module/platform"
 )
 
@@ -22,8 +23,14 @@ func newEngine(version string) *gin.Engine {
 	r.Use(gin.Recovery())
 
 	h := platform.NewHandler(version)
+	orgH := ipam.NewOrgHandler(ipam.NewOrgService(ipam.NewMemOrgStore()))
+	// 组合两域 handler 共同实现 ServerInterface（Go 嵌入提升）
+	full := struct {
+		*platform.Handler
+		*ipam.OrgHandler
+	}{h, orgH}
 	// spec servers.url=/api/v1 → 统一前缀注册
-	apigen.RegisterHandlersWithOptions(r, h, apigen.GinServerOptions{BaseURL: "/api/v1"})
+	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 
 	dist, err := webui.FS()
 	if err != nil {

@@ -13,7 +13,13 @@ servers:
 tags:
   - name: platform
     description: 平台能力（系统信息/健康/认证/审计）
+  - name: org
+    description: 组织分组主数据（多级自定义树，§13.4）
 paths:
+  /orgs:
+    $ref: './paths/orgs.yaml#/OrgsCollection'
+  /orgs/{orgId}:
+    $ref: './paths/orgs.yaml#/OrgItem'
   /system/info:
     get:
       operationId: getSystemInfo
@@ -70,6 +76,14 @@ components:
         ready:
           type: boolean
           description: 关键依赖（PostgreSQL）可达则为 true；false 时仪表盘服务健康亮黄
+    OrgNode:
+      $ref: './components/schemas/org.yaml#/OrgNode'
+    OrgTreeNode:
+      $ref: './components/schemas/org.yaml#/OrgTreeNode'
+    OrgCreate:
+      $ref: './components/schemas/org.yaml#/OrgCreate'
+    OrgUpdate:
+      $ref: './components/schemas/org.yaml#/OrgUpdate'
     Problem:
       type: object
       description: RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。
@@ -93,6 +107,9 @@ components:
         instance:
           type: string
           description: 出错请求的路径
+  parameters:
+    OrgId:
+      $ref: './parameters/org.yaml#/OrgId'
   responses:
     Problem:
       description: 错误响应（RFC 9457 Problem Details）

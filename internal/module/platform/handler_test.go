@@ -10,12 +10,17 @@ import (
 	"github.com/gin-gonic/gin"
 
 	apigen "github.com/xiaodaoi/ipam/api/gen/go"
+	"github.com/xiaodaoi/ipam/internal/module/ipam"
 )
 
 func newTestRouter(h *Handler) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	apigen.RegisterHandlersWithOptions(r, h, apigen.GinServerOptions{BaseURL: "/api/v1"})
+	full := struct {
+		*Handler
+		*ipam.OrgHandler
+	}{h, ipam.NewOrgHandler(ipam.NewOrgService(ipam.NewMemOrgStore()))}
+	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 	return r
 }
 

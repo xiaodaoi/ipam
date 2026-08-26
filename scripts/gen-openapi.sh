@@ -11,6 +11,10 @@ if [ ! -f "$spec" ]; then
   echo "skip gen: $spec 不存在（由任务 M0-004 创建最小 spec）"; exit 0
 fi
 command -v oapi-codegen >/dev/null 2>&1 || { echo "FAIL: oapi-codegen 未安装（go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest）"; exit 1; }
+# 多文件 spec 先 bundle（redocly）再生成，解决跨文件与递归引用
+bundled="$root/api/openapi/.gen-bundled.yaml"
+npx --yes @redocly/cli@1 bundle "$spec" -o "$bundled" --force >/dev/null
+spec="$bundled"
 
 cfg="$root/api/oapi-codegen.yaml"
 [ -f "$cfg" ] || { echo "FAIL: 缺少生成配置 $cfg（M0-004 定义）"; exit 1; }

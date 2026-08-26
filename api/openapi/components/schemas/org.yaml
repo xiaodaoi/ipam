@@ -1,0 +1,60 @@
+OrgNode:
+  type: object
+  description: 组织分组节点（多级自定义树，主数据，§13.4）。
+  required: [id, parentId, name, path]
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: 节点 ID
+    parentId:
+      type: [string, 'null']
+      description: 父节点 ID；根为 null
+    name:
+      type: string
+      description: 名称（同父下唯一），如 A公司/B部门
+    path:
+      type: string
+      description: 物化路径 "/<id>/<id>"，用于子树整体检索与组织→CIDR 展开
+
+OrgTreeNode:
+  type: object
+  required: [id, parentId, name, path, children]
+  properties:
+    id:
+      type: string
+      format: uuid
+    parentId:
+      type: [string, 'null']
+    name:
+      type: string
+    path:
+      type: string
+    children:
+      type: array
+      items:
+        $ref: '#/OrgTreeNode'
+
+OrgCreate:
+  type: object
+  required: [name]
+  properties:
+    parentId:
+      type: [string, 'null']
+      description: 父节点 ID；缺省创建根节点
+    name:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 同父下唯一名称
+
+OrgUpdate:
+  type: object
+  description: 改名与/或移动；移动目标不得为自身或其子孙（409 ORG_CYCLE）。
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 64
+    parentId:
+      type: [string, 'null']

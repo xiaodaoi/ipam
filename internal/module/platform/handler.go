@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	apigen "github.com/xiaodaoi/ipam/api/gen/go"
+	"github.com/xiaodaoi/ipam/internal/pkg/problem"
 )
 
 // Handler 实现 apigen.ServerInterface 中 platform 域端点。
@@ -40,22 +41,7 @@ func (h *Handler) GetSystemInfo(c *gin.Context) {
 	})
 }
 
-// WriteProblem 统一 RFC 9457 错误出口（§12.2 约定 4：code 供 AI 自纠重试）。
+// WriteProblem 统一 RFC 9457 错误出口（委托共享包）。
 func WriteProblem(c *gin.Context, status int, probType, code, detail string) {
-	p := apigen.Problem{
-		Type:   probType,
-		Title:  http.StatusText(status),
-		Status: status,
-	}
-	if code != "" {
-		p.Code = &code
-	}
-	if detail != "" {
-		p.Detail = &detail
-	}
-	if c.Request != nil && c.Request.URL != nil {
-		p.Instance = &c.Request.URL.Path
-	}
-	c.Header("Content-Type", "application/problem+json")
-	c.JSON(status, p)
+	problem.Write(c, status, probType, code, detail)
 }

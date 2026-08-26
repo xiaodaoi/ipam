@@ -1,0 +1,104 @@
+OrgTree:
+  description: 组织树（嵌套结构，listOrgTree）
+  content:
+    application/json:
+      schema:
+        type: array
+        items:
+          $ref: '../schemas/org.yaml#/OrgTreeNode'
+      examples:
+        ok:
+          summary: 两级示例（A公司/研发部）
+          value:
+            - id: "11111111-1111-1111-1111-111111111111"
+              parentId: null
+              name: A公司
+              path: "/11111111-1111-1111-1111-111111111111"
+              children:
+                - id: "22222222-2222-2222-2222-222222222222"
+                  parentId: "11111111-1111-1111-1111-111111111111"
+                  name: 研发部
+                  path: "/11111111-1111-1111-1111-111111111111/22222222-2222-2222-2222-222222222222"
+                  children: []
+
+OrgCreated:
+  description: 创建成功
+  content:
+    application/json:
+      schema:
+        $ref: '../schemas/org.yaml#/OrgNode'
+      examples:
+        ok:
+          summary: 在 A公司 下创建 B部门
+          value:
+            id: "33333333-3333-3333-3333-333333333333"
+            parentId: "11111111-1111-1111-1111-111111111111"
+            name: B部门
+            path: "/11111111-1111-1111-1111-111111111111/33333333-3333-3333-3333-333333333333"
+
+OrgUpdated:
+  description: 更新成功
+  content:
+    application/json:
+      schema:
+        $ref: '../schemas/org.yaml#/OrgNode'
+      examples:
+        ok:
+          summary: 移动为根并改名 C部门
+          value:
+            id: "33333333-3333-3333-3333-333333333333"
+            parentId: null
+            name: C部门
+            path: "/33333333-3333-3333-3333-333333333333"
+
+OrgInUseError:
+  description: 节点仍被引用或含子节点，禁止删除（409）
+  content:
+    application/problem+json:
+      schema:
+        schema:
+                            type: object
+                            description: RFC 9457 Problem (same shape as root spec components/schemas/Problem)
+                            required: [type, title, status]
+                            properties:
+                              type: { type: string }
+                              title: { type: string }
+                              status: { type: integer }
+                              detail: { type: string }
+                              code: { type: string }
+                              instance: { type: string }
+      examples:
+        inUse:
+          summary: 含子节点或被资产引用
+          value:
+            type: "https://ipam.local/problems/org-in-use"
+            title: Conflict
+            status: 409
+            code: ORG_IN_USE
+            detail: 该分组下存在子节点或仍被子网/资产引用
+            instance: "/api/v1/orgs/22222222-2222-2222-2222-222222222222"
+
+NotFound404:
+  description: 资源不存在（404）
+  content:
+    application/problem+json:
+      schema:
+        schema:
+                            type: object
+                            description: RFC 9457 Problem (same shape as root spec components/schemas/Problem)
+                            required: [type, title, status]
+                            properties:
+                              type: { type: string }
+                              title: { type: string }
+                              status: { type: integer }
+                              detail: { type: string }
+                              code: { type: string }
+                              instance: { type: string }
+      examples:
+        notFound:
+          value:
+            type: "https://ipam.local/problems/not-found"
+            title: Not Found
+            status: 404
+            code: ORG_NOT_FOUND
+            instance: "/api/v1/orgs/00000000-0000-0000-0000-000000000000"

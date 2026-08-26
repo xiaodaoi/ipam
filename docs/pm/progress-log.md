@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-26 · M2-001 完成：组织分组 API（spec 先行全流程首例）
+
+- **做了**：orgs 四端点 spec（树/建/改/删，含 409 ORG_IN_USE·ORG_CYCLE·ORG_NAME_DUP 与 RFC9457 内联结构）；gen 管线升级为 redocly bundle→oapi-codegen；ipam 模块 MemOrgStore+OrgService+OrgHandler；problem 包下沉 internal/pkg 解循环依赖；control-plane 双域 handler 组合。
+- **验证结果**：8 单测全绿；build/vet/lint 零问题；闸②路由覆盖率自动覆盖新端点。
+- **踩坑**：多文件 $ref 以引用方目录为基准；递归自引用需 bundle 后生成；uuid 参数类型转换。
+- **遗留**：pgx 持久化仓储随 M2-002 同批迁移落地；RBAC 中间件 M5 接线（spec 契约已声明）。
+
 ## 2026-08-26 · M0/M1 批量验收归档 + M2 任务卡生成
 
 - **做了**：review 列 7 卡（M0×4 + M1×3）批量验收转 done；M0 里程碑正式关闭。生成 M2 六张任务卡入 backlog：组织分组/子网池/地址台账/资产登记/保留绑定五组 API（全部 spec 先行）+ 前端组织树台账页。
