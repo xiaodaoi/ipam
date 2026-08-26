@@ -83,3 +83,28 @@ const Binding* FindBinding(const std::vector<Binding>& bindings,
 }
 
 }  // namespace ipam::coherence
+
+std::string ParseOption79(const std::string& payload) {
+  // RFC 6939：前 2 字节为硬件类型（网络序），以太网=1；其后为链路层地址
+  if (payload.size() < 3) return "";
+  const unsigned char htype =
+      static_cast<unsigned char>(payload[1]);  // 高字节通常为 0
+  if (htype != 0x01) return "";                // 仅支持以太网
+  std::string mac;
+  mac.reserve(17);
+  for (int i = 2; i < 8 && i < static_cast<int>(payload.size()); ++i) {
+    if (i > 2) mac.push_back(':');
+    unsigned char c = static_cast<unsigned char>(payload[i]);
+    char buf[3];
+    snprintf(buf, sizeof(buf), "%02x", c);
+    mac.append(buf);
+  }
+  return mac.size() == 17 ? mac : "";
+}
+
+std::string ResolveClientMac(const std::string& opt79Payload,
+                             const std::string& rawMacFallback) {
+  auto m = ParseOption79(opt79Payload);
+  if (!m.empty()) return m;
+  return NormalizeMac(rawMacFallback);
+}

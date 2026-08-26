@@ -56,8 +56,20 @@ static void TestFindBinding_DegradedMatch() {
   CHECK(FindBinding(bindings, "") == nullptr);
 }
 
+static void TestParseOption79() {
+  // 以太网 htype=1 + 6 字节 MAC
+  std::string payload = std::string("\x00\x01", 2) + "\xaa\xbb\xcc\xdd\xee\xff";
+  CHECK(ParseOption79(payload) == "aa:bb:cc:dd:ee:ff");
+  CHECK(ParseOption79("\x00\x06\x01\x02").empty());   // 非以太网
+  CHECK(ParseOption79("\x00").empty());                 // 过短
+  // 与归一化回退组合
+  CHECK(ResolveClientMac("", "AA-BB-CC-DD-EE-FF") == "aa:bb:cc:dd:ee:ff");
+  CHECK(ResolveClientMac(payload, "") == "aa:bb:cc:dd:ee:ff");
+}
+
 int main() {
   TestNormalizeMac();
+  TestParseOption79();
   TestParseSnapshot();
   TestFindBinding_DegradedMatch();
   if (failures) {

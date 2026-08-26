@@ -48,15 +48,20 @@ int pkt6_receive(CalloutHandle& handle) {
   handle.getArgument("query6", pkt);
   if (!pkt) return 0;
 
-  std::string mac;
-  auto hw = pkt->getMAC(HWADDR_SOURCE_ANY);
-  if (hw) mac = hw->toText(false);
-
-  auto bindings = LoadSnapshot();
-  const auto* b = ipam::coherence::FindBinding(bindings, mac);
-  if (!b) {
-    b = ipam::coherence::FindBinding(bindings, MacFromDuid(""));
+  // MAC 来源优先级（§4.2）：option79(RFC6939) → L2 源 MAC → DUID 解析(Go 侧)
+  std::string opt79;
+  if (auto opt = pkt->getOption(79)) {
+    const auto& data = opt->getData();
+    opt79.assign(data.begin(), data.end());
   }
+  std::string l2mac;
+  if (auto hw = pkt->getMAC(HWADDR_SOURCE_ANY)) {
+    l2mac = hw->toText(false);
+  }
+  auto bindings = LoadSnapshot();
+  const auto* b =
+      ipam::coherence::FindBinding(bindings, ipam::coherence::ResolveClientMac(opt79, l2mac));
+  (void)MacFromDuid;  // DUID 解析降级由 Go daemon 完成
   if (b && !b->ipv6.empty()) {
     handle.setArgument("coherence_ipv6", b->ipv6);
     handle.setArgument("coherence_hit", true);

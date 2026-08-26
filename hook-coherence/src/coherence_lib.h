@@ -27,3 +27,12 @@ const Binding* FindBinding(const std::vector<Binding>& bindings,
                            const std::string& macRaw);
 
 }  // namespace ipam::coherence
+
+// 解析 DHCPv6 option 79（RFC 6939 客户端链路层地址）负载。
+// 格式：2 字节硬件类型(大端) + N 字节链路层地址；以太网 htype=1 时取后 6 字节。
+// 返回归一化小写冒号 MAC；非以太网/长度非法返回空串。
+std::string ParseOption79(const std::string& payload);
+
+// 组合便捷函数：option79 优先，失败回退 raw MAC 归一化。
+std::string ResolveClientMac(const std::string& opt79Payload,
+                             const std::string& rawMacFallback);

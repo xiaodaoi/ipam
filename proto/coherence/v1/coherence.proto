@@ -14,7 +14,7 @@ service Coherence {
 }
 
 message ResolveRequest {
-  // 归一化小写冒号格式 aa:bb:cc:dd:ee:ff
+  // 归一化小写冒号格式；来源优先级：DHCPv6 option79(RFC6939) → L2 源 MAC → DUID 解析（§4.2）
   string mac = 1;
   // 原始 DUID（供审计）
   string duid = 2;
