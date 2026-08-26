@@ -163,20 +163,19 @@ func fqdn(name, zone string) string {
 	return name + "." + strings.TrimPrefix(zone, ".")
 }
 
-func registerConfRoutes(r *gin.Engine, a *confApplier) {
-	r.POST("/api/v1/dns/conf/apply", func(c *gin.Context) {
-		in, err := a.apply(c.Request.Context())
-		if err != nil {
-			code := "APPLY_FAILED"
-			status := http.StatusInternalServerError
-			if err.Error() == "UNBOUND_DOWN" || err == unboundengine.ErrUnavailable {
-				code, status = "UNBOUND_DOWN", http.StatusServiceUnavailable
-			}
-			problem.Write(c, status, "https://ipam.local/problems/"+code, code, err.Error())
-			return
+// ApplyDnsConf 实现 apigen.ServerInterface（POST /dns/conf/apply，§2.3 收口）。
+func (a *confApplier) ApplyDnsConf(c *gin.Context) {
+	in, err := a.apply(c.Request.Context())
+	if err != nil {
+		code := "APPLY_FAILED"
+		status := http.StatusInternalServerError
+		if err.Error() == "UNBOUND_DOWN" || err == unboundengine.ErrUnavailable {
+			code, status = "UNBOUND_DOWN", http.StatusServiceUnavailable
 		}
-		c.JSON(http.StatusOK, gin.H{"ok": true, "applied": in})
-	})
+		problem.Write(c, status, "https://ipam.local/problems/"+code, code, err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "applied": in})
 }
 
 var (

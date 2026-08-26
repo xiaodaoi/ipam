@@ -7,9 +7,15 @@ UpstreamsCollection:
     security: []
     responses:
       '200':
-        description: 上游列表
+        description: OK
         content:
           application/json:
+            schema:
+              $ref: '../components/schemas/upstream.yaml#/UpstreamList'
+          examples:
+            ok:
+              summary: 示例
+              value: { items: [{ id: '99999999-9999-9999-9999-999999999999', name: 阿里, addrs: ['223.5.5.5'], protocol: udp, weight: 2, enabled: true, health: { up: true, rttMs: 8 } }], total: 1 }
   post:
     operationId: createUpstream
     tags: [dns]
@@ -27,9 +33,15 @@ UpstreamsCollection:
                   value: { name: 阿里, addrs: ["223.5.5.5"], protocol: udp, weight: 2 }
     responses:
       '201':
-        description: 已创建
+        description: OK
         content:
           application/json:
+            schema:
+              $ref: '../components/schemas/upstream.yaml#/Upstream'
+          examples:
+            ok:
+              summary: 示例
+              value: { id: '99999999-9999-9999-9999-999999999999', name: 阿里, addrs: ['223.5.5.5'], protocol: udp, weight: 2, enabled: true }
 UpstreamItem:
   patch:
     operationId: updateUpstream
@@ -50,9 +62,15 @@ UpstreamItem:
             $ref: '../components/schemas/upstream.yaml#/UpstreamUpdate'
     responses:
       '200':
-        description: 已更新
+        description: OK
         content:
           application/json:
+            schema:
+              $ref: '../components/schemas/upstream.yaml#/Upstream'
+          examples:
+            ok:
+              summary: 示例
+              value: { id: '99999999-9999-9999-9999-999999999999', name: 阿里, addrs: ['223.5.5.5', '1.1.1.1'], protocol: udp, weight: 3, enabled: true }
   delete:
     operationId: deleteUpstream
     tags: [dns]

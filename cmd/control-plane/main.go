@@ -125,7 +125,6 @@ func newEngine(version string) *gin.Engine {
 		blRepo: blRepo, settings: settingsRepo, ctl: unboundCtl,
 		confPath: "/etc/unbound/unbound.conf",
 	}
-	registerConfRoutes(r, applier)
 	zoneH := dnsmodule.NewZoneHandler(zoneSvc, func(ctx context.Context, zoneName string) []dnsmodule.LinkedRecord {
 		if pool == nil {
 			return nil
@@ -158,7 +157,8 @@ func newEngine(version string) *gin.Engine {
 		*dnsmodule.ZoneHandler
 		*dnsmodule.BlocklistHandler
 		*dnsmodule.SettingsHandler
-	}{h, orgH, subH, ledgerH, assetH, dnsH, fwdH, zoneH, blH, settingsH}
+		*confApplier
+	}{h, orgH, subH, ledgerH, assetH, dnsH, fwdH, zoneH, blH, settingsH, applier}
 	// spec servers.url=/api/v1 → 统一前缀注册
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 

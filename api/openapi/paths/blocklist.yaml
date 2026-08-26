@@ -7,9 +7,15 @@ BlocklistsCollection:
     security: []
     responses:
       '200':
-        description: 名单列表
+        description: OK
         content:
           application/json:
+            schema:
+              $ref: '../components/schemas/blocklist.yaml#/BlocklistList'
+          examples:
+            ok:
+              summary: 示例
+              value: { items: [{ id: '11111111-2222-3333-4444-555555555555', name: 广告拦截, kind: builtin, version: 42 }], total: 1 }
   post:
     operationId: createBlocklist
     tags: [blocklist]
@@ -29,9 +35,15 @@ BlocklistsCollection:
                   value: { name: 恶意域名订阅, kind: feed, syncUrl: "https://example.com/malware.txt" }
     responses:
       '201':
-        description: 已创建
+        description: OK
         content:
           application/json:
+            schema:
+              $ref: '../components/schemas/blocklist.yaml#/Blocklist'
+          examples:
+            ok:
+              summary: 示例
+              value: { id: '11111111-2222-3333-4444-555555555555', name: 广告拦截, kind: custom, version: 1 }
 BlocklistItem:
   post:
     operationId: syncBlocklist
@@ -48,9 +60,15 @@ BlocklistItem:
         schema: { type: string, format: uuid }
     responses:
       '200':
-        description: 同步完成
+        description: OK
         content:
           application/json:
+            schema:
+              $ref: '../components/schemas/blocklist.yaml#/BlocklistSyncResult'
+          examples:
+            ok:
+              summary: 示例
+              value: { listId: '33333333-3333-3333-3333-333333333333', version: 8, added: 12, total: 5000 }
       '502':
         description: 订阅源不可达/解析失败（旧版保留）
         content:
@@ -81,9 +99,15 @@ BlocklistEntriesCollection:
         description: 关键字（pattern 模糊）
     responses:
       '200':
-        description: 条目列表
+        description: OK
         content:
           application/json:
+            schema:
+              $ref: '../components/schemas/blocklist.yaml#/BlocklistEntryList'
+          examples:
+            ok:
+              summary: 示例
+              value: { items: [{ listId: '22222222-2222-2222-2222-222222222222', triggerType: qname, pattern: '*.gamble.com', action: nxdomain }], total: 1 }
   post:
     operationId: addBlocklistEntry
     tags: [blocklist]
@@ -103,9 +127,15 @@ BlocklistEntriesCollection:
             $ref: '../components/schemas/blocklist.yaml#/BlocklistEntryCreate'
     responses:
       '201':
-        description: 已添加
+        description: OK
         content:
           application/json:
+            schema:
+              $ref: '../components/schemas/blocklist.yaml#/BlocklistEntry'
+          examples:
+            ok:
+              summary: 示例
+              value: { listId: '22222222-2222-2222-2222-222222222222', triggerType: qname, pattern: '*.gamble.com', action: nxdomain }
 PolicyGroupsCollection:
   get:
     operationId: listPolicyGroups
@@ -115,9 +145,15 @@ PolicyGroupsCollection:
     security: []
     responses:
       '200':
-        description: 分组列表
+        description: OK
         content:
           application/json:
+            schema:
+              $ref: '../components/schemas/blocklist.yaml#/PolicyGroup'
+          examples:
+            ok:
+              summary: 示例
+              value: { items: [{ id: '44444444-5555-6666-7777-888888888888', name: 学生分组, viewName: students, cidrs: ['10.61.128.0/17'], listIds: ['11111111-2222-3333-4444-555555555555'] }] }
   post:
     operationId: createPolicyGroup
     tags: [blocklist]
@@ -132,9 +168,15 @@ PolicyGroupsCollection:
             $ref: '../components/schemas/blocklist.yaml#/PolicyGroupCreate'
     responses:
       '201':
-        description: 已创建
+        description: OK
         content:
           application/json:
+            schema:
+              $ref: '../components/schemas/blocklist.yaml#/PolicyGroup'
+          examples:
+            ok:
+              summary: 示例
+              value: { id: '44444444-5555-6666-7777-888888888888', name: 学生分组, viewName: students, cidrs: ['10.61.128.0/17'], listIds: ['11111111-2222-3333-4444-555555555555'] }
 PolicyGroupItem:
   post:
     operationId: compilePolicyGroup
@@ -151,6 +193,12 @@ PolicyGroupItem:
         schema: { type: string, format: uuid }
     responses:
       '200':
-        description: 编译完成
+        description: OK
         content:
           application/json:
+            schema:
+              $ref: '../components/schemas/blocklist.yaml#/RpzCompileResult'
+          examples:
+            ok:
+              summary: 示例
+              value: { zone: students.rpz, entries: 1200, path: '/var/lib/ipam/rpz/students.zone', reloadCommand: 'unbound-control auth_zone_reload students.rpz' }

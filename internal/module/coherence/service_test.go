@@ -112,3 +112,47 @@ func TestNormalizeMAC_与Cpp侧对齐(t *testing.T) {
 		}
 	}
 }
+
+func TestMatchIPv4Template_多池对最长前缀(t *testing.T) {
+	templates := []Template{
+		{ID: "t-1", V4Cidr: "192.168.0.0/23", Prefix: "2407::", Expr: "{v4.hextet4}"},
+		{ID: "t-2", V4Cidr: "172.16.248.0/24", Prefix: "2409::", Expr: "{v4.hextet4}"},
+	}
+	// 用户场景：192.168.0.0/23 ↔ 2407::，192.168.0.10 → 2407::192:168:0:10
+	tpl, err := MatchIPv4Template(templates, "192.168.0.10")
+	if err != nil || tpl.ID != "t-1" {
+		t.Fatalf("expect t-1, got %+v err=%v", tpl, err)
+	}
+	ip6, err := ApplyTemplate(tpl, "192.168.0.10")
+	if err != nil || ip6 != "2407::192:168:0:10" {
+		t.Fatalf("mapping: %s err=%v", ip6, err)
+	}
+	// 172.16.248.0/24 ↔ 2409:: 独立成对
+	tpl2, _ := MatchIPv4Template(templates, "172.16.248.55")
+	if tpl2.ID != "t-2" {
+		t.Fatalf("expect t-2, got %+v", tpl2)
+	}
+	ip62, _ := ApplyTemplate(tpl2, "172.16.248.55")
+	if ip62 != "2409::172:16:248:55" {
+		t.Fatalf("mapping2: %s", ip62)
+	}
+	// 无覆盖网段
+	if _, err := MatchIPv4Template(templates, "10.0.0.1"); err == nil {
+		t.Fatal("want error for unmapped v4")
+	}
+}
+
+func TestResolve_自动选模板多池对(t *testing.T) {
+	svc, store := newSvc()
+	store.Put(Binding{MAC: "aa:bb:cc:dd:ee:01", IPv4: "172.16.248.55", TemplateID: ""})
+	svc.SetTemplateAll(func() []Template {
+		return []Template{
+			{ID: "t-1", V4Cidr: "192.168.0.0/23", Prefix: "2407::", Expr: "{v4.hextet4}"},
+			{ID: "t-2", V4Cidr: "172.16.248.0/24", Prefix: "2409::", Expr: "{v4.hextet4}"},
+		}
+	})
+	r, _ := svc.ResolveBinding(context.Background(), &coherencev1.ResolveRequest{Mac: "aa:bb:cc:dd:ee:01"})
+	if !r.Hit || r.Ipv6 != "2409::172:16:248:55" || r.TemplateId != "t-2" {
+		t.Fatalf("auto-template resolve: %+v", r)
+	}
+}

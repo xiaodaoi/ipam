@@ -40,6 +40,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		*dnsmodule.ZoneHandler
 		*dnsmodule.BlocklistHandler
 		*dnsmodule.SettingsHandler
+		*stubApplier
 	}{h,
 		ipam.NewOrgHandler(ipam.NewOrgService(orgStore)),
 		ipam.NewSubnetHandler(ipam.NewSubnetService(subRepo, orgStore, kea)),
@@ -50,6 +51,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		dnsmodule.NewZoneHandler(dnsmodule.NewZoneService(dnsmodule.NewMemZoneRepo(), fakeUnbound{}), nil),
 		dnsmodule.NewBlocklistHandler(dnsmodule.NewBlocklistService(dnsmodule.NewMemBlocklistRepo(), nil, fakeUnbound{}, "/tmp/rpz")),
 		dnsmodule.NewSettingsHandler(dnsmodule.NewSettingsService(dnsmodule.NewMemSettingsRepo(), fakeUnbound{}, "/tmp/unbound.conf"), dnsmodule.NewMemSettingsRepo()),
+		&stubApplier{},
 	}
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 	return r
@@ -114,6 +116,11 @@ func TestWriteProblem_RFC9457(t *testing.T) {
 		t.Fatalf("problem fields incomplete: %+v", p)
 	}
 }
+
+// stubApplier 满足 conf/apply 接口桩。
+type stubApplier struct{}
+
+func (s *stubApplier) ApplyDnsConf(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"ok": true}) }
 
 // fakeUnbound 探活/下发桩。
 type fakeUnbound struct{}

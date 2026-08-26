@@ -55,15 +55,23 @@ type TemplateLookup func(id string) (Template, bool)
 // Service 实现 proto Coherence 服务（§2.1 时序）。
 type Service struct {
 	coherencev1.UnimplementedCoherenceServer
-	store     Store
-	templates TemplateLookup
+	store       Store
+	templates   TemplateLookup
+	templateAll func() []Template // 多池对全量；用于按 IPv4 最长前缀自动选模板
 }
 
 func NewService(store Store, templates TemplateLookup) *Service {
 	return &Service{store: store, templates: templates}
 }
 
+// SetTemplateAll 注入多池对全量模板（§4.3 自动匹配；daemon 从 PG prefix_template 装载）。
+func (s *Service) SetTemplateAll(fn func() []Template) *Service {
+	s.templateAll = fn
+	return s
+}
+
 // ResolveBinding：缓存优先(CACHE)，未算则按模板现算(COMPUTED)，无绑定返回 NONE。
+// 模板选择：优先绑定记录中的 TemplateID；缺省时按 IPv4 最长前缀自动匹配（多池对）。
 func (s *Service) ResolveBinding(_ context.Context, req *coherencev1.ResolveRequest) (*coherencev1.ResolveResponse, error) {
 	b, ok := s.store.Get(req.GetMac())
 	if !ok {
@@ -72,8 +80,20 @@ func (s *Service) ResolveBinding(_ context.Context, req *coherencev1.ResolveRequ
 	if b.IPv6 != "" {
 		return resp(true, b.IPv6, b.TemplateID, coherencev1.ResolveResponse_CACHE), nil
 	}
-	tpl, ok := s.templates(b.TemplateID)
-	if !ok {
+	var tpl Template
+	matched := false
+	if b.TemplateID != "" {
+		if t, ok2 := s.templates(b.TemplateID); ok2 {
+			tpl, matched = t, true
+		}
+	}
+	if !matched && s.templateAll != nil {
+		if t, err := MatchIPv4Template(s.templateAll(), b.IPv4); err == nil {
+			tpl, matched = t, true
+			b.TemplateID = tpl.ID
+		}
+	}
+	if !matched {
 		return &coherencev1.ResolveResponse{Hit: false, Source: coherencev1.ResolveResponse_NONE}, nil
 	}
 	ip6, err := ApplyTemplate(tpl, b.IPv4)

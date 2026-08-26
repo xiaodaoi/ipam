@@ -4,14 +4,39 @@ package coherence
 import (
 	"fmt"
 	"net"
+	"net/netip"
 	"strings"
 )
 
 // Template 映射模板（PG prefix_template 行的最小投影）。
 type Template struct {
 	ID     string
-	Prefix string // 如 "2406::"
+	V4Cidr string // 关联的 IPv4 网段（多池对自动匹配依据）
+	Prefix string // 如 "2407::"
 	Expr   string // "{v4.hextet4}" | "{v4.hex32}"
+}
+
+// MatchIPv4Template 按 IPv4 最长前缀匹配模板（多池对：每对 v4/v6 池一条模板，§4.3）。
+func MatchIPv4Template(templates []Template, ipv4 string) (Template, error) {
+	ip, err := netip.ParseAddr(ipv4)
+	if err != nil || !ip.Is4() {
+		return Template{}, fmt.Errorf("invalid ipv4 %q", ipv4)
+	}
+	var best *Template
+	bestBits := -1
+	for i := range templates {
+		p, perr := netip.ParsePrefix(strings.TrimSpace(templates[i].V4Cidr))
+		if perr != nil {
+			continue
+		}
+		if p.Contains(ip) && p.Bits() > bestBits {
+			best, bestBits = &templates[i], p.Bits()
+		}
+	}
+	if best == nil {
+		return Template{}, fmt.Errorf("no template covers %s", ipv4)
+	}
+	return *best, nil
 }
 
 // ApplyTemplate 按 §4.3 规则将 ipv4 映射为 template 前缀下的 IPv6。

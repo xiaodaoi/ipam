@@ -4,6 +4,28 @@
  */
 
 export interface paths {
+    "/dns/conf/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 应用五源合成 unbound.conf（渲染→checkconf→原子落盘→reload）
+         * @description 从各域仓储聚合上游/转发/解析记录/封禁/参数五源，合成完整 unbound.conf，
+         *     经 checkconf 校验后原子替换并 reload。校验失败返回 400 且运行态不变。
+         *     所需 scope 为 dns.write。
+         */
+        post: operations["applyDnsConf"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dns/settings": {
         parameters: {
             query?: never;
@@ -85,7 +107,10 @@ export interface paths {
          */
         get: operations["listBlocklists"];
         put?: never;
-        /** 创建名单库 */
+        /**
+         * 创建名单库
+         * @description kind=feed 时必须提供 syncUrl；后续经 sync 端点拉取。scope 为 blocklist.write。
+         */
         post: operations["createBlocklist"];
         delete?: never;
         options?: never;
@@ -198,7 +223,7 @@ export interface paths {
         put?: never;
         /**
          * 创建本地区域
-         * @description 区域名全局唯一（尾点容错）；创建后可添加解析记录。scope 为 dns.write。
+         * @description 区域名全局唯一（尾点容错）；创建后可添加解析记录。所需 scope 为 dns.write。
          */
         post: operations["createDnsZone"];
         delete?: never;
@@ -214,12 +239,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 查询区域记录 */
+        /**
+         * 查询区域记录
+         * @description 返回该区域全部解析记录，含禁用项，前端可按需过滤展示。
+         */
         get: operations["listDnsRecords"];
         put?: never;
         /**
-         * 创建记录（变更触发 auth_zone_reload 单区刷新）
-         * @description 同 zone 内 name+type 唯一；rdata 按类型校验；创建后单区刷新不动整进程。scope 为 dns.write。
+         * 创建记录（触发 auth_zone_reload 单区刷新）
+         * @description 同 zone 内 name 与 type 组合唯一；rdata 按类型校验；创建后单区刷新不动整进程。scope 为 dns.write。
          */
         post: operations["createDnsRecord"];
         delete?: never;
@@ -235,7 +263,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 联动记录（只读，DHCP 双栈联动生成，§4.4） */
+        /**
+         * 联动记录（只读）
+         * @description 返回由 DHCP 双栈联动自动生成的 A 与 AAAA 记录（§4.4），只读不可编辑。
+         */
         get: operations["listLinkedRecords"];
         put?: never;
         post?: never;
@@ -254,7 +285,7 @@ export interface paths {
         };
         /**
          * 导出 zonefile（checkconf 校验过的静态区）
-         * @description 返回 $ORIGIN 起头的标准 zonefile 文本，供 auth_zone_reload 使用。
+         * @description 返回以 ORIGIN 起头的标准 zonefile 文本，供 auth_zone_reload 使用。
          */
         get: operations["exportDnsZone"];
         put?: never;
@@ -1204,6 +1235,8 @@ export interface components {
         /** @description 组织节点 ID */
         OrgId: string;
         SubnetId: string;
+        /** @description 区域 ID */
+        ZoneId: string;
         /** @description 子网 ID */
         SubnetIdParam: string;
     };
@@ -1213,6 +1246,44 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    applyDnsConf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 应用成功（回显合成摘要） */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ok: boolean;
+                        applied?: Record<string, never>;
+                    };
+                    examples: unknown;
+                };
+            };
+            /** @description checkconf 校验失败（未生效） */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        code?: string;
+                    };
+                };
+            };
+        };
+    };
     getDnsSettings: {
         parameters: {
             query?: never;
@@ -1229,7 +1300,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DnsSettings"];
-                    examples: unknown;
                 };
             };
         };
@@ -1254,7 +1324,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DnsSettings"];
-                    examples: unknown;
                 };
             };
             /** @description checkconf 校验失败（未生效） */
@@ -1269,7 +1338,6 @@ export interface operations {
                         status: number;
                         code?: string;
                     };
-                    examples: unknown;
                 };
             };
         };
@@ -1292,7 +1360,6 @@ export interface operations {
                     "application/json": {
                         items: components["schemas"]["PerDomainTtl"][];
                     };
-                    examples: unknown;
                 };
             };
         };
@@ -1317,7 +1384,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PerDomainTtl"];
-                    examples: unknown;
                 };
             };
         };
@@ -1345,7 +1411,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FlushResult"];
-                    examples: unknown;
                 };
             };
         };
@@ -1359,7 +1424,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 名单列表 */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1384,13 +1449,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 已创建 */
+            /** @description OK */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["Blocklist"];
+                    examples: unknown;
                 };
             };
         };
@@ -1406,13 +1472,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 同步完成 */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["BlocklistSyncResult"];
+                    examples: unknown;
                 };
             };
             /** @description 订阅源不可达/解析失败（旧版保留） */
@@ -1427,7 +1494,6 @@ export interface operations {
                         status: number;
                         code?: string;
                     };
-                    examples: unknown;
                 };
             };
         };
@@ -1446,7 +1512,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 条目列表 */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1473,13 +1539,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 已添加 */
+            /** @description OK */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["BlocklistEntry"];
+                    examples: unknown;
                 };
             };
         };
@@ -1493,15 +1560,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 分组列表 */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        items: components["schemas"]["PolicyGroup"][];
-                    };
+                    "application/json": components["schemas"]["PolicyGroup"];
                     examples: unknown;
                 };
             };
@@ -1520,13 +1585,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 已创建 */
+            /** @description OK */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["PolicyGroup"];
+                    examples: unknown;
                 };
             };
         };
@@ -1542,13 +1608,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 编译完成 */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["RpzCompileResult"];
+                    examples: unknown;
                 };
             };
         };
@@ -1569,7 +1636,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DnsZoneList"];
-                    examples: unknown;
                 };
             };
         };
@@ -1603,7 +1669,8 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                zoneId: string;
+                /** @description 区域 ID */
+                zoneId: components["parameters"]["ZoneId"];
             };
             cookie?: never;
         };
@@ -1616,7 +1683,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DnsRecordList"];
-                    examples: unknown;
                 };
             };
         };
@@ -1626,7 +1692,8 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                zoneId: string;
+                /** @description 区域 ID */
+                zoneId: components["parameters"]["ZoneId"];
             };
             cookie?: never;
         };
@@ -1652,13 +1719,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                zoneId: string;
+                /** @description 区域 ID */
+                zoneId: components["parameters"]["ZoneId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description 联动记录 */
+            /** @description 联动记录列表 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1667,7 +1735,6 @@ export interface operations {
                     "application/json": {
                         items: components["schemas"]["LinkedRecord"][];
                     };
-                    examples: unknown;
                 };
             };
         };
@@ -1677,20 +1744,20 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                zoneId: string;
+                /** @description 区域 ID */
+                zoneId: components["parameters"]["ZoneId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description zonefile 文本（text/plain） */
+            /** @description zonefile 文本 */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "text/plain": string;
-                    examples: unknown;
                 };
             };
         };
@@ -1700,7 +1767,8 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                zoneId: string;
+                /** @description 区域 ID */
+                zoneId: components["parameters"]["ZoneId"];
             };
             cookie?: never;
         };
@@ -1724,7 +1792,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 规则列表 */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1749,22 +1817,24 @@ export interface operations {
             };
         };
         responses: {
-            /** @description dryRun 预览 */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ForwardRuleDryRun"];
+                    examples: unknown;
                 };
             };
-            /** @description 已创建 */
+            /** @description OK */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ForwardRule"];
+                    examples: unknown;
                 };
             };
         };
@@ -1808,13 +1878,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 已更新 */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ForwardRule"];
+                    examples: unknown;
                 };
             };
         };
@@ -1828,7 +1899,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 上游列表 */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1853,13 +1924,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 已创建 */
+            /** @description OK */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["Upstream"];
+                    examples: unknown;
                 };
             };
         };
@@ -1899,13 +1971,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 已更新 */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["Upstream"];
+                    examples: unknown;
                 };
             };
         };
@@ -1930,7 +2003,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReservationBulkResult"];
-                    examples: unknown;
                 };
             };
             /** @description Kea 下发失败（已整体回滚） */
@@ -1945,7 +2017,6 @@ export interface operations {
                         status: number;
                         code?: string;
                     };
-                    examples: unknown;
                 };
             };
         };
@@ -1970,7 +2041,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AssetList"];
-                    examples: unknown;
                 };
             };
         };
@@ -1995,7 +2065,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Asset"];
-                    examples: unknown;
                 };
             };
         };
@@ -2049,7 +2118,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LedgerPage"];
-                    examples: unknown;
                 };
             };
         };
@@ -2086,7 +2154,6 @@ export interface operations {
                         status: number;
                         code?: string;
                     };
-                    examples: unknown;
                 };
             };
         };
@@ -2204,7 +2271,6 @@ export interface operations {
                         status: number;
                         code?: string;
                     };
-                    examples: unknown;
                 };
             };
         };

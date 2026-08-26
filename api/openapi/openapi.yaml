@@ -28,6 +28,8 @@ tags:
   - name: blocklist
     description: DNS 封禁管控（RPZ 名单/策略分组/订阅源，FR-B-11~18、D13）
 paths:
+  /dns/conf/apply:
+    $ref: './paths/settings.yaml#/ConfApply'
   /dns/settings:
     $ref: './paths/settings.yaml#/SettingsCollection'
   /dns/settings/ttl-overrides:

@@ -7,9 +7,15 @@ ForwardRulesCollection:
     security: []
     responses:
       '200':
-        description: 规则列表
+        description: OK
         content:
           application/json:
+            schema:
+              $ref: '../components/schemas/forward.yaml#/ForwardRuleList'
+          examples:
+            ok:
+              summary: 示例
+              value: { items: [{ id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', domain: '.', upstreamIds: ['99999999-9999-9999-9999-999999999999'], enabled: true }], total: 1 }
   post:
     operationId: createForwardRule
     tags: [dns]
@@ -39,13 +45,25 @@ ForwardRulesCollection:
                     dryRun: true
     responses:
       '201':
-        description: 已创建
+        description: OK
         content:
           application/json:
+            schema:
+              $ref: '../components/schemas/forward.yaml#/ForwardRule'
+          examples:
+            ok:
+              summary: 示例
+              value: { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', domain: 'corp.local.', upstreamIds: ['77777777-7777-7777-7777-777777777777'], enabled: true }
       '200':
-        description: dryRun 预览
+        description: OK
         content:
           application/json:
+            schema:
+              $ref: '../components/schemas/forward.yaml#/ForwardRuleDryRun'
+          examples:
+            ok:
+              summary: 示例
+              value: { commands: ['unbound-control forward_add corp.local. 10.0.0.53@53'] }
 ForwardRuleItem:
   patch:
     operationId: updateForwardRule
@@ -70,9 +88,15 @@ ForwardRuleItem:
               note: { type: string, maxLength: 128 }
     responses:
       '200':
-        description: 已更新
+        description: OK
         content:
           application/json:
+            schema:
+              $ref: '../components/schemas/forward.yaml#/ForwardRule'
+          examples:
+            ok:
+              summary: 示例
+              value: { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', domain: 'corp.local.', upstreamIds: ['88888888-8888-8888-8888-888888888888'], enabled: true }
   delete:
     operationId: deleteForwardRule
     tags: [dns]
