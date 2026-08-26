@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-26 · option79 链路落地 + M4-001 日志采集链路
+
+- **option79（用户补充）**：hook 解析 RFC6939 载荷提取 MAC→查 IPv4 池→模板算 IPv6；纯函数+单测落地；§4.2 明确来源优先级链（option79→L2→DUID）。
+- **M4-001**：vector.toml 全链路（解析/归一化/CH 批量写）+ logs.sql 建表 + compose 扩展 CH/vector 服务与日志卷；转 review 待环境实测。
+- **遗留**：unbound.conf 补 logfile 输出；DHCPv6 事件解析；水位采样 P1。
+
 ## 2026-08-26 · M3-006 转 review；M3 代码交付完毕；M4 卡生成
 
 - **做了**：M3-006 五源合成 conf+checkconf 真实现+apply 端点+K1 实证资产落地（转 review）；CI 断言含 K1（local-data 优先 auth-zone）；M4 四张卡入 backlog。

@@ -50,6 +50,33 @@ services:
       - "postgres://${POSTGRES_USER:-ipam}:${POSTGRES_PASSWORD}@postgresql:5432/${POSTGRES_DB:-ipam}?sslmode=disable"
     restart: unless-stopped
 
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8-alpine
+    environment:
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:-ipam}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-ipam}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
+    volumes:
+      - ch-data:/var/lib/clickhouse
+      - ../../db/clickhouse/logs.sql:/docker-entrypoint-initdb.d/01_logs.sql:ro
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    restart: unless-stopped
+
+  vector:
+    image: timberio/vector:0.40-alpine
+    command: ["--config", "/etc/vector/vector.toml"]
+    depends_on:
+      clickhouse:
+        condition: service_started
+      kea-dhcp4:
+        condition: service_started
+    volumes:
+      - ../../config/vector/vector.toml:/etc/vector/vector.toml:ro
+      - kea-logs:/var/log/kea:ro
+      - unbound-logs:/var/log/unbound:ro
+    restart: unless-stopped
+
   unbound:
     build:
       context: ../..
@@ -62,6 +89,7 @@ services:
     volumes:
       - ipam-run:/run/ipam
       - ../../config/unbound:/etc/unbound:ro
+      - unbound-logs:/var/log/unbound
     ports:
       - "${UNBOUND_PORT:-5353}:53/udp"
       - "${UNBOUND_PORT:-5353}:53/tcp"
@@ -72,10 +100,11 @@ services:
       context: ../..
       dockerfile: deploy/images/kea/Dockerfile
       args: { COMPONENT: kea-dhcp4-server }
-    command: ["kea-dhcp4", "-c", "/etc/kea/kea-dhcp4.conf"]
+    command: ["sh", "-c", "mkdir -p /var/log/kea && exec kea-dhcp4 -c /etc/kea/kea-dhcp4.conf"]
     volumes:
       - ../../config/kea/kea-dhcp4.conf:/etc/kea/kea-dhcp4.conf:ro
       - ipam-run:/run/ipam
+      - kea-logs:/var/log/kea
     restart: unless-stopped
 
   kea-dhcp6:
@@ -108,3 +137,10 @@ services:
 volumes:
   pg-data:
   ipam-run:
+  kea-logs:
+  ch-data:
+
+# unbound 日志经宿主文件（unbound.conf logfile 配置）→ 由 vector file source 读取；
+# 此处挂载只读目录供其写入（root 容器）：
+# （unbound-logs 卷在 unbound 服务挂载）
+

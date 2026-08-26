@@ -1,0 +1,84 @@
+# Vector 日志采集链路（§6：Kea/Unbound → VRL 归一化 → ClickHouse logs 表）
+# 关联键：client_mac 统一小写冒号格式；批量 5000 条/5s 刷盘（FR-E-02）
+
+data_dir = "/var/lib/vector"
+
+[sources.kea_stdout]
+type = "file"
+include = ["/var/log/kea/*.log"]
+read_from = "beginning"
+
+[sources.unbound_log]
+type = "file"
+include = ["/var/log/unbound/unbound.log"]
+read_from = "beginning"
+
+# ── Kea DHCPv4 租约/分配日志解析 ──
+[transforms.parse_kea]
+type = "remap"
+inputs = ["kea_stdout"]
+source = '''
+  m = parse_regex!(.message, r'^(?P<ts>\S+ \S+) (?P<level>\w+) \[(?P<pid>\d+)\] DHCP4\.(?P<event>[A-Z0-9_]+) (?P<rest>.*)$')
+  .timestamp = parse_timestamp!(m.ts, format: "%Y-%m-%d %H:%M:%S.%f")
+  .severity = m.level
+  .event = m.event
+  mac_m = parse_regex(m.rest, r'(?:hwaddr|HWAddr)=(?P<mac>[0-9a-fA-F:]{17})')
+  .client_mac = if mac_m != null { downcase(replace(mac_m.mac, ":", "")) |> replace("-", "") } else ""
+  ip_m = parse_regex(m.rest, r'(?:assigned|address)=(?P<ip>\d+\.\d+\.\d+\.\d+)')
+  .address = if ip_m != null { ip_m.ip } else ""
+  .domain = ""
+  .rtype = "dhcp"
+'''
+
+# ── Unbound 查询日志解析（verbosity 需 ≥1 且 log-queries）──
+[transforms.parse_unbound]
+type = "remap"
+inputs = ["unbound_log"]
+source = '''
+  m = parse_regex!(.message, r'\[(?P<ts>\d+)\] unbound\[\d+:\d+\] info: (?P<qname>\S+) (?P<qtype>\S+) IN$')
+  .timestamp = now()
+  .severity = "INFO"
+  .event = "dns_query"
+  .client_mac = ""
+  .address = ""
+  .domain = m.qname
+  .rtype = m.qtype
+'''
+
+# ── 归一化统一 schema（logs 宽表字段，§3 ClickHouse）──
+[transforms.normalize]
+type = "remap"
+inputs = ["parse_kea", "parse_unbound"]
+source = '''
+  . = {
+    "ts": to_unix_timestamp(.timestamp),
+    "type": .rtype,
+    "severity": .severity,
+    "client_mac": .client_mac,
+    "client_ip": .address,
+    "sip": "",
+    "domain": .domain,
+    "rcode": "",
+    "action": .event,
+    "category": "",
+    "detail": .message
+  }
+'''
+
+[sinks.clickhouse]
+type = "clickhouse"
+inputs = ["normalize"]
+endpoint = "http://clickhouse:8123"
+database = "ipam"
+table = "logs"
+auth.strategy = "basic"
+auth.user = "${CLICKHOUSE_USER:-ipam}"
+auth.password = "${CLICKHOUSE_PASSWORD:-}"
+batch.max_bytes = 5_000_000
+batch.timeout_secs = 5
+request.retry_max_attempts = 3
+healthcheck.enabled = true
+
+[sinks.clickhouse.encoding]
+codec = "json"
+except_fields = ["message"]
