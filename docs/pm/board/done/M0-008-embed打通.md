@@ -3,7 +3,7 @@
 | 字段 | 内容 |
 |---|---|
 | ID | M0-008 |
-| 状态 | review（待人工确认后转 done） |
+| 状态 | done |
 | 来源 | §13.3、架构图 L34 |
 | 负责 | opencode(backend+frontend) |
 | 创建 | 2026-08-25 |
@@ -44,3 +44,7 @@ web-ipam 构建产物输出到 cmd/control-plane/webui/dist 并 go:embed；Gin S
   1. ⚠️ JS 内存在 `api.iconify.design/simplesvg/unisvg` 图标在线服务字符串——vben Iconify 对未打包图标会**运行时在线拉取**，内网弱网下新图标可能不渲染。加固方案（P2）：unplugin-icons 本地打包所用图标集或引入 @iconify/json 全量离线包；
   2. demo 页残留 avatar.vercel.sh 等字符串（仅演示组件引用），随真实页面替换消除；
   3. M0-004 前端腿（TS 客户端+页面调用展示）仍待专项实施——建议下一卡完成，届时两卡同转 done。
+
+### 2026-08-26 · 批量验收
+
+- 用户确认通过，review→done。

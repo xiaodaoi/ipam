@@ -3,7 +3,7 @@
 | 字段 | 内容 |
 |---|---|
 | ID | M0-007 |
-| 状态 | review（待人工确认后转 done） |
+| 状态 | done |
 | 来源 | D15、§13.1 |
 | 负责 | opencode(frontend) |
 | 创建 | 2026-08-25 |
@@ -42,3 +42,7 @@
 - **验证结果**：install/build/typecheck 三绿；packages/** 与上游源码 diff 为空；git status 确认无 node_modules/dist 泄漏（.gitignore 补 web/packages/**/dist）。
 - **踩坑留痕**：① mv 嵌套陷阱——目标目录已存在时 mv 变移动进内部，已纠正层级；② Node26 不再自带 corepack，改走 npm 用户态装 pnpm。
 - **遗留**：① 登录/Bearer 对接 → M0-008；② TS 客户端接入页面（补 M0-004 前端腿）→ M0-008 同步实施；③ dist.zip 已入 .gitignore。
+
+### 2026-08-26 · 批量验收
+
+- 用户确认通过，review→done。

@@ -21,3 +21,7 @@ cmd/coherence-daemon：监听 /run/ipam/coherence.sock；ResolveBinding 实现 B
 - **做了**：mapping.go B/A 型映射算法（含非法输入与 CUSTOM 拒绝）；service.go ResolveBinding 三态(NONE→COMPUTED→CACHE)+ReportLease 生命周期；MemStore；cmd/coherence-daemon UDS 入口。
 - **验证**：5 单测全绿（§4.3 样例 10.61.172.10→2406::10:61:172:10 与 A 型 a3d:ac0a 均断言）；build/vet/golangci-lint 0 issues。
 - **遗留**：PG 接线(M1-004)；grace 状态机与冲突检测(M2)；P99 压测在 M1 真机阶段。
+
+### 2026-08-26 · 批量验收
+
+- 用户确认通过，review→done。

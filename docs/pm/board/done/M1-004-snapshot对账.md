@@ -22,3 +22,7 @@ daemon 每5s刷新只读快照至 /run/ipam/bindings.snapshot；PG LISTEN/NOTIFY
 - **验证**：13 单测全绿（快照往返/无 tmp 残留/50ms 刷新/四 RR/差分幂等/失败重试/换址增删/unavailable 语义）；build/vet/golangci-lint 0 issues。
 - **踩坑留痕**：keyOf 取 TYPE 应为 f[3]；v4 PTR 反转断言笔误——均测试先行暴露后修复。
 - **遗留（如实）**：live PG LISTEN/NOTIFY 与 unbound-control 真实下发验证需 M1-005 环境；grace 状态机 M2。
+
+### 2026-08-26 · 批量验收
+
+- 用户确认通过，review→done。

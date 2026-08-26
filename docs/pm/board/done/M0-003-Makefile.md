@@ -3,7 +3,7 @@
 | 字段 | 内容 |
 |---|---|
 | ID | M0-003 |
-| 状态 | review（待人工确认后转 done） |
+| 状态 | done |
 | 来源 | AGENTS.md「常用命令」 |
 | 负责 | opencode(devops) |
 | 创建 | 2026-08-25 |
@@ -40,3 +40,7 @@
 - **改动文件**：Makefile、scripts/×3、AGENTS.md、卡片、progress-log。
 - **验证结果**：doctor 正确报告 git/node OK、go/pnpm/docker 等 MISSING；build/test/lint/gen 四路 skip 且 rc=0；--strict 缺硬依赖 rc=1。
 - **遗留**：① go/pnpm/oapi-codegen 等在 M0-004/M0-005/M0-007 各卡落地时按需安装并复跑 doctor；② gen 端到端一致性在 M0-004 出 spec 后补验一次并在该卡留痕。
+
+### 2026-08-26 · 批量验收
+
+- 用户确认通过，review→done。

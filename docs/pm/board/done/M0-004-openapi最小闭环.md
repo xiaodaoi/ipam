@@ -3,7 +3,7 @@
 | 字段 | 内容 |
 |---|---|
 | ID | M0-004 |
-| 状态 | review（后端腿完成；前端腿并入 M0-007 后补验） |
+| 状态 | done |
 | 来源 | D14、§12.1/12.2 |
 | 负责 | opencode(backend+frontend) |
 | 创建 | 2026-08-25 |
@@ -45,3 +45,7 @@
 - **验证结果**：BUILD-OK / VET-OK / test ok(3)；gen-check OK；二进制冒烟 `curl :8443/api/v1/system/info` 返回正确 JSON。
 - **踩坑留痕**：① oapi-codegen 配置键为 `generate:` 非 `generation:`；② v2.8 无 RegisterHandlersWithBaseURL，前缀经 GinServerOptions.BaseURL 传入——已作为模板范例沉淀于本卡。
 - **遗留**：TS 客户端生成管道与页面调用 → 并入 M0-007/M0-008 补验后本卡转 done；ready 字段 PG 探针接线在 M0-006。
+
+### 2026-08-26 · 批量验收
+
+- 用户确认通过，review→done。

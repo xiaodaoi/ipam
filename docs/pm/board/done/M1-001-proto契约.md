@@ -20,3 +20,7 @@
 ### 2026-08-25 · 会话1
 - **做了**：coherence.proto（ResolveBinding/ReportLease+LeaseEvent 枚举）；scripts/gen-proto.sh（protoc36.0+插件钉版 v1.36.10/v1.6.2）；生成物入 proto/gen；Makefile gen-proto；grpc 依赖入 go.mod。
 - **验证**：build ✓；枚举命名踩坑一次（双重前缀→改裸值名由生成器剥离）。
+
+### 2026-08-26 · 批量验收
+
+- 用户确认通过，review→done。
