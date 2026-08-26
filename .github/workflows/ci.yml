@@ -136,6 +136,9 @@ jobs:
           curl -fsS -X POST "http://127.0.0.1:${KEA_API_PORT:-8000}/" \
             -H 'Content-Type: application/json' \
             -d '{"command":"version-get","service":["dhcp4"]}' | grep -q '"result": 0'
+          # Unbound 版本断言（K8：≥1.16）
+          V=$(docker compose exec -T unbound sh -c 'unbound -V' | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          [ "$(printf '1.16.0\n%s\n' "$V" | sort -V | head -1)" = "1.16.0" ] || { echo "unbound $V < 1.16"; exit 1; }
           # Unbound 权威应答（静态锚点）
           docker compose exec -T unbound dig @127.0.0.1 smoke.corp.local +short | grep -q 10.61.172.253
           # 联动热更新链路：local_data 动态注入 → 立即可解析（§2.3/§4.4）

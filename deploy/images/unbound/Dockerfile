@@ -1,20 +1,25 @@
-# unbound — K8 约束：jammy 系统源仅 1.13.1，必须用 NLnetLabs 官方仓库固版 ≥1.16
+# unbound — K8 约束：jammy 系统源仅 1.13.1；NLnetLabs apt 源域名在部分网络不可解析，
+# 故采用 GitHub Releases 源码钉版自编译（版本完全确定性，满足 ≥1.16）。
 FROM ubuntu:jammy
+ARG UNBOUND_VERSION=1.26.0
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl gnupg openssl \
-    && curl -fsSL https://repo.nlnetlabs.nl/keys/nlnetlabs-keyring.gpg \
-        -o /usr/share/keyrings/nlnetlabs-keyring.gpg \
-    && echo "deb [signed-by=/usr/share/keyrings/nlnetlabs-keyring.gpg] https://repo.nlnetlabs.nl/ubuntu jammy main" \
-        > /etc/apt/sources.list.d/nlnetlabs.list \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends unbound bind9-dnsutils \
-    && rm -rf /var/lib/apt/lists/* \
-    && unbound -V | head -1
+      ca-certificates curl build-essential libssl-dev libexpat1-dev libevent-dev \
+    && curl -fsSL "https://github.com/NLnetLabs/unbound/archive/refs/tags/release-${UNBOUND_VERSION}.tar.gz" \
+        -o /tmp/unbound.tgz \
+    && tar -xzf /tmp/unbound.tgz -C /tmp \
+    && cd "/tmp/unbound-release-${UNBOUND_VERSION}" \
+    && ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var \
+        --with-pidfile=/run/unbound.pid --with-rootkey-file=/var/lib/unbound/root.key \
+    && make -j"$(nproc)" \
+    && make install \
+    && ldconfig \
+    && rm -rf /tmp/unbound* /var/lib/apt/lists/*
 
-# 版本断言输出供 CI 日志核对（≥1.16 由 smoke 步骤 grep 强制）
 COPY config/unbound/unbound.conf /etc/unbound/unbound.conf
-RUN mkdir -p /run/ipam /var/lib/unbound && chown -R unbound:unbound /run/ipam /var/lib/unbound
+RUN useradd -r unbound \
+    && mkdir -p /run/ipam /var/lib/unbound \
+    && unbound -V | head -2
 
 EXPOSE 53/udp 53/tcp
 CMD ["unbound", "-d", "-c", "/etc/unbound/unbound.conf"]
