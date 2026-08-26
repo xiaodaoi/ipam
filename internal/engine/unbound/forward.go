@@ -62,6 +62,14 @@ func (e ExecController) SyncForward(_ context.Context, upstreams []dns.Upstream)
 	return e.run(args...)
 }
 
+// AuthZoneReload 单区刷新（auth_zone_reload <zone>，不动整进程，§2.3）。
+func (e ExecController) AuthZoneReload(_ context.Context, zoneID string) error {
+	if zoneID == "" {
+		return ErrUnavailable
+	}
+	return e.run("auth_zone_reload", zoneID)
+}
+
 // SyncForwardRules 条件转发规则下发（每条 forward_add <domain> <addrs...>）。
 func (e ExecController) SyncForwardRules(_ context.Context, rules []dns.ForwardRule, ups []dns.Upstream) error {
 	byID := map[string]dns.Upstream{}

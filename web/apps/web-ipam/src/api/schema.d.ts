@@ -4,6 +4,77 @@
  */
 
 export interface paths {
+    "/dns/zones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询本地区域 */
+        get: operations["listDnsZones"];
+        put?: never;
+        /** 创建本地区域 */
+        post: operations["createDnsZone"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dns/zones/{zoneId}/records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询区域记录 */
+        get: operations["listDnsRecords"];
+        put?: never;
+        /** 创建记录（变更触发 auth_zone_reload 单区刷新） */
+        post: operations["createDnsRecord"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dns/zones/{zoneId}/linked": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 联动记录（只读，DHCP 双栈联动生成，§4.4） */
+        get: operations["listLinkedRecords"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dns/zones/{zoneId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 导出 zonefile（checkconf 校验过的静态区） */
+        get: operations["exportDnsZone"];
+        put?: never;
+        post?: never;
+        /** 删除区域（级联记录） */
+        delete: operations["deleteDnsZone"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/forward-rules": {
         parameters: {
             query?: never;
@@ -611,6 +682,67 @@ export interface components {
             items: components["schemas"]["ForwardRule"][];
             total?: number;
         };
+        /** @description 本地区域（auth-zone/local-zone，§13.4 解析记录）。 */
+        DnsZone: {
+            /** Format: uuid */
+            id: string;
+            /** @description FQDN 如 corp.local. */
+            name: string;
+            /** @enum {string} */
+            kind: "auth" | "local";
+            enabled: boolean;
+        };
+        DnsZoneCreate: {
+            name: string;
+            /**
+             * @default auth
+             * @enum {string}
+             */
+            kind: "auth" | "local";
+        };
+        /** @description 解析记录。 */
+        DnsRecord: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            zoneId: string;
+            /** @description 相对名（www）或 FQDN */
+            name: string;
+            /** @enum {string} */
+            recType: "A" | "AAAA" | "CNAME" | "PTR";
+            ttl: number;
+            /** @description 记录数据（A=IP/CNAME=目标/PTR=域名） */
+            rdata: string;
+            /** @default true */
+            enabled: boolean;
+        };
+        DnsRecordCreate: {
+            name: string;
+            /** @enum {string} */
+            recType: "A" | "AAAA" | "CNAME" | "PTR";
+            /** @default 300 */
+            ttl: number;
+            rdata: string;
+            /** @default true */
+            enabled: boolean;
+        };
+        /** @description 联动记录（只读，来自 DHCP 双栈联动自动生成，§4.4）。 */
+        LinkedRecord: {
+            name: string;
+            /** @enum {string} */
+            recType: "A" | "AAAA" | "PTR";
+            rdata: string;
+            /** @description 来源终端 MAC（联调查证） */
+            mac?: string;
+        };
+        DnsZoneList: {
+            items: components["schemas"]["DnsZone"][];
+            total?: number;
+        };
+        DnsRecordList: {
+            items: components["schemas"]["DnsRecord"][];
+            total?: number;
+        };
         /** @description RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。 */
         Problem: {
             /** @description 问题类型 URI，稳定不变供程序匹配 */
@@ -739,6 +871,168 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listDnsZones: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 区域列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DnsZoneList"];
+                    examples: unknown;
+                };
+            };
+        };
+    };
+    createDnsZone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DnsZoneCreate"];
+            };
+        };
+        responses: {
+            /** @description 已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DnsZone"];
+                };
+            };
+        };
+    };
+    listDnsRecords: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                zoneId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 记录列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DnsRecordList"];
+                    examples: unknown;
+                };
+            };
+        };
+    };
+    createDnsRecord: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                zoneId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DnsRecordCreate"];
+            };
+        };
+        responses: {
+            /** @description 已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DnsRecord"];
+                };
+            };
+        };
+    };
+    listLinkedRecords: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                zoneId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 联动记录 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["LinkedRecord"][];
+                    };
+                    examples: unknown;
+                };
+            };
+        };
+    };
+    exportDnsZone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                zoneId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description zonefile 文本（text/plain） */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                    examples: unknown;
+                };
+            };
+        };
+    };
+    deleteDnsZone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                zoneId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已删除 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     listForwardRules: {
         parameters: {
             query?: never;

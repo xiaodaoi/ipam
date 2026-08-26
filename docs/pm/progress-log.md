@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-26 · M3-003 完成：解析记录 API（auth-zone/联动视图）
+
+- **做了**：zones/records/linked/export 六端点 spec+迁移 0006；记录类型语法校验；zonefile 导出；变更触发 auth_zone_reload 单区刷新；联动只读视图（绑定→A/AAAA）。
+- **验证结果**：4 新单测全绿；全仓 lint 0 issues。
+- **遗留**：checkconf→reload 容器实测 M3-006；PTR 联动 P1。
+
 ## 2026-08-26 · M3-002 完成：转发规则 API（条件转发）
 
 - **做了**：forward-rules 三端点 spec+迁移 0005；最长后缀优先匹配（默认根域兜底）；dryRun 命令预览；unbound SyncForwardRules；Pg/Mem 双仓储。

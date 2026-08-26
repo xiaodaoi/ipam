@@ -50,6 +50,8 @@ type UnboundController interface {
 	SyncForward(ctx context.Context, upstreams []Upstream) error
 	// SyncForwardRules 条件转发规则下发（forward_add <domain> <addrs...>）。
 	SyncForwardRules(ctx context.Context, rules []ForwardRule, upstreams []Upstream) error
+	// AuthZoneReload 单区刷新（auth_zone_reload <zone>）。
+	AuthZoneReload(ctx context.Context, zoneID string) error
 }
 
 // Prober 上游健康探测器（TCP:53 连接+RTT；3 连败摘除/2 连胜回切）。

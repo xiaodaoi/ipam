@@ -103,6 +103,31 @@ func newEngine(version string) *gin.Engine {
 	}
 	fwdSvc := dnsmodule.NewForwardService(frRepo, upRepo, unboundCtl)
 	fwdH := dnsmodule.NewForwardHandler(fwdSvc)
+	var zoneRepo dnsmodule.ZoneRepo = dnsmodule.NewMemZoneRepo()
+	if pool != nil {
+		zoneRepo = dnsmodule.NewPgZoneRepo(pool)
+	}
+	zoneSvc := dnsmodule.NewZoneService(zoneRepo, unboundCtl)
+	zoneH := dnsmodule.NewZoneHandler(zoneSvc, func(ctx context.Context, zoneName string) []dnsmodule.LinkedRecord {
+		if pool == nil {
+			return nil
+		}
+		bindings, err := ipam.LoadLedgerBindings(ctx, pool)
+		if err != nil {
+			return nil
+		}
+		out := []dnsmodule.LinkedRecord{}
+		for _, b := range bindings {
+			name := "host-" + strings.ReplaceAll(strings.ToLower(b.MAC), ":", "-") + "." + strings.TrimPrefix(zoneName, ".")
+			if b.IPv4 != "" {
+				out = append(out, dnsmodule.LinkedRecord{Name: name, RecType: "A", Rdata: b.IPv4, MAC: b.MAC})
+			}
+			if b.IPv6 != "" {
+				out = append(out, dnsmodule.LinkedRecord{Name: name, RecType: "AAAA", Rdata: b.IPv6, MAC: b.MAC})
+			}
+		}
+		return out
+	})
 	// 组合各域 handler 共同实现 ServerInterface（Go 嵌入提升；新增域在此扩展）
 	full := struct {
 		*platform.Handler
@@ -112,7 +137,8 @@ func newEngine(version string) *gin.Engine {
 		*ipam.AssetHandler
 		*dnsmodule.DnsHandler
 		*dnsmodule.ForwardHandler
-	}{h, orgH, subH, ledgerH, assetH, dnsH, fwdH}
+		*dnsmodule.ZoneHandler
+	}{h, orgH, subH, ledgerH, assetH, dnsH, fwdH, zoneH}
 	// spec servers.url=/api/v1 → 统一前缀注册
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 

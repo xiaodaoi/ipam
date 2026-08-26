@@ -1,0 +1,165 @@
+DnsZonesCollection:
+  get:
+    operationId: listDnsZones
+    tags: [dns]
+    summary: 查询本地区域
+    security: []
+    responses:
+      '200':
+        description: 区域列表
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/dnszone.yaml#/DnsZoneList'
+          examples:
+            ok:
+              summary: auth+local 各一
+              value:
+                items:
+                  - { id: "cccccccc-cccc-cccc-cccc-cccccccccccc", name: corp.local., kind: auth, enabled: true }
+                  - { id: "dddddddd-dddd-dddd-dddd-dddddddddddd", name: block.corp.local., kind: local, enabled: true }
+                total: 2
+  post:
+    operationId: createDnsZone
+    tags: [dns]
+    summary: 创建本地区域
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/dnszone.yaml#/DnsZoneCreate'
+          examples:
+            auth:
+              value: { name: corp.local., kind: auth }
+    responses:
+      '201':
+        description: 已创建
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/dnszone.yaml#/DnsZone'
+
+DnsZoneItem:
+  get:
+    operationId: exportDnsZone
+    tags: [dns]
+    summary: 导出 zonefile（checkconf 校验过的静态区）
+    security: []
+    parameters:
+      - name: zoneId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: zonefile 文本（text/plain）
+        content:
+          text/plain:
+            schema: { type: string }
+          examples:
+            ok:
+              summary: corp.local. zonefile
+              value: |
+                $ORIGIN corp.local.
+                www 300 IN A 10.61.172.80
+                host-aa-bb-cc-dd-ee-01 300 IN AAAA 2406::10:61:172:10
+  delete:
+    operationId: deleteDnsZone
+    tags: [dns]
+    summary: 删除区域（级联记录）
+    security: [{ bearerAuth: [] }]
+    x-risk-level: destructive
+    parameters:
+      - name: zoneId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204':
+        description: 已删除
+
+DnsRecordsCollection:
+  get:
+    operationId: listDnsRecords
+    tags: [dns]
+    summary: 查询区域记录
+    security: []
+    parameters:
+      - name: zoneId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: 记录列表
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/dnszone.yaml#/DnsRecordList'
+          examples:
+            ok:
+              summary: 混合类型
+              value:
+                items:
+                  - { id: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee", zoneId: "cccccccc-cccc-cccc-cccc-cccccccccccc", name: www, recType: A, ttl: 300, rdata: "10.61.172.80", enabled: true }
+                total: 1
+  post:
+    operationId: createDnsRecord
+    tags: [dns]
+    summary: 创建记录（变更触发 auth_zone_reload 单区刷新）
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: zoneId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/dnszone.yaml#/DnsRecordCreate'
+          examples:
+            a:
+              value: { name: www, recType: A, ttl: 300, rdata: "10.61.172.80" }
+    responses:
+      '201':
+        description: 已创建
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/dnszone.yaml#/DnsRecord'
+
+DnsZoneLinked:
+  get:
+    operationId: listLinkedRecords
+    tags: [dns]
+    summary: 联动记录（只读，DHCP 双栈联动生成，§4.4）
+    security: []
+    parameters:
+      - name: zoneId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: 联动记录
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../components/schemas/dnszone.yaml#/LinkedRecord'
+              required: [items]
+          examples:
+            ok:
+              summary: 一台双栈终端
+              value:
+                items:
+                  - { name: host-aa-bb-cc-dd-ee-01.corp.local., recType: A, rdata: "10.61.172.10", mac: "aa:bb:cc:dd:ee:01" }
+                  - { name: host-aa-bb-cc-dd-ee-01.corp.local., recType: AAAA, rdata: "2406::10:61:172:10", mac: "aa:bb:cc:dd:ee:01" }

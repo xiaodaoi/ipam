@@ -1,0 +1,63 @@
+DnsZone:
+  type: object
+  description: 本地区域（auth-zone/local-zone，§13.4 解析记录）。
+  required: [id, name, kind, enabled]
+  properties:
+    id: { type: string, format: uuid }
+    name: { type: string, description: FQDN 如 corp.local. }
+    kind: { type: string, enum: [auth, local] }
+    enabled: { type: boolean }
+
+DnsZoneCreate:
+  type: object
+  required: [name]
+  properties:
+    name: { type: string }
+    kind: { type: string, enum: [auth, local], default: auth }
+
+DnsRecord:
+  type: object
+  description: 解析记录。
+  required: [id, zoneId, name, recType, ttl, rdata]
+  properties:
+    id: { type: string, format: uuid }
+    zoneId: { type: string, format: uuid }
+    name: { type: string, description: 相对名（www）或 FQDN }
+    recType: { type: string, enum: [A, AAAA, CNAME, PTR] }
+    ttl: { type: integer, minimum: 1, maximum: 86400 }
+    rdata: { type: string, description: 记录数据（A=IP/CNAME=目标/PTR=域名） }
+    enabled: { type: boolean, default: true }
+
+DnsRecordCreate:
+  type: object
+  required: [name, recType, rdata]
+  properties:
+    name: { type: string }
+    recType: { type: string, enum: [A, AAAA, CNAME, PTR] }
+    ttl: { type: integer, default: 300 }
+    rdata: { type: string }
+    enabled: { type: boolean, default: true }
+
+LinkedRecord:
+  type: object
+  description: 联动记录（只读，来自 DHCP 双栈联动自动生成，§4.4）。
+  required: [name, recType, rdata]
+  properties:
+    name: { type: string }
+    recType: { type: string, enum: [A, AAAA, PTR] }
+    rdata: { type: string }
+    mac: { type: string, description: 来源终端 MAC（联调查证） }
+
+DnsZoneList:
+  type: object
+  required: [items]
+  properties:
+    items: { type: array, items: { $ref: 'dnszone.yaml#/DnsZone' } }
+    total: { type: integer }
+
+DnsRecordList:
+  type: object
+  required: [items]
+  properties:
+    items: { type: array, items: { $ref: 'dnszone.yaml#/DnsRecord' } }
+    total: { type: integer }

@@ -26,6 +26,14 @@ tags:
   - name: dns
     description: DNS 服务（上游/转发/解析记录/封禁，FR-B、§13.4）
 paths:
+  /dns/zones:
+    $ref: './paths/dnszone.yaml#/DnsZonesCollection'
+  /dns/zones/{zoneId}/records:
+    $ref: './paths/dnszone.yaml#/DnsRecordsCollection'
+  /dns/zones/{zoneId}/linked:
+    $ref: './paths/dnszone.yaml#/DnsZoneLinked'
+  /dns/zones/{zoneId}:
+    $ref: './paths/dnszone.yaml#/DnsZoneItem'
   /forward-rules:
     $ref: './paths/forward.yaml#/ForwardRulesCollection'
   /forward-rules/{ruleId}:
@@ -164,6 +172,20 @@ components:
       $ref: './components/schemas/forward.yaml#/ForwardRuleDryRun'
     ForwardRuleList:
       $ref: './components/schemas/forward.yaml#/ForwardRuleList'
+    DnsZone:
+      $ref: './components/schemas/dnszone.yaml#/DnsZone'
+    DnsZoneCreate:
+      $ref: './components/schemas/dnszone.yaml#/DnsZoneCreate'
+    DnsRecord:
+      $ref: './components/schemas/dnszone.yaml#/DnsRecord'
+    DnsRecordCreate:
+      $ref: './components/schemas/dnszone.yaml#/DnsRecordCreate'
+    LinkedRecord:
+      $ref: './components/schemas/dnszone.yaml#/LinkedRecord'
+    DnsZoneList:
+      $ref: './components/schemas/dnszone.yaml#/DnsZoneList'
+    DnsRecordList:
+      $ref: './components/schemas/dnszone.yaml#/DnsRecordList'
     Problem:
       type: object
       description: RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。

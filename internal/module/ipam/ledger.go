@@ -45,6 +45,7 @@ type LedgerQuery struct {
 type LedgerBinding struct {
 	MAC      string
 	IPv4     string
+	IPv6     string
 	Hostname string
 	State    string
 }

@@ -37,6 +37,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		*ipam.AssetHandler
 		*dnsmodule.DnsHandler
 		*dnsmodule.ForwardHandler
+		*dnsmodule.ZoneHandler
 	}{h,
 		ipam.NewOrgHandler(ipam.NewOrgService(orgStore)),
 		ipam.NewSubnetHandler(ipam.NewSubnetService(subRepo, orgStore, kea)),
@@ -44,6 +45,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		ipam.NewAssetHandler(ipam.NewAssetService(ipam.NewMemAssetRepo(), orgStore)),
 		dnsmodule.NewDnsHandler(dnsSvc),
 		dnsmodule.NewForwardHandler(dnsmodule.NewForwardService(dnsmodule.NewMemForwardRuleRepo(), dnsmodule.NewMemUpstreamRepo(), fakeUnbound{})),
+		dnsmodule.NewZoneHandler(dnsmodule.NewZoneService(dnsmodule.NewMemZoneRepo(), fakeUnbound{}), nil),
 	}
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 	return r
@@ -116,3 +118,4 @@ func (f fakeUnbound) SyncForward(context.Context, []dnsmodule.Upstream) error { 
 func (f fakeUnbound) SyncForwardRules(context.Context, []dnsmodule.ForwardRule, []dnsmodule.Upstream) error {
 	return nil
 }
+func (f fakeUnbound) AuthZoneReload(context.Context, string) error { return nil }
