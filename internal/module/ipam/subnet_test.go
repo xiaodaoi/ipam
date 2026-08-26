@@ -12,18 +12,22 @@ type fakeKea struct {
 	removed  []int
 }
 
-func (f *fakeKea) DeploySubnet(_ context.Context, ss []Subnet, _ bool) (int, error) {
+func (f *fakeKea) DeploySubnet(_ context.Context, ss []Subnet, dry bool) (int, error) {
 	if f.failNext {
 		f.failNext = false
 		return 0, errors.New("kea down")
 	}
-	f.deployed = append(f.deployed, ss...)
+	if !dry {
+		f.deployed = append(f.deployed, ss...)
+	}
 	return 1, nil
 }
 func (f *fakeKea) RemoveSubnet(_ context.Context, id int) error {
 	f.removed = append(f.removed, id)
 	return nil
 }
+func (f *fakeKea) ReserveAddress(_ context.Context, _, _ string) error { return nil }
+func (f *fakeKea) BindStatic(_ context.Context, _, _, _ string) error  { return nil }
 
 func newSubnetSvc(t *testing.T) (*SubnetService, *fakeKea, *MemOrgStore) {
 	t.Helper()

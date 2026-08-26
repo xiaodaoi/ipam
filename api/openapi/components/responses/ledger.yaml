@@ -1,0 +1,6 @@
+LedgerPageOK:
+  description: 台账页
+  content:
+    application/json:
+      schema:
+        $ref: '../schemas/ledger.yaml#/LedgerPage'

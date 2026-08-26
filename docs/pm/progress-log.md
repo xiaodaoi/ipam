@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-26 · M2-003 完成：地址台账 API（六态矩阵+游标+保留/绑定）
+
+- **做了**：ledger 三端点 spec；六态判定全矩阵（§13.4 颜色规范）+v4 逐地址/v6 汇总+游标分页；Reserve/BindStatic 服务（占用检查→预留→Kea 下发）；双预留仓储；KeaDeployer 扩展 reservation-add；main 装配含 PG 绑定源。
+- **验证结果**：ledger 4 新单测全绿；全仓 5 包 lint 0 issues。
+- **踩坑**：占用判定须查仓储保幂等；LedgerBinding 域内自建类型隔离。
+- **遗留**：asset 关联（M2-004）；在线态为租约近似（按决策）。
+
 ## 2026-08-26 · M2-002 完成：子网地址池 API + Kea 引擎通道
 
 - **做了**：subnets 四端点 spec（dryRun/KEA_DOWN/双 example）；迁移 0003（subnet/address_pool+org FK）；SubnetService（引擎先发后库/失败不落库/更新回滚）；Pg 与 Mem 双仓储按 IPAM_DB_DSN 装配（顺带落地 M2-001 遗留的 org PG 仓储）；engine/kea 配置生成+ctrl-agent 下发（数组响应语义）；handler 接线。

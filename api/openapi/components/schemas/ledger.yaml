@@ -1,0 +1,71 @@
+LedgerState:
+  type: string
+  enum: [online, available, reserved, static, grace, conflict]
+  description: 地址六态（§13.4 颜色规范）：在线=租约活跃近似（绿）/空闲（灰蓝）/保留冻结（黄）/静态绑定（蓝）/过期宽限（橙）/冲突（红）
+
+LedgerRow:
+  type: object
+  required: [address, family, state]
+  properties:
+    address:
+      type: string
+      description: IPv4 逐地址；IPv6 为子网级汇总行（/64 前缀）
+    family:
+      type: integer
+      enum: [4, 6]
+    state:
+      $ref: 'ledger.yaml#/LedgerState'
+    mac:
+      type: string
+      description: 绑定/租约关联 MAC（六态中 online/static/grace/conflict 通常有）
+    hostname:
+      type: string
+    owner:
+      type: string
+      description: 资产登记使用人（asset 表，以 MAC 为键）
+    leaseExpiry:
+      type: string
+      format: date-time
+      description: 租约到期时间（在线态展示）
+    subnetId:
+      type: string
+      format: uuid
+    poolIndex:
+      type: string
+      description: 游标键："{family}:{address}"，排序稳定
+
+LedgerPage:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: 'ledger.yaml#/LedgerRow'
+    nextCursor:
+      type: string
+      description: 下一页游标；空=已到尾页
+    total:
+      type: integer
+      description: 满足过滤的总行数（v4 逐地址计数）
+
+ReserveRequest:
+  type: object
+  required: [subnetId, address]
+  properties:
+    subnetId: { type: string, format: uuid }
+    address: { type: string }
+    reason:
+      type: string
+      maxLength: 128
+      description: 保留原因（审计）
+
+BindRequest:
+  type: object
+  required: [subnetId, address, mac]
+  properties:
+    subnetId: { type: string, format: uuid }
+    address: { type: string }
+    mac: { type: string, description: 归一化小写冒号格式 }
+    hostname:
+      type: string

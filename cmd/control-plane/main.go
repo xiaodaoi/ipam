@@ -32,8 +32,10 @@ func newEngine(version string) *gin.Engine {
 	var orgStore ipam.OrgStore = ipam.NewMemOrgStore()
 	var subRepo ipam.SubnetRepo = ipam.NewMemSubnetRepo()
 	var keaDeploy ipam.KeaDeployer = ipam.NewNoopKea()
+	var pool *pgxpool.Pool
 	if dsn := os.Getenv("IPAM_DB_DSN"); dsn != "" {
-		pool, err := pgxpool.New(context.Background(), dsn)
+		var err error
+		pool, err = pgxpool.New(context.Background(), dsn)
 		if err != nil {
 			log.Fatalf("pg pool: %v", err)
 		}
@@ -44,12 +46,33 @@ func newEngine(version string) *gin.Engine {
 
 	orgH := ipam.NewOrgHandler(ipam.NewOrgService(orgStore))
 	subH := ipam.NewSubnetHandler(ipam.NewSubnetService(subRepo, orgStore, keaDeploy))
+
+	var resRepo ipam.ReservationRepo = ipam.NewMemReservationRepo()
+	if pool != nil {
+		resRepo = ipam.NewPgReservationRepo(pool)
+	}
+	ledgerSrc := func(ctx context.Context) ipam.LedgerSource {
+		bindings := []ipam.LedgerBinding{}
+		if pool != nil {
+			if bs, err := ipam.LoadLedgerBindings(ctx, pool); err == nil {
+				bindings = bs
+			}
+		}
+		reservations, _ := resRepo.List(ctx)
+		subs, _ := subRepo.List(ctx, "", 0)
+		return ipam.LedgerSource{
+			Bindings: bindings, Reservations: reservations,
+			Assets: map[string]ipam.Asset{}, Subnets: subs,
+		}
+	}
+	ledgerH := ipam.NewLedgerHandler(ipam.NewLedgerService(ledgerSrc, resRepo, keaDeploy, subRepo))
 	// 组合各域 handler 共同实现 ServerInterface（Go 嵌入提升；新增域在此扩展）
 	full := struct {
 		*platform.Handler
 		*ipam.OrgHandler
 		*ipam.SubnetHandler
-	}{h, orgH, subH}
+		*ipam.LedgerHandler
+	}{h, orgH, subH, ledgerH}
 	// spec servers.url=/api/v1 → 统一前缀注册
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 

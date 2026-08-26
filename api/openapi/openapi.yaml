@@ -17,7 +17,13 @@ tags:
     description: 组织分组主数据（多级自定义树，§13.4）
   - name: subnet
     description: DHCPv4/v6 子网与地址池（FR-C、§13.4）
+  - name: ledger
+    description: 地址台账（六态矩阵与保留/绑定操作，§13.4）
 paths:
+  /ledger:
+    $ref: './paths/ledger.yaml#/LedgerCollection'
+  /ledger/bind:
+    $ref: './paths/ledger.yaml#/BindStatic'
   /subnets:
     $ref: './paths/subnets.yaml#/SubnetsCollection'
   /subnets/{subnetId}:
@@ -100,6 +106,16 @@ components:
       $ref: './components/schemas/subnet.yaml#/SubnetUpdate'
     SubnetList:
       $ref: './components/schemas/subnet.yaml#/SubnetList'
+    LedgerState:
+      $ref: './components/schemas/ledger.yaml#/LedgerState'
+    LedgerRow:
+      $ref: './components/schemas/ledger.yaml#/LedgerRow'
+    LedgerPage:
+      $ref: './components/schemas/ledger.yaml#/LedgerPage'
+    ReserveRequest:
+      $ref: './components/schemas/ledger.yaml#/ReserveRequest'
+    BindRequest:
+      $ref: './components/schemas/ledger.yaml#/BindRequest'
     Problem:
       type: object
       description: RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。

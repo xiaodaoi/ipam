@@ -173,6 +173,58 @@ func (r *OrgRepo) ReferencedByAsset(id string) bool {
 	return err == nil
 }
 
+// MemReservationRepo 内存实现（PoC/单测）。
+type MemReservationRepo struct{ items map[string]Reservation }
+
+func NewMemReservationRepo() *MemReservationRepo {
+	return &MemReservationRepo{items: map[string]Reservation{}}
+}
+
+func (r *MemReservationRepo) Upsert(_ context.Context, res Reservation) error {
+	r.items[res.IPv4] = res
+	return nil
+}
+
+func (r *MemReservationRepo) List(_ context.Context) ([]Reservation, error) {
+	out := []Reservation{}
+	for _, v := range r.items {
+		out = append(out, v)
+	}
+	return out, nil
+}
+
+// PgReservationRepo PG 实现。
+type PgReservationRepo struct{ pool *pgxpool.Pool }
+
+func NewPgReservationRepo(pool *pgxpool.Pool) *PgReservationRepo {
+	return &PgReservationRepo{pool: pool}
+}
+
+func (r *PgReservationRepo) Upsert(ctx context.Context, res Reservation) error {
+	_, err := r.pool.Exec(ctx,
+		`INSERT INTO reservation(mac, ipv4, origin) VALUES($1,$2,'manual')
+		 ON CONFLICT DO NOTHING`,
+		nullStr(res.MAC), res.IPv4)
+	return err
+}
+
+func (r *PgReservationRepo) List(ctx context.Context) ([]Reservation, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT coalesce(mac,''), host(ipv4) FROM reservation WHERE ipv4 IS NOT NULL`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Reservation{}
+	for rows.Next() {
+		var res Reservation
+		if err := rows.Scan(&res.MAC, &res.IPv4); err == nil {
+			out = append(out, res)
+		}
+	}
+	return out, rows.Err()
+}
+
 // MemSubnetRepo 内存实现（PoC/单测）。
 type MemSubnetRepo struct {
 	mu    sync.RWMutex
@@ -244,3 +296,24 @@ func NewNoopKea() *NoopKea { return &NoopKea{} }
 
 func (n *NoopKea) DeploySubnet(_ context.Context, _ []Subnet, _ bool) (int, error) { return 1, nil }
 func (n *NoopKea) RemoveSubnet(_ context.Context, _ int) error                     { return nil }
+func (n *NoopKea) ReserveAddress(_ context.Context, _, _ string) error             { return nil }
+func (n *NoopKea) BindStatic(_ context.Context, _, _, _ string) error              { return nil }
+
+// LoadLedgerBindings 台账绑定源：读 PG coherence_binding（active/grace）。
+func LoadLedgerBindings(ctx context.Context, pool *pgxpool.Pool) ([]LedgerBinding, error) {
+	rows, err := pool.Query(ctx,
+		`SELECT coalesce(mac,''), host(ipv4), coalesce(hostname,''), state
+		 FROM coherence_binding WHERE state IN ('active','grace')`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []LedgerBinding{}
+	for rows.Next() {
+		var b LedgerBinding
+		if err := rows.Scan(&b.MAC, &b.IPv4, &b.Hostname, &b.State); err == nil {
+			out = append(out, b)
+		}
+	}
+	return out, rows.Err()
+}

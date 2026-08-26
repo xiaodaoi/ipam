@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -16,13 +17,22 @@ import (
 func newTestRouter(h *Handler) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
+	orgStore := ipam.NewMemOrgStore()
+	kea := ipam.NewNoopKea()
+	subRepo := ipam.NewMemSubnetRepo()
+	resRepo := ipam.NewMemReservationRepo()
+	ledgerSvc := ipam.NewLedgerService(func(context.Context) ipam.LedgerSource {
+		return ipam.LedgerSource{Subnets: []ipam.Subnet{}}
+	}, resRepo, kea, subRepo)
 	full := struct {
 		*Handler
 		*ipam.OrgHandler
 		*ipam.SubnetHandler
+		*ipam.LedgerHandler
 	}{h,
-		ipam.NewOrgHandler(ipam.NewOrgService(ipam.NewMemOrgStore())),
-		ipam.NewSubnetHandler(ipam.NewSubnetService(ipam.NewMemSubnetRepo(), ipam.NewMemOrgStore(), ipam.NewNoopKea())),
+		ipam.NewOrgHandler(ipam.NewOrgService(orgStore)),
+		ipam.NewSubnetHandler(ipam.NewSubnetService(subRepo, orgStore, kea)),
+		ipam.NewLedgerHandler(ledgerSvc),
 	}
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 	return r

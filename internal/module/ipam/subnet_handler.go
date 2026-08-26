@@ -138,10 +138,3 @@ func mapSubnetErr(c *gin.Context, err error) {
 		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "INTERNAL", err.Error())
 	}
 }
-
-func strPtr(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
-}

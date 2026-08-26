@@ -1,0 +1,118 @@
+LedgerCollection:
+  get:
+    operationId: listLedger
+    tags: [ledger]
+    summary: 查询地址台账（六态矩阵）
+    description: |
+      按组织/族/状态过滤；v4 逐地址返回，v6 返回子网级汇总。
+      游标分页（cursor 取自上一页 nextCursor）。数据源=子网池∪绑定∪预留∪资产。
+    security: []
+    parameters:
+      - name: orgId
+        in: query
+        schema: { type: string, format: uuid }
+      - name: family
+        in: query
+        schema: { type: integer, enum: [4, 6] }
+      - name: state
+        in: query
+        schema: { $ref: '../components/schemas/ledger.yaml#/LedgerState' }
+      - name: cursor
+        in: query
+        schema: { type: string }
+      - name: pageSize
+        in: query
+        schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+    responses:
+      '200':
+        description: 台账页
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/ledger.yaml#/LedgerPage'
+          examples:
+            ok:
+              summary: v4 六态混合页
+              value:
+                items:
+                  - { address: "10.61.172.10", family: 4, state: online, mac: "aa:bb:cc:dd:ee:01", hostname: printer, owner: 张三, leaseExpiry: "2026-08-26T10:00:00Z", subnetId: "44444444-4444-4444-4444-444444444444", poolIndex: "4:10.61.172.10" }
+                  - { address: "10.61.172.11", family: 4, state: available, subnetId: "44444444-4444-4444-4444-444444444444", poolIndex: "4:10.61.172.11" }
+                  - { address: "10.61.172.12", family: 4, state: reserved, subnetId: "44444444-4444-4444-4444-444444444444", poolIndex: "4:10.61.172.12" }
+                  - { address: "10.61.172.13", family: 4, state: static, mac: "aa:bb:cc:dd:ee:02", subnetId: "44444444-4444-4444-4444-444444444444", poolIndex: "4:10.61.172.13" }
+                  - { address: "10.61.172.14", family: 4, state: grace, mac: "aa:bb:cc:dd:ee:03", subnetId: "44444444-4444-4444-4444-444444444444", poolIndex: "4:10.61.172.14" }
+                  - { address: "10.61.172.15", family: 4, state: conflict, mac: "aa:bb:cc:dd:ee:04", subnetId: "44444444-4444-4444-4444-444444444444", poolIndex: "4:10.61.172.15" }
+                nextCursor: "4:10.61.173.0"
+                total: 100
+  post:
+    operationId: reserveAddress
+    tags: [ledger]
+    summary: 地址转保留（冻结不下发）
+    description: |
+      生成 excluded 语义（pool kind=excluded 等价）并写 reservation(origin=manual, 无 MAC)。
+      经 Kea 重新下发后生效。scope: ledger.write。支持 Idempotency-Key。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/ledger.yaml#/ReserveRequest'
+          examples:
+            ok:
+              value: { subnetId: "44444444-4444-4444-4444-444444444444", address: "10.61.172.12", reason: 服务器预占 }
+    responses:
+      '204':
+        description: 已保留
+      '409':
+        description: 地址已被占用（绑定/在线）
+        content:
+          application/problem+json:
+            schema:
+              type: object
+              required: [type, title, status]
+              properties:
+                type: { type: string }
+                title: { type: string }
+                status: { type: integer }
+                code: { type: string }
+          examples:
+            occupied:
+              value:
+                type: "https://ipam.local/problems/addr-occupied"
+                title: Conflict
+                status: 409
+                code: ADDR_OCCUPIED
+
+BindStatic:
+  post:
+    operationId: bindStatic
+    tags: [ledger]
+    summary: 地址转静态绑定（MAC 锚定）
+    description: |
+      写 reservation(origin=manual, mac) 并经 Kea host reservation 下发；资产备注以 MAC 为键（§13.4）。
+      scope: ledger.write。支持 Idempotency-Key。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/ledger.yaml#/BindRequest'
+          examples:
+            ok:
+              value: { subnetId: "44444444-4444-4444-4444-444444444444", address: "10.61.172.13", mac: "aa:bb:cc:dd:ee:02", hostname: nas }
+    responses:
+      '204':
+        description: 已绑定
+      '409':
+        description: 地址已被占用
+        content:
+          application/problem+json:
+            schema:
+              type: object
+              required: [type, title, status]
+              properties:
+                type: { type: string }
+                title: { type: string }
+                status: { type: integer }
+                code: { type: string }

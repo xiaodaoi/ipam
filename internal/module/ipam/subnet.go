@@ -32,6 +32,10 @@ type KeaDeployer interface {
 	// dryRun=true 时仅生成与校验，不发网络调用。
 	DeploySubnet(ctx context.Context, subnets []Subnet, dryRun bool) (int, error)
 	RemoveSubnet(ctx context.Context, subnetID int) error
+	// ReserveAddress 将单地址置为保留（excluded 语义）。
+	ReserveAddress(ctx context.Context, subnetID, addr string) error
+	// BindStatic 下发 host reservation（MAC↔地址）。
+	BindStatic(ctx context.Context, subnetID, addr, mac string) error
 }
 
 var (
@@ -113,6 +117,7 @@ func (s *SubnetService) Update(ctx context.Context, id string, in Subnet) (Subne
 	in.ID = id
 	in.OrgID = cur.OrgID
 	in.Family = cur.Family
+	in.CIDR = cur.CIDR
 	in.KeaSubnetID = cur.KeaSubnetID
 	if err := validateSubnet(in); err != nil {
 		return Subnet{}, err
