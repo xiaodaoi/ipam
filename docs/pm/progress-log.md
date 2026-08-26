@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-26 · M2-006 完成：前端组织树与地址台账页
+
+- **做了**：TS schema 类型管线接入 gen 流程；类型化 API 客户端；DHCP 一级菜单路由；台账页（组织树+六态着色+保留/绑定操作）；双语 locale。
+- **验证结果**：typecheck/build/零外链/Go embed 全绿。
+- **里程碑**：**M2 DHCP+IPAM 业务层 6/6 全部交付**（16 端点 API+前端台账页）。
+
 ## 2026-08-26 · M2-005 完成：保留与绑定批量 API（事务性全或全不）
 
 - **做了**：bulkReservations 端点；两阶段批量（预检零写入+应用期失败尽力回滚）；ReservationRepo.Delete；handler 复用 LedgerHandler。

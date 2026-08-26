@@ -29,5 +29,10 @@ if [ "$mode" = "--check" ]; then
   rm -rf "$tmp"; echo "OK: api/gen 与 spec 一致"
 else
   (cd "$root" && oapi-codegen -config "$cfg" "$spec")
-  echo "OK: api/gen 已再生（TS 客户端生成在 M0-004 补充 web 侧管道）"
+  # TS schema 同步（§13.2：前端类型与契约同源）
+  if command -v npx >/dev/null 2>&1 && [ -d "$root/web/apps/web-ipam/src/api" ]; then
+    npx --yes openapi-typescript "$root/api/openapi/.gen-bundled.yaml" \
+      -o "$root/web/apps/web-ipam/src/api/schema.d.ts" >/dev/null
+  fi
+  echo "OK: api/gen 已再生（含 TS schema.d.ts 同步）"
 fi

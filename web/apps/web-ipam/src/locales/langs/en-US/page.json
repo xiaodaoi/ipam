@@ -11,5 +11,9 @@
     "title": "Dashboard",
     "analytics": "Analytics",
     "workspace": "Workspace"
+  },
+  "dhcp": {
+    "title": "DHCP Service",
+    "ledger": "Address Ledger"
   }
 }

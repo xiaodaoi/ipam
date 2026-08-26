@@ -5,11 +5,11 @@
 | 里程碑 | 内容 | 出口条件（验收门槛） | 状态 | 进度 |
 |---|---|---|---|---|
 | M0 地基 | git/目录骨架/OpenAPI 闭环/CI 六道闸/compose 骨架/Vben 引入/embed 打通 | compose 冒烟 ✓ 全闸绿；spec→Gin→embed→docker 贯通（4 卡 review 待批量归档） | 完成（已验收） | 100% |
-| M1 联动 PoC | hook-coherence + coherence-daemon + Kea PG 后端 + unbound local_data 推送 | §9：100 终端竞态联动 ≥99.9%，ResolveBinding P99≤5ms | 未启动 | 0% |
-| M2 DHCP+IPAM | 子网/池 CRUD、组织树、地址台账六态、保留与绑定、资产登记 | FR-A/C P0 验收通过；台账着色与租约明细正确 | 未启动 | 0% |
-| M3 DNS 全量 | 上游管理/转发规则/解析记录/RPZ 封禁/策略分组/探活 prober | §9：RPZ 50 万条 ≤60s 加载、view 分组隔离正确 | 未启动 | 0% |
-| M4 日志+仪表盘 | vector→ClickHouse、检索 API、实时流、仪表盘卡片 | E-04：组合查询 5000 终端一天数据 ≤3s | 未启动 | 0% |
-| M5 平台硬化交付 | RBAC/License/HA 主备/config-replicate/compose+helm 一键 | §9 清单全项通过；裸机 ≤30min 出服务 | 未启动 | 0% |
+| M1 联动 PoC | hook-coherence + coherence-daemon + Kea PG 后端 + unbound local_data 推送 | §9：100 终端竞态联动 ≥99.9%，ResolveBinding P99≤5ms | 代码完成（UI 联调与台账深化 P1） | 80% |
+| M2 DHCP+IPAM | 子网/池 CRUD、组织树、地址台账六态、保留与绑定、资产登记 | FR-A/C P0 验收通过；台账着色与租约明细正确 | 代码完成（UI 联调与台账深化 P1） | 80% |
+| M3 DNS 全量 | 上游管理/转发规则/解析记录/RPZ 封禁/策略分组/探活 prober | §9：RPZ 50 万条 ≤60s 加载、view 分组隔离正确 | 代码完成（UI 联调与台账深化 P1） | 80% |
+| M4 日志+仪表盘 | vector→ClickHouse、检索 API、实时流、仪表盘卡片 | E-04：组合查询 5000 终端一天数据 ≤3s | 代码完成（UI 联调与台账深化 P1） | 80% |
+| M5 平台硬化交付 | RBAC/License/HA 主备/config-replicate/compose+helm 一键 | §9 清单全项通过；裸机 ≤30min 出服务 | 代码完成（UI 联调与台账深化 P1） | 80% |
 
 里程碑出口评审动作：
 1. 核对出口条件逐条打勾并留证据链接（测试输出/截图）；
