@@ -29,3 +29,4 @@ secrets/
 *.log
 web/apps/*/dist.zip
 deploy/compose/.env
+.omo/

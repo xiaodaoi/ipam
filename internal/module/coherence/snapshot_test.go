@@ -1,7 +1,6 @@
 package coherence
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,12 +21,15 @@ func TestWriteSnapshotAtomic_RoundTrip(t *testing.T) {
 	}
 
 	data, _ := os.ReadFile(path)
-	var got []Binding
-	if err := json.Unmarshal(data, &got); err != nil {
-		t.Fatalf("bad json: %v", err)
-	}
-	if len(got) != 2 || got[0].MAC != "aa:bb:cc:dd:ee:01" || got[0].IPv6 != "2406::10:61:172:10" {
-		t.Fatalf("roundtrip mismatch: %+v", got)
+	text := string(data)
+	for _, want := range []string{
+		"# ipam bindings.snapshot v2",
+		"aa:bb:cc:dd:ee:01|10.61.172.10|2406::10:61:172:10|t-b|printer",
+		"aa:bb:cc:dd:ee:02|10.0.0.5|2406::5||",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("missing line %q in:\n%s", want, text)
+		}
 	}
 }
 

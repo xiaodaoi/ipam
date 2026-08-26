@@ -1,20 +1,28 @@
 package coherence
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
 // WriteSnapshotAtomic 将台账全量快照写入 path（tmp+rename 原子替换，§2.1 降级策略）。
 // 格式：JSON 数组，C++ hook 侧只读。
-func WriteSnapshotAtomic(path string, bindings []Binding) error {
-	data, err := json.Marshal(bindings)
-	if err != nil {
-		return err
+// 行协议 v2：mac|ipv4|ipv6|template_id|hostname（C++ 侧零依赖解析）
+func SnapshotLines(bindings []Binding) []byte {
+	var sb strings.Builder
+	sb.WriteString("# ipam bindings.snapshot v2\n")
+	for _, b := range bindings {
+		sb.WriteString(strings.Join([]string{b.MAC, b.IPv4, b.IPv6, b.TemplateID, b.Hostname}, "|"))
+		sb.WriteByte('\n')
 	}
+	return []byte(sb.String())
+}
+
+func WriteSnapshotAtomic(path string, bindings []Binding) error {
+	data := SnapshotLines(bindings)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}

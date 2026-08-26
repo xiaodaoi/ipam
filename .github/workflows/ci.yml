@@ -90,6 +90,19 @@ jobs:
           bash scripts/sync-webui.sh
           bash scripts/check-webui-offline.sh
 
+  # ── K4：C++ hook 核心库编译+测试+行数门禁（Kea 胶水层需真机头文件，CI 跳过）──
+  hook-ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: build & test core lib
+        run: |
+          cmake -S hook-coherence -B hook-coherence/build
+          cmake --build hook-coherence/build
+          ctest --test-dir hook-coherence/build --output-on-failure
+      - name: 行数门禁(<800)
+        run: bash scripts/check-hook-lines.sh
+
   # ── 闸⑥ compose 冒烟（M0-006 落地前自动跳过）──
   compose-smoke:
     runs-on: ubuntu-latest
