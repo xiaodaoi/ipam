@@ -142,6 +142,9 @@ jobs:
           [ "$(printf '1.16.0\n%s\n' "$V" | sort -V | head -1)" = "1.16.0" ] || { echo "unbound $V < 1.16"; exit 1; }
           echo "[4] static authoritative answer"
           docker compose exec -T unbound dig @127.0.0.1 smoke.corp.local +short | grep -q 10.61.172.253
+          echo "[4b] K1: local-data wins over auth-zone"
+          docker compose exec -T unbound dig @127.0.0.1 auth-only.corp.local +short | grep -q 10.0.0.99
+          docker compose exec -T unbound dig @127.0.0.1 overlap.corp.local +short | grep -q 10.61.172.250
           echo "[5] local_data hot inject"
           docker compose exec -T unbound sh -c \
             'unbound-control local_data "dyn-test.corp.local. 60 IN A 10.61.172.99"'
