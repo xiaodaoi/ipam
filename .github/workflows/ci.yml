@@ -93,15 +93,27 @@ jobs:
   # ── K4：C++ hook 核心库编译+测试+行数门禁（Kea 胶水层需真机头文件，CI 跳过）──
   hook-ci:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - name: build & test core lib
         run: |
-          cmake -S hook-coherence -B hook-coherence/build
-          cmake --build hook-coherence/build
-          ctest --test-dir hook-coherence/build --output-on-failure
+          set -o pipefail
+          { cmake -S hook-coherence -B hook-coherence/build \
+            && cmake --build hook-coherence/build --verbose \
+            && ctest --test-dir hook-coherence/build --output-on-failure; } \
+            | tee /tmp/hook-build.log
       - name: 行数门禁(<800)
         run: bash scripts/check-hook-lines.sh
+      - name: push diagnostics branch
+        if: failure()
+        run: |
+          git config user.email "ci@ipam.local"
+          git config user.name "ci-diag"
+          tail -c 6000 /tmp/hook-build.log > diag-hook.txt || true
+          git add diag-hook.txt && git commit -m "ci hook diag ${GITHUB_RUN_ID}"
+          git push -f origin "HEAD:refs/heads/ci-diag"
 
   # ── 闸⑥ compose 冒烟（M0-006 落地前自动跳过）──
   compose-smoke:
