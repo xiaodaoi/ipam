@@ -8,10 +8,10 @@ import (
 )
 
 func TestNormalizeAddr(t *testing.T) {
-	if normalizeAddr("223.5.5.5") != "223.5.5.5:53" {
+	if NormalizeAddr("223.5.5.5") != "223.5.5.5:53" {
 		t.Fatal("missing port should default 53")
 	}
-	if normalizeAddr("1.1.1.1:5353") != "1.1.1.1:5353" {
+	if NormalizeAddr("1.1.1.1:5353") != "1.1.1.1:5353" {
 		t.Fatal("existing port preserved")
 	}
 }

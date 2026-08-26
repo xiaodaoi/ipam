@@ -120,6 +120,12 @@ func newEngine(version string) *gin.Engine {
 	}
 	settingsSvc := dnsmodule.NewSettingsService(settingsRepo, unboundCtl, "/etc/unbound/unbound.conf")
 	settingsH := dnsmodule.NewSettingsHandler(settingsSvc, settingsRepo)
+	applier := &confApplier{
+		pool: pool, upRepo: upRepo, frRepo: frRepo, zoneRepo: zoneRepo,
+		blRepo: blRepo, settings: settingsRepo, ctl: unboundCtl,
+		confPath: "/etc/unbound/unbound.conf",
+	}
+	registerConfRoutes(r, applier)
 	zoneH := dnsmodule.NewZoneHandler(zoneSvc, func(ctx context.Context, zoneName string) []dnsmodule.LinkedRecord {
 		if pool == nil {
 			return nil

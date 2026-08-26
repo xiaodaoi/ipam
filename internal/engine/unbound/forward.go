@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"os/exec"
 	"time"
 
@@ -52,7 +53,7 @@ func (e ExecController) SyncForward(_ context.Context, upstreams []dns.Upstream)
 	args := []string{"forward_add", "."}
 	for _, u := range enabled {
 		for _, a := range u.Addrs {
-			host, port, err := net.SplitHostPort(normalizeAddr(a))
+			host, port, err := net.SplitHostPort(NormalizeAddr(a))
 			if err != nil {
 				return err
 			}
@@ -62,15 +63,34 @@ func (e ExecController) SyncForward(_ context.Context, upstreams []dns.Upstream)
 	return e.run(args...)
 }
 
-// CheckConf 校验配置片段（渲染后拼接校验，§2.3 三步走）。
+// CheckConf 校验候选配置：将 block 追加到 confPath 现有内容后写临时文件，
+// 执行 unbound-checkconf 校验语法（§2.3 三步走第二段）。
 func (e ExecController) CheckConf(_ context.Context, confPath, renderedBlock string) error {
-	if _, err := exec.LookPath("unbound-checkconf"); err != nil {
+	check := "unbound-checkconf"
+	if _, err := exec.LookPath(check); err != nil {
 		return ErrUnavailable
 	}
-	// 片段校验：写入临时主配置并入 checkconf
-	tmp := renderedBlock
-	_ = tmp
-	return nil // 完整校验在 M3-006 五源合成后统一执行
+	base := ""
+	if data, err := os.ReadFile(confPath); err == nil {
+		base = string(data)
+	} else {
+		base = "server:\n"
+	}
+	tmp, err := os.CreateTemp("", "ipam-checkconf-*.conf")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.WriteString(base + "\n# candidate\n" + renderedBlock); err != nil {
+		tmp.Close()
+		return err
+	}
+	tmp.Close()
+	out, err := exec.Command(check, tmp.Name()).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("checkconf: %v: %s", err, out)
+	}
+	return nil
 }
 
 // Reload 全量 reload。
@@ -111,7 +131,7 @@ func (e ExecController) SyncForwardRules(_ context.Context, rules []dns.ForwardR
 				continue
 			}
 			for _, a := range u.Addrs {
-				host, port, err := net.SplitHostPort(normalizeAddr(a))
+				host, port, err := net.SplitHostPort(NormalizeAddr(a))
 				if err != nil {
 					return err
 				}
@@ -127,8 +147,8 @@ func (e ExecController) SyncForwardRules(_ context.Context, rules []dns.ForwardR
 	return nil
 }
 
-// normalizeAddr 补默认端口（"223.5.5.5" → "223.5.5.5:53"）。
-func normalizeAddr(a string) string {
+// NormalizeAddr 补默认端口（导出供 main 装配使用）。
+func NormalizeAddr(a string) string {
 	if _, _, err := net.SplitHostPort(a); err == nil {
 		return a
 	}
@@ -139,7 +159,7 @@ func normalizeAddr(a string) string {
 func DialProbe(ctx context.Context, addr string) (time.Duration, error) {
 	start := time.Now()
 	d := net.Dialer{Timeout: 2 * time.Second}
-	conn, err := d.DialContext(ctx, "tcp", normalizeAddr(addr))
+	conn, err := d.DialContext(ctx, "tcp", NormalizeAddr(addr))
 	if err != nil {
 		return 0, err
 	}

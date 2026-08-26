@@ -1,0 +1,4 @@
+$ORIGIN corp.local.
+$TTL 300
+auth-only IN A 10.0.0.99
+overlap   IN A 10.9.9.9

@@ -37,8 +37,15 @@ RUN go build -ldflags "-s -w -X main.version=${VERSION:-0.1.0-dev}" -o /out/cont
 
 FROM ubuntu:jammy
 ARG APT_MIRROR=""
+ARG UNBOUND_VERSION=1.26.0
 RUN if [ -n "$APT_MIRROR" ]; then sed -i "s|http://archive.ubuntu.com|$APT_MIRROR|g; s|http://security.ubuntu.com|$APT_MIRROR|g" /etc/apt/sources.list; fi
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl build-essential libssl-dev libexpat1-dev libevent-dev flex bison \
+ && curl -fsSL "https://github.com/NLnetLabs/unbound/archive/refs/tags/release-${UNBOUND_VERSION}.tar.gz" -o /tmp/u.tgz \
+ && tar -xzf /tmp/u.tgz -C /tmp && cd /tmp/unbound-release-${UNBOUND_VERSION} \
+ && ./configure --prefix=/usr --sysconfdir=/etc --with-pidfile=/run/unbound.pid --with-rootkey-file=/var/lib/unbound/root.key \
+ && make -j"$(nproc)" && make install && ldconfig \
+ && rm -rf /tmp/unbound* \
+ && apt-get purge -y build-essential libssl-dev libexpat1-dev libevent-dev flex bison \
  && rm -rf /var/lib/apt/lists/* \
  && useradd -r -u 10001 ipam
 COPY --from=build /out/control-plane /usr/local/bin/control-plane

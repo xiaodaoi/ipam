@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /tmp/unbound* /var/lib/apt/lists/*
 
 COPY config/unbound/unbound.conf /etc/unbound/unbound.conf
+COPY config/unbound/auth-corp.zone /etc/unbound/auth-corp.zone
 RUN useradd -r unbound && mkdir -p /run/ipam /var/lib/unbound \
     && unbound -V | head -2
 

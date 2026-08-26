@@ -61,6 +61,7 @@ services:
         condition: service_started
     volumes:
       - ipam-run:/run/ipam
+      - ../../config/unbound:/etc/unbound:ro
     ports:
       - "${UNBOUND_PORT:-5353}:53/udp"
       - "${UNBOUND_PORT:-5353}:53/tcp"
