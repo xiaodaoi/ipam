@@ -4,6 +4,48 @@
  */
 
 export interface paths {
+    "/upstreams": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查询上游服务器（含探活状态）
+         * @description 探活状态由 prober 周期维护（3 连败摘除/2 连胜回切）。
+         */
+        get: operations["listUpstreams"];
+        put?: never;
+        /**
+         * 创建上游（触发 forward-zone 下发）
+         * @description 落库后经 unbound 通道生效（forward_add）。scope 为 dns.write。
+         */
+        post: operations["createUpstream"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/upstreams/{upstreamId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 删除上游（forward_remove） */
+        delete: operations["deleteUpstream"];
+        options?: never;
+        head?: never;
+        /** 更新上游（重新下发） */
+        patch: operations["updateUpstream"];
+        trace?: never;
+    };
     "/reservations/bulk": {
         parameters: {
             query?: never;
@@ -453,6 +495,50 @@ export interface components {
                 reason: string;
             }[];
         };
+        /** @description DNS 上游服务器（FR-B-01；探活状态灯数据源 F-R4）。 */
+        Upstream: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            addrs: string[];
+            /** @enum {string} */
+            protocol: "udp" | "tcp" | "dot";
+            weight: number;
+            enabled: boolean;
+            /** @description 探活状态（prober 维护） */
+            health: {
+                up?: boolean;
+                rttMs?: number;
+                consecutiveFails?: number;
+                /** Format: date-time */
+                lastCheck?: string;
+            };
+        };
+        UpstreamCreate: {
+            name: string;
+            addrs: string[];
+            /**
+             * @default udp
+             * @enum {string}
+             */
+            protocol: "udp" | "tcp" | "dot";
+            /** @default 1 */
+            weight: number;
+            /** @default true */
+            enabled: boolean;
+        };
+        UpstreamUpdate: {
+            name?: string;
+            addrs?: string[];
+            /** @enum {string} */
+            protocol?: "udp" | "tcp" | "dot";
+            weight?: number;
+            enabled?: boolean;
+        };
+        UpstreamList: {
+            items: components["schemas"]["Upstream"][];
+            total?: number;
+        };
         /** @description RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。 */
         Problem: {
             /** @description 问题类型 URI，稳定不变供程序匹配 */
@@ -581,6 +667,97 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listUpstreams: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 上游列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpstreamList"];
+                    examples: unknown;
+                };
+            };
+        };
+    };
+    createUpstream: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpstreamCreate"];
+            };
+        };
+        responses: {
+            /** @description 已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Upstream"];
+                };
+            };
+        };
+    };
+    deleteUpstream: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                upstreamId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已删除 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateUpstream: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                upstreamId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpstreamUpdate"];
+            };
+        };
+        responses: {
+            /** @description 已更新 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Upstream"];
+                };
+            };
+        };
+    };
     bulkReservations: {
         parameters: {
             query?: never;

@@ -23,7 +23,13 @@ tags:
     description: 资产登记（MAC 身份键，§13.4）
   - name: reservation
     description: 保留与静态绑定批量管理（FR-A-04、§13.4）
+  - name: dns
+    description: DNS 服务（上游/转发/解析记录/封禁，FR-B、§13.4）
 paths:
+  /upstreams:
+    $ref: './paths/upstream.yaml#/UpstreamsCollection'
+  /upstreams/{upstreamId}:
+    $ref: './paths/upstream.yaml#/UpstreamItem'
   /reservations/bulk:
     $ref: './paths/reservation.yaml#/ReservationsBulk'
   /assets:
@@ -138,6 +144,14 @@ components:
       $ref: './components/schemas/reservation.yaml#/ReservationBulkRequest'
     ReservationBulkResult:
       $ref: './components/schemas/reservation.yaml#/ReservationBulkResult'
+    Upstream:
+      $ref: './components/schemas/upstream.yaml#/Upstream'
+    UpstreamCreate:
+      $ref: './components/schemas/upstream.yaml#/UpstreamCreate'
+    UpstreamUpdate:
+      $ref: './components/schemas/upstream.yaml#/UpstreamUpdate'
+    UpstreamList:
+      $ref: './components/schemas/upstream.yaml#/UpstreamList'
     Problem:
       type: object
       description: RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。

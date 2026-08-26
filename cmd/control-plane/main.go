@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -16,6 +17,8 @@ import (
 	apigen "github.com/xiaodaoi/ipam/api/gen/go"
 	"github.com/xiaodaoi/ipam/cmd/control-plane/webui"
 	keaengine "github.com/xiaodaoi/ipam/internal/engine/kea"
+	unboundengine "github.com/xiaodaoi/ipam/internal/engine/unbound"
+	dnsmodule "github.com/xiaodaoi/ipam/internal/module/dns"
 	"github.com/xiaodaoi/ipam/internal/module/ipam"
 	"github.com/xiaodaoi/ipam/internal/module/platform"
 )
@@ -79,6 +82,21 @@ func newEngine(version string) *gin.Engine {
 		assetRepo = ipam.NewPgAssetRepo(pool)
 	}
 	assetH := ipam.NewAssetHandler(ipam.NewAssetService(assetRepo, orgStore))
+	var upRepo dnsmodule.UpstreamRepo = dnsmodule.NewMemUpstreamRepo()
+	var unboundCtl dnsmodule.UnboundController = unboundengine.ExecController{}
+	if pool != nil {
+		upRepo = dnsmodule.NewPgUpstreamRepo(pool)
+	}
+	prober := dnsmodule.NewProber(15*time.Second, unboundengine.DialProbe)
+	dnsSvc := dnsmodule.NewService(upRepo, prober, unboundCtl)
+	go prober.Run(context.Background(), func() []dnsmodule.Upstream {
+		list, err := upRepo.List(context.Background())
+		if err != nil {
+			return nil
+		}
+		return list
+	})
+	dnsH := dnsmodule.NewDnsHandler(dnsSvc)
 	// 组合各域 handler 共同实现 ServerInterface（Go 嵌入提升；新增域在此扩展）
 	full := struct {
 		*platform.Handler
@@ -86,7 +104,8 @@ func newEngine(version string) *gin.Engine {
 		*ipam.SubnetHandler
 		*ipam.LedgerHandler
 		*ipam.AssetHandler
-	}{h, orgH, subH, ledgerH, assetH}
+		*dnsmodule.DnsHandler
+	}{h, orgH, subH, ledgerH, assetH, dnsH}
 	// spec servers.url=/api/v1 → 统一前缀注册
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 

@@ -7,10 +7,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
 	apigen "github.com/xiaodaoi/ipam/api/gen/go"
+	dnsmodule "github.com/xiaodaoi/ipam/internal/module/dns"
 	"github.com/xiaodaoi/ipam/internal/module/ipam"
 )
 
@@ -24,17 +26,22 @@ func newTestRouter(h *Handler) *gin.Engine {
 	ledgerSvc := ipam.NewLedgerService(func(context.Context) ipam.LedgerSource {
 		return ipam.LedgerSource{Subnets: []ipam.Subnet{}}
 	}, resRepo, kea, subRepo)
+	dnsSvc := dnsmodule.NewService(dnsmodule.NewMemUpstreamRepo(),
+		dnsmodule.NewProber(time.Second, func(context.Context, string) (time.Duration, error) { return 0, nil }),
+		fakeUnbound{})
 	full := struct {
 		*Handler
 		*ipam.OrgHandler
 		*ipam.SubnetHandler
 		*ipam.LedgerHandler
 		*ipam.AssetHandler
+		*dnsmodule.DnsHandler
 	}{h,
 		ipam.NewOrgHandler(ipam.NewOrgService(orgStore)),
 		ipam.NewSubnetHandler(ipam.NewSubnetService(subRepo, orgStore, kea)),
 		ipam.NewLedgerHandler(ledgerSvc),
 		ipam.NewAssetHandler(ipam.NewAssetService(ipam.NewMemAssetRepo(), orgStore)),
+		dnsmodule.NewDnsHandler(dnsSvc),
 	}
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 	return r
@@ -99,3 +106,8 @@ func TestWriteProblem_RFC9457(t *testing.T) {
 		t.Fatalf("problem fields incomplete: %+v", p)
 	}
 }
+
+// fakeUnbound 探活/下发桩。
+type fakeUnbound struct{}
+
+func (f fakeUnbound) SyncForward(context.Context, []dnsmodule.Upstream) error { return nil }

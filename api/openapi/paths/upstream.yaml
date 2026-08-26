@@ -1,0 +1,83 @@
+UpstreamsCollection:
+  get:
+    operationId: listUpstreams
+    tags: [dns]
+    summary: 查询上游服务器（含探活状态）
+    description: 探活状态由 prober 周期维护（3 连败摘除/2 连胜回切）。
+    security: []
+    responses:
+      '200':
+        description: 上游列表
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/upstream.yaml#/UpstreamList'
+          examples:
+            ok:
+              summary: 双上游含健康状态
+              value:
+                items:
+                  - { id: "99999999-9999-9999-9999-999999999999", name: 阿里, addrs: ["223.5.5.5"], protocol: udp, weight: 2, enabled: true, health: { up: true, rttMs: 8, consecutiveFails: 0 } }
+                  - { id: "88888888-8888-8888-8888-888888888888", name: 腾讯, addrs: ["119.29.29.29"], protocol: udp, weight: 1, enabled: true, health: { up: false, rttMs: 0, consecutiveFails: 3 } }
+                total: 2
+  post:
+    operationId: createUpstream
+    tags: [dns]
+    summary: 创建上游（触发 forward-zone 下发）
+    description: 落库后经 unbound 通道生效（forward_add）。scope 为 dns.write。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/upstream.yaml#/UpstreamCreate'
+          examples:
+            ali:
+              value: { name: 阿里, addrs: ["223.5.5.5"], protocol: udp, weight: 2 }
+    responses:
+      '201':
+        description: 已创建
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/upstream.yaml#/Upstream'
+
+UpstreamItem:
+  patch:
+    operationId: updateUpstream
+    tags: [dns]
+    summary: 更新上游（重新下发）
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: upstreamId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/upstream.yaml#/UpstreamUpdate'
+    responses:
+      '200':
+        description: 已更新
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/upstream.yaml#/Upstream'
+  delete:
+    operationId: deleteUpstream
+    tags: [dns]
+    summary: 删除上游（forward_remove）
+    security: [{ bearerAuth: [] }]
+    x-risk-level: destructive
+    parameters:
+      - name: upstreamId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204':
+        description: 已删除

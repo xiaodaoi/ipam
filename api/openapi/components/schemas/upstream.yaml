@@ -1,0 +1,54 @@
+Upstream:
+  type: object
+  description: DNS 上游服务器（FR-B-01；探活状态灯数据源 F-R4）。
+  required: [id, name, addrs, protocol, weight, enabled, health]
+  properties:
+    id: { type: string, format: uuid }
+    name: { type: string, maxLength: 64 }
+    addrs:
+      type: array
+      items: { type: string, description: "ip[:port]，默认 53" }
+      minItems: 1
+    protocol: { type: string, enum: [udp, tcp, dot] }
+    weight: { type: integer, minimum: 0 }
+    enabled: { type: boolean }
+    health:
+      type: object
+      description: 探活状态（prober 维护）
+      properties:
+        up: { type: boolean }
+        rttMs: { type: integer }
+        consecutiveFails: { type: integer }
+        lastCheck: { type: string, format: date-time }
+
+UpstreamCreate:
+  type: object
+  required: [name, addrs]
+  properties:
+    name: { type: string, maxLength: 64 }
+    addrs:
+      type: array
+      items: { type: string }
+      minItems: 1
+    protocol: { type: string, enum: [udp, tcp, dot], default: udp }
+    weight: { type: integer, minimum: 0, default: 1 }
+    enabled: { type: boolean, default: true }
+
+UpstreamUpdate:
+  type: object
+  properties:
+    name: { type: string, maxLength: 64 }
+    addrs: { type: array, items: { type: string }, minItems: 1 }
+    protocol: { type: string, enum: [udp, tcp, dot] }
+    weight: { type: integer, minimum: 0 }
+    enabled: { type: boolean }
+
+UpstreamList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: 'upstream.yaml#/Upstream'
+    total: { type: integer }
