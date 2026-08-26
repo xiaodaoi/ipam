@@ -1,10 +1,11 @@
 # unbound — K8 约束：jammy 系统源仅 1.13.1；NLnetLabs apt 源域名在部分网络不可解析，
 # 故采用 GitHub Releases 源码钉版自编译（版本完全确定性，满足 ≥1.16）。
 FROM ubuntu:jammy
+RUN sed -i 's|http://archive.ubuntu.com|https://mirrors.aliyun.com|g; s|http://security.ubuntu.com|https://mirrors.aliyun.com|g' /etc/apt/sources.list
 ARG UNBOUND_VERSION=1.26.0
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl build-essential libssl-dev libexpat1-dev libevent-dev flex bison \
+      ca-certificates curl file build-essential libssl-dev libexpat1-dev libevent-dev flex bison \
     && curl -fsSL "https://github.com/NLnetLabs/unbound/archive/refs/tags/release-${UNBOUND_VERSION}.tar.gz" \
         -o /tmp/unbound.tgz \
     && tar -xzf /tmp/unbound.tgz -C /tmp \
