@@ -64,24 +64,36 @@ services:
     restart: unless-stopped
 
   kea-dhcp4:
-    image: isc/kea-dhcp4:2.6
+    build:
+      context: ../..
+      dockerfile: deploy/images/kea/Dockerfile
+      args: { COMPONENT: kea-dhcp4-server }
+    command: ["kea-dhcp4", "-c", "/etc/kea/kea-dhcp4.conf"]
     volumes:
       - ../../config/kea/kea-dhcp4.conf:/etc/kea/kea-dhcp4.conf:ro
       - ipam-run:/run/ipam
     restart: unless-stopped
 
   kea-dhcp6:
-    image: isc/kea-dhcp6:2.6
+    build:
+      context: ../..
+      dockerfile: deploy/images/kea/Dockerfile
+      args: { COMPONENT: kea-dhcp6-server }
+    command: ["kea-dhcp6", "-c", "/etc/kea/kea-dhcp6.conf"]
     volumes:
       - ../../config/kea/kea-dhcp6.conf:/etc/kea/kea-dhcp6.conf:ro
       - ipam-run:/run/ipam
     restart: unless-stopped
 
   kea-ctrl-agent:
-    image: isc/kea-ctrl-agent:2.6
+    build:
+      context: ../..
+      dockerfile: deploy/images/kea/Dockerfile
+      args: { COMPONENT: kea-ctrl-agent }
     depends_on:
       - kea-dhcp4
       - kea-dhcp6
+    command: ["kea-ctrl-agent", "-c", "/etc/kea/kea-ctrl-agent.conf"]
     volumes:
       - ../../config/kea/kea-ctrl-agent.conf:/etc/kea/kea-ctrl-agent.conf:ro
       - ipam-run:/run/ipam
