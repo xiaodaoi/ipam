@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-26 · M0/M1 批量验收归档 + M2 任务卡生成
+
+- **做了**：review 列 7 卡（M0×4 + M1×3）批量验收转 done；M0 里程碑正式关闭。生成 M2 六张任务卡入 backlog：组织分组/子网池/地址台账/资产登记/保留绑定五组 API（全部 spec 先行）+ 前端组织树台账页。
+- **看板**：done=13 ｜ backlog=6 ｜ review=0
+- **下一步**：领取 M2-001 开始业务模块攻坚；§9 真机实测项与 M1-005 遗留（hook 挂载/gRPC C++）待硬件环境并行推进。
+
 ## 2026-08-26 · M1-005 验收通过：全栈 7 容器编排贯通，M0/M1 代码交付完毕
 
 - **攻坚过程（7 轮 CI 迭代，诊断经 ci-diag 分支）**：isc 标签不存在→Debian 官方仓自建；NLnetLabs 域不可达→GitHub 源码钉版 1.26.0 自编译+checkconf 门禁；flex/bison/file/unbound 用户四处构建补齐；Kea2.2 output_options 下划线语法；unbound.conf 须 ASCII；APT_MIRROR 环境感知参数。
