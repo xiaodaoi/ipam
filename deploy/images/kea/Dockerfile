@@ -4,5 +4,5 @@ FROM debian:bookworm-slim
 ARG COMPONENT
 RUN apt-get update \
  && apt-get install -y --no-install-recommends "$COMPONENT" curl \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
  && mkdir -p /var/run/kea
