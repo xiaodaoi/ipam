@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-26 · M1-005 验收通过：全栈 7 容器编排贯通，M0/M1 代码交付完毕
+
+- **攻坚过程（7 轮 CI 迭代，诊断经 ci-diag 分支）**：isc 标签不存在→Debian 官方仓自建；NLnetLabs 域不可达→GitHub 源码钉版 1.26.0 自编译+checkconf 门禁；flex/bison/file/unbound 用户四处构建补齐；Kea2.2 output_options 下划线语法；unbound.conf 须 ASCII；APT_MIRROR 环境感知参数。
+- **最终断言全绿**：control-plane API ✓ / Kea ctrl-agent version-get ✓ / unbound≥1.16 版本断言 ✓ / 静态权威应答 ✓ / **local_data 动态注入→立即解析（§2.3 热更新链路实证）** ✓。
+- **里程碑状态**：M0=100%，M1 代码完成（§9 真机实测项待硬件环境）；review 列 7 卡待批量归档。
+
 ## 2026-08-25 · M1-003 验收通过：CI 全绿（含 hook-ci）
 
 - **修复迭代**：hook-ci 首跑 ctest 失败——测试数据 MAC 字段误写为主机名样式被解析器按坏行丢弃；顺藤补齐 Go/C++ 双侧 MAC 归一化对齐与台账写入前防御性归一化。
