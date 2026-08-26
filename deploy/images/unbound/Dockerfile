@@ -23,4 +23,4 @@ RUN mkdir -p /run/ipam /var/lib/unbound \
     && unbound -V | head -2
 
 EXPOSE 53/udp 53/tcp
-CMD ["unbound", "-d", "-c", "/etc/unbound/unbound.conf"]
+CMD ["sh", "-c", "unbound-checkconf /etc/unbound/unbound.conf && exec unbound -d -c /etc/unbound/unbound.conf"]
