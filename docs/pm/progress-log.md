@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-26 · M2-005 完成：保留与绑定批量 API（事务性全或全不）
+
+- **做了**：bulkReservations 端点；两阶段批量（预检零写入+应用期失败尽力回滚）；ReservationRepo.Delete；handler 复用 LedgerHandler。
+- **验证结果**：3 新单测全绿（含整体回滚验证）；全仓 lint 0 issues。
+- **里程碑**：M2 API 侧 5/6 完成，仅剩前端页 M2-006。
+
 ## 2026-08-26 · M2-004 完成：资产登记 API（MAC 幂等 upsert）
 
 - **做了**：asset 三端点 spec；AssetService（MAC 归一化复用 coherence、幂等 upsert）；Pg/Mem 双仓储；台账 owner 数据源接通（PG asset→ledger Assets）。

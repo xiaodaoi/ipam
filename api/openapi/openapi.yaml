@@ -21,7 +21,11 @@ tags:
     description: 地址台账（六态矩阵与保留/绑定操作，§13.4）
   - name: asset
     description: 资产登记（MAC 身份键，§13.4）
+  - name: reservation
+    description: 保留与静态绑定批量管理（FR-A-04、§13.4）
 paths:
+  /reservations/bulk:
+    $ref: './paths/reservation.yaml#/ReservationsBulk'
   /assets:
     $ref: './paths/asset.yaml#/AssetsCollection'
   /assets/{mac}:
@@ -128,6 +132,12 @@ components:
       $ref: './components/schemas/asset.yaml#/AssetUpsert'
     AssetList:
       $ref: './components/schemas/asset.yaml#/AssetList'
+    ReservationBulkEntry:
+      $ref: './components/schemas/reservation.yaml#/ReservationBulkEntry'
+    ReservationBulkRequest:
+      $ref: './components/schemas/reservation.yaml#/ReservationBulkRequest'
+    ReservationBulkResult:
+      $ref: './components/schemas/reservation.yaml#/ReservationBulkResult'
     Problem:
       type: object
       description: RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。

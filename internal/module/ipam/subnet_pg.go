@@ -194,6 +194,11 @@ func (r *MemReservationRepo) List(_ context.Context) ([]Reservation, error) {
 	return out, nil
 }
 
+func (r *MemReservationRepo) Delete(_ context.Context, ipv4 string) error {
+	delete(r.items, ipv4)
+	return nil
+}
+
 // PgReservationRepo PG 实现。
 type PgReservationRepo struct{ pool *pgxpool.Pool }
 
@@ -206,6 +211,11 @@ func (r *PgReservationRepo) Upsert(ctx context.Context, res Reservation) error {
 		`INSERT INTO reservation(mac, ipv4, origin) VALUES($1,$2,'manual')
 		 ON CONFLICT DO NOTHING`,
 		nullStr(res.MAC), res.IPv4)
+	return err
+}
+
+func (r *PgReservationRepo) Delete(ctx context.Context, ipv4 string) error {
+	_, err := r.pool.Exec(ctx, `DELETE FROM reservation WHERE ipv4=$1`, ipv4)
 	return err
 }
 

@@ -17,6 +17,7 @@ import (
 type ReservationRepo interface {
 	Upsert(ctx context.Context, r Reservation) error
 	List(ctx context.Context) ([]Reservation, error)
+	Delete(ctx context.Context, ipv4 string) error
 }
 
 // LedgerService 台账查询与操作。
@@ -194,4 +195,38 @@ func uuidPtr(s string) *rtypes.UUID {
 	}
 	u := guuid.MustParse(s)
 	return (*rtypes.UUID)(&u)
+}
+
+// BulkReservations POST /reservations/bulk
+func (h *LedgerHandler) BulkReservations(c *gin.Context) {
+	var body apigen.ReservationBulkRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "BAD_REQUEST", err.Error())
+		return
+	}
+	entries := make([]BulkEntry, 0, len(body.Entries))
+	for _, e := range body.Entries {
+		entries = append(entries, BulkEntry{
+			Kind:    string(e.Kind),
+			Address: e.Address,
+			MAC:     derefStr(e.Mac),
+			Reason:  derefStr(e.Reason),
+		})
+	}
+	res, err := h.svc.BulkReservations(c.Request.Context(), body.SubnetId.String(), entries)
+	if err != nil {
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "INTERNAL", err.Error())
+		return
+	}
+	failures := make([]struct {
+		Line   int    `json:"line"`
+		Reason string `json:"reason"`
+	}, 0, len(res.Failures))
+	for _, f := range res.Failures {
+		failures = append(failures, struct {
+			Line   int    `json:"line"`
+			Reason string `json:"reason"`
+		}{Line: f.Line, Reason: f.Reason})
+	}
+	c.JSON(http.StatusOK, apigen.ReservationBulkResult{Ok: res.OK, Applied: res.Applied, Failures: failures})
 }

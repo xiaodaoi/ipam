@@ -1,0 +1,54 @@
+ReservationBulkEntry:
+  type: object
+  description: 批量导入单行（CSV 语义；kind ∈ reserve|bind）。
+  required: [kind, address]
+  properties:
+    kind:
+      type: string
+      enum: [reserve, bind]
+      description: reserve=冻结保留（无 MAC）；bind=静态绑定（需 MAC）
+    address:
+      type: string
+    mac:
+      type: string
+      description: kind=bind 必填（归一化小写冒号格式）
+    reason:
+      type: string
+      maxLength: 128
+
+ReservationBulkRequest:
+  type: object
+  required: [subnetId, entries]
+  properties:
+    subnetId:
+      type: string
+      format: uuid
+    entries:
+      type: array
+      maxItems: 1000
+      items:
+        $ref: 'reservation.yaml#/ReservationBulkEntry'
+
+ReservationBulkResult:
+  type: object
+  description: 批量结果（全部或全不：任一失败整体回滚）。
+  required: [ok, applied, failures]
+  properties:
+    ok:
+      type: boolean
+      description: 是否全部成功（false=整体回滚，无任何写入）
+    applied:
+      type: integer
+      description: 成功应用条数（ok=true 时=entries 数）
+    failures:
+      type: array
+      items:
+        type: object
+        required: [line, reason]
+        properties:
+          line:
+            type: integer
+            description: 原始行号（1 起）
+          reason:
+            type: string
+            description: 失败原因（占用/非法 MAC/地址越池等）

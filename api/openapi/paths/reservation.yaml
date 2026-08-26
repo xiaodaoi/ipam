@@ -1,0 +1,63 @@
+ReservationsBulk:
+  post:
+    operationId: bulkReservations
+    tags: [reservation]
+    summary: 批量创建保留与静态绑定（CSV 语义，事务性）
+    description: |
+      单请求内任一失败则整体回滚（无部分写入）+逐行失败明细。
+      reserve=冻结不下发（excluded 语义）；bind=MAC 静态绑定（Kea host reservation）。
+      所需 scope 为 reservation.write。支持 Idempotency-Key。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/reservation.yaml#/ReservationBulkRequest'
+          examples:
+            mixed:
+              summary: 2 保留 + 2 绑定
+              value:
+                subnetId: "44444444-4444-4444-4444-444444444444"
+                entries:
+                  - { kind: reserve, address: "10.61.172.12", reason: 服务器预占 }
+                  - { kind: reserve, address: "10.61.172.13" }
+                  - { kind: bind, address: "10.61.172.20", mac: "aa:bb:cc:dd:ee:02", reason: NAS }
+                  - { kind: bind, address: "10.61.172.21", mac: "aa:bb:cc:dd:ee:03" }
+    responses:
+      '200':
+        description: 批量结果
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/reservation.yaml#/ReservationBulkResult'
+          examples:
+            allOk:
+              summary: 全部成功
+              value: { ok: true, applied: 4, failures: [] }
+            rolledBack:
+              summary: 第 3 行占用导致整体回滚
+              value:
+                ok: false
+                applied: 0
+                failures:
+                  - { line: 3, reason: "ADDR_OCCUPIED: 10.61.172.20" }
+      '503':
+        description: Kea 下发失败（已整体回滚）
+        content:
+          application/problem+json:
+            schema:
+              type: object
+              required: [type, title, status]
+              properties:
+                type: { type: string }
+                title: { type: string }
+                status: { type: integer }
+                code: { type: string }
+          examples:
+            kea:
+              value:
+                type: "https://ipam.local/problems/kea-down"
+                title: Service Unavailable
+                status: 503
+                code: KEA_DOWN
