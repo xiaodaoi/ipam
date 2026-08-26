@@ -4,6 +4,46 @@
  */
 
 export interface paths {
+    "/forward-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询条件转发规则 */
+        get: operations["listForwardRules"];
+        put?: never;
+        /**
+         * 创建条件转发规则（最长后缀优先）
+         * @description 域名后缀与上游绑定；最长后缀优先匹配。dryRun=true 返回将执行的下发命令。
+         *     所需 scope 为 dns.write。支持 Idempotency-Key。
+         */
+        post: operations["createForwardRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/forward-rules/{ruleId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 删除转发规则（forward_remove） */
+        delete: operations["deleteForwardRule"];
+        options?: never;
+        head?: never;
+        /** 更新转发规则（重新下发） */
+        patch: operations["updateForwardRule"];
+        trace?: never;
+    };
     "/upstreams": {
         parameters: {
             query?: never;
@@ -539,6 +579,38 @@ export interface components {
             items: components["schemas"]["Upstream"][];
             total?: number;
         };
+        /** @description 条件转发规则（域名后缀→指定上游；最长后缀优先，FR-B-02）。 */
+        ForwardRule: {
+            /** Format: uuid */
+            id: string;
+            /** @description 域名后缀（如 corp.local. 或 . 表示默认）；最长匹配优先 */
+            domain: string;
+            /** @description 该规则使用的上游（引用 /upstreams） */
+            upstreamIds: string[];
+            enabled: boolean;
+            note?: string;
+        };
+        ForwardRuleCreate: {
+            domain: string;
+            upstreamIds: string[];
+            /** @default true */
+            enabled: boolean;
+            note?: string;
+            /**
+             * @description true 时仅生成 forward_add 命令串并返回，不实际下发
+             * @default false
+             */
+            dryRun: boolean;
+        };
+        /** @description dryRun 输出（生成的下发命令预览） */
+        ForwardRuleDryRun: {
+            /** @description 如 ["unbound-control forward_add corp.local. 10.0.0.53@53"] */
+            commands: string[];
+        };
+        ForwardRuleList: {
+            items: components["schemas"]["ForwardRule"][];
+            total?: number;
+        };
         /** @description RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。 */
         Problem: {
             /** @description 问题类型 URI，稳定不变供程序匹配 */
@@ -667,6 +739,110 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listForwardRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 规则列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForwardRuleList"];
+                    examples: unknown;
+                };
+            };
+        };
+    };
+    createForwardRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForwardRuleCreate"];
+            };
+        };
+        responses: {
+            /** @description dryRun 预览 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForwardRuleDryRun"];
+                };
+            };
+            /** @description 已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForwardRule"];
+                };
+            };
+        };
+    };
+    deleteForwardRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ruleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已删除 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateForwardRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ruleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    upstreamIds?: string[];
+                    enabled?: boolean;
+                    note?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 已更新 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForwardRule"];
+                };
+            };
+        };
+    };
     listUpstreams: {
         parameters: {
             query?: never;

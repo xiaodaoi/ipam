@@ -36,12 +36,14 @@ func newTestRouter(h *Handler) *gin.Engine {
 		*ipam.LedgerHandler
 		*ipam.AssetHandler
 		*dnsmodule.DnsHandler
+		*dnsmodule.ForwardHandler
 	}{h,
 		ipam.NewOrgHandler(ipam.NewOrgService(orgStore)),
 		ipam.NewSubnetHandler(ipam.NewSubnetService(subRepo, orgStore, kea)),
 		ipam.NewLedgerHandler(ledgerSvc),
 		ipam.NewAssetHandler(ipam.NewAssetService(ipam.NewMemAssetRepo(), orgStore)),
 		dnsmodule.NewDnsHandler(dnsSvc),
+		dnsmodule.NewForwardHandler(dnsmodule.NewForwardService(dnsmodule.NewMemForwardRuleRepo(), dnsmodule.NewMemUpstreamRepo(), fakeUnbound{})),
 	}
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 	return r
@@ -111,3 +113,6 @@ func TestWriteProblem_RFC9457(t *testing.T) {
 type fakeUnbound struct{}
 
 func (f fakeUnbound) SyncForward(context.Context, []dnsmodule.Upstream) error { return nil }
+func (f fakeUnbound) SyncForwardRules(context.Context, []dnsmodule.ForwardRule, []dnsmodule.Upstream) error {
+	return nil
+}

@@ -97,6 +97,12 @@ func newEngine(version string) *gin.Engine {
 		return list
 	})
 	dnsH := dnsmodule.NewDnsHandler(dnsSvc)
+	var frRepo dnsmodule.ForwardRuleRepo = dnsmodule.NewMemForwardRuleRepo()
+	if pool != nil {
+		frRepo = dnsmodule.NewPgForwardRuleRepo(pool)
+	}
+	fwdSvc := dnsmodule.NewForwardService(frRepo, upRepo, unboundCtl)
+	fwdH := dnsmodule.NewForwardHandler(fwdSvc)
 	// 组合各域 handler 共同实现 ServerInterface（Go 嵌入提升；新增域在此扩展）
 	full := struct {
 		*platform.Handler
@@ -105,7 +111,8 @@ func newEngine(version string) *gin.Engine {
 		*ipam.LedgerHandler
 		*ipam.AssetHandler
 		*dnsmodule.DnsHandler
-	}{h, orgH, subH, ledgerH, assetH, dnsH}
+		*dnsmodule.ForwardHandler
+	}{h, orgH, subH, ledgerH, assetH, dnsH, fwdH}
 	// spec servers.url=/api/v1 → 统一前缀注册
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 

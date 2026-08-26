@@ -26,6 +26,10 @@ tags:
   - name: dns
     description: DNS 服务（上游/转发/解析记录/封禁，FR-B、§13.4）
 paths:
+  /forward-rules:
+    $ref: './paths/forward.yaml#/ForwardRulesCollection'
+  /forward-rules/{ruleId}:
+    $ref: './paths/forward.yaml#/ForwardRuleItem'
   /upstreams:
     $ref: './paths/upstream.yaml#/UpstreamsCollection'
   /upstreams/{upstreamId}:
@@ -152,6 +156,14 @@ components:
       $ref: './components/schemas/upstream.yaml#/UpstreamUpdate'
     UpstreamList:
       $ref: './components/schemas/upstream.yaml#/UpstreamList'
+    ForwardRule:
+      $ref: './components/schemas/forward.yaml#/ForwardRule'
+    ForwardRuleCreate:
+      $ref: './components/schemas/forward.yaml#/ForwardRuleCreate'
+    ForwardRuleDryRun:
+      $ref: './components/schemas/forward.yaml#/ForwardRuleDryRun'
+    ForwardRuleList:
+      $ref: './components/schemas/forward.yaml#/ForwardRuleList'
     Problem:
       type: object
       description: RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。

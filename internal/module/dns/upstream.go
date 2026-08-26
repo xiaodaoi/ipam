@@ -48,6 +48,8 @@ var (
 type UnboundController interface {
 	// SyncForward 以全量 enabled 上游收敛 forward-zone "."（forward_add/remove）。
 	SyncForward(ctx context.Context, upstreams []Upstream) error
+	// SyncForwardRules 条件转发规则下发（forward_add <domain> <addrs...>）。
+	SyncForwardRules(ctx context.Context, rules []ForwardRule, upstreams []Upstream) error
 }
 
 // Prober 上游健康探测器（TCP:53 连接+RTT；3 连败摘除/2 连胜回切）。
@@ -163,6 +165,57 @@ func (s *Service) List(ctx context.Context) ([]Upstream, []Health, error) {
 		health[i] = s.prober.Status(u.ID)
 	}
 	return list, health, nil
+}
+
+// PgForwardRuleRepo PG 实现（迁移 0005）。
+type PgForwardRuleRepo struct{ pool *pgxpool.Pool }
+
+func NewPgForwardRuleRepo(pool *pgxpool.Pool) *PgForwardRuleRepo {
+	return &PgForwardRuleRepo{pool: pool}
+}
+
+func (r *PgForwardRuleRepo) List(ctx context.Context) ([]ForwardRule, error) {
+	rows, err := r.pool.Query(ctx, `SELECT id::text, domain, upstream_ids::text[], enabled, coalesce(note,'') FROM forward_rule ORDER BY created_at`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []ForwardRule{}
+	for rows.Next() {
+		var fr ForwardRule
+		if err := rows.Scan(&fr.ID, &fr.Domain, &fr.UpstreamIDs, &fr.Enabled, &fr.Note); err == nil {
+			out = append(out, fr)
+		}
+	}
+	return out, rows.Err()
+}
+
+func (r *PgForwardRuleRepo) Create(ctx context.Context, fr ForwardRule) (ForwardRule, error) {
+	var id string
+	err := r.pool.QueryRow(ctx,
+		`INSERT INTO forward_rule(domain, upstream_ids, enabled, note) VALUES($1,$2,$3,$4) RETURNING id::text`,
+		fr.Domain, fr.UpstreamIDs, fr.Enabled, nullStr(fr.Note)).Scan(&id)
+	fr.ID = id
+	return fr, err
+}
+
+func (r *PgForwardRuleRepo) Update(ctx context.Context, fr ForwardRule) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE forward_rule SET upstream_ids=$2, enabled=$3, note=$4 WHERE id=$1`,
+		fr.ID, fr.UpstreamIDs, fr.Enabled, nullStr(fr.Note))
+	return err
+}
+
+func (r *PgForwardRuleRepo) Delete(ctx context.Context, id string) error {
+	_, err := r.pool.Exec(ctx, `DELETE FROM forward_rule WHERE id=$1`, id)
+	return err
+}
+
+func nullStr(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
 }
 
 // MemUpstreamRepo 内存实现（PoC/单测）。

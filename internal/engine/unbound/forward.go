@@ -62,6 +62,39 @@ func (e ExecController) SyncForward(_ context.Context, upstreams []dns.Upstream)
 	return e.run(args...)
 }
 
+// SyncForwardRules 条件转发规则下发（每条 forward_add <domain> <addrs...>）。
+func (e ExecController) SyncForwardRules(_ context.Context, rules []dns.ForwardRule, ups []dns.Upstream) error {
+	byID := map[string]dns.Upstream{}
+	for _, u := range ups {
+		byID[u.ID] = u
+	}
+	for _, r := range rules {
+		if !r.Enabled {
+			continue
+		}
+		args := []string{"forward_add", r.Domain}
+		for _, id := range r.UpstreamIDs {
+			u, ok := byID[id]
+			if !ok || !u.Enabled {
+				continue
+			}
+			for _, a := range u.Addrs {
+				host, port, err := net.SplitHostPort(normalizeAddr(a))
+				if err != nil {
+					return err
+				}
+				args = append(args, fmt.Sprintf("%s@%s", host, port))
+			}
+		}
+		if len(args) > 2 {
+			if err := e.run(args...); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // normalizeAddr 补默认端口（"223.5.5.5" → "223.5.5.5:53"）。
 func normalizeAddr(a string) string {
 	if _, _, err := net.SplitHostPort(a); err == nil {

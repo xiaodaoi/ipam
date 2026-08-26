@@ -1,0 +1,104 @@
+ForwardRulesCollection:
+  get:
+    operationId: listForwardRules
+    tags: [dns]
+    summary: 查询条件转发规则
+    security: []
+    responses:
+      '200':
+        description: 规则列表
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/forward.yaml#/ForwardRuleList'
+          examples:
+            ok:
+              summary: 默认转发+内网域指向
+              value:
+                items:
+                  - { id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", domain: ".", upstreamIds: ["99999999-9999-9999-9999-999999999999"], enabled: true }
+                  - { id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", domain: "corp.local.", upstreamIds: ["77777777-7777-7777-7777-777777777777"], enabled: true }
+                total: 2
+  post:
+    operationId: createForwardRule
+    tags: [dns]
+    summary: 创建条件转发规则（最长后缀优先）
+    description: |
+      域名后缀与上游绑定；最长后缀优先匹配。dryRun=true 返回将执行的下发命令。
+      所需 scope 为 dns.write。支持 Idempotency-Key。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/forward.yaml#/ForwardRuleCreate'
+          examples:
+            intranet:
+              summary: 内网根域指向内部 DNS
+              value:
+                domain: corp.local.
+                upstreamIds: ["77777777-7777-7777-7777-777777777777"]
+                note: 内网权威域
+            dry:
+              summary: dryRun 预览
+              value:
+                domain: office.example.com
+                upstreamIds: ["88888888-8888-8888-8888-888888888888"]
+                dryRun: true
+    responses:
+      '201':
+        description: 已创建
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/forward.yaml#/ForwardRule'
+      '200':
+        description: dryRun 预览
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/forward.yaml#/ForwardRuleDryRun'
+
+ForwardRuleItem:
+  patch:
+    operationId: updateForwardRule
+    tags: [dns]
+    summary: 更新转发规则（重新下发）
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: ruleId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              upstreamIds: { type: array, items: { type: string, format: uuid } }
+              enabled: { type: boolean }
+              note: { type: string, maxLength: 128 }
+    responses:
+      '200':
+        description: 已更新
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/forward.yaml#/ForwardRule'
+  delete:
+    operationId: deleteForwardRule
+    tags: [dns]
+    summary: 删除转发规则（forward_remove）
+    security: [{ bearerAuth: [] }]
+    x-risk-level: destructive
+    parameters:
+      - name: ruleId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204':
+        description: 已删除

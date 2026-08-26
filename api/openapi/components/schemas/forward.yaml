@@ -1,0 +1,48 @@
+ForwardRule:
+  type: object
+  description: 条件转发规则（域名后缀→指定上游；最长后缀优先，FR-B-02）。
+  required: [id, domain, upstreamIds, enabled]
+  properties:
+    id: { type: string, format: uuid }
+    domain:
+      type: string
+      description: 域名后缀（如 corp.local. 或 . 表示默认）；最长匹配优先
+    upstreamIds:
+      type: array
+      items: { type: string, format: uuid }
+      description: 该规则使用的上游（引用 /upstreams）
+    enabled: { type: boolean }
+    note: { type: string, maxLength: 128 }
+
+ForwardRuleCreate:
+  type: object
+  required: [domain, upstreamIds]
+  properties:
+    domain: { type: string }
+    upstreamIds: { type: array, items: { type: string, format: uuid }, minItems: 1 }
+    enabled: { type: boolean, default: true }
+    note: { type: string, maxLength: 128 }
+    dryRun:
+      type: boolean
+      default: false
+      description: true 时仅生成 forward_add 命令串并返回，不实际下发
+
+ForwardRuleDryRun:
+  type: object
+  description: dryRun 输出（生成的下发命令预览）
+  required: [commands]
+  properties:
+    commands:
+      type: array
+      items: { type: string }
+      description: 如 ["unbound-control forward_add corp.local. 10.0.0.53@53"]
+
+ForwardRuleList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: 'forward.yaml#/ForwardRule'
+    total: { type: integer }

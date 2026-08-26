@@ -63,9 +63,13 @@ func TestService_创建触发下发与状态合并(t *testing.T) {
 	}
 }
 
-type fakeCtl struct{ synced int }
+type fakeCtl struct{ synced, ruleSyncs int }
 
 func (f *fakeCtl) SyncForward(context.Context, []Upstream) error {
 	f.synced++
+	return nil
+}
+func (f *fakeCtl) SyncForwardRules(context.Context, []ForwardRule, []Upstream) error {
+	f.ruleSyncs++
 	return nil
 }
