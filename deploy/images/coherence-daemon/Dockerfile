@@ -10,6 +10,5 @@ RUN go build -ldflags "-s -w" -o /out/coherence-daemon ./cmd/coherence-daemon
 
 FROM ubuntu:jammy
 COPY --from=build /out/coherence-daemon /usr/local/bin/coherence-daemon
-RUN useradd -r -u 10002 ipamd && mkdir -p /run/ipam && chown ipamd:ipamd /run/ipam
-USER ipamd
+RUN mkdir -p /run/ipam
 ENTRYPOINT ["/usr/local/bin/coherence-daemon"]
