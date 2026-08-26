@@ -31,5 +31,64 @@ services:
       - "${IPAM_PORT:-8443}:8443"
     restart: unless-stopped
 
+  coherence-daemon:
+    build:
+      context: ../..
+      dockerfile: deploy/images/coherence-daemon/Dockerfile
+    image: ipam/coherence-daemon:${IPAM_VERSION:-0.1.0-dev}
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    volumes:
+      - ipam-run:/run/ipam
+    command:
+      - "--sock"
+      - "/run/ipam/coherence.sock"
+      - "--dsn"
+      - "postgres://${POSTGRES_USER:-ipam}:${POSTGRES_PASSWORD}@postgresql:5432/${POSTGRES_DB:-ipam}?sslmode=disable"
+    restart: unless-stopped
+
+  unbound:
+    build:
+      context: ../..
+      dockerfile: deploy/images/unbound/Dockerfile
+    image: ipam/unbound:${IPAM_VERSION:-0.1.0-dev}
+    depends_on:
+      coherence-daemon:
+        condition: service_started
+    volumes:
+      - ipam-run:/run/ipam
+    ports:
+      - "${UNBOUND_PORT:-5353}:53/udp"
+      - "${UNBOUND_PORT:-5353}:53/tcp"
+    restart: unless-stopped
+
+  kea-dhcp4:
+    image: isc/kea-dhcp4:2.6
+    volumes:
+      - ../../config/kea/kea-dhcp4.conf:/etc/kea/kea-dhcp4.conf:ro
+      - ipam-run:/run/ipam
+    restart: unless-stopped
+
+  kea-dhcp6:
+    image: isc/kea-dhcp6:2.6
+    volumes:
+      - ../../config/kea/kea-dhcp6.conf:/etc/kea/kea-dhcp6.conf:ro
+      - ipam-run:/run/ipam
+    restart: unless-stopped
+
+  kea-ctrl-agent:
+    image: isc/kea-ctrl-agent:2.6
+    depends_on:
+      - kea-dhcp4
+      - kea-dhcp6
+    volumes:
+      - ../../config/kea/kea-ctrl-agent.conf:/etc/kea/kea-ctrl-agent.conf:ro
+      - ipam-run:/run/ipam
+    ports:
+      - "127.0.0.1:${KEA_API_PORT:-8000}:8000"
+    restart: unless-stopped
+
 volumes:
   pg-data:
+  ipam-run:

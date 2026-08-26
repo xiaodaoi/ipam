@@ -130,7 +130,18 @@ jobs:
             echo "skip: compose.yaml 未落地（M0-006）"; exit 0
           fi
           cd deploy/compose && docker compose up -d --wait
+          # 控制面
           curl -fsS http://127.0.0.1:8443/api/v1/system/info | grep -q ipam-control-plane
+          # Kea Ctrl Agent 通道（闸：config 下发面）
+          curl -fsS -X POST "http://127.0.0.1:${KEA_API_PORT:-8000}/" \
+            -H 'Content-Type: application/json' \
+            -d '{"command":"version-get","service":["dhcp4"]}' | grep -q '"result": 0'
+          # Unbound 权威应答（静态锚点）
+          docker compose exec -T unbound dig @127.0.0.1 smoke.corp.local +short | grep -q 10.61.172.253
+          # 联动热更新链路：local_data 动态注入 → 立即可解析（§2.3/§4.4）
+          docker compose exec -T unbound sh -c \
+            'echo "local_data=dyn-test.corp.local. 60 IN A 10.61.172.99" | unbound-control -s /run/ipam/unbound-ctl.sock'
+          docker compose exec -T unbound dig @127.0.0.1 dyn-test.corp.local +short | grep -q 10.61.172.99
           docker compose down -v
       - name: collect diagnostics
         if: failure()
