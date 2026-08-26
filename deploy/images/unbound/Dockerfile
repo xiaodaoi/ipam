@@ -4,7 +4,7 @@ FROM ubuntu:jammy
 ARG UNBOUND_VERSION=1.26.0
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl build-essential libssl-dev libexpat1-dev libevent-dev \
+      ca-certificates curl build-essential libssl-dev libexpat1-dev libevent-dev flex bison \
     && curl -fsSL "https://github.com/NLnetLabs/unbound/archive/refs/tags/release-${UNBOUND_VERSION}.tar.gz" \
         -o /tmp/unbound.tgz \
     && tar -xzf /tmp/unbound.tgz -C /tmp \
