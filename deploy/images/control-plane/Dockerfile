@@ -1,6 +1,7 @@
 # control-plane 单镜像：前端构建 → Go embed 编译 → jammy 运行时（D9/§13.3）
 FROM node:22-bookworm-slim AS web
-RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources
+ARG APT_MIRROR=""
+RUN if [ -n "$APT_MIRROR" ]; then sed -i "s|deb.debian.org|$APT_MIRROR|g" /etc/apt/sources.list.d/debian.sources; fi
 WORKDIR /src/web
 RUN npm install -g pnpm@10.33.4
 # 容器内无 git 且不继承宿主 CI 变量：跳过根项目 prepare(lefthook)，否则 install 失败
@@ -18,7 +19,7 @@ RUN pnpm install --frozen-lockfile \
 
 FROM ubuntu:jammy AS build
 ARG APT_MIRROR=""
-RUN if [ -n "$APT_MIRROR" ]; then sed -i "s|http://archive.ubuntu.com|$APT_MIRROR|g; s|http://security.ubuntu.com|$APT_MIRROR|g" /etc/apt/sources.list; fi \
+RUN if [ -n "$APT_MIRROR" ]; then sed -i "s|http://archive.ubuntu.com|$APT_MIRROR|g; s|http://security.ubuntu.com|$APT_MIRROR|g" /etc/apt/sources.list; fi
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git \
  && rm -rf /var/lib/apt/lists/*
 # 不依赖 Docker Hub golang 标签（新版本镜像发布滞后）；版本与 go.mod 对齐
@@ -36,7 +37,7 @@ RUN go build -ldflags "-s -w -X main.version=${VERSION:-0.1.0-dev}" -o /out/cont
 
 FROM ubuntu:jammy
 ARG APT_MIRROR=""
-RUN if [ -n "$APT_MIRROR" ]; then sed -i "s|http://archive.ubuntu.com|$APT_MIRROR|g; s|http://security.ubuntu.com|$APT_MIRROR|g" /etc/apt/sources.list; fi \
+RUN if [ -n "$APT_MIRROR" ]; then sed -i "s|http://archive.ubuntu.com|$APT_MIRROR|g; s|http://security.ubuntu.com|$APT_MIRROR|g" /etc/apt/sources.list; fi
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
  && rm -rf /var/lib/apt/lists/* \
  && useradd -r -u 10001 ipam
