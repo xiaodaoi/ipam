@@ -126,37 +126,41 @@ jobs:
       - uses: actions/checkout@v4
       - name: smoke
         run: |
-          exec > >(tee /tmp/smoke.log) 2>&1
           if [ ! -f deploy/compose/compose.yaml ]; then
             echo "skip: compose.yaml 未落地（M0-006）"; exit 0
           fi
           cd deploy/compose && docker compose up -d --wait
-          # 控制面
+          echo "[1] control-plane"
           curl -fsS http://127.0.0.1:8443/api/v1/system/info | grep -q ipam-control-plane
-          # Kea Ctrl Agent 通道（闸：config 下发面）
+          echo "[2] kea ctrl-agent api"
           curl -fsS -X POST "http://127.0.0.1:${KEA_API_PORT:-8000}/" \
-            -H 'Content-Type: application/json' \
-            -d '{"command":"version-get","service":["dhcp4"]}' | grep -q '"result": 0'
-          # Unbound 版本断言（K8：≥1.16）
+            -H 'Content-Type: application/json'             -d '{"command":"version-get","service":["dhcp4"]}' | grep -q '"result": 0'
+          echo "[3] unbound version >= 1.16"
           V=$(docker compose exec -T unbound sh -c 'unbound -V' | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
           [ "$(printf '1.16.0\n%s\n' "$V" | sort -V | head -1)" = "1.16.0" ] || { echo "unbound $V < 1.16"; exit 1; }
-          # Unbound 权威应答（静态锚点）
+          echo "[4] static authoritative answer"
           docker compose exec -T unbound dig @127.0.0.1 smoke.corp.local +short | grep -q 10.61.172.253
-          # 联动热更新链路：local_data 动态注入 → 立即可解析（§2.3/§4.4）
+          echo "[5] local_data hot inject"
           docker compose exec -T unbound sh -c \
             'echo "local_data=dyn-test.corp.local. 60 IN A 10.61.172.99" | unbound-control -s /run/ipam/unbound-ctl.sock'
           docker compose exec -T unbound dig @127.0.0.1 dyn-test.corp.local +short | grep -q 10.61.172.99
+          echo "ALL-PASS"
           docker compose down -v
       - name: collect diagnostics
         if: failure()
         run: |
           cd deploy/compose
           {
-            echo "== smoke log =="; cat /tmp/smoke.log || true
-            echo; echo "== compose build tail ==";
-            docker compose build --no-cache --progress=plain 2>&1 | tail -60 || true
-            echo; echo "== ps ==";   docker compose ps -a
-            echo; echo "== logs =="; docker compose logs --tail=200
+            echo "== replay assertions on live stack =="
+            echo "-- [1]"; curl -sS http://127.0.0.1:8443/api/v1/system/info || true
+            echo; echo "-- [2]"; curl -sS -X POST "http://127.0.0.1:${KEA_API_PORT:-8000}/" -H 'Content-Type: application/json' -d '{"command":"version-get","service":["dhcp4"]}' || true
+            echo; echo "-- [3]"; docker compose exec -T unbound sh -c 'unbound -V' | head -1 || true
+            echo; echo "-- [4]"; docker compose exec -T unbound dig @127.0.0.1 smoke.corp.local +short || true
+            echo; echo "-- [5] inject+dig"
+            docker compose exec -T unbound sh -c 'echo "local_data=dyn-test.corp.local. 60 IN A 10.61.172.99" | unbound-control -s /run/ipam/unbound-ctl.sock' || true
+            docker compose exec -T unbound dig @127.0.0.1 dyn-test.corp.local +short || true
+            echo; echo "== ps =="; docker compose ps -a
+            echo; echo "== logs(tail) =="; docker compose logs --tail=120
           } > diag.txt 2>&1 || true
       - name: push diagnostics branch
         if: failure()
