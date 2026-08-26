@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-26 · M3-006 转 review；M3 代码交付完毕；M4 卡生成
+
+- **做了**：M3-006 五源合成 conf+checkconf 真实现+apply 端点+K1 实证资产落地（转 review）；CI 断言含 K1（local-data 优先 auth-zone）；M4 四张卡入 backlog。
+- **里程碑**：**M3 DNS 全量 6/6 代码交付完毕**（§13.4 DNS 六菜单后端全覆盖）。CI 验证异步进行。
+- **网络对策**：GitHub 22 端口阻断→SSH over 443（~/.ssh/config 持久化），后续推送稳定。
+
 ## 2026-08-26 · M3-005 完成：缓存与安全参数 API
 
 - **做了**：settings 四端点+迁移 0008；参数持久化→渲染→checkconf→reload（校验失败不改运行态）；flush all/zone；每域 TTL 覆盖（F-R3）；Pg/Mem 双仓储。
