@@ -90,7 +90,7 @@ func (s *Service) ReportLease(_ context.Context, req *coherencev1.LeaseReport) (
 	switch req.GetEvent() {
 	case coherencev1.LeaseEvent_COMMIT, coherencev1.LeaseEvent_RENEW:
 		s.store.Put(Binding{
-			MAC: req.GetMac(), IPv4: req.GetIpv4(), IPv6: req.GetIpv6(),
+			MAC: NormalizeMAC(req.GetMac()), IPv4: req.GetIpv4(), IPv6: req.GetIpv6(),
 			TemplateID: "", Hostname: req.GetHostname(),
 		})
 	case coherencev1.LeaseEvent_EXPIRE, coherencev1.LeaseEvent_RELEASE:

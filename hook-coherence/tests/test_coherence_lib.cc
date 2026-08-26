@@ -46,7 +46,7 @@ static void TestParseSnapshot() {
 
 static void TestFindBinding_DegradedMatch() {
   auto bindings = ParseSnapshot(
-      "host-aa-bb-cc-dd-ee-01|10.61.172.10|2406::10:61:172:10|t-b|\n");
+      "aa:bb:cc:dd:ee:01|10.61.172.10|2406::10:61:172:10|t-b|\n");
   // 终端报文里的 MAC 大小写/分隔符不可控，归一化后必须命中
   const Binding* b = FindBinding(bindings, "AA-BB-CC-DD-EE-01");
   CHECK(b != nullptr);

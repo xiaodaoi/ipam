@@ -41,3 +41,29 @@ func ApplyTemplate(t Template, ipv4 string) (string, error) {
 	}
 	return result, nil
 }
+
+// NormalizeMAC 归一化任意常见书写为小写冒号格式；非法返回空串。
+// 与 C++ 侧 NormalizeMac 行为对齐（快照键一致性前提）。
+func NormalizeMAC(raw string) string {
+	var b strings.Builder
+	b.Grow(17)
+	n := 0
+	for i := 0; i < len(raw); i++ {
+		c := raw[i]
+		switch {
+		case c >= '0' && c <= '9', c >= 'a' && c <= 'f', c >= 'A' && c <= 'F':
+			if n > 0 && n%2 == 0 {
+				b.WriteByte(':')
+			}
+			b.WriteByte(strings.ToLower(string(c))[0])
+			n++
+		case c == ':', c == '-', c == '.':
+		default:
+			return ""
+		}
+	}
+	if n != 12 {
+		return ""
+	}
+	return b.String()
+}

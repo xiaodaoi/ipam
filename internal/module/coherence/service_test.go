@@ -95,3 +95,20 @@ func TestReportLease_Lifecycle(t *testing.T) {
 		t.Fatal("release should delete binding")
 	}
 }
+
+func TestNormalizeMAC_与Cpp侧对齐(t *testing.T) {
+	cases := map[string]string{
+		"AA-BB-CC-DD-EE-FF": "aa:bb:cc:dd:ee:ff",
+		"aabb.ccdd.eeff":    "aa:bb:cc:dd:ee:ff",
+		"AABBCCDDEEFF":      "aa:bb:cc:dd:ee:ff",
+		"aa:bb:cc:dd:ee:ff": "aa:bb:cc:dd:ee:ff",
+		"":                  "",
+		"zz:bb":             "",
+		"aa:bb:cc":          "",
+	}
+	for in, want := range cases {
+		if got := NormalizeMAC(in); got != want {
+			t.Fatalf("NormalizeMAC(%q)=%q want %q", in, got, want)
+		}
+	}
+}
