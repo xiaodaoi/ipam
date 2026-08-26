@@ -22,8 +22,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: spectral lint
-        run: npx --yes @stoplight/spectral-cli@6 lint api/openapi/openapi.yaml --ruleset .spectral.yaml --fail-severity=error
+      - name: spectral lint（先 bundle 以解析多文件引用）
+        run: |
+          npx --yes @redocly/cli@1 bundle api/openapi/openapi.yaml -o /tmp/lint-bundle.yaml --force >/dev/null
+          npx --yes @stoplight/spectral-cli@6 lint /tmp/lint-bundle.yaml --ruleset .spectral.yaml --fail-severity=error
 
   # ── 闸② 路由覆盖率(TestRoutesCoveredBySpec) + 闸④ go test/vet/lint ──
   go-ci:
