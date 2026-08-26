@@ -3,22 +3,13 @@ ForwardRulesCollection:
     operationId: listForwardRules
     tags: [dns]
     summary: 查询条件转发规则
+    description: 返回全部转发规则含启用状态；最长后缀优先语义见 FR-B-02。
     security: []
     responses:
       '200':
         description: 规则列表
         content:
           application/json:
-            schema:
-              $ref: '../components/schemas/forward.yaml#/ForwardRuleList'
-          examples:
-            ok:
-              summary: 默认转发+内网域指向
-              value:
-                items:
-                  - { id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", domain: ".", upstreamIds: ["99999999-9999-9999-9999-999999999999"], enabled: true }
-                  - { id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", domain: "corp.local.", upstreamIds: ["77777777-7777-7777-7777-777777777777"], enabled: true }
-                total: 2
   post:
     operationId: createForwardRule
     tags: [dns]
@@ -33,38 +24,34 @@ ForwardRulesCollection:
         application/json:
           schema:
             $ref: '../components/schemas/forward.yaml#/ForwardRuleCreate'
-          examples:
-            intranet:
-              summary: 内网根域指向内部 DNS
-              value:
-                domain: corp.local.
-                upstreamIds: ["77777777-7777-7777-7777-777777777777"]
-                note: 内网权威域
-            dry:
-              summary: dryRun 预览
-              value:
-                domain: office.example.com
-                upstreamIds: ["88888888-8888-8888-8888-888888888888"]
-                dryRun: true
+            examples:
+                intranet:
+                  summary: 内网根域指向内部 DNS
+                  value:
+                    domain: corp.local.
+                    upstreamIds: ["77777777-7777-7777-7777-777777777777"]
+                    note: 内网权威域
+                dry:
+                  summary: dryRun 预览
+                  value:
+                    domain: office.example.com
+                    upstreamIds: ["88888888-8888-8888-8888-888888888888"]
+                    dryRun: true
     responses:
       '201':
         description: 已创建
         content:
           application/json:
-            schema:
-              $ref: '../components/schemas/forward.yaml#/ForwardRule'
       '200':
         description: dryRun 预览
         content:
           application/json:
-            schema:
-              $ref: '../components/schemas/forward.yaml#/ForwardRuleDryRun'
-
 ForwardRuleItem:
   patch:
     operationId: updateForwardRule
     tags: [dns]
     summary: 更新转发规则（重新下发）
+    description: 变更上游集合或启停后自动重下发；失败返回 503 UNBOUND_DOWN。所需 scope 为 dns.write。
     security: [{ bearerAuth: [] }]
     parameters:
       - name: ruleId
@@ -86,12 +73,11 @@ ForwardRuleItem:
         description: 已更新
         content:
           application/json:
-            schema:
-              $ref: '../components/schemas/forward.yaml#/ForwardRule'
   delete:
     operationId: deleteForwardRule
     tags: [dns]
     summary: 删除转发规则（forward_remove）
+    description: 删除后立即从 unbound 摘除对应 forward-zone。所需 scope 为 dns.write。
     security: [{ bearerAuth: [] }]
     x-risk-level: destructive
     parameters:

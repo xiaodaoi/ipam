@@ -10,16 +10,6 @@ UpstreamsCollection:
         description: 上游列表
         content:
           application/json:
-            schema:
-              $ref: '../components/schemas/upstream.yaml#/UpstreamList'
-          examples:
-            ok:
-              summary: 双上游含健康状态
-              value:
-                items:
-                  - { id: "99999999-9999-9999-9999-999999999999", name: 阿里, addrs: ["223.5.5.5"], protocol: udp, weight: 2, enabled: true, health: { up: true, rttMs: 8, consecutiveFails: 0 } }
-                  - { id: "88888888-8888-8888-8888-888888888888", name: 腾讯, addrs: ["119.29.29.29"], protocol: udp, weight: 1, enabled: true, health: { up: false, rttMs: 0, consecutiveFails: 3 } }
-                total: 2
   post:
     operationId: createUpstream
     tags: [dns]
@@ -32,22 +22,20 @@ UpstreamsCollection:
         application/json:
           schema:
             $ref: '../components/schemas/upstream.yaml#/UpstreamCreate'
-          examples:
-            ali:
-              value: { name: 阿里, addrs: ["223.5.5.5"], protocol: udp, weight: 2 }
+            examples:
+                ali:
+                  value: { name: 阿里, addrs: ["223.5.5.5"], protocol: udp, weight: 2 }
     responses:
       '201':
         description: 已创建
         content:
           application/json:
-            schema:
-              $ref: '../components/schemas/upstream.yaml#/Upstream'
-
 UpstreamItem:
   patch:
     operationId: updateUpstream
     tags: [dns]
     summary: 更新上游（重新下发）
+    description: 变更后触发 forward-zone 重收敛；探活状态由 prober 刷新。所需 scope 为 dns.write。
     security: [{ bearerAuth: [] }]
     parameters:
       - name: upstreamId
@@ -65,12 +53,11 @@ UpstreamItem:
         description: 已更新
         content:
           application/json:
-            schema:
-              $ref: '../components/schemas/upstream.yaml#/Upstream'
   delete:
     operationId: deleteUpstream
     tags: [dns]
     summary: 删除上游（forward_remove）
+    description: 从 forward-zone 移除并停止探测；历史 RTT 记录保留用于审计。所需 scope 为 dns.write。
     security: [{ bearerAuth: [] }]
     x-risk-level: destructive
     parameters:

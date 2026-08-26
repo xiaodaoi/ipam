@@ -1,0 +1,8 @@
+ZoneId:
+  name: zoneId
+  in: path
+  required: true
+  schema:
+    type: string
+    format: uuid
+  description: 区域 ID

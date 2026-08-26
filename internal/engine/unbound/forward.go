@@ -80,12 +80,12 @@ func (e ExecController) CheckConf(_ context.Context, confPath, renderedBlock str
 	if err != nil {
 		return err
 	}
-	defer os.Remove(tmp.Name())
+	defer func() { _ = os.Remove(tmp.Name()) }()
 	if _, err := tmp.WriteString(base + "\n# candidate\n" + renderedBlock); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		return err
 	}
-	tmp.Close()
+	_ = tmp.Close()
 	out, err := exec.Command(check, tmp.Name()).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("checkconf: %v: %s", err, out)

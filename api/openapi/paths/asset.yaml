@@ -20,14 +20,14 @@ AssetsCollection:
           application/json:
             schema:
               $ref: '../components/schemas/asset.yaml#/AssetList'
-          examples:
-            ok:
-              summary: 两条资产
-              value:
-                items:
-                  - { mac: "aa:bb:cc:dd:ee:01", orgId: "11111111-1111-1111-1111-111111111111", owner: 张三, dept: 研发部, tags: [办公] }
-                  - { mac: "aa:bb:cc:dd:ee:02", owner: 李四, note: 网络打印机 }
-                total: 2
+            examples:
+                ok:
+                  summary: 两条资产
+                  value:
+                    items:
+                      - { mac: "aa:bb:cc:dd:ee:01", owner: 张三, dept: 研发部 }
+                      - { mac: "aa:bb:cc:dd:ee:02", owner: 李四 }
+                    total: 2
   put:
     operationId: upsertAsset
     tags: [asset]
@@ -40,10 +40,6 @@ AssetsCollection:
         application/json:
           schema:
             $ref: '../components/schemas/asset.yaml#/AssetUpsert'
-          examples:
-            ok:
-              summary: 登记打印机
-              value: { mac: "aa:bb:cc:dd:ee:01", owner: 张三, dept: 研发部, tags: [办公] }
     responses:
       '200':
         description: 已保存
@@ -51,10 +47,6 @@ AssetsCollection:
           application/json:
             schema:
               $ref: '../components/schemas/asset.yaml#/Asset'
-          examples:
-            ok:
-              value: { mac: "aa:bb:cc:dd:ee:01", owner: 张三, dept: 研发部, tags: [办公] }
-
 AssetItem:
   delete:
     operationId: deleteAsset

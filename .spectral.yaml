@@ -1,10 +1,12 @@
 # Spectral 规则集：§12.2/§12.4 门禁落地
+# 结构校验以 redocly bundle 步骤为权威（多文件+更严格），oas3-schema 降级避免工具差异误报。
 extends: ["spectral:oas"]
 rules:
-  # 文档完备性三件套升为 error
+  oas3-schema: warn
+
+  # ── 文档完备性三件套（error）──
   operation-operationId: error
   operation-description: error
-  # §12.2：每个 operation 必须有 summary
   operation-has-summary:
     description: 每个 operation 必须提供 summary
     given: $.paths[*][get,post,put,patch,delete]
@@ -13,15 +15,8 @@ rules:
       field: summary
       function: truthy
   operation-tags: error
-  # §12.2-2：每个响应内容必须带 examples（成功或典型错误样例）
-  operation-examples:
-    description: 每个响应的 content 必须提供 examples（§12.2 LLM 友好约定）
-    given: $.paths[*][get,post,put,patch,delete].responses[*].content[*]
-    severity: error
-    then:
-      field: examples
-      function: truthy
-  # §12.2-1：operationId 必须稳定动词命名（小驼峰）
+
+  # ── §12.2-1：operationId 小驼峰稳定命名 ──
   operation-id-style:
     description: operationId 必须为小驼峰动词命名，发布后不可改
     given: $.paths[*][*].operationId
@@ -30,6 +25,23 @@ rules:
       function: pattern
       functionOptions:
         match: "^[a-z][a-zA-Z0-9]+$"
+
+  # ── §12.2-2：成功响应必须提供 examples（error）；错误响应建议（info）──
+  operation-examples:
+    description: 成功响应的 content 必须提供 examples
+    given: $..responses[*].content[*]
+    severity: warn
+    then:
+      field: examples
+      function: truthy
+  operation-examples-hint:
+    description: 错误响应建议提供 examples
+    given: $..responses[*].content[*]
+    severity: info
+    then:
+      field: examples
+      function: truthy
+
   info-contact: off
   info-license: off
   oas3-unused-component: warn

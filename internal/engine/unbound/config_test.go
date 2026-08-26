@@ -54,5 +54,3 @@ func TestCheckConf_缺二进制返回不可用(t *testing.T) {
 		t.Fatal("want ErrUnavailable")
 	}
 }
-
-func nil2Ctx() context.Context { return context.Background() }

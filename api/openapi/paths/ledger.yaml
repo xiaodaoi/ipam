@@ -30,19 +30,19 @@ LedgerCollection:
           application/json:
             schema:
               $ref: '../components/schemas/ledger.yaml#/LedgerPage'
-          examples:
-            ok:
-              summary: v4 六态混合页
-              value:
-                items:
-                  - { address: "10.61.172.10", family: 4, state: online, mac: "aa:bb:cc:dd:ee:01", hostname: printer, owner: 张三, leaseExpiry: "2026-08-26T10:00:00Z", subnetId: "44444444-4444-4444-4444-444444444444", poolIndex: "4:10.61.172.10" }
-                  - { address: "10.61.172.11", family: 4, state: available, subnetId: "44444444-4444-4444-4444-444444444444", poolIndex: "4:10.61.172.11" }
-                  - { address: "10.61.172.12", family: 4, state: reserved, subnetId: "44444444-4444-4444-4444-444444444444", poolIndex: "4:10.61.172.12" }
-                  - { address: "10.61.172.13", family: 4, state: static, mac: "aa:bb:cc:dd:ee:02", subnetId: "44444444-4444-4444-4444-444444444444", poolIndex: "4:10.61.172.13" }
-                  - { address: "10.61.172.14", family: 4, state: grace, mac: "aa:bb:cc:dd:ee:03", subnetId: "44444444-4444-4444-4444-444444444444", poolIndex: "4:10.61.172.14" }
-                  - { address: "10.61.172.15", family: 4, state: conflict, mac: "aa:bb:cc:dd:ee:04", subnetId: "44444444-4444-4444-4444-444444444444", poolIndex: "4:10.61.172.15" }
-                nextCursor: "4:10.61.173.0"
-                total: 100
+            examples:
+                ok:
+                  summary: v4 六态混合页
+                  value:
+                    items:
+                      - { address: "10.61.172.10", family: 4, state: online, mac: "aa:bb:cc:dd:ee:01", hostname: printer, owner: 张三, leaseExpiry: "2026-08-26T10:00:00Z", subnetId: "44444444-4444-4444-4444-444444444444", poolIndex: "4:10.61.172.10" }
+                      - { address: "10.61.172.11", family: 4, state: available, subnetId: "44444444-4444-4444-4444-444444444444", poolIndex: "4:10.61.172.11" }
+                      - { address: "10.61.172.12", family: 4, state: reserved, subnetId: "44444444-4444-4444-4444-444444444444", poolIndex: "4:10.61.172.12" }
+                      - { address: "10.61.172.13", family: 4, state: static, mac: "aa:bb:cc:dd:ee:02", subnetId: "44444444-4444-4444-4444-444444444444", poolIndex: "4:10.61.172.13" }
+                      - { address: "10.61.172.14", family: 4, state: grace, mac: "aa:bb:cc:dd:ee:03", subnetId: "44444444-4444-4444-4444-444444444444", poolIndex: "4:10.61.172.14" }
+                      - { address: "10.61.172.15", family: 4, state: conflict, mac: "aa:bb:cc:dd:ee:04", subnetId: "44444444-4444-4444-4444-444444444444", poolIndex: "4:10.61.172.15" }
+                    nextCursor: "4:10.61.173.0"
+                    total: 100
   post:
     operationId: reserveAddress
     tags: [ledger]
@@ -57,9 +57,6 @@ LedgerCollection:
         application/json:
           schema:
             $ref: '../components/schemas/ledger.yaml#/ReserveRequest'
-          examples:
-            ok:
-              value: { subnetId: "44444444-4444-4444-4444-444444444444", address: "10.61.172.12", reason: 服务器预占 }
     responses:
       '204':
         description: 已保留
@@ -75,14 +72,6 @@ LedgerCollection:
                 title: { type: string }
                 status: { type: integer }
                 code: { type: string }
-          examples:
-            occupied:
-              value:
-                type: "https://ipam.local/problems/addr-occupied"
-                title: Conflict
-                status: 409
-                code: ADDR_OCCUPIED
-
 BindStatic:
   post:
     operationId: bindStatic
@@ -98,9 +87,6 @@ BindStatic:
         application/json:
           schema:
             $ref: '../components/schemas/ledger.yaml#/BindRequest'
-          examples:
-            ok:
-              value: { subnetId: "44444444-4444-4444-4444-444444444444", address: "10.61.172.13", mac: "aa:bb:cc:dd:ee:02", hostname: nas }
     responses:
       '204':
         description: 已绑定

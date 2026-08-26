@@ -3,6 +3,7 @@ DnsZonesCollection:
     operationId: listDnsZones
     tags: [dns]
     summary: 查询本地区域
+    description: 返回 auth/local 两类区域；记录经各 zone 的 records 端点管理。
     security: []
     responses:
       '200':
@@ -11,18 +12,25 @@ DnsZonesCollection:
           application/json:
             schema:
               $ref: '../components/schemas/dnszone.yaml#/DnsZoneList'
-          examples:
-            ok:
-              summary: auth+local 各一
-              value:
-                items:
-                  - { id: "cccccccc-cccc-cccc-cccc-cccccccccccc", name: corp.local., kind: auth, enabled: true }
-                  - { id: "dddddddd-dddd-dddd-dddd-dddddddddddd", name: block.corp.local., kind: local, enabled: true }
-                total: 2
+            examples:
+              ok:
+                summary: auth 与 local 各一
+                value:
+                  items:
+                    - id: "cccccccc-cccc-cccc-cccc-cccccccccccc"
+                      name: corp.local.
+                      kind: auth
+                      enabled: true
+                    - id: "dddddddd-dddd-dddd-dddd-dddddddddddd"
+                      name: block.corp.local.
+                      kind: local
+                      enabled: true
+                  total: 2
   post:
     operationId: createDnsZone
     tags: [dns]
     summary: 创建本地区域
+    description: 区域名全局唯一（尾点容错）；创建后可添加解析记录。所需 scope 为 dns.write。
     security: [{ bearerAuth: [] }]
     requestBody:
       required: true
@@ -30,9 +38,6 @@ DnsZonesCollection:
         application/json:
           schema:
             $ref: '../components/schemas/dnszone.yaml#/DnsZoneCreate'
-          examples:
-            auth:
-              value: { name: corp.local., kind: auth }
     responses:
       '201':
         description: 已创建
@@ -40,42 +45,31 @@ DnsZonesCollection:
           application/json:
             schema:
               $ref: '../components/schemas/dnszone.yaml#/DnsZone'
-
 DnsZoneItem:
   get:
     operationId: exportDnsZone
     tags: [dns]
     summary: 导出 zonefile（checkconf 校验过的静态区）
+    description: 返回以 ORIGIN 起头的标准 zonefile 文本，供 auth_zone_reload 使用。
     security: []
     parameters:
-      - name: zoneId
-        in: path
-        required: true
-        schema: { type: string, format: uuid }
+      - $ref: '../parameters/dnszone.yaml#/ZoneId'
     responses:
       '200':
-        description: zonefile 文本（text/plain）
+        description: zonefile 文本
         content:
           text/plain:
-            schema: { type: string }
-          examples:
-            ok:
-              summary: corp.local. zonefile
-              value: |
-                $ORIGIN corp.local.
-                www 300 IN A 10.61.172.80
-                host-aa-bb-cc-dd-ee-01 300 IN AAAA 2406::10:61:172:10
+            schema:
+              type: string
   delete:
     operationId: deleteDnsZone
     tags: [dns]
     summary: 删除区域（级联记录）
+    description: 级联删除区域内全部解析记录并刷新 unbound。scope 为 dns.write。
     security: [{ bearerAuth: [] }]
     x-risk-level: destructive
     parameters:
-      - name: zoneId
-        in: path
-        required: true
-        schema: { type: string, format: uuid }
+      - $ref: '../parameters/dnszone.yaml#/ZoneId'
     responses:
       '204':
         description: 已删除
@@ -85,12 +79,10 @@ DnsRecordsCollection:
     operationId: listDnsRecords
     tags: [dns]
     summary: 查询区域记录
+    description: 返回该区域全部解析记录，含禁用项，前端可按需过滤展示。
     security: []
     parameters:
-      - name: zoneId
-        in: path
-        required: true
-        schema: { type: string, format: uuid }
+      - $ref: '../parameters/dnszone.yaml#/ZoneId'
     responses:
       '200':
         description: 记录列表
@@ -98,32 +90,20 @@ DnsRecordsCollection:
           application/json:
             schema:
               $ref: '../components/schemas/dnszone.yaml#/DnsRecordList'
-          examples:
-            ok:
-              summary: 混合类型
-              value:
-                items:
-                  - { id: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee", zoneId: "cccccccc-cccc-cccc-cccc-cccccccccccc", name: www, recType: A, ttl: 300, rdata: "10.61.172.80", enabled: true }
-                total: 1
   post:
     operationId: createDnsRecord
     tags: [dns]
-    summary: 创建记录（变更触发 auth_zone_reload 单区刷新）
+    summary: 创建记录（触发 auth_zone_reload 单区刷新）
+    description: 同 zone 内 name 与 type 组合唯一；rdata 按类型校验；创建后单区刷新不动整进程。scope 为 dns.write。
     security: [{ bearerAuth: [] }]
     parameters:
-      - name: zoneId
-        in: path
-        required: true
-        schema: { type: string, format: uuid }
+      - $ref: '../parameters/dnszone.yaml#/ZoneId'
     requestBody:
       required: true
       content:
         application/json:
           schema:
             $ref: '../components/schemas/dnszone.yaml#/DnsRecordCreate'
-          examples:
-            a:
-              value: { name: www, recType: A, ttl: 300, rdata: "10.61.172.80" }
     responses:
       '201':
         description: 已创建
@@ -131,21 +111,18 @@ DnsRecordsCollection:
           application/json:
             schema:
               $ref: '../components/schemas/dnszone.yaml#/DnsRecord'
-
 DnsZoneLinked:
   get:
     operationId: listLinkedRecords
     tags: [dns]
-    summary: 联动记录（只读，DHCP 双栈联动生成，§4.4）
+    summary: 联动记录（只读）
+    description: 返回由 DHCP 双栈联动自动生成的 A 与 AAAA 记录（§4.4），只读不可编辑。
     security: []
     parameters:
-      - name: zoneId
-        in: path
-        required: true
-        schema: { type: string, format: uuid }
+      - $ref: '../parameters/dnszone.yaml#/ZoneId'
     responses:
       '200':
-        description: 联动记录
+        description: 联动记录列表
         content:
           application/json:
             schema:
@@ -156,10 +133,3 @@ DnsZoneLinked:
                   items:
                     $ref: '../components/schemas/dnszone.yaml#/LinkedRecord'
               required: [items]
-          examples:
-            ok:
-              summary: 一台双栈终端
-              value:
-                items:
-                  - { name: host-aa-bb-cc-dd-ee-01.corp.local., recType: A, rdata: "10.61.172.10", mac: "aa:bb:cc:dd:ee:01" }
-                  - { name: host-aa-bb-cc-dd-ee-01.corp.local., recType: AAAA, rdata: "2406::10:61:172:10", mac: "aa:bb:cc:dd:ee:01" }

@@ -11,11 +11,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 查询 DNS 行为参数（缓存+安全） */
+        /**
+         * 查询 DNS 行为参数（缓存+安全）
+         * @description 返回当前生效的缓存与安全参数；参数变更经 unbound.conf 重渲染+checkconf+reload 三步走。
+         */
         get: operations["getDnsSettings"];
         /**
-         * 更新参数（重渲染 unbound.conf→checkconf→reload）
-         * @description 校验失败返回 400 且不改动运行配置（checkconf 失败回滚）。scope 为 dns.write。
+         * 更新 DNS 行为参数（渲染→checkconf→reload）
+         * @description 校验失败返回 400 且不改动运行配置（checkconf 失败即回滚）。所需 scope 为 dns.write。
          */
         put: operations["updateDnsSettings"];
         post?: never;
@@ -32,9 +35,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 查询每域名 TTL 覆盖（F-R3） */
+        /**
+         * 查询每域名 TTL 覆盖列表
+         * @description F-R3——对 DDNS/CDN 敏感域名单独设置较小 TTL，覆盖全局缓存策略。
+         */
         get: operations["listTtlOverrides"];
-        /** 设置/更新域名 TTL 覆盖（reload 生效） */
+        /**
+         * 设置或更新域名 TTL 覆盖（reload 生效）
+         * @description 以域名为键幂等写入，reload 后生效。所需 scope 为 dns.write。
+         */
         put: operations["upsertTtlOverride"];
         post?: never;
         delete?: never;
@@ -54,7 +63,7 @@ export interface paths {
         put?: never;
         /**
          * 清空缓存（全部或指定 zone）
-         * @description unbound-control flush_zone；zone 缺省=flush 全部。scope 为 dns.write。
+         * @description 经 unbound-control flush 或 flush_zone 执行，zone 缺省为全部清空。所需 scope 为 dns.write。
          */
         post: operations["flushCache"];
         delete?: never;
@@ -70,7 +79,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 查询封禁名单库 */
+        /**
+         * 查询封禁名单库
+         * @description 返回内置/自定义/订阅三类名单及版本与最近同步时间。
+         */
         get: operations["listBlocklists"];
         put?: never;
         /** 创建名单库 */
@@ -92,9 +104,8 @@ export interface paths {
         put?: never;
         /**
          * 订阅源同步（失败保留旧版）
-         * @description kind=feed 时从 syncUrl 拉取域名列表；逐行解析+去重入库；版本+1。
-         *     拉取/解析失败返回 502 且保留旧数据（K 风险项）。
-         *     所需 scope 为 blocklist.write。
+         * @description 仅对 kind=feed 生效：从 syncUrl 拉取域名列表，逐行解析+去重入库，版本+1。
+         *     拉取/解析失败返回 502 且保留旧数据（风险项）。所需 scope 为 blocklist.write。
          */
         post: operations["syncBlocklist"];
         delete?: never;
@@ -110,10 +121,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 查询名单条目 */
+        /**
+         * 查询名单条目
+         * @description 支持 pattern 关键字过滤；返回 RPZ 动作与分类标签。
+         */
         get: operations["listBlocklistEntries"];
         put?: never;
-        /** 添加条目 */
+        /**
+         * 添加条目
+         * @description 同名单内 pattern 去重；动作映射见 §5.2。scope 为 blocklist.write。
+         */
         post: operations["addBlocklistEntry"];
         delete?: never;
         options?: never;
@@ -128,10 +145,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 查询策略分组 */
+        /**
+         * 查询策略分组
+         * @description 返回 view×网段×名单×时段 的全部策略组（§5.1）。
+         */
         get: operations["listPolicyGroups"];
         put?: never;
-        /** 创建策略分组（view 唯一） */
+        /**
+         * 创建策略分组（view 唯一）
+         * @description view_name 全局唯一；创建后调用 compile 生成 RPZ zone。scope 为 blocklist.write。
+         */
         post: operations["createPolicyGroup"];
         delete?: never;
         options?: never;
@@ -167,10 +190,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 查询本地区域 */
+        /**
+         * 查询本地区域
+         * @description 返回 auth/local 两类区域；记录经各 zone 的 records 端点管理。
+         */
         get: operations["listDnsZones"];
         put?: never;
-        /** 创建本地区域 */
+        /**
+         * 创建本地区域
+         * @description 区域名全局唯一（尾点容错）；创建后可添加解析记录。scope 为 dns.write。
+         */
         post: operations["createDnsZone"];
         delete?: never;
         options?: never;
@@ -188,7 +217,10 @@ export interface paths {
         /** 查询区域记录 */
         get: operations["listDnsRecords"];
         put?: never;
-        /** 创建记录（变更触发 auth_zone_reload 单区刷新） */
+        /**
+         * 创建记录（变更触发 auth_zone_reload 单区刷新）
+         * @description 同 zone 内 name+type 唯一；rdata 按类型校验；创建后单区刷新不动整进程。scope 为 dns.write。
+         */
         post: operations["createDnsRecord"];
         delete?: never;
         options?: never;
@@ -220,11 +252,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 导出 zonefile（checkconf 校验过的静态区） */
+        /**
+         * 导出 zonefile（checkconf 校验过的静态区）
+         * @description 返回 $ORIGIN 起头的标准 zonefile 文本，供 auth_zone_reload 使用。
+         */
         get: operations["exportDnsZone"];
         put?: never;
         post?: never;
-        /** 删除区域（级联记录） */
+        /**
+         * 删除区域（级联记录）
+         * @description 级联删除区域内全部解析记录并刷新 unbound。scope 为 dns.write。
+         */
         delete: operations["deleteDnsZone"];
         options?: never;
         head?: never;
@@ -238,7 +276,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 查询条件转发规则 */
+        /**
+         * 查询条件转发规则
+         * @description 返回全部转发规则含启用状态；最长后缀优先语义见 FR-B-02。
+         */
         get: operations["listForwardRules"];
         put?: never;
         /**
@@ -263,11 +304,17 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** 删除转发规则（forward_remove） */
+        /**
+         * 删除转发规则（forward_remove）
+         * @description 删除后立即从 unbound 摘除对应 forward-zone。所需 scope 为 dns.write。
+         */
         delete: operations["deleteForwardRule"];
         options?: never;
         head?: never;
-        /** 更新转发规则（重新下发） */
+        /**
+         * 更新转发规则（重新下发）
+         * @description 变更上游集合或启停后自动重下发；失败返回 503 UNBOUND_DOWN。所需 scope 为 dns.write。
+         */
         patch: operations["updateForwardRule"];
         trace?: never;
     };
@@ -305,11 +352,17 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** 删除上游（forward_remove） */
+        /**
+         * 删除上游（forward_remove）
+         * @description 从 forward-zone 移除并停止探测；历史 RTT 记录保留用于审计。所需 scope 为 dns.write。
+         */
         delete: operations["deleteUpstream"];
         options?: never;
         head?: never;
-        /** 更新上游（重新下发） */
+        /**
+         * 更新上游（重新下发）
+         * @description 变更后触发 forward-zone 重收敛；探活状态由 prober 刷新。所需 scope 为 dns.write。
+         */
         patch: operations["updateUpstream"];
         trace?: never;
     };
@@ -617,7 +670,7 @@ export interface components {
             cidr: string;
             pools: components["schemas"]["AddressPool"][];
             /** @description 下发 Kea 后的 subnet-id（引擎回写） */
-            keaSubnetId?: number;
+            keaSubnetId?: number | null;
             description?: string;
         };
         AddressPool: {
@@ -1169,7 +1222,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 参数 */
+            /** @description 当前参数 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1194,13 +1247,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 已更新 */
+            /** @description 已更新并 reload */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["DnsSettings"];
+                    examples: unknown;
                 };
             };
             /** @description checkconf 校验失败（未生效） */
@@ -1263,6 +1317,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PerDomainTtl"];
+                    examples: unknown;
                 };
             };
         };
@@ -1277,6 +1332,7 @@ export interface operations {
         requestBody?: {
             content: {
                 "application/json": {
+                    /** @description 指定 zone 名，缺省清空全部 */
                     zone?: string | null;
                 };
             };
@@ -1289,6 +1345,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FlushResult"];
+                    examples: unknown;
                 };
             };
         };

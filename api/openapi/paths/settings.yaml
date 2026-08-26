@@ -3,31 +3,30 @@ SettingsCollection:
     operationId: getDnsSettings
     tags: [dns]
     summary: 查询 DNS 行为参数（缓存+安全）
+    description: 返回当前生效的缓存与安全参数；参数变更经 unbound.conf 重渲染+checkconf+reload 三步走。
     security: []
     responses:
       '200':
-        description: 参数
+        description: 当前参数
         content:
           application/json:
             schema:
               $ref: '../components/schemas/settings.yaml#/DnsSettings'
-          examples:
-            ok:
-              summary: 默认参数
-              value:
-                cacheMinTtl: 0
-                cacheMaxTtl: 86400
-                serveExpired: false
-                rrlEnabled: true
-                rrlRate: 500
-                dnssecValidate: false
-                tcpOnly: false
+            examples:
+                ok:
+                  summary: 默认参数
+                  value:
+                    cacheMinTtl: 0
+                    cacheMaxTtl: 86400
+                    serveExpired: false
+                    rrlEnabled: true
+                    rrlRate: 500
+                    dnssecValidate: false
   put:
     operationId: updateDnsSettings
     tags: [dns]
-    summary: 更新参数（重渲染 unbound.conf→checkconf→reload）
-    description: |
-      校验失败返回 400 且不改动运行配置（checkconf 失败回滚）。scope 为 dns.write。
+    summary: 更新 DNS 行为参数（渲染→checkconf→reload）
+    description: 校验失败返回 400 且不改动运行配置（checkconf 失败即回滚）。所需 scope 为 dns.write。
     security: [{ bearerAuth: [] }]
     requestBody:
       required: true
@@ -35,19 +34,9 @@ SettingsCollection:
         application/json:
           schema:
             $ref: '../components/schemas/settings.yaml#/DnsSettings'
-          examples:
-            tune:
-              summary: 开启乐观缓存+限速
-              value:
-                cacheMinTtl: 0
-                cacheMaxTtl: 86400
-                serveExpired: true
-                rrlEnabled: true
-                rrlRate: 800
-                dnssecValidate: false
     responses:
       '200':
-        description: 已更新
+        description: 已更新并 reload
         content:
           application/json:
             schema:
@@ -64,19 +53,12 @@ SettingsCollection:
                 title: { type: string }
                 status: { type: integer }
                 code: { type: string }
-          examples:
-            invalid:
-              value:
-                type: "https://ipam.local/problems/invalid-conf"
-                title: Bad Request
-                status: 400
-                code: INVALID_CONF
-
 TtlOverridesCollection:
   get:
     operationId: listTtlOverrides
     tags: [dns]
-    summary: 查询每域名 TTL 覆盖（F-R3）
+    summary: 查询每域名 TTL 覆盖列表
+    description: F-R3——对 DDNS/CDN 敏感域名单独设置较小 TTL，覆盖全局缓存策略。
     security: []
     responses:
       '200':
@@ -91,16 +73,11 @@ TtlOverridesCollection:
                   items:
                     $ref: '../components/schemas/settings.yaml#/PerDomainTtl'
               required: [items]
-          examples:
-            ok:
-              summary: DDNS 域名
-              value:
-                items:
-                  - { domain: "ddns.example.com", ttl: 30 }
   put:
     operationId: upsertTtlOverride
     tags: [dns]
-    summary: 设置/更新域名 TTL 覆盖（reload 生效）
+    summary: 设置或更新域名 TTL 覆盖（reload 生效）
+    description: 以域名为键幂等写入，reload 后生效。所需 scope 为 dns.write。
     security: [{ bearerAuth: [] }]
     requestBody:
       required: true
@@ -108,9 +85,6 @@ TtlOverridesCollection:
         application/json:
           schema:
             $ref: '../components/schemas/settings.yaml#/PerDomainTtl'
-          examples:
-            ddns:
-              value: { domain: "ddns.example.com", ttl: 30 }
     responses:
       '200':
         description: 已设置
@@ -118,13 +92,12 @@ TtlOverridesCollection:
           application/json:
             schema:
               $ref: '../components/schemas/settings.yaml#/PerDomainTtl'
-
 CacheFlush:
   post:
     operationId: flushCache
     tags: [dns]
     summary: 清空缓存（全部或指定 zone）
-    description: unbound-control flush_zone；zone 缺省=flush 全部。scope 为 dns.write。
+    description: 经 unbound-control flush 或 flush_zone 执行，zone 缺省为全部清空。所需 scope 为 dns.write。
     security: [{ bearerAuth: [] }]
     requestBody:
       required: false
@@ -133,11 +106,10 @@ CacheFlush:
           schema:
             type: object
             properties:
-              zone: { type: string, nullable: true }
-          examples:
-            all:
-              summary: 清空全部
-              value: { zone: null }
+              zone:
+                type: string
+                nullable: true
+                description: 指定 zone 名，缺省清空全部
     responses:
       '200':
         description: 已清空

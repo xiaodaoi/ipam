@@ -24,7 +24,7 @@ Subnet:
       items:
         $ref: 'subnet.yaml#/AddressPool'
     keaSubnetId:
-      type: integer
+      type: [integer, "null"]
       description: 下发 Kea 后的 subnet-id（引擎回写）
     description:
       type: string

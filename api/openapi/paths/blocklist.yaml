@@ -3,27 +3,18 @@ BlocklistsCollection:
     operationId: listBlocklists
     tags: [blocklist]
     summary: 查询封禁名单库
+    description: 返回内置/自定义/订阅三类名单及版本与最近同步时间。
     security: []
     responses:
       '200':
         description: 名单列表
         content:
           application/json:
-            schema:
-              $ref: '../components/schemas/blocklist.yaml#/BlocklistList'
-          examples:
-            ok:
-              summary: 内置+自定义+订阅
-              value:
-                items:
-                  - { id: "11111111-2222-3333-4444-555555555555", name: 广告拦截, kind: builtin, version: 42 }
-                  - { id: "22222222-2222-2222-2222-222222222222", name: 赌博站, kind: custom, version: 1 }
-                  - { id: "33333333-3333-3333-3333-333333333333", name: 恶意域名订阅, kind: feed, syncUrl: "https://example.com/malware.txt", version: 7 }
-                total: 3
   post:
     operationId: createBlocklist
     tags: [blocklist]
     summary: 创建名单库
+    description: kind=feed 时必须提供 syncUrl；后续经 sync 端点拉取。scope 为 blocklist.write。
     security: [{ bearerAuth: [] }]
     requestBody:
       required: true
@@ -31,28 +22,24 @@ BlocklistsCollection:
         application/json:
           schema:
             $ref: '../components/schemas/blocklist.yaml#/BlocklistCreate'
-          examples:
-            custom:
-              value: { name: 赌博站, kind: custom }
-            feed:
-              value: { name: 恶意域名订阅, kind: feed, syncUrl: "https://example.com/malware.txt" }
+            examples:
+                custom:
+                  value: { name: 赌博站, kind: custom }
+                feed:
+                  value: { name: 恶意域名订阅, kind: feed, syncUrl: "https://example.com/malware.txt" }
     responses:
       '201':
         description: 已创建
         content:
           application/json:
-            schema:
-              $ref: '../components/schemas/blocklist.yaml#/Blocklist'
-
 BlocklistItem:
   post:
     operationId: syncBlocklist
     tags: [blocklist]
     summary: 订阅源同步（失败保留旧版）
     description: |
-      kind=feed 时从 syncUrl 拉取域名列表；逐行解析+去重入库；版本+1。
-      拉取/解析失败返回 502 且保留旧数据（K 风险项）。
-      所需 scope 为 blocklist.write。
+      仅对 kind=feed 生效：从 syncUrl 拉取域名列表，逐行解析+去重入库，版本+1。
+      拉取/解析失败返回 502 且保留旧数据（风险项）。所需 scope 为 blocklist.write。
     security: [{ bearerAuth: [] }]
     parameters:
       - name: listId
@@ -64,8 +51,6 @@ BlocklistItem:
         description: 同步完成
         content:
           application/json:
-            schema:
-              $ref: '../components/schemas/blocklist.yaml#/BlocklistSyncResult'
       '502':
         description: 订阅源不可达/解析失败（旧版保留）
         content:
@@ -78,19 +63,12 @@ BlocklistItem:
                 title: { type: string }
                 status: { type: integer }
                 code: { type: string }
-          examples:
-            feedDown:
-              value:
-                type: "https://ipam.local/problems/feed-down"
-                title: Bad Gateway
-                status: 502
-                code: FEED_DOWN
-
 BlocklistEntriesCollection:
   get:
     operationId: listBlocklistEntries
     tags: [blocklist]
     summary: 查询名单条目
+    description: 支持 pattern 关键字过滤；返回 RPZ 动作与分类标签。
     security: []
     parameters:
       - name: listId
@@ -106,20 +84,11 @@ BlocklistEntriesCollection:
         description: 条目列表
         content:
           application/json:
-            schema:
-              $ref: '../components/schemas/blocklist.yaml#/BlocklistEntryList'
-          examples:
-            ok:
-              summary: qname 触发器两例
-              value:
-                items:
-                  - { listId: "22222222-2222-2222-2222-222222222222", triggerType: qname, pattern: "*.gamble.com", action: nxdomain, category: 赌博 }
-                  - { listId: "22222222-2222-2222-2222-222222222222", triggerType: qname, pattern: "block.corp.local.", action: redirect, redirectTarget: "block.corp.local.", category: 提示页 }
-                total: 2
   post:
     operationId: addBlocklistEntry
     tags: [blocklist]
     summary: 添加条目
+    description: 同名单内 pattern 去重；动作映射见 §5.2。scope 为 blocklist.write。
     security: [{ bearerAuth: [] }]
     parameters:
       - name: listId
@@ -132,48 +101,28 @@ BlocklistEntriesCollection:
         application/json:
           schema:
             $ref: '../components/schemas/blocklist.yaml#/BlocklistEntryCreate'
-          examples:
-            nxdomain:
-              value: { triggerType: qname, pattern: "*.gamble.com", action: nxdomain, category: 赌博 }
-            redirect:
-              value: { triggerType: qname, pattern: "block.corp.local.", action: redirect, redirectTarget: "block.corp.local.", category: 提示页 }
     responses:
       '201':
         description: 已添加
         content:
           application/json:
-            schema:
-              $ref: '../components/schemas/blocklist.yaml#/BlocklistEntry'
-
 PolicyGroupsCollection:
   get:
     operationId: listPolicyGroups
     tags: [blocklist]
     summary: 查询策略分组
+    description: 返回 view×网段×名单×时段 的全部策略组（§5.1）。
     security: []
     responses:
       '200':
         description: 分组列表
         content:
           application/json:
-            schema:
-              type: object
-              properties:
-                items:
-                  type: array
-                  items:
-                    $ref: '../components/schemas/blocklist.yaml#/PolicyGroup'
-              required: [items]
-          examples:
-            ok:
-              summary: 学生网段
-              value:
-                items:
-                  - { id: "44444444-5555-6666-7777-888888888888", name: 学生分组, viewName: students, cidrs: ["10.61.128.0/17"], listIds: ["11111111-2222-3333-4444-555555555555"] }
   post:
     operationId: createPolicyGroup
     tags: [blocklist]
     summary: 创建策略分组（view 唯一）
+    description: view_name 全局唯一；创建后调用 compile 生成 RPZ zone。scope 为 blocklist.write。
     security: [{ bearerAuth: [] }]
     requestBody:
       required: true
@@ -181,17 +130,11 @@ PolicyGroupsCollection:
         application/json:
           schema:
             $ref: '../components/schemas/blocklist.yaml#/PolicyGroupCreate'
-          examples:
-            students:
-              value: { name: 学生分组, viewName: students, cidrs: ["10.61.128.0/17"], listIds: ["11111111-2222-3333-4444-555555555555"] }
     responses:
       '201':
         description: 已创建
         content:
           application/json:
-            schema:
-              $ref: '../components/schemas/blocklist.yaml#/PolicyGroup'
-
 PolicyGroupItem:
   post:
     operationId: compilePolicyGroup
@@ -211,5 +154,3 @@ PolicyGroupItem:
         description: 编译完成
         content:
           application/json:
-            schema:
-              $ref: '../components/schemas/blocklist.yaml#/RpzCompileResult'

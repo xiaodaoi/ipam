@@ -29,25 +29,25 @@ SubnetsCollection:
         application/json:
           schema:
             $ref: '../components/schemas/subnet.yaml#/SubnetCreate'
-          examples:
-            v4:
-              summary: 研发办公网
-              value:
-                orgId: "11111111-1111-1111-1111-111111111111"
-                name: 研发-办公
-                family: 4
-                cidr: 10.61.172.0/24
-                pools:
-                  - { startAddr: "10.61.172.100", endAddr: "10.61.172.200", kind: dynamic }
-            v6pd:
-              summary: 前缀委派池
-              value:
-                orgId: "11111111-1111-1111-1111-111111111111"
-                name: 分支-PD
-                family: 6
-                cidr: 2406:172::/64
-                pools:
-                  - { startAddr: "2406:172::", endAddr: "2406:172::ff", kind: pd }
+            examples:
+                v4:
+                  summary: 研发办公网
+                  value:
+                    orgId: "11111111-1111-1111-1111-111111111111"
+                    name: 研发-办公
+                    family: 4
+                    cidr: 10.61.172.0/24
+                    pools:
+                      - { startAddr: "10.61.172.100", endAddr: "10.61.172.200", kind: dynamic }
+                v6pd:
+                  summary: 前缀委派池
+                  value:
+                    orgId: "11111111-1111-1111-1111-111111111111"
+                    name: 分支-PD
+                    family: 6
+                    cidr: 2406:172::/64
+                    pools:
+                      - { startAddr: "2406:172::", endAddr: "2406:172::ff", kind: pd }
     responses:
       '201':
         $ref: '../components/responses/subnet.yaml#/SubnetCreated'
@@ -122,10 +122,3 @@ SubnetItem:
                 title: { type: string }
                 status: { type: integer }
                 code: { type: string }
-          examples:
-            inUse:
-              value:
-                type: "https://ipam.local/problems/subnet-in-use"
-                title: Conflict
-                status: 409
-                code: SUBNET_IN_USE
