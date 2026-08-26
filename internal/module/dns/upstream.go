@@ -52,6 +52,12 @@ type UnboundController interface {
 	SyncForwardRules(ctx context.Context, rules []ForwardRule, upstreams []Upstream) error
 	// AuthZoneReload 单区刷新（auth_zone_reload <zone>）。
 	AuthZoneReload(ctx context.Context, zoneID string) error
+	// CheckConf 校验配置片段。
+	CheckConf(ctx context.Context, confPath, renderedBlock string) error
+	// Reload 全量 reload。
+	Reload(ctx context.Context) error
+	// FlushZone 清空缓存。
+	FlushZone(ctx context.Context, zone string) error
 }
 
 // Prober 上游健康探测器（TCP:53 连接+RTT；3 连败摘除/2 连胜回切）。

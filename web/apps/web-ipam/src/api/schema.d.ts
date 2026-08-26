@@ -4,6 +4,65 @@
  */
 
 export interface paths {
+    "/dns/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询 DNS 行为参数（缓存+安全） */
+        get: operations["getDnsSettings"];
+        /**
+         * 更新参数（重渲染 unbound.conf→checkconf→reload）
+         * @description 校验失败返回 400 且不改动运行配置（checkconf 失败回滚）。scope 为 dns.write。
+         */
+        put: operations["updateDnsSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dns/settings/ttl-overrides": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询每域名 TTL 覆盖（F-R3） */
+        get: operations["listTtlOverrides"];
+        /** 设置/更新域名 TTL 覆盖（reload 生效） */
+        put: operations["upsertTtlOverride"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dns/cache/flush": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 清空缓存（全部或指定 zone）
+         * @description unbound-control flush_zone；zone 缺省=flush 全部。scope 为 dns.write。
+         */
+        post: operations["flushCache"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dns/blocklists": {
         parameters: {
             query?: never;
@@ -940,6 +999,39 @@ export interface components {
             /** @description 如 unbound-control auth_zone_reload students.rpz */
             reloadCommand: string;
         };
+        /** @description DNS 行为参数（缓存+安全，§13.4 缓存与性能/安全与诊断）。 */
+        DnsSettings: {
+            /** @description 缓存最小 TTL（秒），0=不限制 */
+            cacheMinTtl: number;
+            /** @description 缓存最大 TTL（秒） */
+            cacheMaxTtl: number;
+            /** @description 乐观缓存（RFC 8767，F-R2） */
+            serveExpired: boolean;
+            /** @description 应答速率限制（FR-B-08） */
+            rrlEnabled: boolean;
+            /** @description RRL 每秒每客户端配额 */
+            rrlRate: number;
+            /** @description DNSSEC 校验（FR-B-10） */
+            dnssecValidate: boolean;
+            /**
+             * @description 仅 TCP 响应（防 UDP 放大）
+             * @default false
+             */
+            tcpOnly: boolean;
+        };
+        /** @description 每域名 TTL 覆盖（F-R3，DDNS/CDN 敏感域名）。 */
+        PerDomainTtl: {
+            /** @description 域名（可含 *. 前缀） */
+            domain: string;
+            ttl: number;
+        };
+        /** @description 清空缓存结果。 */
+        FlushResult: {
+            /** @description all | <zone> */
+            flushed: string;
+            /** @description 如 unbound-control flush_zone corp.local. */
+            command: string;
+        };
         /** @description RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。 */
         Problem: {
             /** @description 问题类型 URI，稳定不变供程序匹配 */
@@ -1068,6 +1160,139 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getDnsSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 参数 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DnsSettings"];
+                    examples: unknown;
+                };
+            };
+        };
+    };
+    updateDnsSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DnsSettings"];
+            };
+        };
+        responses: {
+            /** @description 已更新 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DnsSettings"];
+                };
+            };
+            /** @description checkconf 校验失败（未生效） */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        code?: string;
+                    };
+                    examples: unknown;
+                };
+            };
+        };
+    };
+    listTtlOverrides: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 覆盖列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["PerDomainTtl"][];
+                    };
+                    examples: unknown;
+                };
+            };
+        };
+    };
+    upsertTtlOverride: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PerDomainTtl"];
+            };
+        };
+        responses: {
+            /** @description 已设置 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerDomainTtl"];
+                };
+            };
+        };
+    };
+    flushCache: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    zone?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description 已清空 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlushResult"];
+                };
+            };
+        };
+    };
     listBlocklists: {
         parameters: {
             query?: never;

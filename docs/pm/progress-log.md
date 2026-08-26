@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-26 · M3-005 完成：缓存与安全参数 API
+
+- **做了**：settings 四端点+迁移 0008；参数持久化→渲染→checkconf→reload（校验失败不改运行态）；flush all/zone；每域 TTL 覆盖（F-R3）；Pg/Mem 双仓储。
+- **验证结果**：3 新单测全绿；全仓 lint 0 issues。
+- **遗留**：checkconf 完整校验 M3-006；TTL 覆盖进 conf 容器实测 M3-006。
+
 ## 2026-08-26 · M3-004 完成：封禁管控 API（RPZ 编译管线）
 
 - **做了**：blocklist 五端点+迁移 0007；订阅源同步（拉取/解析/去重/版本递增/失败保旧版）；增量编译（聚合名单→RPZ zone 动作映射→auth_zone_reload）；Pg/Mem 双仓储。

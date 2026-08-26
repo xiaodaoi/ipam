@@ -114,6 +114,12 @@ func newEngine(version string) *gin.Engine {
 	}
 	blSvc := dnsmodule.NewBlocklistService(blRepo, nil, unboundCtl, "/var/lib/ipam/rpz")
 	blH := dnsmodule.NewBlocklistHandler(blSvc)
+	var settingsRepo dnsmodule.SettingsRepo = dnsmodule.NewMemSettingsRepo()
+	if pool != nil {
+		settingsRepo = dnsmodule.NewPgSettingsRepo(pool)
+	}
+	settingsSvc := dnsmodule.NewSettingsService(settingsRepo, unboundCtl, "/etc/unbound/unbound.conf")
+	settingsH := dnsmodule.NewSettingsHandler(settingsSvc, settingsRepo)
 	zoneH := dnsmodule.NewZoneHandler(zoneSvc, func(ctx context.Context, zoneName string) []dnsmodule.LinkedRecord {
 		if pool == nil {
 			return nil
@@ -145,7 +151,8 @@ func newEngine(version string) *gin.Engine {
 		*dnsmodule.ForwardHandler
 		*dnsmodule.ZoneHandler
 		*dnsmodule.BlocklistHandler
-	}{h, orgH, subH, ledgerH, assetH, dnsH, fwdH, zoneH, blH}
+		*dnsmodule.SettingsHandler
+	}{h, orgH, subH, ledgerH, assetH, dnsH, fwdH, zoneH, blH, settingsH}
 	// spec servers.url=/api/v1 → 统一前缀注册
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 

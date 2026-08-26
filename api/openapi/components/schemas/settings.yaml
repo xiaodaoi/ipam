@@ -1,0 +1,46 @@
+DnsSettings:
+  type: object
+  description: DNS 行为参数（缓存+安全，§13.4 缓存与性能/安全与诊断）。
+  required: [cacheMinTtl, cacheMaxTtl, serveExpired, rrlEnabled, rrlRate, dnssecValidate]
+  properties:
+    cacheMinTtl:
+      type: integer
+      minimum: 0
+      description: 缓存最小 TTL（秒），0=不限制
+    cacheMaxTtl:
+      type: integer
+      minimum: 1
+      description: 缓存最大 TTL（秒）
+    serveExpired:
+      type: boolean
+      description: 乐观缓存（RFC 8767，F-R2）
+    rrlEnabled:
+      type: boolean
+      description: 应答速率限制（FR-B-08）
+    rrlRate:
+      type: integer
+      minimum: 0
+      description: RRL 每秒每客户端配额
+    dnssecValidate:
+      type: boolean
+      description: DNSSEC 校验（FR-B-10）
+    tcpOnly:
+      type: boolean
+      default: false
+      description: 仅 TCP 响应（防 UDP 放大）
+
+PerDomainTtl:
+  type: object
+  description: 每域名 TTL 覆盖（F-R3，DDNS/CDN 敏感域名）。
+  required: [domain, ttl]
+  properties:
+    domain: { type: string, description: 域名（可含 *. 前缀） }
+    ttl: { type: integer, minimum: 1, maximum: 86400 }
+
+FlushResult:
+  type: object
+  description: 清空缓存结果。
+  required: [flushed, command]
+  properties:
+    flushed: { type: string, description: all | <zone> }
+    command: { type: string, description: 如 unbound-control flush_zone corp.local. }

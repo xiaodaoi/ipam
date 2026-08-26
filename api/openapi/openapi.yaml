@@ -28,6 +28,12 @@ tags:
   - name: blocklist
     description: DNS 封禁管控（RPZ 名单/策略分组/订阅源，FR-B-11~18、D13）
 paths:
+  /dns/settings:
+    $ref: './paths/settings.yaml#/SettingsCollection'
+  /dns/settings/ttl-overrides:
+    $ref: './paths/settings.yaml#/TtlOverridesCollection'
+  /dns/cache/flush:
+    $ref: './paths/settings.yaml#/CacheFlush'
   /dns/blocklists:
     $ref: './paths/blocklist.yaml#/BlocklistsCollection'
   /dns/blocklists/{listId}:
@@ -218,6 +224,12 @@ components:
       $ref: './components/schemas/blocklist.yaml#/PolicyGroupCreate'
     RpzCompileResult:
       $ref: './components/schemas/blocklist.yaml#/RpzCompileResult'
+    DnsSettings:
+      $ref: './components/schemas/settings.yaml#/DnsSettings'
+    PerDomainTtl:
+      $ref: './components/schemas/settings.yaml#/PerDomainTtl'
+    FlushResult:
+      $ref: './components/schemas/settings.yaml#/FlushResult'
     Problem:
       type: object
       description: RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。

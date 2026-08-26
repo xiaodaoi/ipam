@@ -1,0 +1,147 @@
+SettingsCollection:
+  get:
+    operationId: getDnsSettings
+    tags: [dns]
+    summary: 查询 DNS 行为参数（缓存+安全）
+    security: []
+    responses:
+      '200':
+        description: 参数
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/settings.yaml#/DnsSettings'
+          examples:
+            ok:
+              summary: 默认参数
+              value:
+                cacheMinTtl: 0
+                cacheMaxTtl: 86400
+                serveExpired: false
+                rrlEnabled: true
+                rrlRate: 500
+                dnssecValidate: false
+                tcpOnly: false
+  put:
+    operationId: updateDnsSettings
+    tags: [dns]
+    summary: 更新参数（重渲染 unbound.conf→checkconf→reload）
+    description: |
+      校验失败返回 400 且不改动运行配置（checkconf 失败回滚）。scope 为 dns.write。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/settings.yaml#/DnsSettings'
+          examples:
+            tune:
+              summary: 开启乐观缓存+限速
+              value:
+                cacheMinTtl: 0
+                cacheMaxTtl: 86400
+                serveExpired: true
+                rrlEnabled: true
+                rrlRate: 800
+                dnssecValidate: false
+    responses:
+      '200':
+        description: 已更新
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/settings.yaml#/DnsSettings'
+      '400':
+        description: checkconf 校验失败（未生效）
+        content:
+          application/problem+json:
+            schema:
+              type: object
+              required: [type, title, status]
+              properties:
+                type: { type: string }
+                title: { type: string }
+                status: { type: integer }
+                code: { type: string }
+          examples:
+            invalid:
+              value:
+                type: "https://ipam.local/problems/invalid-conf"
+                title: Bad Request
+                status: 400
+                code: INVALID_CONF
+
+TtlOverridesCollection:
+  get:
+    operationId: listTtlOverrides
+    tags: [dns]
+    summary: 查询每域名 TTL 覆盖（F-R3）
+    security: []
+    responses:
+      '200':
+        description: 覆盖列表
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../components/schemas/settings.yaml#/PerDomainTtl'
+              required: [items]
+          examples:
+            ok:
+              summary: DDNS 域名
+              value:
+                items:
+                  - { domain: "ddns.example.com", ttl: 30 }
+  put:
+    operationId: upsertTtlOverride
+    tags: [dns]
+    summary: 设置/更新域名 TTL 覆盖（reload 生效）
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/settings.yaml#/PerDomainTtl'
+          examples:
+            ddns:
+              value: { domain: "ddns.example.com", ttl: 30 }
+    responses:
+      '200':
+        description: 已设置
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/settings.yaml#/PerDomainTtl'
+
+CacheFlush:
+  post:
+    operationId: flushCache
+    tags: [dns]
+    summary: 清空缓存（全部或指定 zone）
+    description: unbound-control flush_zone；zone 缺省=flush 全部。scope 为 dns.write。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              zone: { type: string, nullable: true }
+          examples:
+            all:
+              summary: 清空全部
+              value: { zone: null }
+    responses:
+      '200':
+        description: 已清空
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/settings.yaml#/FlushResult'

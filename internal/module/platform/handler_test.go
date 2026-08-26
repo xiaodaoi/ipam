@@ -39,6 +39,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		*dnsmodule.ForwardHandler
 		*dnsmodule.ZoneHandler
 		*dnsmodule.BlocklistHandler
+		*dnsmodule.SettingsHandler
 	}{h,
 		ipam.NewOrgHandler(ipam.NewOrgService(orgStore)),
 		ipam.NewSubnetHandler(ipam.NewSubnetService(subRepo, orgStore, kea)),
@@ -48,6 +49,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		dnsmodule.NewForwardHandler(dnsmodule.NewForwardService(dnsmodule.NewMemForwardRuleRepo(), dnsmodule.NewMemUpstreamRepo(), fakeUnbound{})),
 		dnsmodule.NewZoneHandler(dnsmodule.NewZoneService(dnsmodule.NewMemZoneRepo(), fakeUnbound{}), nil),
 		dnsmodule.NewBlocklistHandler(dnsmodule.NewBlocklistService(dnsmodule.NewMemBlocklistRepo(), nil, fakeUnbound{}, "/tmp/rpz")),
+		dnsmodule.NewSettingsHandler(dnsmodule.NewSettingsService(dnsmodule.NewMemSettingsRepo(), fakeUnbound{}, "/tmp/unbound.conf"), dnsmodule.NewMemSettingsRepo()),
 	}
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 	return r
@@ -120,4 +122,7 @@ func (f fakeUnbound) SyncForward(context.Context, []dnsmodule.Upstream) error { 
 func (f fakeUnbound) SyncForwardRules(context.Context, []dnsmodule.ForwardRule, []dnsmodule.Upstream) error {
 	return nil
 }
-func (f fakeUnbound) AuthZoneReload(context.Context, string) error { return nil }
+func (f fakeUnbound) AuthZoneReload(context.Context, string) error    { return nil }
+func (f fakeUnbound) CheckConf(context.Context, string, string) error { return nil }
+func (f fakeUnbound) Reload(context.Context) error                    { return nil }
+func (f fakeUnbound) FlushZone(context.Context, string) error         { return nil }

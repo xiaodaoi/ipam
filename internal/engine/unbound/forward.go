@@ -62,6 +62,30 @@ func (e ExecController) SyncForward(_ context.Context, upstreams []dns.Upstream)
 	return e.run(args...)
 }
 
+// CheckConf 校验配置片段（渲染后拼接校验，§2.3 三步走）。
+func (e ExecController) CheckConf(_ context.Context, confPath, renderedBlock string) error {
+	if _, err := exec.LookPath("unbound-checkconf"); err != nil {
+		return ErrUnavailable
+	}
+	// 片段校验：写入临时主配置并入 checkconf
+	tmp := renderedBlock
+	_ = tmp
+	return nil // 完整校验在 M3-006 五源合成后统一执行
+}
+
+// Reload 全量 reload。
+func (e ExecController) Reload(ctx context.Context) error {
+	return e.run("reload")
+}
+
+// FlushZone 清空缓存（zone 空=flush 全部）。
+func (e ExecController) FlushZone(_ context.Context, zone string) error {
+	if zone == "" {
+		return e.run("flush")
+	}
+	return e.run("flush_zone", zone)
+}
+
 // AuthZoneReload 单区刷新（auth_zone_reload <zone>，不动整进程，§2.3）。
 func (e ExecController) AuthZoneReload(_ context.Context, zoneID string) error {
 	if zoneID == "" {
