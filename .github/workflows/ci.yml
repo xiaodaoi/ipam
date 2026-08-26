@@ -126,6 +126,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: smoke
         run: |
+          exec > >(tee /tmp/smoke.log) 2>&1
           if [ ! -f deploy/compose/compose.yaml ]; then
             echo "skip: compose.yaml 未落地（M0-006）"; exit 0
           fi
@@ -151,11 +152,11 @@ jobs:
         run: |
           cd deploy/compose
           {
-            echo "== compose build (retry, captured) =="
-            docker compose build --no-cache --progress=plain 2>&1 | tail -150
-            echo; echo "== ps ==";       docker compose ps -a
-            echo; echo "== logs ==";     docker compose logs --tail=200
-            echo; echo "== versions =="; docker version --format '{{.Server.Version}}'
+            echo "== smoke log =="; cat /tmp/smoke.log || true
+            echo; echo "== compose build tail ==";
+            docker compose build --no-cache --progress=plain 2>&1 | tail -60 || true
+            echo; echo "== ps ==";   docker compose ps -a
+            echo; echo "== logs =="; docker compose logs --tail=200
           } > diag.txt 2>&1 || true
       - name: push diagnostics branch
         if: failure()
