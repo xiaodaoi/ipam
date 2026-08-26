@@ -1,0 +1,131 @@
+SubnetsCollection:
+  get:
+    operationId: listSubnets
+    tags: [subnet]
+    summary: 查询子网列表
+    description: 支持 orgId / family 过滤；用于台账与 DHCP 管理页。
+    parameters:
+      - name: orgId
+        in: query
+        schema: { type: string, format: uuid }
+      - name: family
+        in: query
+        schema: { type: integer, enum: [4, 6] }
+    security: []
+    responses:
+      '200':
+        $ref: '../components/responses/subnet.yaml#/SubnetListOK'
+  post:
+    operationId: createSubnet
+    tags: [subnet]
+    summary: 创建子网与地址池
+    description: |
+      落库后经 engine/kea 三步走下发（生成→config-set staged 校验→生效，失败回滚上一 revision，§2.2）。
+      dryRun=true 仅生成校验不下发；支持 Idempotency-Key。scope: subnet.write。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/subnet.yaml#/SubnetCreate'
+          examples:
+            v4:
+              summary: 研发办公网
+              value:
+                orgId: "11111111-1111-1111-1111-111111111111"
+                name: 研发-办公
+                family: 4
+                cidr: 10.61.172.0/24
+                pools:
+                  - { startAddr: "10.61.172.100", endAddr: "10.61.172.200", kind: dynamic }
+            v6pd:
+              summary: 前缀委派池
+              value:
+                orgId: "11111111-1111-1111-1111-111111111111"
+                name: 分支-PD
+                family: 6
+                cidr: 2406:172::/64
+                pools:
+                  - { startAddr: "2406:172::", endAddr: "2406:172::ff", kind: pd }
+    responses:
+      '201':
+        $ref: '../components/responses/subnet.yaml#/SubnetCreated'
+      '503':
+        $ref: '../components/responses/subnet.yaml#/SubnetInUseError'
+
+SubnetItem:
+  patch:
+    operationId: updateSubnet
+    tags: [subnet]
+    summary: 更新子网（改名/调整池）
+    description: 变更同样经 Kea 三步走下发；失败回滚并返回 503。所需 scope 为 subnet.write。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - $ref: '../parameters/subnet.yaml#/SubnetIdParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/subnet.yaml#/SubnetUpdate'
+    responses:
+      '200':
+        $ref: '../components/responses/subnet.yaml#/SubnetUpdated'
+      '404':
+        description: 子网不存在
+        content:
+          application/problem+json:
+            schema:
+              type: object
+              required: [type, title, status]
+              properties:
+                type: { type: string }
+                title: { type: string }
+                status: { type: integer }
+                code: { type: string }
+      '503':
+        $ref: '../components/responses/subnet.yaml#/SubnetInUseError'
+  delete:
+    operationId: deleteSubnet
+    tags: [subnet]
+    summary: 删除子网（级联池）
+    description: 级联删除地址池；若存在租约/模板引用返回 409。所需 scope 为 subnet.write。标记 x-risk-level destructive。
+    security: [{ bearerAuth: [] }]
+    x-risk-level: destructive
+    parameters:
+      - $ref: '../parameters/subnet.yaml#/SubnetIdParam'
+    responses:
+      '204':
+        description: 删除成功
+      '404':
+        description: 子网不存在
+        content:
+          application/problem+json:
+            schema:
+              type: object
+              required: [type, title, status]
+              properties:
+                type: { type: string }
+                title: { type: string }
+                status: { type: integer }
+                code: { type: string }
+      '409':
+        description: 仍被引用
+        content:
+          application/problem+json:
+            schema:
+              type: object
+              required: [type, title, status]
+              properties:
+                type: { type: string }
+                title: { type: string }
+                status: { type: integer }
+                code: { type: string }
+          examples:
+            inUse:
+              value:
+                type: "https://ipam.local/problems/subnet-in-use"
+                title: Conflict
+                status: 409
+                code: SUBNET_IN_USE

@@ -1,17 +1,21 @@
 package main
 
 import (
+	"context"
 	"io/fs"
 	"log"
 	"mime"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	apigen "github.com/xiaodaoi/ipam/api/gen/go"
 	"github.com/xiaodaoi/ipam/cmd/control-plane/webui"
+	keaengine "github.com/xiaodaoi/ipam/internal/engine/kea"
 	"github.com/xiaodaoi/ipam/internal/module/ipam"
 	"github.com/xiaodaoi/ipam/internal/module/platform"
 )
@@ -23,12 +27,29 @@ func newEngine(version string) *gin.Engine {
 	r.Use(gin.Recovery())
 
 	h := platform.NewHandler(version)
-	orgH := ipam.NewOrgHandler(ipam.NewOrgService(ipam.NewMemOrgStore()))
-	// 组合两域 handler 共同实现 ServerInterface（Go 嵌入提升）
+
+	// 仓储装配：IPAM_DB_DSN 存在则走 PG（生产/compose），否则内存 PoC。
+	var orgStore ipam.OrgStore = ipam.NewMemOrgStore()
+	var subRepo ipam.SubnetRepo = ipam.NewMemSubnetRepo()
+	var keaDeploy ipam.KeaDeployer = ipam.NewNoopKea()
+	if dsn := os.Getenv("IPAM_DB_DSN"); dsn != "" {
+		pool, err := pgxpool.New(context.Background(), dsn)
+		if err != nil {
+			log.Fatalf("pg pool: %v", err)
+		}
+		orgStore = ipam.NewOrgRepo(pool)
+		subRepo = ipam.NewSubnetRepo(pool)
+		keaDeploy = keaengine.NewCtrlAgent(os.Getenv("IPAM_KEA_API"))
+	}
+
+	orgH := ipam.NewOrgHandler(ipam.NewOrgService(orgStore))
+	subH := ipam.NewSubnetHandler(ipam.NewSubnetService(subRepo, orgStore, keaDeploy))
+	// 组合各域 handler 共同实现 ServerInterface（Go 嵌入提升；新增域在此扩展）
 	full := struct {
 		*platform.Handler
 		*ipam.OrgHandler
-	}{h, orgH}
+		*ipam.SubnetHandler
+	}{h, orgH, subH}
 	// spec servers.url=/api/v1 → 统一前缀注册
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 

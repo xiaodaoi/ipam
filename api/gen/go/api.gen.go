@@ -20,6 +20,93 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for AddressPoolKind.
+const (
+	Dynamic  AddressPoolKind = "dynamic"
+	Excluded AddressPoolKind = "excluded"
+	Pd       AddressPoolKind = "pd"
+)
+
+// Valid indicates whether the value is a known member of the AddressPoolKind enum.
+func (e AddressPoolKind) Valid() bool {
+	switch e {
+	case Dynamic:
+		return true
+	case Excluded:
+		return true
+	case Pd:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SubnetFamily.
+const (
+	SubnetFamilyN4 SubnetFamily = 4
+	SubnetFamilyN6 SubnetFamily = 6
+)
+
+// Valid indicates whether the value is a known member of the SubnetFamily enum.
+func (e SubnetFamily) Valid() bool {
+	switch e {
+	case SubnetFamilyN4:
+		return true
+	case SubnetFamilyN6:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SubnetCreateFamily.
+const (
+	SubnetCreateFamilyN4 SubnetCreateFamily = 4
+	SubnetCreateFamilyN6 SubnetCreateFamily = 6
+)
+
+// Valid indicates whether the value is a known member of the SubnetCreateFamily enum.
+func (e SubnetCreateFamily) Valid() bool {
+	switch e {
+	case SubnetCreateFamilyN4:
+		return true
+	case SubnetCreateFamilyN6:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListSubnetsParamsFamily.
+const (
+	ListSubnetsParamsFamilyN4 ListSubnetsParamsFamily = 4
+	ListSubnetsParamsFamilyN6 ListSubnetsParamsFamily = 6
+)
+
+// Valid indicates whether the value is a known member of the ListSubnetsParamsFamily enum.
+func (e ListSubnetsParamsFamily) Valid() bool {
+	switch e {
+	case ListSubnetsParamsFamilyN4:
+		return true
+	case ListSubnetsParamsFamilyN6:
+		return true
+	default:
+		return false
+	}
+}
+
+// AddressPool defines model for AddressPool.
+type AddressPool struct {
+	EndAddr string `json:"endAddr"`
+
+	// Kind excluded=保留段（§13.4 冻结不下发）
+	Kind      *AddressPoolKind `json:"kind,omitempty"`
+	StartAddr string           `json:"startAddr"`
+}
+
+// AddressPoolKind excluded=保留段（§13.4 冻结不下发）
+type AddressPoolKind string
+
 // OrgCreate defines model for OrgCreate.
 type OrgCreate struct {
 	// Name 同父下唯一名称
@@ -80,6 +167,55 @@ type Problem struct {
 	Type string `json:"type"`
 }
 
+// Subnet 子网（IPv4/IPv6，挂组织树；FR-C、§13.4）。
+type Subnet struct {
+	// Cidr 如 10.61.172.0/24 或 2406:172::/64
+	Cidr        string             `json:"cidr"`
+	Description *string            `json:"description,omitempty"`
+	Family      SubnetFamily       `json:"family"`
+	Id          openapi_types.UUID `json:"id"`
+
+	// KeaSubnetId 下发 Kea 后的 subnet-id（引擎回写）
+	KeaSubnetId *int   `json:"keaSubnetId,omitempty"`
+	Name        string `json:"name"`
+
+	// OrgId 所属组织节点（组织→子网→租约/台账关联链起点）
+	OrgId openapi_types.UUID `json:"orgId"`
+	Pools []AddressPool      `json:"pools"`
+}
+
+// SubnetFamily defines model for Subnet.Family.
+type SubnetFamily int
+
+// SubnetCreate defines model for SubnetCreate.
+type SubnetCreate struct {
+	Cidr        string  `json:"cidr"`
+	Description *string `json:"description,omitempty"`
+
+	// DryRun true 时仅生成并校验 Kea 配置，不实际下发（§12.2 约定 5）
+	DryRun *bool              `json:"dryRun,omitempty"`
+	Family SubnetCreateFamily `json:"family"`
+	Name   string             `json:"name"`
+	OrgId  openapi_types.UUID `json:"orgId"`
+	Pools  *[]AddressPool     `json:"pools,omitempty"`
+}
+
+// SubnetCreateFamily defines model for SubnetCreate.Family.
+type SubnetCreateFamily int
+
+// SubnetList 列表（可按组织/族过滤）
+type SubnetList struct {
+	Items []Subnet `json:"items"`
+	Total *int     `json:"total,omitempty"`
+}
+
+// SubnetUpdate defines model for SubnetUpdate.
+type SubnetUpdate struct {
+	Description *string        `json:"description,omitempty"`
+	Name        *string        `json:"name,omitempty"`
+	Pools       *[]AddressPool `json:"pools,omitempty"`
+}
+
 // SystemInfo defines model for SystemInfo.
 type SystemInfo struct {
 	// GoVersion 编译所用 Go 运行时版本（runtime.Version()）
@@ -101,6 +237,9 @@ type SystemInfo struct {
 // OrgId defines model for OrgId.
 type OrgId = openapi_types.UUID
 
+// SubnetIdParam defines model for SubnetIdParam.
+type SubnetIdParam = openapi_types.UUID
+
 // NotFound404 defines model for NotFound404.
 type NotFound404 = interface{}
 
@@ -116,11 +255,45 @@ type OrgTree = []OrgTreeNode
 // OrgUpdated 组织分组节点（多级自定义树，主数据，§13.4）。
 type OrgUpdated = OrgNode
 
+// SubnetCreated 子网（IPv4/IPv6，挂组织树；FR-C、§13.4）。
+type SubnetCreated = Subnet
+
+// SubnetInUseError RFC 9457 Problem（与根 spec Problem 同构）
+type SubnetInUseError struct {
+	Code     *string `json:"code,omitempty"`
+	Detail   *string `json:"detail,omitempty"`
+	Instance *string `json:"instance,omitempty"`
+	Status   int     `json:"status"`
+	Title    string  `json:"title"`
+	Type     string  `json:"type"`
+}
+
+// SubnetListOK 列表（可按组织/族过滤）
+type SubnetListOK = SubnetList
+
+// SubnetUpdated 子网（IPv4/IPv6，挂组织树；FR-C、§13.4）。
+type SubnetUpdated = Subnet
+
+// ListSubnetsParams defines parameters for ListSubnets.
+type ListSubnetsParams struct {
+	OrgId  *openapi_types.UUID      `form:"orgId,omitempty" json:"orgId,omitempty"`
+	Family *ListSubnetsParamsFamily `form:"family,omitempty" json:"family,omitempty"`
+}
+
+// ListSubnetsParamsFamily defines parameters for ListSubnets.
+type ListSubnetsParamsFamily int
+
 // CreateOrgJSONRequestBody defines body for CreateOrg for application/json ContentType.
 type CreateOrgJSONRequestBody = OrgCreate
 
 // UpdateOrgJSONRequestBody defines body for UpdateOrg for application/json ContentType.
 type UpdateOrgJSONRequestBody = OrgUpdate
+
+// CreateSubnetJSONRequestBody defines body for CreateSubnet for application/json ContentType.
+type CreateSubnetJSONRequestBody = SubnetCreate
+
+// UpdateSubnetJSONRequestBody defines body for UpdateSubnet for application/json ContentType.
+type UpdateSubnetJSONRequestBody = SubnetUpdate
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -136,6 +309,18 @@ type ServerInterface interface {
 	// UpdateOrg 改名与/或移动组织节点
 	// (PATCH /orgs/{orgId})
 	UpdateOrg(c *gin.Context, orgId OrgId)
+	// ListSubnets 查询子网列表
+	// (GET /subnets)
+	ListSubnets(c *gin.Context, params ListSubnetsParams)
+	// CreateSubnet 创建子网与地址池
+	// (POST /subnets)
+	CreateSubnet(c *gin.Context)
+	// DeleteSubnet 删除子网（级联池）
+	// (DELETE /subnets/{subnetId})
+	DeleteSubnet(c *gin.Context, subnetId SubnetIdParam)
+	// UpdateSubnet 更新子网（改名/调整池）
+	// (PATCH /subnets/{subnetId})
+	UpdateSubnet(c *gin.Context, subnetId SubnetIdParam)
 	// GetSystemInfo 查询控制面系统信息
 	// (GET /system/info)
 	GetSystemInfo(c *gin.Context)
@@ -226,6 +411,104 @@ func (siw *ServerInterfaceWrapper) UpdateOrg(c *gin.Context) {
 	siw.Handler.UpdateOrg(c, orgId)
 }
 
+// ListSubnets operation middleware
+func (siw *ServerInterfaceWrapper) ListSubnets(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListSubnetsParams
+
+	// ------------- Optional query parameter "orgId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "orgId", c.Request.URL.Query(), &params.OrgId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter orgId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "family" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "family", c.Request.URL.Query(), &params.Family, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter family: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListSubnets(c, params)
+}
+
+// CreateSubnet operation middleware
+func (siw *ServerInterfaceWrapper) CreateSubnet(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateSubnet(c)
+}
+
+// DeleteSubnet operation middleware
+func (siw *ServerInterfaceWrapper) DeleteSubnet(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "subnetId" -------------
+	var subnetId SubnetIdParam
+
+	err = runtime.BindStyledParameterWithOptions("simple", "subnetId", c.Param("subnetId"), &subnetId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter subnetId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteSubnet(c, subnetId)
+}
+
+// UpdateSubnet operation middleware
+func (siw *ServerInterfaceWrapper) UpdateSubnet(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "subnetId" -------------
+	var subnetId SubnetIdParam
+
+	err = runtime.BindStyledParameterWithOptions("simple", "subnetId", c.Param("subnetId"), &subnetId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter subnetId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateSubnet(c, subnetId)
+}
+
 // GetSystemInfo operation middleware
 func (siw *ServerInterfaceWrapper) GetSystemInfo(c *gin.Context) {
 
@@ -266,6 +549,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 		ErrorHandler:       errorHandler,
 	}
 
+	router.GET(options.BaseURL+"/subnets", wrapper.ListSubnets)
+	router.POST(options.BaseURL+"/subnets", wrapper.CreateSubnet)
+	router.DELETE(options.BaseURL+"/subnets/:subnetId", wrapper.DeleteSubnet)
+	router.PATCH(options.BaseURL+"/subnets/:subnetId", wrapper.UpdateSubnet)
 	router.GET(options.BaseURL+"/orgs", wrapper.ListOrgTree)
 	router.POST(options.BaseURL+"/orgs", wrapper.CreateOrg)
 	router.DELETE(options.BaseURL+"/orgs/:orgId", wrapper.DeleteOrg)
@@ -278,64 +565,89 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
+	"lXCd8r8DAA==",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

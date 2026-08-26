@@ -1,0 +1,8 @@
+SubnetIdParam:
+  name: subnetId
+  in: path
+  required: true
+  schema:
+    type: string
+    format: uuid
+  description: 子网 ID

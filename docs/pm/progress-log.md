@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-26 · M2-002 完成：子网地址池 API + Kea 引擎通道
+
+- **做了**：subnets 四端点 spec（dryRun/KEA_DOWN/双 example）；迁移 0003（subnet/address_pool+org FK）；SubnetService（引擎先发后库/失败不落库/更新回滚）；Pg 与 Mem 双仓储按 IPAM_DB_DSN 装配（顺带落地 M2-001 遗留的 org PG 仓储）；engine/kea 配置生成+ctrl-agent 下发（数组响应语义）；handler 接线。
+- **验证结果**：ipam+kea 10 新单测全绿；全仓 lint 0 issues。
+- **踩坑**：Kea 响应为数组；spec examples 层级；description 半角冒号。
+- **遗留**：compose 真实下发端到端补验（M2-006 后统一）；SUBNET_IN_USE 引用保护待租约表。
+
 ## 2026-08-26 · M2-001 完成：组织分组 API（spec 先行全流程首例）
 
 - **做了**：orgs 四端点 spec（树/建/改/删，含 409 ORG_IN_USE·ORG_CYCLE·ORG_NAME_DUP 与 RFC9457 内联结构）；gen 管线升级为 redocly bundle→oapi-codegen；ipam 模块 MemOrgStore+OrgService+OrgHandler；problem 包下沉 internal/pkg 解循环依赖；control-plane 双域 handler 组合。

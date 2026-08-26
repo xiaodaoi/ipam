@@ -15,7 +15,13 @@ tags:
     description: 平台能力（系统信息/健康/认证/审计）
   - name: org
     description: 组织分组主数据（多级自定义树，§13.4）
+  - name: subnet
+    description: DHCPv4/v6 子网与地址池（FR-C、§13.4）
 paths:
+  /subnets:
+    $ref: './paths/subnets.yaml#/SubnetsCollection'
+  /subnets/{subnetId}:
+    $ref: './paths/subnets.yaml#/SubnetItem'
   /orgs:
     $ref: './paths/orgs.yaml#/OrgsCollection'
   /orgs/{orgId}:
@@ -84,6 +90,16 @@ components:
       $ref: './components/schemas/org.yaml#/OrgCreate'
     OrgUpdate:
       $ref: './components/schemas/org.yaml#/OrgUpdate'
+    Subnet:
+      $ref: './components/schemas/subnet.yaml#/Subnet'
+    AddressPool:
+      $ref: './components/schemas/subnet.yaml#/AddressPool'
+    SubnetCreate:
+      $ref: './components/schemas/subnet.yaml#/SubnetCreate'
+    SubnetUpdate:
+      $ref: './components/schemas/subnet.yaml#/SubnetUpdate'
+    SubnetList:
+      $ref: './components/schemas/subnet.yaml#/SubnetList'
     Problem:
       type: object
       description: RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。
@@ -110,6 +126,8 @@ components:
   parameters:
     OrgId:
       $ref: './parameters/org.yaml#/OrgId'
+    SubnetId:
+      $ref: './parameters/subnet.yaml#/SubnetIdParam'
   responses:
     Problem:
       description: 错误响应（RFC 9457 Problem Details）

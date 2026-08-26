@@ -19,7 +19,11 @@ func newTestRouter(h *Handler) *gin.Engine {
 	full := struct {
 		*Handler
 		*ipam.OrgHandler
-	}{h, ipam.NewOrgHandler(ipam.NewOrgService(ipam.NewMemOrgStore()))}
+		*ipam.SubnetHandler
+	}{h,
+		ipam.NewOrgHandler(ipam.NewOrgService(ipam.NewMemOrgStore())),
+		ipam.NewSubnetHandler(ipam.NewSubnetService(ipam.NewMemSubnetRepo(), ipam.NewMemOrgStore(), ipam.NewNoopKea())),
+	}
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 	return r
 }

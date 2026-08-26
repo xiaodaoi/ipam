@@ -1,0 +1,91 @@
+SubnetListOK:
+  description: 子网列表
+  content:
+    application/json:
+      schema:
+        $ref: '../schemas/subnet.yaml#/SubnetList'
+      examples:
+        ok:
+          summary: 单个 v4 子网
+          value:
+            items:
+              - id: "44444444-4444-4444-4444-444444444444"
+                orgId: "11111111-1111-1111-1111-111111111111"
+                name: 研发-办公
+                family: 4
+                cidr: 10.61.172.0/24
+                pools:
+                  - { startAddr: "10.61.172.100", endAddr: "10.61.172.200", kind: dynamic }
+                keaSubnetId: 1
+            total: 1
+SubnetCreated:
+  description: 创建成功（含 dryRun 结果）
+  content:
+    application/json:
+      schema:
+        $ref: '../schemas/subnet.yaml#/Subnet'
+      examples:
+        ok:
+          summary: 已下发 Kea 并回写 subnet-id
+          value:
+            id: "44444444-4444-4444-4444-444444444444"
+            orgId: "11111111-1111-1111-1111-111111111111"
+            name: 研发-办公
+            family: 4
+            cidr: 10.61.172.0/24
+            pools:
+              - { startAddr: "10.61.172.100", endAddr: "10.61.172.200", kind: dynamic }
+            keaSubnetId: 1
+        dryRun:
+          summary: dryRun 模式：生成校验通过但未下发
+          value:
+            id: "55555555-5555-5555-5555-555555555555"
+            orgId: "11111111-1111-1111-1111-111111111111"
+            name: 研发-办公-dry
+            family: 4
+            cidr: 10.61.173.0/24
+            pools: []
+            keaSubnetId: null
+SubnetUpdated:
+  description: 更新成功
+  content:
+    application/json:
+      schema:
+        $ref: '../schemas/subnet.yaml#/Subnet'
+      examples:
+        ok:
+          summary: 改名与池调整后已回发 Kea
+          value:
+            id: "44444444-4444-4444-4444-444444444444"
+            orgId: "11111111-1111-1111-1111-111111111111"
+            name: 研发-办公-2026
+            family: 4
+            cidr: 10.61.172.0/24
+            pools:
+              - { startAddr: "10.61.172.100", endAddr: "10.61.172.250", kind: dynamic }
+            keaSubnetId: 1
+SubnetInUseError:
+  description: 子网仍被引用（如租约/模板）或 Kea 下发失败回滚（409/503）
+  content:
+    application/problem+json:
+      schema:
+        type: object
+        description: RFC 9457 Problem（与根 spec Problem 同构）
+        required: [type, title, status]
+        properties:
+          type: { type: string }
+          title: { type: string }
+          status: { type: integer }
+          detail: { type: string }
+          code: { type: string }
+          instance: { type: string }
+      examples:
+        keaDown:
+          summary: Kea ctrl-agent 不可达，配置已回滚
+          value:
+            type: "https://ipam.local/problems/kea-down"
+            title: Service Unavailable
+            status: 503
+            code: KEA_DOWN
+            detail: Kea 配置下发失败，已回滚至上一版本
+            instance: "/api/v1/subnets"

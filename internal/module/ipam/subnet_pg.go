@@ -1,0 +1,246 @@
+package ipam
+
+import (
+	"context"
+	"sync"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// PgSubnetRepo PG 实现（迁移 0003）。
+type PgSubnetRepo struct{ pool *pgxpool.Pool }
+
+func NewSubnetRepo(pool *pgxpool.Pool) *PgSubnetRepo { return &PgSubnetRepo{pool: pool} }
+
+const subnetCols = `id, coalesce(org_id::text,''), name, family, cidr::text,
+  coalesce(kea_subnet_id,0), coalesce(description,'')`
+
+func scanSubnet(row pgx.Row) (Subnet, error) {
+	var s Subnet
+	err := row.Scan(&s.ID, &s.OrgID, &s.Name, &s.Family, &s.CIDR, &s.KeaSubnetID, &s.Description)
+	return s, err
+}
+
+func (r *PgSubnetRepo) List(ctx context.Context, orgID string, family int) ([]Subnet, error) {
+	q := `SELECT ` + subnetCols + ` FROM subnet WHERE true`
+	var args []any
+	if orgID != "" {
+		q += ` AND org_id = $` + fmt1(len(args)+1)
+		args = append(args, orgID)
+	}
+	if family != 0 {
+		q += ` AND family = $` + fmt1(len(args)+1)
+		args = append(args, family)
+	}
+	q += ` ORDER BY created_at`
+	rows, err := r.pool.Query(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Subnet
+	for rows.Next() {
+		s, err := scanSubnet(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+func (r *PgSubnetRepo) Get(ctx context.Context, id string) (Subnet, bool, error) {
+	row := r.pool.QueryRow(ctx, `SELECT `+subnetCols+` FROM subnet WHERE id=$1`, id)
+	s, err := scanSubnet(row)
+	if err == pgx.ErrNoRows {
+		return Subnet{}, false, nil
+	}
+	if err != nil {
+		return Subnet{}, false, err
+	}
+	return s, true, nil
+}
+
+func (r *PgSubnetRepo) Create(ctx context.Context, s Subnet) (Subnet, error) {
+	var id string
+	err := r.pool.QueryRow(ctx,
+		`INSERT INTO subnet(org_id,name,family,cidr,kea_subnet_id,description)
+		 VALUES($1,$2,$3,$4,$5,$6) RETURNING id`,
+		nullStr(s.OrgID), s.Name, s.Family, s.CIDR, s.KeaSubnetID, nullStr(s.Description)).Scan(&id)
+	if err != nil {
+		return Subnet{}, err
+	}
+	s.ID = id
+	for _, p := range s.Pools {
+		if _, err := r.pool.Exec(ctx,
+			`INSERT INTO address_pool(subnet_id,family,start_addr,end_addr,kind)
+			 VALUES($1,$2,$3,$4,$5)`,
+			id, s.Family, p.StartAddr, p.EndAddr, p.Kind); err != nil {
+			return Subnet{}, err
+		}
+	}
+	return s, nil
+}
+
+func (r *PgSubnetRepo) Update(ctx context.Context, s Subnet) (Subnet, error) {
+	if _, err := r.pool.Exec(ctx,
+		`UPDATE subnet SET name=$2, cidr=$3, description=$4, updated_at=now() WHERE id=$1`,
+		s.ID, s.Name, s.CIDR, nullStr(s.Description)); err != nil {
+		return Subnet{}, err
+	}
+	if _, err := r.pool.Exec(ctx, `DELETE FROM address_pool WHERE subnet_id=$1`, s.ID); err != nil {
+		return Subnet{}, err
+	}
+	for _, p := range s.Pools {
+		if _, err := r.pool.Exec(ctx,
+			`INSERT INTO address_pool(subnet_id,family,start_addr,end_addr,kind) VALUES($1,$2,$3,$4,$5)`,
+			s.ID, s.Family, p.StartAddr, p.EndAddr, p.Kind); err != nil {
+			return Subnet{}, err
+		}
+	}
+	return s, nil
+}
+
+func (r *PgSubnetRepo) Delete(ctx context.Context, id string) error {
+	_, err := r.pool.Exec(ctx, `DELETE FROM subnet WHERE id=$1`, id)
+	return err
+}
+
+// OrgRepo PG 实现（迁移 0001）。
+type OrgRepo struct{ pool *pgxpool.Pool }
+
+func NewOrgRepo(pool *pgxpool.Pool) *OrgRepo { return &OrgRepo{pool: pool} }
+
+func (r *OrgRepo) List() []OrgNode {
+	rows, err := r.pool.Query(context.Background(),
+		`SELECT id::text, coalesce(parent_id::text,''), name, path FROM org_group`)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var out []OrgNode
+	for rows.Next() {
+		var n OrgNode
+		if err := rows.Scan(&n.ID, &n.ParentID, &n.Name, &n.Path); err == nil {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+func (r *OrgRepo) Get(id string) (OrgNode, bool) {
+	var n OrgNode
+	err := r.pool.QueryRow(context.Background(),
+		`SELECT id::text, coalesce(parent_id::text,''), name, path FROM org_group WHERE id=$1`, id).
+		Scan(&n.ID, &n.ParentID, &n.Name, &n.Path)
+	if err != nil {
+		return OrgNode{}, false
+	}
+	return n, true
+}
+
+func (r *OrgRepo) Create(n OrgNode) error {
+	_, err := r.pool.Exec(context.Background(),
+		`INSERT INTO org_group(id,parent_id,name,path) VALUES($1,$2,$3,$4)`,
+		n.ID, nullStr(n.ParentID), n.Name, n.Path)
+	return err
+}
+
+func (r *OrgRepo) Update(n OrgNode) {
+	_, _ = r.pool.Exec(context.Background(),
+		`UPDATE org_group SET parent_id=$2, name=$3, path=$4 WHERE id=$1`,
+		n.ID, nullStr(n.ParentID), n.Name, n.Path)
+}
+
+func (r *OrgRepo) Delete(id string) error {
+	_, err := r.pool.Exec(context.Background(), `DELETE FROM org_group WHERE id=$1`, id)
+	return err
+}
+
+func (r *OrgRepo) HasChildren(id string) bool {
+	var one int
+	err := r.pool.QueryRow(context.Background(),
+		`SELECT 1 FROM org_group WHERE parent_id=$1 LIMIT 1`, id).Scan(&one)
+	return err == nil
+}
+
+func (r *OrgRepo) ReferencedByAsset(id string) bool {
+	var one int
+	err := r.pool.QueryRow(context.Background(),
+		`SELECT 1 FROM asset WHERE org_id=$1 LIMIT 1`, id).Scan(&one)
+	return err == nil
+}
+
+// MemSubnetRepo 内存实现（PoC/单测）。
+type MemSubnetRepo struct {
+	mu    sync.RWMutex
+	items []Subnet
+}
+
+func NewMemSubnetRepo() *MemSubnetRepo { return &MemSubnetRepo{} }
+
+func (r *MemSubnetRepo) List(_ context.Context, orgID string, family int) ([]Subnet, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := []Subnet{}
+	for _, s := range r.items {
+		if orgID != "" && s.OrgID != orgID {
+			continue
+		}
+		if family != 0 && s.Family != family {
+			continue
+		}
+		out = append(out, s)
+	}
+	return out, nil
+}
+func (r *MemSubnetRepo) Get(_ context.Context, id string) (Subnet, bool, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, s := range r.items {
+		if s.ID == id {
+			return s, true, nil
+		}
+	}
+	return Subnet{}, false, nil
+}
+func (r *MemSubnetRepo) Create(_ context.Context, s Subnet) (Subnet, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	s.ID = uuid.NewString()
+	r.items = append(r.items, s)
+	return s, nil
+}
+func (r *MemSubnetRepo) Update(_ context.Context, s Subnet) (Subnet, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for i := range r.items {
+		if r.items[i].ID == s.ID {
+			s.OrgID, s.Family, s.KeaSubnetID = r.items[i].OrgID, r.items[i].Family, r.items[i].KeaSubnetID
+			r.items[i] = s
+			return s, nil
+		}
+	}
+	return Subnet{}, ErrSubnetNotFound
+}
+func (r *MemSubnetRepo) Delete(_ context.Context, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for i := range r.items {
+		if r.items[i].ID == id {
+			r.items = append(r.items[:i], r.items[i+1:]...)
+			return nil
+		}
+	}
+	return ErrSubnetNotFound
+}
+
+// NoopKea 无引擎环境占位（dryRun 语义：返回 1）。
+type NoopKea struct{}
+
+func NewNoopKea() *NoopKea { return &NoopKea{} }
+
+func (n *NoopKea) DeploySubnet(_ context.Context, _ []Subnet, _ bool) (int, error) { return 1, nil }
+func (n *NoopKea) RemoveSubnet(_ context.Context, _ int) error                     { return nil }

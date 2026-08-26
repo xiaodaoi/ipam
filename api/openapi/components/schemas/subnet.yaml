@@ -1,0 +1,84 @@
+Subnet:
+  type: object
+  description: 子网（IPv4/IPv6，挂组织树；FR-C、§13.4）。
+  required: [id, orgId, name, family, cidr, pools]
+  properties:
+    id:
+      type: string
+      format: uuid
+    orgId:
+      type: string
+      format: uuid
+      description: 所属组织节点（组织→子网→租约/台账关联链起点）
+    name:
+      type: string
+      maxLength: 64
+    family:
+      type: integer
+      enum: [4, 6]
+    cidr:
+      type: string
+      description: 如 10.61.172.0/24 或 2406:172::/64
+    pools:
+      type: array
+      items:
+        $ref: 'subnet.yaml#/AddressPool'
+    keaSubnetId:
+      type: integer
+      description: 下发 Kea 后的 subnet-id（引擎回写）
+    description:
+      type: string
+
+AddressPool:
+  type: object
+  required: [startAddr, endAddr]
+  properties:
+    startAddr:
+      type: string
+    endAddr:
+      type: string
+    kind:
+      type: string
+      enum: [dynamic, pd, excluded]
+      default: dynamic
+      description: excluded=保留段（§13.4 冻结不下发）
+
+SubnetCreate:
+  type: object
+  required: [orgId, name, family, cidr]
+  properties:
+    orgId: { type: string, format: uuid }
+    name: { type: string, maxLength: 64 }
+    family: { type: integer, enum: [4, 6] }
+    cidr: { type: string }
+    pools:
+      type: array
+      items:
+        $ref: 'subnet.yaml#/AddressPool'
+    dryRun:
+      type: boolean
+      default: false
+      description: true 时仅生成并校验 Kea 配置，不实际下发（§12.2 约定 5）
+    description: { type: string }
+
+SubnetUpdate:
+  type: object
+  properties:
+    name: { type: string, maxLength: 64 }
+    pools:
+      type: array
+      items:
+        $ref: 'subnet.yaml#/AddressPool'
+    description: { type: string }
+
+SubnetList:
+  type: object
+  description: 列表（可按组织/族过滤）
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: 'subnet.yaml#/Subnet'
+    total:
+      type: integer
