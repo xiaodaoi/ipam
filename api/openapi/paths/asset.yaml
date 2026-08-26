@@ -1,0 +1,75 @@
+AssetsCollection:
+  get:
+    operationId: listAssets
+    tags: [asset]
+    summary: 查询资产登记
+    description: 按组织/关键字（MAC/使用人/部门）过滤；台账页资产页签数据源。
+    security: []
+    parameters:
+      - name: orgId
+        in: query
+        schema: { type: string, format: uuid }
+      - name: q
+        in: query
+        schema: { type: string, maxLength: 64 }
+        description: 关键字：MAC/owner/dept 模糊匹配
+    responses:
+      '200':
+        description: 资产列表
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/asset.yaml#/AssetList'
+          examples:
+            ok:
+              summary: 两条资产
+              value:
+                items:
+                  - { mac: "aa:bb:cc:dd:ee:01", orgId: "11111111-1111-1111-1111-111111111111", owner: 张三, dept: 研发部, tags: [办公] }
+                  - { mac: "aa:bb:cc:dd:ee:02", owner: 李四, note: 网络打印机 }
+                total: 2
+  put:
+    operationId: upsertAsset
+    tags: [asset]
+    summary: 创建/更新资产登记（MAC 幂等 upsert）
+    description: 以 MAC 为键幂等写入；换址（IP 变更）不影响备注。所需 scope 为 asset.write。支持 Idempotency-Key。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/asset.yaml#/AssetUpsert'
+          examples:
+            ok:
+              summary: 登记打印机
+              value: { mac: "aa:bb:cc:dd:ee:01", owner: 张三, dept: 研发部, tags: [办公] }
+    responses:
+      '200':
+        description: 已保存
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/asset.yaml#/Asset'
+          examples:
+            ok:
+              value: { mac: "aa:bb:cc:dd:ee:01", owner: 张三, dept: 研发部, tags: [办公] }
+
+AssetItem:
+  delete:
+    operationId: deleteAsset
+    tags: [asset]
+    summary: 删除资产登记
+    description: 按 MAC 删除。所需 scope 为 asset.write。
+    security: [{ bearerAuth: [] }]
+    x-risk-level: destructive
+    parameters:
+      - name: mac
+        in: path
+        required: true
+        schema: { type: string }
+    responses:
+      '204':
+        description: 已删除
+      '404':
+        description: 资产不存在

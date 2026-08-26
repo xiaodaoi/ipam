@@ -53,7 +53,7 @@ type LedgerBinding struct {
 type LedgerSource struct {
 	Bindings     []LedgerBinding
 	Reservations []Reservation
-	Assets       map[string]Asset // mac -> asset
+	Assets       map[string]Asset // mac -> asset（asset.go 完整类型）
 	Subnets      []Subnet
 }
 
@@ -61,12 +61,6 @@ type LedgerSource struct {
 type Reservation struct {
 	MAC  string
 	IPv4 string
-}
-
-// Asset 资产投影（MAC 身份键）。
-type Asset struct {
-	MAC   string
-	Owner string
 }
 
 // ErrAddrOccupied 地址已被绑定/在线占用。

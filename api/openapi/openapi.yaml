@@ -19,7 +19,13 @@ tags:
     description: DHCPv4/v6 子网与地址池（FR-C、§13.4）
   - name: ledger
     description: 地址台账（六态矩阵与保留/绑定操作，§13.4）
+  - name: asset
+    description: 资产登记（MAC 身份键，§13.4）
 paths:
+  /assets:
+    $ref: './paths/asset.yaml#/AssetsCollection'
+  /assets/{mac}:
+    $ref: './paths/asset.yaml#/AssetItem'
   /ledger:
     $ref: './paths/ledger.yaml#/LedgerCollection'
   /ledger/bind:
@@ -116,6 +122,12 @@ components:
       $ref: './components/schemas/ledger.yaml#/ReserveRequest'
     BindRequest:
       $ref: './components/schemas/ledger.yaml#/BindRequest'
+    Asset:
+      $ref: './components/schemas/asset.yaml#/Asset'
+    AssetUpsert:
+      $ref: './components/schemas/asset.yaml#/AssetUpsert'
+    AssetList:
+      $ref: './components/schemas/asset.yaml#/AssetList'
     Problem:
       type: object
       description: RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。

@@ -2,6 +2,7 @@ package ipam
 
 import (
 	"context"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -316,4 +317,79 @@ func LoadLedgerBindings(ctx context.Context, pool *pgxpool.Pool) ([]LedgerBindin
 		}
 	}
 	return out, rows.Err()
+}
+
+// MemAssetRepo 内存实现（PoC/单测）。
+type MemAssetRepo struct{ items map[string]Asset }
+
+func NewMemAssetRepo() *MemAssetRepo { return &MemAssetRepo{items: map[string]Asset{}} }
+
+func (r *MemAssetRepo) List(_ context.Context, orgID, q string) ([]Asset, error) {
+	out := []Asset{}
+	for _, a := range r.items {
+		if orgID != "" && a.OrgID != orgID {
+			continue
+		}
+		if q != "" && !strings.Contains(a.MAC, q) && !strings.Contains(a.Owner, q) && !strings.Contains(a.Dept, q) {
+			continue
+		}
+		out = append(out, a)
+	}
+	return out, nil
+}
+func (r *MemAssetRepo) Upsert(_ context.Context, a Asset) error {
+	r.items[a.MAC] = a
+	return nil
+}
+func (r *MemAssetRepo) Delete(_ context.Context, mac string) error {
+	delete(r.items, mac)
+	return nil
+}
+
+// PgAssetRepo PG 实现。
+type PgAssetRepo struct{ pool *pgxpool.Pool }
+
+func NewPgAssetRepo(pool *pgxpool.Pool) *PgAssetRepo { return &PgAssetRepo{pool: pool} }
+
+func (r *PgAssetRepo) List(ctx context.Context, orgID, q string) ([]Asset, error) {
+	sql := `SELECT mac, coalesce(org_id::text,''), coalesce(owner,''), coalesce(dept,''), coalesce(note,''), coalesce(tags,'{}') FROM asset WHERE true`
+	var args []any
+	if orgID != "" {
+		args = append(args, orgID)
+		sql += ` AND org_id = $` + fmt1(len(args))
+	}
+	if q != "" {
+		args = append(args, "%"+q+"%")
+		sql += ` AND (mac ILIKE $` + fmt1(len(args)) + ` OR owner ILIKE $` + fmt1(len(args)) + ` OR dept ILIKE $` + fmt1(len(args)) + `)`
+	}
+	rows, err := r.pool.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Asset{}
+	for rows.Next() {
+		var a Asset
+		var tags []string
+		if err := rows.Scan(&a.MAC, &a.OrgID, &a.Owner, &a.Dept, &a.Note, &tags); err == nil {
+			a.Tags = tags
+			out = append(out, a)
+		}
+	}
+	return out, rows.Err()
+}
+
+func (r *PgAssetRepo) Upsert(ctx context.Context, a Asset) error {
+	_, err := r.pool.Exec(ctx,
+		`INSERT INTO asset(mac, org_id, owner, dept, note, tags, updated_at)
+		 VALUES($1,$2,$3,$4,$5,$6,now())
+		 ON CONFLICT (mac) DO UPDATE SET org_id=EXCLUDED.org_id, owner=EXCLUDED.owner,
+		   dept=EXCLUDED.dept, note=EXCLUDED.note, tags=EXCLUDED.tags, updated_at=now()`,
+		a.MAC, nullStr(a.OrgID), a.Owner, nullStr(a.Dept), nullStr(a.Note), a.Tags)
+	return err
+}
+
+func (r *PgAssetRepo) Delete(ctx context.Context, mac string) error {
+	_, err := r.pool.Exec(ctx, `DELETE FROM asset WHERE mac=$1`, mac)
+	return err
 }

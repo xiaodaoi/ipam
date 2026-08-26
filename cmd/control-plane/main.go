@@ -60,19 +60,33 @@ func newEngine(version string) *gin.Engine {
 		}
 		reservations, _ := resRepo.List(ctx)
 		subs, _ := subRepo.List(ctx, "", 0)
+		assets := map[string]ipam.Asset{}
+		if pool != nil {
+			if list, err := ipam.NewPgAssetRepo(pool).List(ctx, "", ""); err == nil {
+				for _, a := range list {
+					assets[a.MAC] = a
+				}
+			}
+		}
 		return ipam.LedgerSource{
 			Bindings: bindings, Reservations: reservations,
-			Assets: map[string]ipam.Asset{}, Subnets: subs,
+			Assets: assets, Subnets: subs,
 		}
 	}
 	ledgerH := ipam.NewLedgerHandler(ipam.NewLedgerService(ledgerSrc, resRepo, keaDeploy, subRepo))
+	var assetRepo ipam.AssetRepo = ipam.NewMemAssetRepo()
+	if pool != nil {
+		assetRepo = ipam.NewPgAssetRepo(pool)
+	}
+	assetH := ipam.NewAssetHandler(ipam.NewAssetService(assetRepo, orgStore))
 	// 组合各域 handler 共同实现 ServerInterface（Go 嵌入提升；新增域在此扩展）
 	full := struct {
 		*platform.Handler
 		*ipam.OrgHandler
 		*ipam.SubnetHandler
 		*ipam.LedgerHandler
-	}{h, orgH, subH, ledgerH}
+		*ipam.AssetHandler
+	}{h, orgH, subH, ledgerH, assetH}
 	// spec servers.url=/api/v1 → 统一前缀注册
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 

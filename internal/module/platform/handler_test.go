@@ -29,10 +29,12 @@ func newTestRouter(h *Handler) *gin.Engine {
 		*ipam.OrgHandler
 		*ipam.SubnetHandler
 		*ipam.LedgerHandler
+		*ipam.AssetHandler
 	}{h,
 		ipam.NewOrgHandler(ipam.NewOrgService(orgStore)),
 		ipam.NewSubnetHandler(ipam.NewSubnetService(subRepo, orgStore, kea)),
 		ipam.NewLedgerHandler(ledgerSvc),
+		ipam.NewAssetHandler(ipam.NewAssetService(ipam.NewMemAssetRepo(), orgStore)),
 	}
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 	return r

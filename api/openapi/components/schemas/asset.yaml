@@ -1,0 +1,45 @@
+Asset:
+  type: object
+  description: 资产登记（MAC 为身份键，换址备注不丢；§13.4 资产登记）。
+  required: [mac, owner]
+  properties:
+    mac:
+      type: string
+      description: 归一化小写冒号格式（aa:bb:cc:dd:ee:ff）
+    orgId:
+      type: string
+      format: uuid
+      description: 所属组织节点（资产→组织→日志关联链）
+    owner:
+      type: string
+      description: 使用人员
+    dept:
+      type: string
+    note:
+      type: string
+      maxLength: 256
+    tags:
+      type: array
+      items: { type: string }
+
+AssetUpsert:
+  type: object
+  description: 创建/更新（以 MAC 幂等 upsert）
+  required: [mac, owner]
+  properties:
+    mac: { type: string }
+    orgId: { type: string, format: uuid }
+    owner: { type: string }
+    dept: { type: string }
+    note: { type: string, maxLength: 256 }
+    tags: { type: array, items: { type: string } }
+
+AssetList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: 'asset.yaml#/Asset'
+    total: { type: integer }
