@@ -1,5 +1,0 @@
-/src/hook-coherence/build/CMakeFiles/coherence_core.dir
-/src/hook-coherence/build/CMakeFiles/test_coherence_lib.dir
-/src/hook-coherence/build/CMakeFiles/test.dir
-/src/hook-coherence/build/CMakeFiles/edit_cache.dir
-/src/hook-coherence/build/CMakeFiles/rebuild_cache.dir

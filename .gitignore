@@ -31,3 +31,7 @@ web/apps/*/dist.zip
 deploy/compose/.env
 .omo/
 api/openapi/.gen-bundled.yaml
+
+# C++ 本地沙箱构建产物（CMakeCache 内嵌绝对路径，进 git 必炸 CI）
+hook-coherence/build/
+hook-coherence/bin/
