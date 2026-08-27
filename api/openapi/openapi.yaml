@@ -29,7 +29,11 @@ tags:
     description: DNS 封禁管控（RPZ 名单/策略分组/订阅源，FR-B-11~18、D13）
   - name: logs
     description: 日志中心检索（组合过滤/TopN/QPS 曲线/CSV 导出，FR-E-04、§6）
+  - name: dashboard
+    description: 仪表盘聚合快照（一级菜单 F-01、§13.4）
 paths:
+  /dashboard:
+    $ref: './paths/dashboard.yaml#/DashboardOverview'
   /logs:
     $ref: './paths/logs.yaml#/LogsCollection'
   /logs/tail:
@@ -262,6 +266,10 @@ components:
       $ref: './components/schemas/audit.yaml#/AuditEntry'
     AuditPage:
       $ref: './components/schemas/audit.yaml#/AuditPage'
+    DashboardOverview:
+      $ref: './components/schemas/dashboard.yaml#/DashboardOverview'
+    PoolUtilization:
+      $ref: './components/schemas/dashboard.yaml#/PoolUtilization'
     Problem:
       type: object
       description: RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。

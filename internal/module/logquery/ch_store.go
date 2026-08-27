@@ -2,6 +2,7 @@ package logquery
 
 import (
 	"context"
+	"fmt"
 	"net/netip"
 	"strconv"
 	"strings"
@@ -320,3 +321,80 @@ func formatAddr(s string) string {
 	}
 	return a.Unmap().String()
 }
+
+// DistinctClientIP uniqExact 聚合（rng 非空时叠加 [Lo,Hi] BETWEEN）。
+func (s *ChStore) DistinctClientIP(ctx context.Context, f LogFilter, scope OrgScope, rng *AddrRange) (int64, error) {
+	where, args := buildWhere(cond{
+		From: f.From, To: f.To, Type: f.Type, MAC: f.MAC, IP: f.IP,
+		Domain: f.Domain, Action: f.Action, Scope: scope,
+	})
+	if rng != nil {
+		where += " AND client_ip BETWEEN ? AND ?"
+		lo, errL := netip.ParseAddr(rng.Lo)
+		hi, errH := netip.ParseAddr(rng.Hi)
+		if errL != nil || errH != nil {
+			return 0, fmt.Errorf("addr range invalid: %s..%s", rng.Lo, rng.Hi)
+		}
+		args = append(args, mappedV6(lo), mappedV6(hi))
+	}
+	var n uint64
+	err := s.conn.QueryRow(ctx,
+		fmt.Sprintf(`SELECT uniqExact(coalesce(toString(client_ip),'')) FROM %s WHERE %s`, s.table(), where),
+		args...).Scan(&n)
+	return int64(n), err
+}
+
+// HourlyActive 逐小时 distinct client_ip（type=dhcp）。
+func (s *ChStore) HourlyActive(ctx context.Context, from, to time.Time) ([]QpsPoint, error) {
+	if to.IsZero() {
+		to = time.Now().UTC()
+	}
+	rows, err := s.conn.Query(ctx,
+		fmt.Sprintf(`SELECT toStartOfHour(ts), uniqExact(coalesce(toString(client_ip),''))
+			FROM %s WHERE type='dhcp' AND ts >= ? AND ts <= ? GROUP BY 1 ORDER BY 1`, s.table()),
+		from.UTC(), to.UTC())
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := []QpsPoint{}
+	for rows.Next() {
+		var p QpsPoint
+		if err := rows.Scan(&p.TS, &p.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// MacActivity 各 MAC min/max 活动窗口。
+func (s *ChStore) MacActivity(ctx context.Context, from, to time.Time) (map[string][2]time.Time, error) {
+	if to.IsZero() {
+		to = time.Now().UTC()
+	}
+	rows, err := s.conn.Query(ctx,
+		fmt.Sprintf(`SELECT client_mac, min(ts), max(ts) FROM %s
+			WHERE type='dhcp' AND client_mac != '' AND ts >= ? AND ts <= ? GROUP BY client_mac`, s.table()),
+		from.UTC(), to.UTC())
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[string][2]time.Time{}
+	for rows.Next() {
+		var mac string
+		var mn, mx time.Time
+		if err := rows.Scan(&mac, &mn, &mx); err != nil {
+			return nil, err
+		}
+		out[mac] = [2]time.Time{mn, mx}
+	}
+	return out, rows.Err()
+}
+
+// Ping 健康灯探测（control-plane 探活用）。
+func (s *ChStore) Ping(ctx context.Context) error { return s.conn.Ping(ctx) }
+
+// Ping 内存实现的探活桩（存储层可达即 up）。
+func (m *MemStore) Ping(context.Context) error { return nil }

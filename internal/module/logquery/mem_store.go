@@ -233,3 +233,87 @@ func lessLogDesc(a, b LogRow) bool {
 	}
 	return a.Domain > b.Domain
 }
+
+// addrInTextRange addr 文本是否命中 [lo,hi] 闭区间。
+func addrInTextRange(addrText, lo, hi string) bool {
+	a, err := netip.ParseAddr(addrText)
+	if err != nil {
+		return false
+	}
+	loA, loErr := netip.ParseAddr(lo)
+	hiA, hiErr := netip.ParseAddr(hi)
+	if loErr != nil || hiErr != nil {
+		return false
+	}
+	a = mappedV6(a)
+	return mappedV6(loA).Compare(a) <= 0 && a.Compare(mappedV6(hiA)) <= 0
+}
+
+// DistinctClientIP 去重计数（rng 非空时叠加区间约束）。
+func (m *MemStore) DistinctClientIP(_ context.Context, f LogFilter, scope OrgScope, rng *AddrRange) (int64, error) {
+	set := map[string]bool{}
+	for _, r := range m.rows {
+		if !matchTime(r, f.From, f.To) || !matchScope(r, scope) || (f.Type != "" && r.Type != f.Type) {
+			continue
+		}
+		ip := r.ClientIP
+		if ip == "" || (f.IP != "" && !matchIP(r, f.IP)) {
+			continue
+		}
+		if rng != nil && !addrInTextRange(ip, rng.Lo, rng.Hi) {
+			continue
+		}
+		set[ip] = true
+	}
+	return int64(len(set)), nil
+}
+
+// HourlyActive 逐小时 distinct client_ip。
+func (m *MemStore) HourlyActive(_ context.Context, from, to time.Time) ([]QpsPoint, error) {
+	buckets := map[time.Time]map[string]bool{}
+	for _, r := range m.rows {
+		if r.Type != "dhcp" || r.ClientIP == "" {
+			continue
+		}
+		if r.TS.Before(from) || (!to.IsZero() && r.TS.After(to)) {
+			continue
+		}
+		h := r.TS.Truncate(time.Hour).UTC()
+		if buckets[h] == nil {
+			buckets[h] = map[string]bool{}
+		}
+		buckets[h][r.ClientIP] = true
+	}
+	out := make([]QpsPoint, 0, len(buckets))
+	for h, set := range buckets {
+		out = append(out, QpsPoint{TS: h, Count: len(set)})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].TS.Before(out[j].TS) })
+	return out, nil
+}
+
+// MacActivity 各 MAC 活动 min/max 窗口。
+func (m *MemStore) MacActivity(_ context.Context, from, to time.Time) (map[string][2]time.Time, error) {
+	out := map[string][2]time.Time{}
+	for _, r := range m.rows {
+		if r.Type != "dhcp" || r.ClientMAC == "" {
+			continue
+		}
+		if r.TS.Before(from) || (!to.IsZero() && r.TS.After(to)) {
+			continue
+		}
+		w, ok := out[r.ClientMAC]
+		if !ok {
+			out[r.ClientMAC] = [2]time.Time{r.TS, r.TS}
+			continue
+		}
+		if r.TS.Before(w[0]) {
+			w[0] = r.TS
+		}
+		if r.TS.After(w[1]) {
+			w[1] = r.TS
+		}
+		out[r.ClientMAC] = w
+	}
+	return out, nil
+}

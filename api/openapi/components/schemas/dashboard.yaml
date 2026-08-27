@@ -1,0 +1,86 @@
+# 仪表盘聚合契约（M4-004，F-01、§13.4 一级菜单）
+
+DashboardOverview:
+  type: object
+  required: [ts, onlineNow, onlineTrend, services]
+  properties:
+    ts:
+      type: string
+      format: date-time
+      description: 快照生成时间（UTC）
+    todayStart:
+      type: string
+      format: date-time
+      description: 「今日」口径起点（UTC 当日 00:00）
+    onlineNow:
+      type: integer
+      description: 今日活跃终端数（DHCP 日志 distinct client_ip，租约活跃近似 §13.4）
+    onlineTrend:
+      type: array
+      description: 24h 逐小时活跃终端趋势（不足补零）
+      items:
+        type: object
+        required: [ts, count]
+        properties:
+          ts: { type: string, format: date-time }
+          count: { type: integer }
+    newTerminals:
+      type: integer
+      nullable: true
+      description: 今日新增 MAC（近 7 天窗口内首见日=今日）；无数据源时 null
+    offlineTerminals:
+      type: integer
+      nullable: true
+      description: 离线终端（前 24h 有活动、今日未见）
+    services:
+      type: object
+      required: [postgres, clickhouse, kea, unbound]
+      properties:
+        postgres: { $ref: 'dashboard.yaml#/HealthLight' }
+        clickhouse: { $ref: 'dashboard.yaml#/HealthLight' }
+        kea: { $ref: 'dashboard.yaml#/HealthLight' }
+        unbound: { $ref: 'dashboard.yaml#/HealthLight' }
+    dns:
+      type: object
+      properties:
+        qps5m:
+          type: number
+          nullable: true
+          description: 近 5 分钟 DNS QPS（计数/300 秒）
+        hitRatePct:
+          type: integer
+          nullable: true
+          description: 缓存命中率（unbound 未输出命中语义日志前恒为 null，§6 遗留②）
+        blockedToday:
+          type: integer
+          nullable: true
+          description: 今日拦截量（action=blocked；vector 归一化增强 M4-001 遗留② 前为 0/null）
+    poolUtilTop:
+      type: array
+      maxItems: 5
+      description: 池利用率 Top5（used=今日池区间内 distinct client_ip；capacity=区间地址数）
+      items:
+        $ref: 'dashboard.yaml#/PoolUtilization'
+    coherenceSuccessRatePct:
+      type: integer
+      nullable: true
+      description: 双栈联动成功率（active/(active+conflict) ×100；绑定仓储不可用时 null）
+
+HealthLight:
+  type: string
+  enum: [up, down, unknown]
+  description: 服务健康灯（unknown=未配置探测地址或 PoC 模式）
+
+PoolUtilization:
+  type: object
+  required: [subnetId, name, cidr, poolIndex, used, capacity, pct]
+  properties:
+    subnetId: { type: string, format: uuid }
+    name: { type: string }
+    cidr: { type: string, description: 所属子网 CIDR }
+    poolIndex: { type: string, description: 池序号（0 起） }
+    used: { type: integer, description: 今日区间内 distinct client_ip }
+    capacity: { type: integer, description: 池区间容量（/127+ 大段按 uint64 饱和展示） }
+    pct:
+      type: number
+      description: 利用率百分比（capacity=0 时 0）

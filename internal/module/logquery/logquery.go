@@ -95,4 +95,17 @@ type Store interface {
 	Query(ctx context.Context, f LogFilter, scope OrgScope) (Page, error)
 	Top(ctx context.Context, q TopQuery, scope OrgScope) ([]TopEntry, int, error)
 	Qps(ctx context.Context, q QpsQuery, scope OrgScope) ([]QpsPoint, error)
+
+	// DistinctClientIP 去重客户端 IP 计数（f.Type/IP/时间窗/组织 scope 生效；
+	// rng 非空时额外要求 client_ip 落 [Lo,Hi] 闭区间——池利用率口径）。
+	DistinctClientIP(ctx context.Context, f LogFilter, scope OrgScope, rng *AddrRange) (int64, error)
+	// HourlyActive 逐小时 distinct client_ip（DHCP 事件，[from,to]）。
+	HourlyActive(ctx context.Context, from, to time.Time) ([]QpsPoint, error)
+	// MacActivity 各 MAC 活动窗口 min/max（[from,to]，MAC 非空行）。
+	MacActivity(ctx context.Context, from, to time.Time) (map[string][2]time.Time, error)
+}
+
+// AddrRange 地址闭区间（仪表盘池利用率入参；两端以 ::ffff 映射形态比较）。
+type AddrRange struct {
+	Lo, Hi string // 文本形态（v4/v6），内部映射后比较
 }

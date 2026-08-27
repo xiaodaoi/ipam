@@ -1,0 +1,51 @@
+# 仪表盘聚合端点（M4-004，F-01、§13.4）
+
+DashboardOverview:
+  get:
+    operationId: getDashboardOverview
+    tags: [dashboard]
+    summary: 仪表盘单请求聚合快照
+    description: |
+      一级菜单「仪表盘」全部卡片数据的单端点聚合（≤1s 预算）：今日活跃终端与 24h 趋势、
+      新增/离线终端、服务健康灯（PG/CH/kea/unbound）、DNS QPS 与拦截量、池利用率 Top5、联动成功率。
+      指标口径见各字段 description；不可测量项返回 null 而非伪造值。
+      数据源：ClickHouse logs（复用 §6 查询网关）+ PostgreSQL（子网池/联动绑定）+ 进程内探针。
+    security: []
+    parameters:
+      - name: poolTopN
+        in: query
+        schema: { type: integer, minimum: 1, maximum: 20, default: 5 }
+        description: 池利用率 TopN 条数
+    responses:
+      '200':
+        description: 聚合快照
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/dashboard.yaml#/DashboardOverview'
+            examples:
+              ok:
+                summary: 生产模式全量指标
+                value:
+                  ts: "2026-08-27T09:00:00Z"
+                  todayStart: "2026-08-27T00:00:00Z"
+                  onlineNow: 4213
+                  onlineTrend:
+                    - { ts: "2026-08-26T10:00:00Z", count: 3890 }
+                    - { ts: "2026-08-27T08:00:00Z", count: 4200 }
+                    - { ts: "2026-08-27T09:00:00Z", count: 4213 }
+                  newTerminals: 37
+                  offlineTerminals: 12
+                  services: { postgres: up, clickhouse: up, kea: up, unbound: up }
+                  dns: { qps5m: 1842.7, hitRatePct: null, blockedToday: 217 }
+                  poolUtilTop:
+                    - subnetId: "44444444-4444-4444-4444-444444444444"
+                      name: 研发-办公
+                      cidr: 10.61.172.0/24
+                      poolIndex: "0"
+                      used: 187
+                      capacity: 101
+                      pct: 74.9
+                  coherenceSuccessRatePct: 99
+      '500':
+        $ref: '../openapi.yaml#/components/responses/Problem'

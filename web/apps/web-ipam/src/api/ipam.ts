@@ -48,3 +48,8 @@ export const listSubnets = (orgId?: string) =>
 
 export const listAssets = (orgId?: string) =>
   req<{ items: Asset[] }>(`/assets${orgId ? `?orgId=${orgId}` : ''}`);
+export type DashboardOverview = components['schemas']['DashboardOverview'];
+export type PoolUtilization = components['schemas']['PoolUtilization'];
+
+export const getDashboard = (poolTopN?: number) =>
+  req<DashboardOverview>(`/dashboard${poolTopN ? `?poolTopN=${poolTopN}` : ''}`);

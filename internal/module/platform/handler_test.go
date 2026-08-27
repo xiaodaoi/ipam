@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	apigen "github.com/xiaodaoi/ipam/api/gen/go"
+	"github.com/xiaodaoi/ipam/internal/module/dashboard"
 	dnsmodule "github.com/xiaodaoi/ipam/internal/module/dns"
 	"github.com/xiaodaoi/ipam/internal/module/ipam"
 	logq "github.com/xiaodaoi/ipam/internal/module/logquery"
@@ -19,6 +20,8 @@ import (
 
 // logsAPI 组合用命名包装（与 cmd/control-plane/main.go 同法，避开 Handler 字段名冲突）。
 type logsAPI struct{ *logq.Handler }
+
+type dashAPI struct{ *dashboard.Handler }
 
 func newTestRouter(h *Handler) *gin.Engine {
 	gin.SetMode(gin.TestMode)
@@ -41,6 +44,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		*ipam.AssetHandler
 		*logsAPI
 		*logq.AuditHandler
+		*dashAPI
 		*dnsmodule.DnsHandler
 		*dnsmodule.ForwardHandler
 		*dnsmodule.ZoneHandler
@@ -54,6 +58,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		ipam.NewAssetHandler(ipam.NewAssetService(ipam.NewMemAssetRepo(), orgStore)),
 		&logsAPI{logq.NewHandler(logq.NewService(logq.NewMemStore(), nil))},
 		logq.NewAuditHandler(logq.NewMemAuditStore()),
+		&dashAPI{dashboard.NewHandler(dashboard.NewService(logq.NewMemStore(), nil, nil, dashboard.Lights{}))},
 		dnsmodule.NewDnsHandler(dnsSvc),
 		dnsmodule.NewForwardHandler(dnsmodule.NewForwardService(dnsmodule.NewMemForwardRuleRepo(), dnsmodule.NewMemUpstreamRepo(), fakeUnbound{})),
 		dnsmodule.NewZoneHandler(dnsmodule.NewZoneService(dnsmodule.NewMemZoneRepo(), fakeUnbound{}), nil),

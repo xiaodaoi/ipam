@@ -5,7 +5,9 @@ import (
 	"io/fs"
 	"log"
 	"mime"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +20,7 @@ import (
 	"github.com/xiaodaoi/ipam/cmd/control-plane/webui"
 	keaengine "github.com/xiaodaoi/ipam/internal/engine/kea"
 	unboundengine "github.com/xiaodaoi/ipam/internal/engine/unbound"
+	"github.com/xiaodaoi/ipam/internal/module/dashboard"
 	dnsmodule "github.com/xiaodaoi/ipam/internal/module/dns"
 	"github.com/xiaodaoi/ipam/internal/module/ipam"
 	logq "github.com/xiaodaoi/ipam/internal/module/logquery"
@@ -26,6 +29,90 @@ import (
 
 // logsAPI 组合用命名包装（logquery.Handler 经此提升方法）。
 type logsAPI struct{ *logq.Handler }
+
+// dashAPI 同上（规避 dashboard.Handler 与 platform.Handler 嵌入名冲突）。
+type dashAPI struct{ *dashboard.Handler }
+
+func pgLight(pool *pgxpool.Pool) func(context.Context) dashboard.Light {
+	if pool == nil {
+		return nil
+	}
+	return func(ctx context.Context) dashboard.Light {
+		pctx, cancel := context.WithTimeout(ctx, 800*time.Millisecond)
+		defer cancel()
+		if err := pool.Ping(pctx); err != nil {
+			return dashboard.LightDown
+		}
+		return dashboard.LightUp
+	}
+}
+
+// chLight 仅在显式配置 IPAM_CH_ADDR 时点亮（PoC 内存模式报告 unknown）。
+func chLight(st logq.Store) func(context.Context) dashboard.Light {
+	if os.Getenv("IPAM_CH_ADDR") == "" {
+		return nil
+	}
+	return func(ctx context.Context) dashboard.Light {
+		ctx2, cancel := context.WithTimeout(ctx, 800*time.Millisecond)
+		defer cancel()
+		if p, ok := st.(interface{ Ping(context.Context) error }); !ok || p.Ping(ctx2) != nil {
+			return dashboard.LightDown
+		}
+		return dashboard.LightUp
+	}
+}
+
+func tcpLight(name, raw string) func(context.Context) dashboard.Light {
+	host, port, ok := hostPort(raw)
+	if !ok {
+		log.Printf("[lights] %s: 未配置探测地址 → unknown", name)
+		return nil
+	}
+	addr := net.JoinHostPort(host, port)
+	return func(ctx context.Context) dashboard.Light {
+		d := net.Dialer{Timeout: 800 * time.Millisecond}
+		conn, err := d.DialContext(ctx, "tcp", addr)
+		if err != nil {
+			return dashboard.LightDown
+		}
+		_ = conn.Close()
+		return dashboard.LightUp
+	}
+}
+
+func unixLight(name, path string) func(context.Context) dashboard.Light {
+	if path == "" {
+		return nil
+	}
+	return func(ctx context.Context) dashboard.Light {
+		d := net.Dialer{Timeout: 800 * time.Millisecond}
+		conn, err := d.DialContext(ctx, "unix", path)
+		if err != nil {
+			return dashboard.LightDown
+		}
+		_ = conn.Close()
+		return dashboard.LightUp
+	}
+}
+
+// hostPort 从 http://host:port 或 host:port 提取拨号地址。
+func hostPort(raw string) (host, port string, ok bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", "", false
+	}
+	if u, err := url.Parse(raw); err == nil && u.Host != "" {
+		host, port = u.Hostname(), u.Port()
+	} else if h, p, err := net.SplitHostPort(raw); err == nil {
+		host, port = h, p
+	} else {
+		host = raw
+	}
+	if port == "" {
+		port = "80"
+	}
+	return host, port, true
+}
 
 // newEngine 装配完整路由：/api/v1 业务路由 + webui embed + SPA fallback（§13.3）。
 func newEngine(version string) *gin.Engine {
@@ -116,6 +203,26 @@ func newEngine(version string) *gin.Engine {
 	}
 	auditH := logq.NewAuditHandler(auditRepo)
 
+	// 仪表盘聚合（M4-004，F-01）：日志口径走 logquery.Store，子网/联动绑定按 PG/Mem 装配；
+	// 健康灯仅对已配置探测目标的组件点亮（PoC 模式全 unknown）。
+	var bindSrc dashboard.BindingSource
+	if pool != nil {
+		bindSrc = func(ctx context.Context) ([]ipam.LedgerBinding, error) {
+			return ipam.LoadLedgerBindings(ctx, pool)
+		}
+	}
+	var subSrc dashboard.SubnetSource = func(ctx context.Context) []ipam.Subnet {
+		subs, _ := subRepo.List(ctx, "", 0)
+		return subs
+	}
+	lights := dashboard.Lights{
+		Postgres:   pgLight(pool),
+		ClickHouse: chLight(logStore),
+		Kea:        tcpLight("kea", os.Getenv("IPAM_KEA_API")),
+		Unbound:    unixLight("unbound", "/run/ipam/unbound-ctl.sock"),
+	}
+	dashH := dashboard.NewHandler(dashboard.NewService(logStore, subSrc, bindSrc, lights))
+
 	var upRepo dnsmodule.UpstreamRepo = dnsmodule.NewMemUpstreamRepo()
 	var unboundCtl dnsmodule.UnboundController = unboundengine.ExecController{}
 	if pool != nil {
@@ -190,13 +297,14 @@ func newEngine(version string) *gin.Engine {
 		*ipam.AssetHandler
 		*logsAPI
 		*logq.AuditHandler
+		*dashAPI
 		*dnsmodule.DnsHandler
 		*dnsmodule.ForwardHandler
 		*dnsmodule.ZoneHandler
 		*dnsmodule.BlocklistHandler
 		*dnsmodule.SettingsHandler
 		*confApplier
-	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, dnsH, fwdH, zoneH, blH, settingsH, applier}
+	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, dnsH, fwdH, zoneH, blH, settingsH, applier}
 	// 操作审计（M4-003）：变更类请求统一入账；actor 提供器 M5 JWT 接线时替换。
 	// 位置须在 RegisterHandlersWithOptions 之前且仓储判定之后。
 	r.Use(logq.NewAuditRecorder(auditRepo))

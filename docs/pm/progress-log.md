@@ -4,6 +4,14 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-27 · M4-004 完成：仪表盘聚合 API —— M4 日志中心里程碑收官
+
+- **做了**：`GET /dashboard` 单端点聚合（活跃终端+24h 趋势+新增/离线+四组件健康灯+DNS QPS/拦截+池利用率 TopN+联动成功率）；logquery.Store 扩三个聚合口径双实现；前端总览页（/dashboard/overview）消费展示带 30s 自刷新。
+- **验证结果**：dashboard 单测 3 组+全仓绿；lint 0 issues；web typecheck/build/零外链全绿；闸②覆盖。
+- **踩坑**：oapi-codegen 把 required 内 nullable 拍平为值类型（改非 required 得指针）；组合结构体第三轮嵌入名冲突统一以命名包装类型处理；浮点断言需容差比较。
+- **里程碑**：**M4 日志中心 4/4 全部代码交付**（采集链路/检索 API/实时流+审计/仪表盘聚合）。D6 PoC 核心闭环在代码侧就绪，待 compose 环境端到端实测。
+- **遗留**：keepalived 健康灯无探测路径（unknown）；命中语义日志待 vector 增强。
+
 ## 2026-08-27 · M4-003 完成：实时流（SSE live-tail）+ 操作审计
 
 - **做了**：`GET /logs/tail` SSE 流式端点（500ms 轮询滚动窗口、元组 id 续传、15s 心跳）+ `GET /audits` 审计检索 + operation_audit 迁移 0009 + 变更请求审计中间件（resource 归一路由模板）；spec 先行四闸自检通过。

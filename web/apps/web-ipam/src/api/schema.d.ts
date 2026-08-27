@@ -4,6 +4,29 @@
  */
 
 export interface paths {
+    "/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 仪表盘单请求聚合快照
+         * @description 一级菜单「仪表盘」全部卡片数据的单端点聚合（≤1s 预算）：今日活跃终端与 24h 趋势、
+         *     新增/离线终端、服务健康灯（PG/CH/kea/unbound）、DNS QPS 与拦截量、池利用率 Top5、联动成功率。
+         *     指标口径见各字段 description；不可测量项返回 null 而非伪造值。
+         *     数据源：ClickHouse logs（复用 §6 查询网关）+ PostgreSQL（子网池/联动绑定）+ 进程内探针。
+         */
+        get: operations["getDashboardOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/logs": {
         parameters: {
             query?: never;
@@ -1344,6 +1367,63 @@ export interface components {
             /** @description 满足过滤的总条数 */
             total?: number;
         };
+        DashboardOverview: {
+            /**
+             * Format: date-time
+             * @description 快照生成时间（UTC）
+             */
+            ts: string;
+            /**
+             * Format: date-time
+             * @description 「今日」口径起点（UTC 当日 00:00）
+             */
+            todayStart?: string;
+            /** @description 今日活跃终端数（DHCP 日志 distinct client_ip，租约活跃近似 §13.4） */
+            onlineNow: number;
+            /** @description 24h 逐小时活跃终端趋势（不足补零） */
+            onlineTrend: {
+                /** Format: date-time */
+                ts: string;
+                count: number;
+            }[];
+            /** @description 今日新增 MAC（近 7 天窗口内首见日=今日）；无数据源时 null */
+            newTerminals?: number | null;
+            /** @description 离线终端（前 24h 有活动、今日未见） */
+            offlineTerminals?: number | null;
+            services: {
+                postgres: components["schemas"]["HealthLight"];
+                clickhouse: components["schemas"]["HealthLight"];
+                kea: components["schemas"]["HealthLight"];
+                unbound: components["schemas"]["HealthLight"];
+            };
+            dns?: {
+                /** @description 近 5 分钟 DNS QPS（计数/300 秒） */
+                qps5m?: number | null;
+                /** @description 缓存命中率（unbound 未输出命中语义日志前恒为 null，§6 遗留②） */
+                hitRatePct?: number | null;
+                /** @description 今日拦截量（action=blocked；vector 归一化增强 M4-001 遗留② 前为 0/null） */
+                blockedToday?: number | null;
+            };
+            /** @description 池利用率 Top5（used=今日池区间内 distinct client_ip；capacity=区间地址数） */
+            poolUtilTop?: components["schemas"]["PoolUtilization"][];
+            /** @description 双栈联动成功率（active/(active+conflict) ×100；绑定仓储不可用时 null） */
+            coherenceSuccessRatePct?: number | null;
+        };
+        PoolUtilization: {
+            /** Format: uuid */
+            subnetId: string;
+            name: string;
+            /** @description 所属子网 CIDR */
+            cidr: string;
+            /** @description 池序号（0 起） */
+            poolIndex: string;
+            /** @description 今日区间内 distinct client_ip */
+            used: number;
+            /** @description 池区间容量（/127+ 大段按 uint64 饱和展示） */
+            capacity: number;
+            /** @description 利用率百分比（capacity=0 时 0） */
+            pct: number;
+        };
         /** @description RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。 */
         Problem: {
             /** @description 问题类型 URI，稳定不变供程序匹配 */
@@ -1359,6 +1439,11 @@ export interface components {
             /** @description 出错请求的路径 */
             instance?: string;
         };
+        /**
+         * @description 服务健康灯（unknown=未配置探测地址或 PoC 模式）
+         * @enum {string}
+         */
+        HealthLight: "up" | "down" | "unknown";
     };
     responses: {
         /** @description 错误响应（RFC 9457 Problem Details） */
@@ -1534,6 +1619,30 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getDashboardOverview: {
+        parameters: {
+            query?: {
+                /** @description 池利用率 TopN 条数 */
+                poolTopN?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 聚合快照 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardOverview"];
+                };
+            };
+            500: components["responses"]["Problem"];
+        };
+    };
     listLogs: {
         parameters: {
             query: {
