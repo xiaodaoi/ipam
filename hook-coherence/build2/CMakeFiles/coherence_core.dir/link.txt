@@ -1,0 +1,2 @@
+/usr/bin/ar qc libcoherence_core.a CMakeFiles/coherence_core.dir/src/coherence_lib.cc.o
+/usr/bin/ranlib libcoherence_core.a

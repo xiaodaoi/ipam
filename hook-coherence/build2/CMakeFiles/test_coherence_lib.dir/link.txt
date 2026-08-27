@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/test_coherence_lib.dir/tests/test_coherence_lib.cc.o -o test_coherence_lib  libcoherence_core.a 

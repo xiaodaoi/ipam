@@ -105,7 +105,7 @@ jobs:
           { cmake -S hook-coherence -B hook-coherence/build \
             && cmake --build hook-coherence/build --verbose \
             && ctest --test-dir hook-coherence/build --output-on-failure; } \
-            | tee /tmp/hook-build.log
+            2>&1 | tee /tmp/hook-build.log
       - name: 行数门禁(<800)
         run: bash scripts/check-hook-lines.sh
       - name: push diagnostics branch
@@ -113,7 +113,8 @@ jobs:
         run: |
           git config user.email "ci@ipam.local"
           git config user.name "ci-diag"
-          tail -c 6000 /tmp/hook-build.log > diag-hook.txt || true
+          { echo "== cmake version =="; cmake --version | head -1;
+            echo "== build log tail =="; tail -c 5500 /tmp/hook-build.log 2>&1; } > diag-hook.txt || true
           git add diag-hook.txt && git commit -m "ci hook diag ${GITHUB_RUN_ID}"
           git push -f origin "HEAD:refs/heads/ci-diag"
 
