@@ -1,16 +1,9 @@
-// Package platform 认证 PoC（M5-001）：最小可用的登录/会话链路。
-// 正式 JWT/RBAC/Bot Token 由 M5-002 替换（§12.3）；本实现刻意保持
-// 响应形状与 vben UserInfo 对齐，升级时仅换签发与校验内部。
+// Package platform 认证会话（M5-001 打通 → M5-002 JWT 正式化）。
+// 响应形状与 vben UserInfo 保持对齐；签名实现已替换为标准 HS256 JWT（auth_jwt.go）。
 package platform
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
-	"errors"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -27,38 +20,19 @@ func pocPassword() string {
 	return "admin123"
 }
 
-func pocSecret() []byte {
-	if s := os.Getenv("IPAM_POC_SECRET"); s != "" {
-		return []byte(s)
-	}
-	return []byte("ipam-poc-secret")
-}
-
-// IssueToken 签发 "poc.<base64(userId).exp>.<hmac>"（无状态，服务端零存储）。
+// IssueToken 签发标准 JWT（保持 M5-001 函数名，调用方零改动）。
 func IssueToken(now time.Time) string {
-	exp := now.Add(tokenLifetime).Unix()
-	payload := pocUserID + "." + strconv.FormatInt(exp, 10)
-	mac := hmac.New(sha256.New, pocSecret())
-	mac.Write([]byte(payload))
-	sig := hex.EncodeToString(mac.Sum(nil))[:16]
-	return "poc." + payload + "." + sig
+	return IssueJWT(JWTClaims{
+		Sub: pocUsername, UID: pocUserID,
+		Roles: []string{"admin"}, Typ: "user",
+	}, now)
 }
 
-// ValidateToken 校验签名与有效期；返回 userId。
+// ValidateToken 校验并返回 claims（含 Sub/Roles/Typ）。
 func ValidateToken(tok string) (string, error) {
-	parts := strings.Split(tok, ".")
-	if len(parts) != 4 || parts[0] != "poc" {
-		return "", errors.New("令牌格式非法")
+	c, err := ParseJWT(tok)
+	if err != nil {
+		return "", err
 	}
-	payload := parts[1] + "." + parts[2]
-	mac := hmac.New(sha256.New, pocSecret())
-	mac.Write([]byte(payload))
-	if !hmac.Equal([]byte(hex.EncodeToString(mac.Sum(nil))[:16]), []byte(parts[3])) {
-		return "", errors.New("令牌签名不匹配")
-	}
-	exp, err := strconv.ParseInt(parts[2], 10, 64)
-	if err != nil || time.Now().Unix() > exp {
-		return "", errors.New("令牌已过期")
-	}
-	return parts[1], nil
+	return c.UID, nil
 }

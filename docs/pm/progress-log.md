@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-08-27 · M5-002 完成：正式 JWT + 审计真实身份接通
+
+- **做了**：标准 HS256 JWT 替换 PoC 令牌（响应结构零变更，平滑升级）；claims sub/uid/roles/typ；审计 ActorProvider 从 JWT 解析 human/bot + token_sub 指纹落 operation_audit（M4-003 预留钩子接通）。
+- **验证结果**：JWT 5 组单测（往返/过期/篡改/异密钥/alg 混淆）+ 全仓绿 + lint 0；容器实测 POST /orgs 201 → 审计表实记录 human|admin|jwt:admin#指纹。
+- **里程碑**：审计的 §12.3 人/Bot 区分从 system 兜底变为真实数据；认证链路 M5-001/002 交付完毕。
+- **遗留**：端点级 scope 强制拦截待 RBAC 中间件卡；Bot Token 管理界面与多用户管理 P1。
 ## 2026-08-27 · 登录过期弹窗根因修复（/user/info 别名）+ 构建提速三连
 
 - **根因**：vben 登录成功后 fetchUserInfo 固定调 GET /user/info，后端只实现了 /auth/user/info → 401 → loginExpired 弹窗死循环（与 token 本身无关）。

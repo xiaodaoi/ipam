@@ -9,7 +9,7 @@ import (
 
 // ActorProvider 从请求提取调用者身份（§12.3）。
 // M5 JWT 接入前默认 system/anonymous；接入后由控制面注入 token 解析实现。
-type ActorProvider func(c *gin.Context) (ActorType, string, string)
+type ActorProvider = func(c *gin.Context) (string, string, string)
 
 func DefaultActorProvider(*gin.Context) (ActorType, string, string) {
 	return ActorSystem, "control-plane", ""
@@ -20,7 +20,11 @@ func DefaultActorProvider(*gin.Context) (ActorType, string, string) {
 func NewAuditRecorder(store AuditStore, provider ...ActorProvider) gin.HandlerFunc {
 	extract := DefaultActorProvider
 	if len(provider) > 0 && provider[0] != nil {
-		extract = provider[0]
+		raw := provider[0]
+		extract = func(c *gin.Context) (ActorType, string, string) {
+			at, actor, sub := raw(c)
+			return ActorType(at), actor, sub
+		}
 	}
 	return func(c *gin.Context) {
 		c.Next()

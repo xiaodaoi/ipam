@@ -49,8 +49,8 @@ func TestLoginIssueAndUserInfo(t *testing.T) {
 	}
 
 	token := login(t, r)
-	if !strings.HasPrefix(token, "poc.") {
-		t.Fatalf("token shape: %s", token)
+	if !strings.HasPrefix(token, "eyJ") || strings.Count(token, ".") != 2 {
+		t.Fatalf("token 应为 JWT 三段式: %s", token[:40])
 	}
 
 	// 无 token 401

@@ -306,9 +306,9 @@ func newEngine(version string) *gin.Engine {
 		*dnsmodule.SettingsHandler
 		*confApplier
 	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, platform.NewAuthHandler(), dnsH, fwdH, zoneH, blH, settingsH, applier}
-	// 操作审计（M4-003）：变更类请求统一入账；actor 提供器 M5 JWT 接线时替换。
-	// 位置须在 RegisterHandlersWithOptions 之前且仓储判定之后。
-	r.Use(logq.NewAuditRecorder(auditRepo))
+	// 操作审计（M4-003+M5-002）：变更类请求统一入账，actor 从 JWT claims 解析
+	// （human/bot 区分 §12.3）；无法解析回退 system。位置须在路由注册之前。
+	r.Use(logq.NewAuditRecorder(auditRepo, platform.JWTActorProvider))
 	// spec servers.url=/api/v1 → 统一前缀注册
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 
