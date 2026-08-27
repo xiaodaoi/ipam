@@ -3,6 +3,7 @@ package logquery
 import (
 	"bytes"
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -16,9 +17,14 @@ import (
 // Handler 实现 apigen.ServerInterface 中 logs 域端点（§13.4 日志中心检索）。
 type Handler struct {
 	svc *Service
+	// TailPoll/TailHeartbeat SSE 节奏（默认 500ms/15s，可测注入）
+	TailPoll      time.Duration
+	TailHeartbeat time.Duration
 }
 
-func NewHandler(svc *Service) *Handler { return &Handler{svc: svc} }
+func NewHandler(svc *Service) *Handler {
+	return &Handler{svc: svc, TailPoll: 500 * time.Millisecond, TailHeartbeat: 15 * time.Second}
+}
 
 // ListLogs GET /logs
 func (h *Handler) ListLogs(c *gin.Context, params apigen.ListLogsParams) {
@@ -221,4 +227,127 @@ func writeLogErr(c *gin.Context, err error) {
 	default:
 		problem.Write(c, http.StatusServiceUnavailable, "https://ipam.local/problems/log-store-down", "CH_DOWN", "日志存储暂不可达")
 	}
+}
+
+// StreamLogTail GET /logs/tail（SSE live-tail，F-R7：延迟 ≤2s、断线续传）。
+func (h *Handler) StreamLogTail(c *gin.Context, params apigen.StreamLogTailParams) {
+	f := LogFilter{PageSize: tailBatch}
+	var resumeKey string
+	if params.From != nil {
+		f.From = *params.From
+	} else {
+		f.From = time.Now().UTC()
+	}
+	if last := c.GetHeader("Last-Event-ID"); last != "" {
+		if ts, _, _ := ParseCursor(last); !ts.IsZero() {
+			f.From = ts
+			resumeKey = last
+		}
+	}
+	if params.Type != nil {
+		f.Type = string(*params.Type)
+	}
+	if params.Mac != nil {
+		f.MAC = *params.Mac
+	}
+	if params.Ip != nil {
+		f.IP = *params.Ip
+	}
+	if params.Domain != nil {
+		f.Domain = *params.Domain
+	}
+	if params.Action != nil {
+		f.Action = *params.Action
+	}
+	if params.OrgId != nil {
+		f.OrgID = params.OrgId.String()
+	}
+
+	poll, hb := h.TailPoll, h.TailHeartbeat
+	if poll <= 0 {
+		poll = 500 * time.Millisecond
+	}
+	if hb <= 0 {
+		hb = 15 * time.Second
+	}
+	h.serveSSE(c, f, resumeKey, poll, hb)
+}
+
+const tailBatch = 200
+
+// serveSSE 轮询推送循环：新事件按时间升序 emit；resumeKey=Last-Event-ID 续传位点。
+func (h *Handler) serveSSE(c *gin.Context, f LogFilter, resumeKey string, poll, hb time.Duration) {
+	flusher, ok := c.Writer.(http.Flusher)
+	if !ok {
+		problem.Write(c, http.StatusInternalServerError,
+			"https://ipam.local/problems/internal", "SSE_UNSUPPORTED", "当前连接不支持流式响应")
+		return
+	}
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("X-Accel-Buffering", "no")
+	c.Status(http.StatusOK)
+	_, _ = c.Writer.WriteString(": stream open\n\n")
+	flusher.Flush()
+
+	ctx := c.Request.Context()
+	pollT := time.NewTicker(poll)
+	defer pollT.Stop()
+	hbT := time.NewTicker(hb)
+	defer hbT.Stop()
+
+	lastKey := resumeKey
+	windowFrom := f.From
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-hbT.C:
+			_, _ = c.Writer.WriteString(": ping\n\n")
+			flusher.Flush()
+		case <-pollT.C:
+			batch, err := h.svc.Query(ctx, LogFilter{
+				From: windowFrom, Type: f.Type, MAC: f.MAC, IP: f.IP,
+				Domain: f.Domain, Action: f.Action, OrgID: f.OrgID,
+				Cursor: "", PageSize: tailBatch,
+			})
+			if err != nil {
+				return
+			}
+			fresh := newerThan(batch.Items, lastKey)
+			for i := len(fresh) - 1; i >= 0; i-- { // 批次为 DESC，倒序即升序发射
+				row := fresh[i]
+				id := EncodeCursor(row.TS, row.ClientMAC, row.Domain)
+				payload, merr := json.Marshal(toGenLogRow(row))
+				if merr != nil {
+					continue
+				}
+				_, _ = c.Writer.WriteString("id: " + id + "\nevent: log\ndata: " + string(payload) + "\n\n")
+				lastKey = id
+			}
+			if len(fresh) > 0 {
+				flusher.Flush()
+				windowFrom = fresh[0].TS // 窗口下沿滚动到最新事件，防长期重扫
+			}
+		}
+	}
+}
+
+// newerThan 取 DESC 批次中严格新于 key 元组的行（(ts,client_mac,domain) 字典序大于）。
+func newerThan(rows []LogRow, key string) []LogRow {
+	if key == "" {
+		return rows
+	}
+	kts, kmac, kdom := ParseCursor(key)
+	out := rows[:0]
+	for _, r := range rows {
+		rt, kt := r.TS.UTC().UnixMilli(), kts.UTC().UnixMilli()
+		greater := rt > kt ||
+			(rt == kt && r.ClientMAC > kmac) ||
+			(rt == kt && r.ClientMAC == kmac && r.Domain > kdom)
+		if greater {
+			out = append(out, r)
+		}
+	}
+	return out
 }

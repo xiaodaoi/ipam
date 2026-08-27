@@ -1,4 +1,5 @@
 # 日志检索端点（M4-002，FR-E-04；§6 查询网关：组合过滤/TopN/QPS 曲线/CSV 导出）
+# LogsTail（M4-003，F-R7）：SSE 近实时通道，延迟 ≤2s（500ms 轮询），Last-Event-ID 断线续传
 
 LogsCollection:
   get:
@@ -164,3 +165,44 @@ LogsExport:
         $ref: '../components/responses/logs.yaml#/LogBadRequest'
       '503':
         $ref: '../components/responses/logs.yaml#/LogDown'
+LogsTail:
+  get:
+    operationId: streamLogTail
+    tags: [logs]
+    summary: 实时日志流（SSE live-tail）
+    description: |
+      近实时日志通道（F-R7）：text/event-stream 持续推送新事件，服务端 500ms 轮询，
+      延迟 ≤2s；15s 心跳注释保活；Last-Event-ID 头（或 from 参数）断线续传。
+      event=id（(ts,client_mac,domain) 元组编码，可直接作续传位点）；data=LogRow JSON。
+      过滤条件与 /logs 一致但不分页；from 缺省=连接建立时刻。
+    security: []
+    parameters:
+      - name: from
+        in: query
+        schema: { type: string, format: date-time }
+        description: 起始位点（UTC，缺省=当前时间；也可用 Last-Event-ID 续传）
+      - $ref: '../parameters/logs.yaml#/LogType'
+      - $ref: '../parameters/logs.yaml#/LogMac'
+      - $ref: '../parameters/logs.yaml#/LogIp'
+      - $ref: '../parameters/logs.yaml#/LogDomain'
+      - $ref: '../parameters/logs.yaml#/LogAction'
+      - $ref: '../parameters/logs.yaml#/LogOrgId'
+    responses:
+      '200':
+        description: SSE 事件流
+        content:
+          text/event-stream:
+            schema:
+              type: string
+              description: '事件序列：event/id/data(LogRow)/心跳注释（: ping）'
+            examples:
+              stream:
+                summary: 一条 DHCP 事件与心跳
+                value: |-
+                  id: 1724754492123:aabbccddee01:
+                  event: log
+                  data: {"ts":"2026-08-27T08:28:12.123Z","type":"dhcp","clientMac":"aabbccddee01","clientIp":"10.61.172.10","action":"lease_commit"}
+
+                  : ping
+      '400':
+        $ref: '../components/responses/logs.yaml#/LogBadRequest'

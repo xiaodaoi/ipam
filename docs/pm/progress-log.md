@@ -4,6 +4,14 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-27 · M4-003 完成：实时流（SSE live-tail）+ 操作审计
+
+- **做了**：`GET /logs/tail` SSE 流式端点（500ms 轮询滚动窗口、元组 id 续传、15s 心跳）+ `GET /audits` 审计检索 + operation_audit 迁移 0009 + 变更请求审计中间件（resource 归一路由模板）；spec 先行四闸自检通过。
+- **验证结果**：新增 5 组单测（含 SSE smoke 110ms 抵达断言）+ 全仓绿；golangci-lint 0 issues；闸②自动覆盖新路由。
+- **踩坑**：YAML 明文标量含 ": ping" 序列触发 mapping 解析错误（加引号解决）；pgx Rows.Close 无返回值与 clickhouse-go 有返回值在 errcheck 下行为不同；组合结构体第二轮名冲突由命名包装类型承接。
+- **里程碑**：M4 日志中心 3/4（采集✓ 检索✓ 实时流+审计✓），仅余 M4-004 仪表盘聚合 backlog。
+- **遗留**：actor 身份 M5 JWT 填充；Bot Token 类型与只读 scope P1。
+
 ## 2026-08-26 · M4-002 完成：日志检索 API（四端点+CH 查询层）
 
 - **做了**：`/logs` `/logs/top` `/logs/qps` `/logs/export` spec 先行全流程；logquery 模块（ChStore 原生协议/MemStore 双实现、元组游标分页、组织 CIDR 合并区间+MAC IN 展开、CSV 导出）；PgOrgExpander 物化路径子树展开；logs.sql Nullable 列修正+TopN 物化视图；BuildConf/unbound.conf 补 logfile+log-queries（M4-001 遗留① 收口）；闸⑥ 扩展 CH 直插→检索断言。

@@ -110,6 +110,12 @@ func newEngine(version string) *gin.Engine {
 	}
 	logH := logq.NewHandler(logq.NewService(logStore, logExpander))
 
+	var auditRepo logq.AuditStore = logq.NewMemAuditStore()
+	if pool != nil {
+		auditRepo = logq.NewPgAuditStore(pool)
+	}
+	auditH := logq.NewAuditHandler(auditRepo)
+
 	var upRepo dnsmodule.UpstreamRepo = dnsmodule.NewMemUpstreamRepo()
 	var unboundCtl dnsmodule.UnboundController = unboundengine.ExecController{}
 	if pool != nil {
@@ -183,13 +189,17 @@ func newEngine(version string) *gin.Engine {
 		*ipam.LedgerHandler
 		*ipam.AssetHandler
 		*logsAPI
+		*logq.AuditHandler
 		*dnsmodule.DnsHandler
 		*dnsmodule.ForwardHandler
 		*dnsmodule.ZoneHandler
 		*dnsmodule.BlocklistHandler
 		*dnsmodule.SettingsHandler
 		*confApplier
-	}{h, orgH, subH, ledgerH, assetH, &logs, dnsH, fwdH, zoneH, blH, settingsH, applier}
+	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, dnsH, fwdH, zoneH, blH, settingsH, applier}
+	// 操作审计（M4-003）：变更类请求统一入账；actor 提供器 M5 JWT 接线时替换。
+	// 位置须在 RegisterHandlersWithOptions 之前且仓储判定之后。
+	r.Use(logq.NewAuditRecorder(auditRepo))
 	// spec servers.url=/api/v1 → 统一前缀注册
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 

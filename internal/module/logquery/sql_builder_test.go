@@ -37,7 +37,7 @@ func TestBuildWhereScopeArgsMatchPlaceholders(t *testing.T) {
 	sc := cond{
 		From: from,
 		Scope: OrgScope{
-			MACs:  []string{"aabbccddee01", "", "aabbccddee02", "aabbccddee01"}, // 去重去空 → 2
+			MACs:  []string{"aabbccddee01", "", "aabbccddee02", "aabbccddee01"},  // 去重去空 → 2
 			CIDRs: []string{"192.168.0.0/16", "192.168.1.0/24", "2001:db8::/32"}, // 前两段包含合并 → 2 段
 		},
 	}

@@ -40,6 +40,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		*ipam.LedgerHandler
 		*ipam.AssetHandler
 		*logsAPI
+		*logq.AuditHandler
 		*dnsmodule.DnsHandler
 		*dnsmodule.ForwardHandler
 		*dnsmodule.ZoneHandler
@@ -52,6 +53,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		ipam.NewLedgerHandler(ledgerSvc),
 		ipam.NewAssetHandler(ipam.NewAssetService(ipam.NewMemAssetRepo(), orgStore)),
 		&logsAPI{logq.NewHandler(logq.NewService(logq.NewMemStore(), nil))},
+		logq.NewAuditHandler(logq.NewMemAuditStore()),
 		dnsmodule.NewDnsHandler(dnsSvc),
 		dnsmodule.NewForwardHandler(dnsmodule.NewForwardService(dnsmodule.NewMemForwardRuleRepo(), dnsmodule.NewMemUpstreamRepo(), fakeUnbound{})),
 		dnsmodule.NewZoneHandler(dnsmodule.NewZoneService(dnsmodule.NewMemZoneRepo(), fakeUnbound{}), nil),

@@ -32,10 +32,14 @@ tags:
 paths:
   /logs:
     $ref: './paths/logs.yaml#/LogsCollection'
+  /logs/tail:
+    $ref: './paths/logs.yaml#/LogsTail'
   /logs/top:
     $ref: './paths/logs.yaml#/LogsTop'
   /logs/qps:
     $ref: './paths/logs.yaml#/LogsQps'
+  /audits:
+    $ref: './paths/audit.yaml#/AuditsCollection'
   /logs/export:
     $ref: './paths/logs.yaml#/LogsExport'
   /dns/conf/apply:
@@ -254,6 +258,10 @@ components:
       $ref: './components/schemas/logs.yaml#/QpsPoint'
     QpsSeries:
       $ref: './components/schemas/logs.yaml#/QpsSeries'
+    AuditEntry:
+      $ref: './components/schemas/audit.yaml#/AuditEntry'
+    AuditPage:
+      $ref: './components/schemas/audit.yaml#/AuditPage'
     Problem:
       type: object
       description: RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。

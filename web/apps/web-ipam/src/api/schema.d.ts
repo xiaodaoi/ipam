@@ -27,6 +27,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/logs/tail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 实时日志流（SSE live-tail）
+         * @description 近实时日志通道（F-R7）：text/event-stream 持续推送新事件，服务端 500ms 轮询，
+         *     延迟 ≤2s；15s 心跳注释保活；Last-Event-ID 头（或 from 参数）断线续传。
+         *     event=id（(ts,client_mac,domain) 元组编码，可直接作续传位点）；data=LogRow JSON。
+         *     过滤条件与 /logs 一致但不分页；from 缺省=连接建立时刻。
+         */
+        get: operations["streamLogTail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/logs/top": {
         parameters: {
             query?: never;
@@ -61,6 +84,28 @@ export interface paths {
          *     供日志中心曲线与仪表盘 DNS QPS 卡片消费（§13.4）。
          */
         get: operations["getLogQps"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/audits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查询操作审计
+         * @description 管理员操作审计检索（FR-F）：actor 类型/动作/资源子串/时间窗组合过滤，
+         *     游标分页按 (ts DESC, id DESC) 稳定翻页。仅变更类请求（POST/PATCH/DELETE）入库；
+         *     数据源 PostgreSQL operation_audit 表，token 身份在 M5 JWT 接入后填充（§12.3）。
+         */
+        get: operations["listOperationAudits"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1262,6 +1307,43 @@ export interface components {
         QpsSeries: {
             points: components["schemas"]["QpsPoint"][];
         };
+        AuditEntry: {
+            /** @description 自增序号（游标 tiebreaker） */
+            id: number;
+            /**
+             * Format: date-time
+             * @description 操作时间（UTC）
+             */
+            ts: string;
+            /**
+             * @description 调用者类型（§12.3：审计日志区分人/AI；M5 JWT 接入前记录 system）
+             * @enum {string}
+             */
+            actorType: "human" | "bot" | "system";
+            /** @description 调用者标识（用户名/账号；匿名=anonymous） */
+            actor?: string;
+            /** @description token 身份指纹（subject/哈希，非原始令牌；M5 接入后填充） */
+            tokenSub?: string;
+            /** @description HTTP 方法（仅变更类请求入库 POST/PATCH/DELETE） */
+            method: string;
+            /** @description 请求路径（含 /api/v1 前缀） */
+            path: string;
+            /** @description 归一动作（create/update/delete/apply/reserve/bind/sync…） */
+            action: string;
+            /** @description 归一资源标识（路径参数替换为 {param}，防 ID 噪声） */
+            resource: string;
+            /** @description 响应状态码 */
+            status: number;
+            /** @description 补充说明（RFC9457 code 等） */
+            detail?: string;
+        };
+        AuditPage: {
+            items: components["schemas"]["AuditEntry"][];
+            /** @description 下一页游标（(ts,id) 元组编码）；空=已到尾页 */
+            nextCursor?: string;
+            /** @description 满足过滤的总条数 */
+            total?: number;
+        };
         /** @description RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。 */
         Problem: {
             /** @description 问题类型 URI，稳定不变供程序匹配 */
@@ -1495,6 +1577,42 @@ export interface operations {
             503: components["responses"]["LogDown"];
         };
     };
+    streamLogTail: {
+        parameters: {
+            query?: {
+                /** @description 起始位点（UTC，缺省=当前时间；也可用 Last-Event-ID 续传） */
+                from?: string;
+                /** @description 事件来源过滤 */
+                type?: components["parameters"]["LogType"];
+                /** @description 客户端 MAC 过滤（冒号分隔或 12 位 hex，服务端归一化后匹配） */
+                mac?: components["parameters"]["LogMac"];
+                /** @description 客户端 IP 过滤：精确地址或 CIDR（对 client_ip/sip 任一命中） */
+                ip?: components["parameters"]["LogIp"];
+                /** @description 域名子串过滤（不区分大小写；DNS 事件） */
+                domain?: components["parameters"]["LogDomain"];
+                /** @description 动作过滤（lease_commit / resolve / blocked…） */
+                action?: components["parameters"]["LogAction"];
+                /** @description 组织过滤：展开该节点子树全部 CIDR ∪ 组内资产 MAC 后查询（§13.4 关联链） */
+                orgId?: components["parameters"]["LogOrgId"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description SSE 事件流 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            400: components["responses"]["LogBadRequest"];
+        };
+    };
     listLogTop: {
         parameters: {
             query: {
@@ -1567,6 +1685,56 @@ export interface operations {
             };
             400: components["responses"]["LogBadRequest"];
             503: components["responses"]["LogDown"];
+        };
+    };
+    listOperationAudits: {
+        parameters: {
+            query: {
+                /** @description 时间窗起点（UTC）；窗口上限 31 天 */
+                from: string;
+                /** @description 时间窗终点（UTC，缺省=当前时间） */
+                to?: string;
+                /** @description 调用者类型过滤（§12.3） */
+                actorType?: "human" | "bot" | "system";
+                /** @description 动作过滤（create/update/delete…） */
+                action?: string;
+                /** @description 资源/路径子串过滤（不区分大小写） */
+                q?: string;
+                /** @description 分页游标（取自上一页 nextCursor） */
+                cursor?: string;
+                /** @description 每页条数 */
+                pageSize?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 审计页 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditPage"];
+                };
+            };
+            /** @description 过滤参数非法 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail?: string;
+                        code?: string;
+                    };
+                };
+            };
         };
     };
     exportLogs: {

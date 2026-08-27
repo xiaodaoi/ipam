@@ -1,0 +1,56 @@
+# 操作审计契约（M4-003，FR-F 审计、§12.3 人/Bot 调用者区分）
+
+AuditEntry:
+  type: object
+  required: [id, ts, actorType, method, path, action, resource, status]
+  properties:
+    id:
+      type: integer
+      description: 自增序号（游标 tiebreaker）
+    ts:
+      type: string
+      format: date-time
+      description: 操作时间（UTC）
+    actorType:
+      type: string
+      enum: [human, bot, system]
+      description: 调用者类型（§12.3：审计日志区分人/AI；M5 JWT 接入前记录 system）
+    actor:
+      type: string
+      description: 调用者标识（用户名/账号；匿名=anonymous）
+    tokenSub:
+      type: string
+      description: token 身份指纹（subject/哈希，非原始令牌；M5 接入后填充）
+    method:
+      type: string
+      description: HTTP 方法（仅变更类请求入库 POST/PATCH/DELETE）
+    path:
+      type: string
+      description: 请求路径（含 /api/v1 前缀）
+    action:
+      type: string
+      description: 归一动作（create/update/delete/apply/reserve/bind/sync…）
+    resource:
+      type: string
+      description: 归一资源标识（路径参数替换为 {param}，防 ID 噪声）
+    status:
+      type: integer
+      description: 响应状态码
+    detail:
+      type: string
+      description: 补充说明（RFC9457 code 等）
+
+AuditPage:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: 'audit.yaml#/AuditEntry'
+    nextCursor:
+      type: string
+      description: 下一页游标（(ts,id) 元组编码）；空=已到尾页
+    total:
+      type: integer
+      description: 满足过滤的总条数
