@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-27 · CI 归因与 compose 卷声明修复
+
+- **归因**：09c2903 轮 CI——api-lint/web-ci 绿；compose-smoke 挂在 `service "unbound" refers to undefined volume unbound-logs: invalid compose project`（ci-diag 分支实锤），**存量问题非 M4 引入**（7533703 同因）；hook-ci 失败=Kea dev 头文件真机依赖，CI 无法安装（M1-003 已知限制）。
+- **修复**：compose.yaml 顶层 volumes 补 `unbound-logs:` 声明（dbba12f）；本地校验全部具名卷已定义。
+- **遗留**：闸⑥ 全量断言（含 [6]/[7] CH 检索）待本轮 CI 实证；hook 真机编译验证列 M1 收尾项。
+
 ## 2026-08-27 · M4-004 完成：仪表盘聚合 API —— M4 日志中心里程碑收官
 
 - **做了**：`GET /dashboard` 单端点聚合（活跃终端+24h 趋势+新增/离线+四组件健康灯+DNS QPS/拦截+池利用率 TopN+联动成功率）；logquery.Store 扩三个聚合口径双实现；前端总览页（/dashboard/overview）消费展示带 30s 自刷新。
