@@ -35,8 +35,30 @@ export interface paths {
         /**
          * 当前登录用户信息
          * @description 按请求携带的 Authorization Bearer 令牌解析身份；无效/缺失返回 401。
+         *     同时以 /user/info（vben 前端约定路径）提供同一资源，operationId=getAuthUserInfoAlias。
          */
         get: operations["getAuthUserInfo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/user/info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 当前登录用户信息（/user/info 别名）
+         * @description 与 getAuthUserInfo 同一资源：vben 底座 fetchUserInfo 约定路径为 GET /user/info，
+         *     本别名保证底座升级零侵入。响应与 AuthUserInfo 完全一致。
+         */
+        get: operations["getAuthUserInfoAlias"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1787,6 +1809,27 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description 用户信息（vben UserInfo 形状） */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserInfo"];
+                };
+            };
+            401: components["responses"]["AuthUnauthorized"];
+        };
+    };
+    getAuthUserInfoAlias: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 用户信息 */
             200: {
                 headers: {
                     [name: string]: unknown;

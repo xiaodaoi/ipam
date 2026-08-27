@@ -3,19 +3,58 @@ FROM node:22-bookworm-slim AS web
 ARG APT_MIRROR=""
 RUN if [ -n "$APT_MIRROR" ]; then sed -i "s|deb.debian.org|${APT_MIRROR#http*://}|g" /etc/apt/sources.list.d/debian.sources; fi
 WORKDIR /src/web
-RUN npm install -g pnpm@10.33.4
-# 容器内无 git 且不继承宿主 CI 变量：跳过根项目 prepare(lefthook)，否则 install 失败
+# pnpm 全局安装走阿里源（registry.npmjs.org 在中国网络极慢；业务依赖由 web/.npmrc 管）
+RUN npm install -g pnpm@10.33.4 --registry=https://registry.npmmirror.com
 ENV IS_CI=true CI=true
-COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml web/.npmrc ./
+# manifest-first：先复制全部 package.json+lock → pnpm install 层只被依赖变更击穿；
+# 源码 COPY 在其后，改业务代码不再触发依赖重装（本地调试主通道见 vite.config.ts）
+COPY web/package.json web/pnpm-workspace.yaml web/pnpm-lock.yaml web/.npmrc ./
+COPY web/apps/web-ipam/package.json ./apps/web-ipam/package.json
+COPY web/internal/lint-configs/commitlint-config/package.json ./internal/lint-configs/commitlint-config/package.json
+COPY web/internal/lint-configs/eslint-config/package.json ./internal/lint-configs/eslint-config/package.json
+COPY web/internal/lint-configs/oxfmt-config/package.json ./internal/lint-configs/oxfmt-config/package.json
+COPY web/internal/lint-configs/oxlint-config/package.json ./internal/lint-configs/oxlint-config/package.json
+COPY web/internal/lint-configs/stylelint-config/package.json ./internal/lint-configs/stylelint-config/package.json
+COPY web/internal/node-utils/package.json ./internal/node-utils/package.json
+COPY web/internal/tailwind-config/package.json ./internal/tailwind-config/package.json
+COPY web/internal/tsconfig/package.json ./internal/tsconfig/package.json
+COPY web/internal/vite-config/package.json ./internal/vite-config/package.json
+COPY web/packages/@core/base/design/package.json ./packages/@core/base/design/package.json
+COPY web/packages/@core/base/icons/package.json ./packages/@core/base/icons/package.json
+COPY web/packages/@core/base/shared/package.json ./packages/@core/base/shared/package.json
+COPY web/packages/@core/base/typings/package.json ./packages/@core/base/typings/package.json
+COPY web/packages/@core/composables/package.json ./packages/@core/composables/package.json
+COPY web/packages/@core/preferences/package.json ./packages/@core/preferences/package.json
+COPY web/packages/@core/ui-kit/form-ui/package.json ./packages/@core/ui-kit/form-ui/package.json
+COPY web/packages/@core/ui-kit/layout-ui/package.json ./packages/@core/ui-kit/layout-ui/package.json
+COPY web/packages/@core/ui-kit/menu-ui/package.json ./packages/@core/ui-kit/menu-ui/package.json
+COPY web/packages/@core/ui-kit/popup-ui/package.json ./packages/@core/ui-kit/popup-ui/package.json
+COPY web/packages/@core/ui-kit/shadcn-ui/package.json ./packages/@core/ui-kit/shadcn-ui/package.json
+COPY web/packages/@core/ui-kit/tabs-ui/package.json ./packages/@core/ui-kit/tabs-ui/package.json
+COPY web/packages/constants/package.json ./packages/constants/package.json
+COPY web/packages/effects/access/package.json ./packages/effects/access/package.json
+COPY web/packages/effects/common-ui/package.json ./packages/effects/common-ui/package.json
+COPY web/packages/effects/hooks/package.json ./packages/effects/hooks/package.json
+COPY web/packages/effects/layouts/package.json ./packages/effects/layouts/package.json
+COPY web/packages/effects/plugins/package.json ./packages/effects/plugins/package.json
+COPY web/packages/effects/request/package.json ./packages/effects/request/package.json
+COPY web/packages/icons/package.json ./packages/icons/package.json
+COPY web/packages/locales/package.json ./packages/locales/package.json
+COPY web/packages/preferences/package.json ./packages/preferences/package.json
+COPY web/packages/stores/package.json ./packages/stores/package.json
+COPY web/packages/styles/package.json ./packages/styles/package.json
+COPY web/packages/types/package.json ./packages/types/package.json
+COPY web/packages/utils/package.json ./packages/utils/package.json
+COPY web/scripts/turbo-run/package.json ./scripts/turbo-run/package.json
+COPY web/scripts/vsh/package.json ./scripts/vsh/package.json
+RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY web/apps ./apps
 COPY web/packages ./packages
 COPY web/internal ./internal
 COPY web/scripts ./scripts
 COPY web/turbo.json web/vitest.config.ts ./
-RUN pnpm install --frozen-lockfile \
- && pnpm -r run stub --if-present \
- && pnpm --filter @vben/web-ipam run typecheck \
- && pnpm run build:ipam
+# typecheck 由 CI 闸⑤ 承担，镜像内不重复执行（省 vue-tsc 分钟级耗时）
+RUN pnpm -r run stub --if-present && pnpm run build:ipam
 
 FROM ubuntu:jammy AS build
 ARG APT_MIRROR=""

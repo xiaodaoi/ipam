@@ -38,6 +38,8 @@ paths:
     $ref: './paths/auth.yaml#/AuthLogin'
   /auth/user/info:
     $ref: './paths/auth.yaml#/AuthUserInfo'
+  /user/info:
+    $ref: './paths/auth.yaml#/UserAliasInfo'
   /auth/codes:
     $ref: './paths/auth.yaml#/AuthCodes'
   /auth/logout:

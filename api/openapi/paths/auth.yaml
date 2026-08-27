@@ -46,10 +46,13 @@ AuthLogin:
 
 AuthUserInfo:
   get:
+    x-alias-of: /auth/user/info
     operationId: getAuthUserInfo
     tags: [auth]
     summary: 当前登录用户信息
-    description: 按请求携带的 Authorization Bearer 令牌解析身份；无效/缺失返回 401。
+    description: |
+      按请求携带的 Authorization Bearer 令牌解析身份；无效/缺失返回 401。
+      同时以 /user/info（vben 前端约定路径）提供同一资源，operationId=getAuthUserInfoAlias。
     security: [{ bearerAuth: [] }]
     responses:
       '200':
@@ -112,3 +115,31 @@ AuthLogout:
               ok:
                 summary: 成功
                 value: { ok: true }
+
+UserAliasInfo:
+  get:
+    operationId: getAuthUserInfoAlias
+    tags: [auth]
+    summary: 当前登录用户信息（/user/info 别名）
+    description: |
+      与 getAuthUserInfo 同一资源：vben 底座 fetchUserInfo 约定路径为 GET /user/info，
+      本别名保证底座升级零侵入。响应与 AuthUserInfo 完全一致。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: 用户信息
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/auth.yaml#/UserInfo'
+            examples:
+              ok:
+                summary: admin 会话
+                value:
+                  userId: "1"
+                  username: admin
+                  realName: 管理员
+                  roles: ["admin"]
+                  homePath: "/overview"
+      '401':
+        $ref: '../components/responses/auth.yaml#/AuthUnauthorized'

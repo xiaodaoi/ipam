@@ -84,3 +84,8 @@ func strPtr(s string) *string { return &s }
 func writeAuthErr(c *gin.Context, status int, code, detail string) {
 	WriteProblem(c, status, "https://ipam.local/problems/unauthorized", code, detail)
 }
+
+// GetAuthUserInfoAlias GET /user/info（vben 底座约定路径，与 GetAuthUserInfo 同一资源）
+func (h *AuthHandler) GetAuthUserInfoAlias(c *gin.Context) {
+	h.GetAuthUserInfo(c)
+}
