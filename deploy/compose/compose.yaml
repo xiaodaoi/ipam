@@ -76,7 +76,7 @@ services:
     restart: unless-stopped
 
   vector:
-    image: timberio/vector:0.40-alpine
+    image: ghcr.io/vectordotdev/vector:0.46.1-alpine
     command: ["--config", "/etc/vector/vector.toml", "--verbose"]
     environment:
       VECTOR_LOG: "debug"

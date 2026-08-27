@@ -4,6 +4,11 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-27 · hook-C++ 编译修正 + vector 镜像钉版 ghcr 0.46.1（CI 终验前置）
+
+- **hook-ci 根因**：ResolveClientMac 漏 ipam::coherence 命名空间限定——option79 落地时引入、CI 从未绿过 K4；沙箱内 cmake 复现→修复→ctest 100% 过（commit 5403b0d）。
+- **vector 钉版**：Docker Hub `0.40-alpine` 二段 tag 不存在（官方三段式 `0.40.0-alpine`）且 CI 需确定性版本 → compose 改钉 `ghcr.io/vectordotdev/vector:0.46.1-alpine`（现役版，与本地全部 VRL 实证一致）；本地镜像市场拉错 arm64 的坑记录在案（daemon mirror 多架构干扰），CI 直连 ghcr 无此问题。
+
 ## 2026-08-27 · 首次全栈 compose 冒烟实证通过（闸⑥ 7 项断言本地全绿）+ M4 实测归档
 
 - **做了**：本地 Docker 全栈起跑（12 容器 Healthy），逐项实证闸⑥ [1]~[7]：control-plane/kea/unbound/K1/local-data 热注/CH 检索 [6]/TopN MV [7]；连带修复八处环境与代码缺陷（详见 commit 9be85b4）：compose 卷声明、Dockerfile 换源剥 scheme、unbound chroot+zone SOA 缺失（K1 根因）、CH tokenbf 三参、vector 0.46 迁移+日志格式补 srcip 捕获、Go 驱动 UInt64 扫描、CI 秒级时间戳误用。
