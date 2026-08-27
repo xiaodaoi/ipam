@@ -3,7 +3,8 @@
 FROM debian:bookworm-slim
 ARG APT_MIRROR=""
 ARG COMPONENT
-RUN if [ -n "$APT_MIRROR" ]; then sed -i "s|deb.debian.org|$APT_MIRROR|g" /etc/apt/sources.list.d/debian.sources; fi
+# APT_MIRROR 需含协议头（如 https://mirrors.aliyun.com）；只换主机名，保留 sources 原有 scheme
+RUN if [ -n "$APT_MIRROR" ]; then M="${APT_MIRROR#http*://}"; sed -i "s|deb.debian.org|$M|g" /etc/apt/sources.list.d/debian.sources; fi
 RUN apt-get update \
  && apt-get install -y --no-install-recommends "$COMPONENT" curl \
  && rm -rf /var/lib/apt/lists/* \

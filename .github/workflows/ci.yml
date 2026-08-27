@@ -151,7 +151,7 @@ jobs:
           docker compose exec -T unbound dig @127.0.0.1 dyn-test.corp.local +short | grep -q 10.61.172.99
           echo "[6] CH logs retrieval (M4-002)"
           docker compose exec -T clickhouse clickhouse-client --query \
-            "INSERT INTO ipam.logs (ts,type,severity,client_mac,client_ip,sip,domain,rcode,action,category,detail) VALUES ($(date -u +%s),'dns','INFO','aabbccddee99',toIPv6('::ffff:10.61.172.42'),NULL,'smoke-logs.corp.local.','NOERROR','resolve','','gate6')"
+            "INSERT INTO ipam.logs (ts,type,severity,client_mac,client_ip,sip,domain,rcode,action,category,detail) VALUES (now(),'dns','INFO','aabbccddee99',toIPv6('::ffff:10.61.172.42'),NULL,'smoke-logs.corp.local.','NOERROR','resolve','','gate6')"
           sleep 1
           FROM=$(date -u -d '5 minutes ago' +%Y-%m-%dT%H:%M:%SZ)
           curl -fsS "http://127.0.0.1:8443/api/v1/logs?from=${FROM}" | grep -q aabbccddee99

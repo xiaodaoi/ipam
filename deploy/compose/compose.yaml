@@ -21,7 +21,10 @@ services:
     build:
       context: ../..
       dockerfile: deploy/images/control-plane/Dockerfile
-      args: { APT_MIRROR: "${APT_MIRROR:-}" }
+      network: host
+      args:
+        APT_MIRROR: "${APT_MIRROR:-}"
+        GO_DL: "${GO_DL:-https://go.dev}"
     image: ipam/control-plane:${IPAM_VERSION:-0.1.0-dev}
     depends_on:
       postgresql:
@@ -34,6 +37,9 @@ services:
       IPAM_CH_DB: ${CLICKHOUSE_DB:-ipam}
       IPAM_CH_USER: ${CLICKHOUSE_USER:-ipam}
       IPAM_CH_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
+      IPAM_KEA_API: "http://kea-ctrl-agent:8000"
+    volumes:
+      - ipam-run:/run/ipam
     ports:
       - "${IPAM_PORT:-8443}:8443"
     restart: unless-stopped
@@ -71,7 +77,9 @@ services:
 
   vector:
     image: timberio/vector:0.40-alpine
-    command: ["--config", "/etc/vector/vector.toml"]
+    command: ["--config", "/etc/vector/vector.toml", "--verbose"]
+    environment:
+      VECTOR_LOG: "debug"
     depends_on:
       clickhouse:
         condition: service_started

@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY config/unbound/unbound.conf /etc/unbound/unbound.conf
 COPY config/unbound/auth-corp.zone /etc/unbound/auth-corp.zone
-RUN useradd -r unbound && mkdir -p /run/ipam /var/lib/unbound \
+RUN useradd -r unbound && mkdir -p /run/ipam /var/lib/unbound /var/log/unbound \
     && unbound -V | head -2
 
 EXPOSE 53/udp 53/tcp

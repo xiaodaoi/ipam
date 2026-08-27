@@ -1,5 +1,6 @@
 # Vector 日志采集链路（§6：Kea/Unbound → VRL 归一化 → ClickHouse logs 表）
-# 关联键：client_mac 统一小写冒号格式；批量 5000 条/5s 刷盘（FR-E-02）
+# 关联键：client_mac 统一 12 位小写 hex（去冒号/短横线）；批量 5MB/5s 刷盘（FR-E-02）
+# 版本契约：0.4x 语法——fallible 函数须 err 解构或 `!`；if/else 分支必须是块 { }
 
 data_dir = "/var/lib/vector"
 
@@ -18,14 +19,34 @@ read_from = "beginning"
 type = "remap"
 inputs = ["kea_stdout"]
 source = '''
-  m = parse_regex!(.message, r'^(?P<ts>\S+ \S+) (?P<level>\w+) \[(?P<pid>\d+)\] DHCP4\.(?P<event>[A-Z0-9_]+) (?P<rest>.*)$')
-  .timestamp = parse_timestamp!(m.ts, format: "%Y-%m-%d %H:%M:%S.%f")
+  m, merr = parse_regex(.message, r'^(?P<ts>\S+ \S+) (?P<level>\w+) \[(?P<pid>\d+)\] DHCP4\.(?P<event>[A-Z0-9_]+) (?P<rest>.*)$')
+  if merr != null {
+    abort
+  }
+  .timestamp, terr = parse_timestamp(m.ts, format: "%Y-%m-%d %H:%M:%S.%f")
+  if terr != null {
+    .timestamp = now()
+  }
   .severity = m.level
   .event = m.event
-  mac_m = parse_regex(m.rest, r'(?:hwaddr|HWAddr)=(?P<mac>[0-9a-fA-F:]{17})')
-  .client_mac = if mac_m != null { downcase(replace(mac_m.mac, ":", "")) |> replace("-", "") } else ""
-  ip_m = parse_regex(m.rest, r'(?:assigned|address)=(?P<ip>\d+\.\d+\.\d+\.\d+)')
-  .address = if ip_m != null { ip_m.ip } else ""
+  mac_m, mac_err = parse_regex(m.rest, r'(?:hwaddr|HWAddr)=(?P<mac>[0-9a-fA-F:]{17})')
+  if mac_err == null && mac_m != null {
+    m1, e1 = replace(mac_m.mac, ":", "")
+    m2 = replace(m1, "-", "")
+    if e1 == null {
+      .client_mac = downcase!(m2)
+    } else {
+      .client_mac = ""
+    }
+  } else {
+    .client_mac = ""
+  }
+  ip_m, ip_err = parse_regex(m.rest, r'(?:assigned|address)=(?P<ip>\d+\.\d+\.\d+\.\d+)')
+  if ip_err == null && ip_m != null {
+    .address = ip_m.ip
+  } else {
+    .address = ""
+  }
   .domain = ""
   .rtype = "dhcp"
 '''
@@ -35,32 +56,37 @@ source = '''
 type = "remap"
 inputs = ["unbound_log"]
 source = '''
-  m = parse_regex!(.message, r'\[(?P<ts>\d+)\] unbound\[\d+:\d+\] info: (?P<qname>\S+) (?P<qtype>\S+) IN$')
+  m, merr = parse_regex(.message, r'\[(?P<ts>\d+)\] unbound\[\d+:\d+\] info: (?P<srcip>\S+) (?P<qname>\S+) (?P<qtype>\S+) IN$')
+  if merr != null {
+    abort
+  }
   .timestamp = now()
   .severity = "INFO"
   .event = "dns_query"
   .client_mac = ""
   .address = ""
+  .sip = m.srcip
   .domain = m.qname
   .rtype = m.qtype
 '''
 
 # ── 归一化统一 schema（logs 宽表字段，§3 ClickHouse）──
 # 空地址必须落 null（列 Nullable(IPv6)，'' 无法解析会整批失败）；
-# ts 用毫秒字符串保游标精度（to_unix_timestamp 仅秒级）。
+# ts 用毫秒字符串保游标精度。
 [transforms.normalize]
 type = "remap"
 inputs = ["parse_kea", "parse_unbound"]
 source = '''
-  ip_v = if .address != null && .address != "" { .address } else { null }
-  mac_v = if .client_mac == null || .client_mac == "" { "" } else { downcase(.client_mac) }
+  ip_v = if .address == "" { null } else { .address }
+  mac_v = if .client_mac == "" { "" } else { downcase!(.client_mac) }
+  sip_v = if .sip == "" || .sip == null { null } else { .sip }
   . = {
     "ts": format_timestamp!(.timestamp, "%F %T%.3f"),
     "type": .rtype,
     "severity": .severity,
     "client_mac": mac_v,
     "client_ip": ip_v,
-    "sip": null,
+    "sip": sip_v,
     "domain": .domain,
     "rcode": "",
     "action": .event,
@@ -75,6 +101,8 @@ inputs = ["normalize"]
 endpoint = "http://clickhouse:8123"
 database = "ipam"
 table = "logs"
+format = "json_each_row"
+date_time_best_effort = true
 auth.strategy = "basic"
 auth.user = "${CLICKHOUSE_USER:-ipam}"
 auth.password = "${CLICKHOUSE_PASSWORD:-}"
@@ -83,6 +111,6 @@ batch.timeout_secs = 5
 request.retry_max_attempts = 3
 healthcheck.enabled = true
 
+# encoding 仅做字段过滤（codec 已移除：0.4x 由 format=json_each_row 承担序列化）
 [sinks.clickhouse.encoding]
-codec = "json"
 except_fields = ["message"]

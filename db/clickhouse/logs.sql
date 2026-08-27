@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS ipam.logs
     action      LowCardinality(String),   -- resolve / blocked / lease_commit ...
     category    LowCardinality(String),   -- 命中封禁时的分类（FR-B-18）
     detail      String,
-    INDEX idx_domain domain TYPE tokenbf_v1(10240) GRANULARITY 4
+    INDEX idx_domain domain TYPE tokenbf_v1(10240, 3, 0) GRANULARITY 4
 )
 ENGINE = MergeTree
 PARTITION BY toDate(ts)

@@ -249,12 +249,12 @@ func (s *ChStore) Top(ctx context.Context, q TopQuery, scope OrgScope) ([]TopEnt
 	defer func() { _ = rows.Close() }()
 	entries := make([]TopEntry, 0, limit)
 	for rows.Next() {
-		var e TopEntry
-		if err := rows.Scan(&e.Key, &e.Count); err != nil {
+		var k string
+		var cnt uint64
+		if err := rows.Scan(&k, &cnt); err != nil {
 			return nil, 0, err
 		}
-		e.Count = int(e.Count)
-		entries = append(entries, e)
+		entries = append(entries, TopEntry{Key: k, Count: int(cnt)})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, 0, err
@@ -288,9 +288,11 @@ func (s *ChStore) Qps(ctx context.Context, q QpsQuery, scope OrgScope) ([]QpsPoi
 	points := make([]QpsPoint, 0, 128)
 	for rows.Next() {
 		var p QpsPoint
-		if err := rows.Scan(&p.TS, &p.Count); err != nil {
+		var c uint64
+		if err := rows.Scan(&p.TS, &c); err != nil {
 			return nil, err
 		}
+		p.Count = int(c)
 		points = append(points, p)
 	}
 	return points, rows.Err()
@@ -360,9 +362,11 @@ func (s *ChStore) HourlyActive(ctx context.Context, from, to time.Time) ([]QpsPo
 	out := []QpsPoint{}
 	for rows.Next() {
 		var p QpsPoint
-		if err := rows.Scan(&p.TS, &p.Count); err != nil {
+		var c uint64
+		if err := rows.Scan(&p.TS, &c); err != nil {
 			return nil, err
 		}
+		p.Count = int(c)
 		out = append(out, p)
 	}
 	return out, rows.Err()

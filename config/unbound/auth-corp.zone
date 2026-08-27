@@ -1,4 +1,13 @@
 $ORIGIN corp.local.
 $TTL 300
+@       IN SOA ns1.corp.local. hostmaster.corp.local. (
+        2026082701 ; serial
+        10800      ; refresh
+        3600       ; retry
+        604800     ; expire
+        300        ; minimum
+        )
+@       IN NS  ns1.corp.local.
+ns1     IN A   10.61.172.253
 auth-only IN A 10.0.0.99
 overlap   IN A 10.9.9.9

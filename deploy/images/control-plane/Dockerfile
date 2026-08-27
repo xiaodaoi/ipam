@@ -1,7 +1,7 @@
 # control-plane 单镜像：前端构建 → Go embed 编译 → jammy 运行时（D9/§13.3）
 FROM node:22-bookworm-slim AS web
 ARG APT_MIRROR=""
-RUN if [ -n "$APT_MIRROR" ]; then sed -i "s|deb.debian.org|$APT_MIRROR|g" /etc/apt/sources.list.d/debian.sources; fi
+RUN if [ -n "$APT_MIRROR" ]; then sed -i "s|deb.debian.org|${APT_MIRROR#http*://}|g" /etc/apt/sources.list.d/debian.sources; fi
 WORKDIR /src/web
 RUN npm install -g pnpm@10.33.4
 # 容器内无 git 且不继承宿主 CI 变量：跳过根项目 prepare(lefthook)，否则 install 失败
@@ -19,11 +19,13 @@ RUN pnpm install --frozen-lockfile \
 
 FROM ubuntu:jammy AS build
 ARG APT_MIRROR=""
-RUN if [ -n "$APT_MIRROR" ]; then sed -i "s|http://archive.ubuntu.com|$APT_MIRROR|g; s|http://security.ubuntu.com|$APT_MIRROR|g" /etc/apt/sources.list; fi
+RUN if [ -n "$APT_MIRROR" ]; then M="${APT_MIRROR#http*://}"; sed -i "s|archive.ubuntu.com|$M|g; s|security.ubuntu.com|$M|g" /etc/apt/sources.list; fi
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git \
  && rm -rf /var/lib/apt/lists/*
 # 不依赖 Docker Hub golang 标签（新版本镜像发布滞后）；版本与 go.mod 对齐
-RUN curl -fsSL https://go.dev/dl/go1.27.0.linux-amd64.tar.gz | tar -C /usr/local -xz
+# GO_DL 默认 https://go.dev；中国网络构建传 --build-arg GO_DL=https://golang.google.cn（站点根，不含 /dl）
+ARG GO_DL=https://go.dev
+RUN curl -fsSL "${GO_DL}/dl/go1.27.0.linux-amd64.tar.gz" | tar -C /usr/local -xz
 ENV PATH=/usr/local/go/bin:$PATH \
     GOPATH=/go \
     GOPROXY=https://goproxy.cn,direct \
@@ -38,7 +40,7 @@ RUN go build -ldflags "-s -w -X main.version=${VERSION:-0.1.0-dev}" -o /out/cont
 FROM ubuntu:jammy
 ARG APT_MIRROR=""
 ARG UNBOUND_VERSION=1.26.0
-RUN if [ -n "$APT_MIRROR" ]; then sed -i "s|http://archive.ubuntu.com|$APT_MIRROR|g; s|http://security.ubuntu.com|$APT_MIRROR|g" /etc/apt/sources.list; fi
+RUN if [ -n "$APT_MIRROR" ]; then M="${APT_MIRROR#http*://}"; sed -i "s|archive.ubuntu.com|$M|g; s|security.ubuntu.com|$M|g" /etc/apt/sources.list; fi
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl build-essential libssl-dev libexpat1-dev libevent-dev flex bison \
  && curl -fsSL "https://github.com/NLnetLabs/unbound/archive/refs/tags/release-${UNBOUND_VERSION}.tar.gz" -o /tmp/u.tgz \
  && tar -xzf /tmp/u.tgz -C /tmp && cd /tmp/unbound-release-${UNBOUND_VERSION} \
