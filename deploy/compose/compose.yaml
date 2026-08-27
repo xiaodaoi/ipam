@@ -144,9 +144,9 @@ volumes:
   pg-data:
   ipam-run:
   kea-logs:
+  unbound-logs:
   ch-data:
 
 # unbound 日志经宿主文件（unbound.conf logfile 配置）→ 由 vector file source 读取；
-# 此处挂载只读目录供其写入（root 容器）：
-# （unbound-logs 卷在 unbound 服务挂载）
+# unbound-logs 卷：unbound 服务读写挂载（root 容器写入），vector 服务只读挂载采集。
 
