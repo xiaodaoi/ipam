@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-08-27 · 登录过期弹窗根因修复（/user/info 别名）+ 构建提速三连
+
+- **根因**：vben 登录成功后 fetchUserInfo 固定调 GET /user/info，后端只实现了 /auth/user/info → 401 → loginExpired 弹窗死循环（与 token 本身无关）。
+- **做了**：① /user/info 别名端点（同资源零侵入底座约定，spec 声明）；② 构建提速：vite dev 代理指 127.0.0.1:8443（本地调试主通道，改前端零镜像重建）+ Dockerfile manifest-first 层序（38 包清单前置，install 层只被依赖变更击穿，--ignore-scripts 后置 stub）+ npm/pnpm 全走阿里源 + 去掉镜像内重复 typecheck。
+- **验证结果**：全容器重建后 vben 调用序列全 200（login/user/info/codes/dashboard）；前端产物无外链；golangci 0 issues；镜像构建不再因前端单文件改动重装依赖。
+- **遗留**：浏览器 e2e 容器化（宿主 glibc 不兼容 chromium-build）；M5-002 正式 JWT。
 ## 2026-08-27 · M5-001 完成：认证 PoC 直通（界面可登录）
 
 - **根因定位**：用户反馈"登录后啥也没有"=生产前端 API 指向 vben 公网 mock + 后端无 /auth/* → 登录必然失败静默停留；index.html 百度统计外链违反离线契约。
