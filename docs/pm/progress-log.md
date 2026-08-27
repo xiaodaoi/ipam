@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-08-27 · M5-001 完成：认证 PoC 直通（界面可登录）
+
+- **根因定位**：用户反馈"登录后啥也没有"=生产前端 API 指向 vben 公网 mock + 后端无 /auth/* → 登录必然失败静默停留；index.html 百度统计外链违反离线契约。
+- **做了**：auth 四端点 spec-first + HMAC 无状态令牌（poc.uid.exp.sig16，24h）+ fixed account admin/IPAM_POC_PASSWORD；.env.production 同源 /api/v1；移除统计注入。
+- **验证结果**：契约级全流程实测通过（401 分支/防篡改/userInfo 对齐 vben UserInfo/codes/logout）；lint 0 issues/typecheck/build/零外链绿；容器重建后复测 OK。闸⑥ CI 首绿已达成，hook-ci 取证修正中。
+- **遗留**：M5-002 正式 JWT/RBAC 替换签发实现并接 ActorProvider；浏览器 e2e 容器化列后续卡。
 
 ## 2026-08-27 · hook-C++ 编译修正 + vector 镜像钉版 ghcr 0.46.1（CI 终验前置）
 

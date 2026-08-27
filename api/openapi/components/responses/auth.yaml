@@ -1,0 +1,24 @@
+# 认证错误响应（RFC 9457，与根 Problem 同构）
+
+AuthUnauthorized:
+  description: 令牌缺失/无效/过期
+  content:
+    application/problem+json:
+      schema:
+        type: object
+        required: [type, title, status]
+        properties:
+          type: { type: string }
+          title: { type: string }
+          status: { type: integer }
+          detail: { type: string }
+          code: { type: string }
+      examples:
+        noToken:
+          summary: 缺少 Authorization 头
+          value:
+            type: "https://ipam.local/problems/unauthorized"
+            title: Unauthorized
+            status: 401
+            detail: 未携带访问令牌
+            code: TOKEN_MISSING

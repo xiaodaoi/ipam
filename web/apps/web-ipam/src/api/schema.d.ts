@@ -4,6 +4,87 @@
  */
 
 export interface paths {
+    "/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 登录颁发访问令牌（PoC 直通）
+         * @description 校验固定账号（admin / IPAM_POC_PASSWORD），签发 HMAC 形状 accessToken。
+         *     正式多用户/JWT/Bot Token 由 M5-002 替换（§12.3），响应结构保持兼容。
+         */
+        post: operations["authLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/user/info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 当前登录用户信息
+         * @description 按请求携带的 Authorization Bearer 令牌解析身份；无效/缺失返回 401。
+         */
+        get: operations["getAuthUserInfo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 当前用户权限码
+         * @description 权限码与 scope 同源（§13.2）；PoC 阶段返回空数组=不启用按钮级权限。
+         */
+        get: operations["listAuthCodes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 注销当前会话
+         * @description PoC 令牌为无状态签名，服务端无可撤销状态；端点仅作前端登出闭环。
+         */
+        post: operations["logoutAuth"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dashboard": {
         parameters: {
             query?: never;
@@ -1424,6 +1505,35 @@ export interface components {
             /** @description 利用率百分比（capacity=0 时 0） */
             pct: number;
         };
+        AuthLoginResult: {
+            /** @description 访问令牌（PoC 为 HMAC-SHA256 签名 userId.exp，非标准 JWT） */
+            accessToken: string;
+        };
+        AuthLoginRequest: {
+            /** @description 账号（PoC 仅 admin） */
+            username: string;
+            /** @description 口令（环境变量 IPAM_POC_PASSWORD，缺省 admin123） */
+            password: string;
+        };
+        UserInfo: {
+            userId: string;
+            username: string;
+            /** @description 昵称 */
+            realName: string;
+            /** @description 头像 URL（PoC 返回空串） */
+            avatar?: string;
+            /** @description 角色码（PoC 固定 ['admin']） */
+            roles: string[];
+            desc?: string;
+            /** @description 登录后默认跳转（仪表盘总览 /overview） */
+            homePath: string;
+            token?: string;
+        };
+        /** @description 权限码集合（与 OpenAPI scope 同源预留；PoC 空=按钮级权限不启用） */
+        AuthCodesList: string[];
+        AuthLogoutDone: {
+            ok?: boolean;
+        };
         /** @description RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。 */
         Problem: {
             /** @description 问题类型 URI，稳定不变供程序匹配 */
@@ -1453,6 +1563,21 @@ export interface components {
             };
             content: {
                 "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description 令牌缺失/无效/过期 */
+        AuthUnauthorized: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": {
+                    type: string;
+                    title: string;
+                    status: number;
+                    detail?: string;
+                    code?: string;
+                };
             };
         };
         /** @description 过滤参数非法（时间窗超限/格式错误） */
@@ -1619,6 +1744,101 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    authLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthLoginRequest"];
+            };
+        };
+        responses: {
+            /** @description 令牌 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthLoginResult"];
+                };
+            };
+            /** @description 账号或口令错误 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getAuthUserInfo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 用户信息（vben UserInfo 形状） */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserInfo"];
+                };
+            };
+            401: components["responses"]["AuthUnauthorized"];
+        };
+    };
+    listAuthCodes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 权限码列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthCodesList"];
+                };
+            };
+            401: components["responses"]["AuthUnauthorized"];
+        };
+    };
+    logoutAuth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已注销 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthLogoutDone"];
+                };
+            };
+        };
+    };
     getDashboardOverview: {
         parameters: {
             query?: {

@@ -1,0 +1,57 @@
+# 认证组件（M5-001 PoC 直通；正式 JWT 见 M5-002、§12.3）
+
+AuthLoginResult:
+  type: object
+  required: [accessToken]
+  properties:
+    accessToken:
+      type: string
+      description: 访问令牌（PoC 为 HMAC-SHA256 签名 userId.exp，非标准 JWT）
+
+AuthLoginRequest:
+  type: object
+  required: [username, password]
+  properties:
+    username:
+      type: string
+      description: 账号（PoC 仅 admin）
+    password:
+      type: string
+      description: 口令（环境变量 IPAM_POC_PASSWORD，缺省 admin123）
+
+UserInfo:
+  type: object
+  required: [userId, username, realName, roles, homePath]
+  properties:
+    userId:
+      type: string
+    username:
+      type: string
+    realName:
+      type: string
+      description: 昵称
+    avatar:
+      type: string
+      description: 头像 URL（PoC 返回空串）
+    roles:
+      type: array
+      items: { type: string }
+      description: 角色码（PoC 固定 ['admin']）
+    desc:
+      type: string
+    homePath:
+      type: string
+      description: 登录后默认跳转（仪表盘总览 /overview）
+    token:
+      type: string
+
+AuthCodesList:
+  type: array
+  items: { type: string }
+  description: 权限码集合（与 OpenAPI scope 同源预留；PoC 空=按钮级权限不启用）
+
+AuthLogoutDone:
+  type: object
+  properties:
+    ok:
+      type: boolean

@@ -298,13 +298,14 @@ func newEngine(version string) *gin.Engine {
 		*logsAPI
 		*logq.AuditHandler
 		*dashAPI
+		*platform.AuthHandler
 		*dnsmodule.DnsHandler
 		*dnsmodule.ForwardHandler
 		*dnsmodule.ZoneHandler
 		*dnsmodule.BlocklistHandler
 		*dnsmodule.SettingsHandler
 		*confApplier
-	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, dnsH, fwdH, zoneH, blH, settingsH, applier}
+	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, platform.NewAuthHandler(), dnsH, fwdH, zoneH, blH, settingsH, applier}
 	// 操作审计（M4-003）：变更类请求统一入账；actor 提供器 M5 JWT 接线时替换。
 	// 位置须在 RegisterHandlersWithOptions 之前且仓储判定之后。
 	r.Use(logq.NewAuditRecorder(auditRepo))
