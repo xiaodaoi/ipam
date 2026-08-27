@@ -4,6 +4,92 @@
  */
 
 export interface paths {
+    "/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查询日志（组合过滤+游标分页）
+         * @description 日志中心检索（FR-E-04）：时间窗必填，type/mac/ip/domain/action 组合过滤；
+         *     orgId 按组织维度展开（子树 CIDR ∪ 组内资产 MAC，§13.4 关联链）。
+         *     游标分页：cursor 取自上一页 nextCursor，排序键 (ts, client_mac, domain) 保证确定性。
+         *     数据源 ClickHouse logs 宽表（§6）。
+         */
+        get: operations["listLogs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/logs/top": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * TopN 域名与客户端
+         * @description 物化视图聚合支撑（§6/§8：5000 终端天量 ≤3s）。by=domain 返回查询域名 TopN，
+         *     by=client 返回客户端 MAC TopN；过滤条件同 /logs（组织维度同样支持）。
+         */
+        get: operations["listLogTop"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/logs/qps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * QPS 时序曲线
+         * @description 按 intervalSec 分桶计数（toStartOfInterval），返回时间升序的时序点。
+         *     供日志中心曲线与仪表盘 DNS QPS 卡片消费（§13.4）。
+         */
+        get: operations["getLogQps"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/logs/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 导出日志 CSV
+         * @description 过滤条件与 /logs 一致；按 ts 倒序导出 CSV（RFC 4180，UTF-8 含 BOM，Excel 可直接打开），
+         *     exportLimit 上限 10000 行。scope 需 logs.export（审计留痕）。
+         */
+        get: operations["exportLogs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dns/conf/apply": {
         parameters: {
             query?: never;
@@ -1116,6 +1202,66 @@ export interface components {
             /** @description 如 unbound-control flush_zone corp.local. */
             command: string;
         };
+        LogRow: {
+            /**
+             * Format: date-time
+             * @description 事件时间（UTC，毫秒精度）
+             */
+            ts: string;
+            /**
+             * @description 事件来源：DHCP 租约事件 / DNS 查询
+             * @enum {string}
+             */
+            type: "dhcp" | "dns";
+            /** @description 原始日志级别（DEBUG/INFO/ERROR…） */
+            severity?: string;
+            /** @description 客户端 MAC（12 位小写 hex，归一化关联键；DNS 事件可为空） */
+            clientMac?: string;
+            /** @description DHCP 租约 IP（v4/v6 文本；按需与组织 CIDR 关联） */
+            clientIp?: string;
+            /** @description DNS 查询源 IP（v4/v6 文本） */
+            sip?: string;
+            /** @description 查询域名（DNS 事件） */
+            domain?: string;
+            /** @description DNS 应答码（NOERROR/NXDOMAIN…） */
+            rcode?: string;
+            /** @description 动作（lease_commit / resolve / blocked…；封禁拦截见 §5） */
+            action?: string;
+            /** @description 命中封禁时的策略分类（FR-B-18） */
+            category?: string;
+            /** @description 原始详情（结构化事件描述） */
+            detail?: string;
+        };
+        LogPage: {
+            items: components["schemas"]["LogRow"][];
+            /** @description 下一页游标（(ts, client_mac, domain) 元组编码）；空=已到尾页 */
+            nextCursor?: string;
+            /** @description 满足过滤的总事件数（count() 同条件精确值） */
+            total?: number;
+        };
+        TopEntry: {
+            /** @description TopN 维度键：域名或 client_mac（依 by 参数） */
+            key: string;
+            /** @description 窗口内事件数 */
+            count: number;
+        };
+        TopList: {
+            items: components["schemas"]["TopEntry"][];
+            /** @description 满足过滤的总事件数（TopN 全体口径） */
+            total?: number;
+        };
+        QpsPoint: {
+            /**
+             * Format: date-time
+             * @description 分桶起点（UTC）
+             */
+            ts: string;
+            /** @description 该桶内事件数 */
+            count: number;
+        };
+        QpsSeries: {
+            points: components["schemas"]["QpsPoint"][];
+        };
         /** @description RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。 */
         Problem: {
             /** @description 问题类型 URI，稳定不变供程序匹配 */
@@ -1140,6 +1286,38 @@ export interface components {
             };
             content: {
                 "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description 过滤参数非法（时间窗超限/格式错误） */
+        LogBadRequest: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": {
+                    type: string;
+                    title: string;
+                    status: number;
+                    detail?: string;
+                    code?: string;
+                    instance?: string;
+                };
+            };
+        };
+        /** @description ClickHouse 不可达 */
+        LogDown: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": {
+                    type: string;
+                    title: string;
+                    status: number;
+                    detail?: string;
+                    code?: string;
+                    instance?: string;
+                };
             };
         };
         /** @description 子网列表 */
@@ -1235,6 +1413,34 @@ export interface components {
         /** @description 组织节点 ID */
         OrgId: string;
         SubnetId: string;
+        /** @description 时间窗起点（UTC，必填）；窗口上限 31 天 */
+        LogFrom: string;
+        /** @description 时间窗终点（UTC，缺省=当前时间） */
+        LogTo: string;
+        /** @description 事件来源过滤 */
+        LogType: "dhcp" | "dns";
+        /** @description 客户端 MAC 过滤（冒号分隔或 12 位 hex，服务端归一化后匹配） */
+        LogMac: string;
+        /** @description 客户端 IP 过滤：精确地址或 CIDR（对 client_ip/sip 任一命中） */
+        LogIp: string;
+        /** @description 域名子串过滤（不区分大小写；DNS 事件） */
+        LogDomain: string;
+        /** @description 动作过滤（lease_commit / resolve / blocked…） */
+        LogAction: string;
+        /** @description 组织过滤：展开该节点子树全部 CIDR ∪ 组内资产 MAC 后查询（§13.4 关联链） */
+        LogOrgId: string;
+        /** @description 分页游标（取自上一页 nextCursor） */
+        LogCursor: string;
+        /** @description 每页条数 */
+        LogPageSize: number;
+        /** @description TopN 维度：domain=域名 / client=客户端 MAC */
+        LogBy: "domain" | "client";
+        /** @description TopN 返回条数 */
+        LogLimit: number;
+        /** @description QPS 分桶秒数 */
+        LogIntervalSec: number;
+        /** @description 导出行数上限（CSV 单次转储，超限截断） */
+        LogExportLimit: number;
         /** @description 区域 ID */
         ZoneId: string;
         /** @description 子网 ID */
@@ -1246,6 +1452,164 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listLogs: {
+        parameters: {
+            query: {
+                /** @description 时间窗起点（UTC，必填）；窗口上限 31 天 */
+                from: components["parameters"]["LogFrom"];
+                /** @description 时间窗终点（UTC，缺省=当前时间） */
+                to?: components["parameters"]["LogTo"];
+                /** @description 事件来源过滤 */
+                type?: components["parameters"]["LogType"];
+                /** @description 客户端 MAC 过滤（冒号分隔或 12 位 hex，服务端归一化后匹配） */
+                mac?: components["parameters"]["LogMac"];
+                /** @description 客户端 IP 过滤：精确地址或 CIDR（对 client_ip/sip 任一命中） */
+                ip?: components["parameters"]["LogIp"];
+                /** @description 域名子串过滤（不区分大小写；DNS 事件） */
+                domain?: components["parameters"]["LogDomain"];
+                /** @description 动作过滤（lease_commit / resolve / blocked…） */
+                action?: components["parameters"]["LogAction"];
+                /** @description 组织过滤：展开该节点子树全部 CIDR ∪ 组内资产 MAC 后查询（§13.4 关联链） */
+                orgId?: components["parameters"]["LogOrgId"];
+                /** @description 分页游标（取自上一页 nextCursor） */
+                cursor?: components["parameters"]["LogCursor"];
+                /** @description 每页条数 */
+                pageSize?: components["parameters"]["LogPageSize"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 日志页 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogPage"];
+                };
+            };
+            400: components["responses"]["LogBadRequest"];
+            503: components["responses"]["LogDown"];
+        };
+    };
+    listLogTop: {
+        parameters: {
+            query: {
+                /** @description 时间窗起点（UTC，必填）；窗口上限 31 天 */
+                from: components["parameters"]["LogFrom"];
+                /** @description 时间窗终点（UTC，缺省=当前时间） */
+                to?: components["parameters"]["LogTo"];
+                /** @description 事件来源过滤 */
+                type?: components["parameters"]["LogType"];
+                /** @description 客户端 IP 过滤：精确地址或 CIDR（对 client_ip/sip 任一命中） */
+                ip?: components["parameters"]["LogIp"];
+                /** @description 动作过滤（lease_commit / resolve / blocked…） */
+                action?: components["parameters"]["LogAction"];
+                /** @description 组织过滤：展开该节点子树全部 CIDR ∪ 组内资产 MAC 后查询（§13.4 关联链） */
+                orgId?: components["parameters"]["LogOrgId"];
+                /** @description TopN 维度：domain=域名 / client=客户端 MAC */
+                by?: components["parameters"]["LogBy"];
+                /** @description TopN 返回条数 */
+                limit?: components["parameters"]["LogLimit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description TopN 列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopList"];
+                };
+            };
+            400: components["responses"]["LogBadRequest"];
+            503: components["responses"]["LogDown"];
+        };
+    };
+    getLogQps: {
+        parameters: {
+            query: {
+                /** @description 时间窗起点（UTC，必填）；窗口上限 31 天 */
+                from: components["parameters"]["LogFrom"];
+                /** @description 时间窗终点（UTC，缺省=当前时间） */
+                to?: components["parameters"]["LogTo"];
+                /** @description 事件来源过滤 */
+                type?: components["parameters"]["LogType"];
+                /** @description 动作过滤（lease_commit / resolve / blocked…） */
+                action?: components["parameters"]["LogAction"];
+                /** @description 组织过滤：展开该节点子树全部 CIDR ∪ 组内资产 MAC 后查询（§13.4 关联链） */
+                orgId?: components["parameters"]["LogOrgId"];
+                /** @description QPS 分桶秒数 */
+                intervalSec?: components["parameters"]["LogIntervalSec"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description QPS 时序 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QpsSeries"];
+                };
+            };
+            400: components["responses"]["LogBadRequest"];
+            503: components["responses"]["LogDown"];
+        };
+    };
+    exportLogs: {
+        parameters: {
+            query: {
+                /** @description 时间窗起点（UTC，必填）；窗口上限 31 天 */
+                from: components["parameters"]["LogFrom"];
+                /** @description 时间窗终点（UTC，缺省=当前时间） */
+                to?: components["parameters"]["LogTo"];
+                /** @description 事件来源过滤 */
+                type?: components["parameters"]["LogType"];
+                /** @description 客户端 MAC 过滤（冒号分隔或 12 位 hex，服务端归一化后匹配） */
+                mac?: components["parameters"]["LogMac"];
+                /** @description 客户端 IP 过滤：精确地址或 CIDR（对 client_ip/sip 任一命中） */
+                ip?: components["parameters"]["LogIp"];
+                /** @description 域名子串过滤（不区分大小写；DNS 事件） */
+                domain?: components["parameters"]["LogDomain"];
+                /** @description 动作过滤（lease_commit / resolve / blocked…） */
+                action?: components["parameters"]["LogAction"];
+                /** @description 组织过滤：展开该节点子树全部 CIDR ∪ 组内资产 MAC 后查询（§13.4 关联链） */
+                orgId?: components["parameters"]["LogOrgId"];
+                /** @description 导出行数上限（CSV 单次转储，超限截断） */
+                exportLimit?: components["parameters"]["LogExportLimit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV 文本 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            400: components["responses"]["LogBadRequest"];
+            503: components["responses"]["LogDown"];
+        };
+    };
     applyDnsConf: {
         parameters: {
             query?: never;

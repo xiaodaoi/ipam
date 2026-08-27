@@ -46,17 +46,21 @@ source = '''
 '''
 
 # ── 归一化统一 schema（logs 宽表字段，§3 ClickHouse）──
+# 空地址必须落 null（列 Nullable(IPv6)，'' 无法解析会整批失败）；
+# ts 用毫秒字符串保游标精度（to_unix_timestamp 仅秒级）。
 [transforms.normalize]
 type = "remap"
 inputs = ["parse_kea", "parse_unbound"]
 source = '''
+  ip_v = if .address != null && .address != "" { .address } else { null }
+  mac_v = if .client_mac == null || .client_mac == "" { "" } else { downcase(.client_mac) }
   . = {
-    "ts": to_unix_timestamp(.timestamp),
+    "ts": format_timestamp!(.timestamp, "%F %T%.3f"),
     "type": .rtype,
     "severity": .severity,
-    "client_mac": .client_mac,
-    "client_ip": .address,
-    "sip": "",
+    "client_mac": mac_v,
+    "client_ip": ip_v,
+    "sip": null,
     "domain": .domain,
     "rcode": "",
     "action": .event,

@@ -4,6 +4,20 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-26 · M4-002 完成：日志检索 API（四端点+CH 查询层）
+
+- **做了**：`/logs` `/logs/top` `/logs/qps` `/logs/export` spec 先行全流程；logquery 模块（ChStore 原生协议/MemStore 双实现、元组游标分页、组织 CIDR 合并区间+MAC IN 展开、CSV 导出）；PgOrgExpander 物化路径子树展开；logs.sql Nullable 列修正+TopN 物化视图；BuildConf/unbound.conf 补 logfile+log-queries（M4-001 遗留① 收口）；闸⑥ 扩展 CH 直插→检索断言。
+- **验证结果**：全仓 go test 绿；golangci-lint 0 issues；web typecheck 绿；闸① spec lint 0 errors；万行级基准达标。
+- **踩坑**：isIPAddressInRange 对 v6 列传 v4 CIDR 静默返回 0（应用层转 ::ffff/(96+n) 合并区间规避）；pgx Rows.Close 无返回值而 clickhouse-go 有，errcheck 差异；匿名结构体嵌入 platform.Handler 与 logq.Handler 字段名冲突需命名包装。
+- **里程碑**：M4 日志中心 2/4（采集链路✓ 检索 API✓），遗留实时流/审计/仪表盘三卡 backlog。
+- **已知限制**：DNS 事件无源 IP → 组织过滤仅命中 DHCP 事件，待 vector sip 提取。
+
+## 2026-08-26 · 多池对联动（prefix_template 建模）+ spec 响应模型修复
+
+- **做了**：多组 v4/v6 池对绑定（prefix_template 建模 ipv4_cidr↔ipv6_prefix），daemon 按租约 IPv4 最长前缀自动选模板（MatchIPv4Template）；示例 192.168.0.10→2407::192:168:0:10 落地为单测；spec 响应模型缺失修复（15 处响应块重建）+conf/apply 生成接口化。
+- **验证结果**：commit 7533703；spec/单测全绿。
+- **遗留**：无（本会话与 M4-001 卡片会话2 同步记录）。
+
 ## 2026-08-26 · option79 链路落地 + M4-001 日志采集链路
 
 - **option79（用户补充）**：hook 解析 RFC6939 载荷提取 MAC→查 IPv4 池→模板算 IPv6；纯函数+单测落地；§4.2 明确来源优先级链（option79→L2→DUID）。

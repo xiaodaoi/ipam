@@ -20,8 +20,12 @@ import (
 	unboundengine "github.com/xiaodaoi/ipam/internal/engine/unbound"
 	dnsmodule "github.com/xiaodaoi/ipam/internal/module/dns"
 	"github.com/xiaodaoi/ipam/internal/module/ipam"
+	logq "github.com/xiaodaoi/ipam/internal/module/logquery"
 	"github.com/xiaodaoi/ipam/internal/module/platform"
 )
+
+// logsAPI 组合用命名包装（logquery.Handler 经此提升方法）。
+type logsAPI struct{ *logq.Handler }
 
 // newEngine 装配完整路由：/api/v1 业务路由 + webui embed + SPA fallback（§13.3）。
 func newEngine(version string) *gin.Engine {
@@ -82,6 +86,30 @@ func newEngine(version string) *gin.Engine {
 		assetRepo = ipam.NewPgAssetRepo(pool)
 	}
 	assetH := ipam.NewAssetHandler(ipam.NewAssetService(assetRepo, orgStore))
+
+	// 日志检索（M4-002，FR-E-04）：配置 IPAM_CH_ADDR 走 ClickHouse，否则内存 PoC；
+	// 组织展开：PG 子树（org_group.path）或内存节点遍历。
+	var logStore logq.Store = logq.NewMemStore()
+	if chAddr := os.Getenv("IPAM_CH_ADDR"); chAddr != "" {
+		chDB := os.Getenv("IPAM_CH_DB")
+		if chDB == "" {
+			chDB = "ipam"
+		}
+		st, err := logq.OpenChStore(logq.ChConfig{
+			Addr: chAddr, DB: chDB,
+			User: os.Getenv("IPAM_CH_USER"), Password: os.Getenv("IPAM_CH_PASSWORD"),
+		})
+		if err != nil {
+			log.Fatalf("ch store: %v", err)
+		}
+		logStore = st
+	}
+	var logExpander logq.OrgExpander = ipam.NewMemOrgExpander(orgStore, subRepo, assetRepo)
+	if pool != nil {
+		logExpander = logq.NewPgOrgExpander(pool)
+	}
+	logH := logq.NewHandler(logq.NewService(logStore, logExpander))
+
 	var upRepo dnsmodule.UpstreamRepo = dnsmodule.NewMemUpstreamRepo()
 	var unboundCtl dnsmodule.UnboundController = unboundengine.ExecController{}
 	if pool != nil {
@@ -146,19 +174,22 @@ func newEngine(version string) *gin.Engine {
 		return out
 	})
 	// 组合各域 handler 共同实现 ServerInterface（Go 嵌入提升；新增域在此扩展）
+	// 注：logsAPI 包装让组合字段名不同于 platform.Handler，避免同名冲突。
+	logs := logsAPI{logH}
 	full := struct {
 		*platform.Handler
 		*ipam.OrgHandler
 		*ipam.SubnetHandler
 		*ipam.LedgerHandler
 		*ipam.AssetHandler
+		*logsAPI
 		*dnsmodule.DnsHandler
 		*dnsmodule.ForwardHandler
 		*dnsmodule.ZoneHandler
 		*dnsmodule.BlocklistHandler
 		*dnsmodule.SettingsHandler
 		*confApplier
-	}{h, orgH, subH, ledgerH, assetH, dnsH, fwdH, zoneH, blH, settingsH, applier}
+	}{h, orgH, subH, ledgerH, assetH, &logs, dnsH, fwdH, zoneH, blH, settingsH, applier}
 	// spec servers.url=/api/v1 → 统一前缀注册
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 

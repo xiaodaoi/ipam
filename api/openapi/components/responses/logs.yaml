@@ -1,0 +1,61 @@
+# 日志检索错误响应（RFC 9457 Problem，与根 spec Problem 同构）
+
+LogBadRequest:
+  description: 过滤参数非法（时间窗超限/格式错误）
+  content:
+    application/problem+json:
+      schema:
+        type: object
+        description: RFC 9457 Problem（与根 spec Problem 同构）
+        required: [type, title, status]
+        properties:
+          type: { type: string }
+          title: { type: string }
+          status: { type: integer }
+          detail: { type: string }
+          code: { type: string }
+          instance: { type: string }
+      examples:
+        badWindow:
+          summary: 时间窗超过 31 天上限
+          value:
+            type: "https://ipam.local/problems/bad-request"
+            title: Bad Request
+            status: 400
+            detail: 时间窗超过 31 天上限，请缩小范围
+            code: INVALID_FILTER
+            instance: "/api/v1/logs"
+        badInterval:
+          summary: QPS 分桶参数非法
+          value:
+            type: "https://ipam.local/problems/bad-request"
+            title: Bad Request
+            status: 400
+            detail: intervalSec 超出 1..86400
+            code: INVALID_FILTER
+            instance: "/api/v1/logs/qps"
+LogDown:
+  description: ClickHouse 不可达
+  content:
+    application/problem+json:
+      schema:
+        type: object
+        description: RFC 9457 Problem（与根 spec Problem 同构）
+        required: [type, title, status]
+        properties:
+          type: { type: string }
+          title: { type: string }
+          status: { type: integer }
+          detail: { type: string }
+          code: { type: string }
+          instance: { type: string }
+      examples:
+        chDown:
+          summary: CH 服务不可用
+          value:
+            type: "https://ipam.local/problems/log-store-down"
+            title: Service Unavailable
+            status: 503
+            detail: ClickHouse 暂不可达，请稍后重试
+            code: CH_DOWN
+            instance: "/api/v1/logs"

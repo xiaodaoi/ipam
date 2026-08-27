@@ -1,0 +1,166 @@
+# 日志检索端点（M4-002，FR-E-04；§6 查询网关：组合过滤/TopN/QPS 曲线/CSV 导出）
+
+LogsCollection:
+  get:
+    operationId: listLogs
+    tags: [logs]
+    summary: 查询日志（组合过滤+游标分页）
+    description: |
+      日志中心检索（FR-E-04）：时间窗必填，type/mac/ip/domain/action 组合过滤；
+      orgId 按组织维度展开（子树 CIDR ∪ 组内资产 MAC，§13.4 关联链）。
+      游标分页：cursor 取自上一页 nextCursor，排序键 (ts, client_mac, domain) 保证确定性。
+      数据源 ClickHouse logs 宽表（§6）。
+    security: []
+    parameters:
+      - $ref: '../parameters/logs.yaml#/LogFrom'
+      - $ref: '../parameters/logs.yaml#/LogTo'
+      - $ref: '../parameters/logs.yaml#/LogType'
+      - $ref: '../parameters/logs.yaml#/LogMac'
+      - $ref: '../parameters/logs.yaml#/LogIp'
+      - $ref: '../parameters/logs.yaml#/LogDomain'
+      - $ref: '../parameters/logs.yaml#/LogAction'
+      - $ref: '../parameters/logs.yaml#/LogOrgId'
+      - $ref: '../parameters/logs.yaml#/LogCursor'
+      - $ref: '../parameters/logs.yaml#/LogPageSize'
+    responses:
+      '200':
+        description: 日志页
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/logs.yaml#/LogPage'
+            examples:
+              ok:
+                summary: DHCP 租约与 DNS 查询混合页
+                value:
+                  items:
+                    - ts: "2026-08-26T08:00:00.123Z"
+                      type: dhcp
+                      severity: INFO
+                      clientMac: "aabbccddee01"
+                      clientIp: "10.61.172.10"
+                      action: lease_commit
+                      detail: "DHCPACK on 10.61.172.10 to aabbccddee01"
+                    - ts: "2026-08-26T08:00:00.456Z"
+                      type: dns
+                      severity: INFO
+                      sip: "10.61.172.10"
+                      domain: "api.corp.local."
+                      rcode: NOERROR
+                      action: resolve
+                  nextCursor: "1724660400123:aabbccddee01:api.corp.local."
+                  total: 1024
+      '400':
+        $ref: '../components/responses/logs.yaml#/LogBadRequest'
+      '503':
+        $ref: '../components/responses/logs.yaml#/LogDown'
+
+LogsTop:
+  get:
+    operationId: listLogTop
+    tags: [logs]
+    summary: TopN 域名与客户端
+    description: |
+      物化视图聚合支撑（§6/§8：5000 终端天量 ≤3s）。by=domain 返回查询域名 TopN，
+      by=client 返回客户端 MAC TopN；过滤条件同 /logs（组织维度同样支持）。
+    security: []
+    parameters:
+      - $ref: '../parameters/logs.yaml#/LogFrom'
+      - $ref: '../parameters/logs.yaml#/LogTo'
+      - $ref: '../parameters/logs.yaml#/LogType'
+      - $ref: '../parameters/logs.yaml#/LogIp'
+      - $ref: '../parameters/logs.yaml#/LogAction'
+      - $ref: '../parameters/logs.yaml#/LogOrgId'
+      - $ref: '../parameters/logs.yaml#/LogBy'
+      - $ref: '../parameters/logs.yaml#/LogLimit'
+    responses:
+      '200':
+        description: TopN 列表
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/logs.yaml#/TopList'
+            examples:
+              ok:
+                summary: 域名 Top5
+                value:
+                  items:
+                    - { key: "api.corp.local.", count: 48213 }
+                    - { key: "update.corp.local.", count: 33102 }
+                    - { key: "ns1.upstream.example.", count: 12876 }
+                  total: 1200000
+      '400':
+        $ref: '../components/responses/logs.yaml#/LogBadRequest'
+      '503':
+        $ref: '../components/responses/logs.yaml#/LogDown'
+
+LogsQps:
+  get:
+    operationId: getLogQps
+    tags: [logs]
+    summary: QPS 时序曲线
+    description: |
+      按 intervalSec 分桶计数（toStartOfInterval），返回时间升序的时序点。
+      供日志中心曲线与仪表盘 DNS QPS 卡片消费（§13.4）。
+    security: []
+    parameters:
+      - $ref: '../parameters/logs.yaml#/LogFrom'
+      - $ref: '../parameters/logs.yaml#/LogTo'
+      - $ref: '../parameters/logs.yaml#/LogType'
+      - $ref: '../parameters/logs.yaml#/LogAction'
+      - $ref: '../parameters/logs.yaml#/LogOrgId'
+      - $ref: '../parameters/logs.yaml#/LogIntervalSec'
+    responses:
+      '200':
+        description: QPS 时序
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/logs.yaml#/QpsSeries'
+            examples:
+              ok:
+                summary: 5 分钟粒度一天曲线（节选）
+                value:
+                  points:
+                    - { ts: "2026-08-26T08:00:00Z", count: 3210 }
+                    - { ts: "2026-08-26T08:05:00Z", count: 3355 }
+                    - { ts: "2026-08-26T08:10:00Z", count: 3188 }
+      '400':
+        $ref: '../components/responses/logs.yaml#/LogBadRequest'
+      '503':
+        $ref: '../components/responses/logs.yaml#/LogDown'
+
+LogsExport:
+  get:
+    operationId: exportLogs
+    tags: [logs]
+    summary: 导出日志 CSV
+    description: |
+      过滤条件与 /logs 一致；按 ts 倒序导出 CSV（RFC 4180，UTF-8 含 BOM，Excel 可直接打开），
+      exportLimit 上限 10000 行。scope 需 logs.export（审计留痕）。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - $ref: '../parameters/logs.yaml#/LogFrom'
+      - $ref: '../parameters/logs.yaml#/LogTo'
+      - $ref: '../parameters/logs.yaml#/LogType'
+      - $ref: '../parameters/logs.yaml#/LogMac'
+      - $ref: '../parameters/logs.yaml#/LogIp'
+      - $ref: '../parameters/logs.yaml#/LogDomain'
+      - $ref: '../parameters/logs.yaml#/LogAction'
+      - $ref: '../parameters/logs.yaml#/LogOrgId'
+      - $ref: '../parameters/logs.yaml#/LogExportLimit'
+    responses:
+      '200':
+        description: CSV 文本
+        content:
+          text/csv:
+            schema:
+              type: string
+            examples:
+              ok:
+                summary: 前两行（含表头）
+                value: "ts,type,severity,client_mac,client_ip,sip,domain,rcode,action,category,detail\n2026-08-26T08:00:00.123Z,dhcp,INFO,aabbccddee01,10.61.172.10,,,lease_commit,,DHCPACK on 10.61.172.10 to aabbccddee01\n"
+      '400':
+        $ref: '../components/responses/logs.yaml#/LogBadRequest'
+      '503':
+        $ref: '../components/responses/logs.yaml#/LogDown'

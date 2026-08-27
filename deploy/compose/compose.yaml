@@ -26,8 +26,14 @@ services:
     depends_on:
       postgresql:
         condition: service_healthy
+      clickhouse:
+        condition: service_started
     environment:
       IPAM_DB_DSN: "postgres://${POSTGRES_USER:-ipam}:${POSTGRES_PASSWORD}@postgresql:5432/${POSTGRES_DB:-ipam}?sslmode=disable"
+      IPAM_CH_ADDR: "clickhouse:9000"
+      IPAM_CH_DB: ${CLICKHOUSE_DB:-ipam}
+      IPAM_CH_USER: ${CLICKHOUSE_USER:-ipam}
+      IPAM_CH_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
     ports:
       - "${IPAM_PORT:-8443}:8443"
     restart: unless-stopped

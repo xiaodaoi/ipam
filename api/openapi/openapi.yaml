@@ -27,7 +27,17 @@ tags:
     description: DNS 服务（上游/转发/解析记录/封禁，FR-B、§13.4）
   - name: blocklist
     description: DNS 封禁管控（RPZ 名单/策略分组/订阅源，FR-B-11~18、D13）
+  - name: logs
+    description: 日志中心检索（组合过滤/TopN/QPS 曲线/CSV 导出，FR-E-04、§6）
 paths:
+  /logs:
+    $ref: './paths/logs.yaml#/LogsCollection'
+  /logs/top:
+    $ref: './paths/logs.yaml#/LogsTop'
+  /logs/qps:
+    $ref: './paths/logs.yaml#/LogsQps'
+  /logs/export:
+    $ref: './paths/logs.yaml#/LogsExport'
   /dns/conf/apply:
     $ref: './paths/settings.yaml#/ConfApply'
   /dns/settings:
@@ -232,6 +242,18 @@ components:
       $ref: './components/schemas/settings.yaml#/PerDomainTtl'
     FlushResult:
       $ref: './components/schemas/settings.yaml#/FlushResult'
+    LogRow:
+      $ref: './components/schemas/logs.yaml#/LogRow'
+    LogPage:
+      $ref: './components/schemas/logs.yaml#/LogPage'
+    TopEntry:
+      $ref: './components/schemas/logs.yaml#/TopEntry'
+    TopList:
+      $ref: './components/schemas/logs.yaml#/TopList'
+    QpsPoint:
+      $ref: './components/schemas/logs.yaml#/QpsPoint'
+    QpsSeries:
+      $ref: './components/schemas/logs.yaml#/QpsSeries'
     Problem:
       type: object
       description: RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。

@@ -14,7 +14,11 @@ import (
 	apigen "github.com/xiaodaoi/ipam/api/gen/go"
 	dnsmodule "github.com/xiaodaoi/ipam/internal/module/dns"
 	"github.com/xiaodaoi/ipam/internal/module/ipam"
+	logq "github.com/xiaodaoi/ipam/internal/module/logquery"
 )
+
+// logsAPI 组合用命名包装（与 cmd/control-plane/main.go 同法，避开 Handler 字段名冲突）。
+type logsAPI struct{ *logq.Handler }
 
 func newTestRouter(h *Handler) *gin.Engine {
 	gin.SetMode(gin.TestMode)
@@ -35,6 +39,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		*ipam.SubnetHandler
 		*ipam.LedgerHandler
 		*ipam.AssetHandler
+		*logsAPI
 		*dnsmodule.DnsHandler
 		*dnsmodule.ForwardHandler
 		*dnsmodule.ZoneHandler
@@ -46,6 +51,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		ipam.NewSubnetHandler(ipam.NewSubnetService(subRepo, orgStore, kea)),
 		ipam.NewLedgerHandler(ledgerSvc),
 		ipam.NewAssetHandler(ipam.NewAssetService(ipam.NewMemAssetRepo(), orgStore)),
+		&logsAPI{logq.NewHandler(logq.NewService(logq.NewMemStore(), nil))},
 		dnsmodule.NewDnsHandler(dnsSvc),
 		dnsmodule.NewForwardHandler(dnsmodule.NewForwardService(dnsmodule.NewMemForwardRuleRepo(), dnsmodule.NewMemUpstreamRepo(), fakeUnbound{})),
 		dnsmodule.NewZoneHandler(dnsmodule.NewZoneService(dnsmodule.NewMemZoneRepo(), fakeUnbound{}), nil),

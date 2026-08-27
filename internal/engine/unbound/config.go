@@ -54,6 +54,9 @@ func BuildConf(in ConfInput) string {
 	}
 	sb.WriteString("  interface: 0.0.0.0\n")
 	sb.WriteString("  access-control: 0.0.0.0/0 allow\n")
+	// 日志链路（§6）：统一落盘到挂载卷供 vector 采集；分级采样开关 P1（FR-E-05）
+	sb.WriteString("  logfile: /var/log/unbound/unbound.log\n")
+	sb.WriteString("  log-queries: yes\n")
 
 	// 默认转发（forward-zone "."）
 	writeForward(&sb, ".", in.DefaultFwd)

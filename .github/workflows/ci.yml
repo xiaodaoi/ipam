@@ -149,6 +149,14 @@ jobs:
           docker compose exec -T unbound sh -c \
             'unbound-control local_data "dyn-test.corp.local. 60 IN A 10.61.172.99"'
           docker compose exec -T unbound dig @127.0.0.1 dyn-test.corp.local +short | grep -q 10.61.172.99
+          echo "[6] CH logs retrieval (M4-002)"
+          docker compose exec -T clickhouse clickhouse-client --query \
+            "INSERT INTO ipam.logs (ts,type,severity,client_mac,client_ip,sip,domain,rcode,action,category,detail) VALUES ($(date -u +%s),'dns','INFO','aabbccddee99',toIPv6('::ffff:10.61.172.42'),NULL,'smoke-logs.corp.local.','NOERROR','resolve','','gate6')"
+          sleep 1
+          FROM=$(date -u -d '5 minutes ago' +%Y-%m-%dT%H:%M:%SZ)
+          curl -fsS "http://127.0.0.1:8443/api/v1/logs?from=${FROM}" | grep -q aabbccddee99
+          echo "[7] CH logs TopN"
+          docker compose exec -T clickhouse clickhouse-client --query "SELECT count() FROM ipam.logs_topn_hourly" | grep -qE '[1-9]'
           echo "ALL-PASS"
           docker compose down -v
       - name: collect diagnostics
@@ -161,9 +169,13 @@ jobs:
             echo; echo "-- [2]"; curl -sS -X POST "http://127.0.0.1:${KEA_API_PORT:-8000}/" -H 'Content-Type: application/json' -d '{"command":"version-get","service":["dhcp4"]}' || true
             echo; echo "-- [3]"; docker compose exec -T unbound sh -c 'unbound -V' | head -1 || true
             echo; echo "-- [4]"; docker compose exec -T unbound dig @127.0.0.1 smoke.corp.local +short || true
-            echo; echo "-- [5] inject+dig"
+            echo;             echo "-- [5] inject+dig"
             docker compose exec -T unbound sh -c 'unbound-control local_data "dyn-test.corp.local. 60 IN A 10.61.172.99"' || true
             docker compose exec -T unbound dig @127.0.0.1 dyn-test.corp.local +short || true
+            echo "-- [6] logs endpoint"
+            curl -sS "http://127.0.0.1:8443/api/v1/logs?from=$(date -u -d '5 minutes ago' +%Y-%m-%dT%H:%M:%SZ)" || true
+            echo; echo "-- [7] logs table"
+            docker compose exec -T clickhouse clickhouse-client --query "SELECT count() FROM ipam.logs" || true
             echo; echo "== ps =="; docker compose ps -a
             echo; echo "== logs(tail) =="; docker compose logs --tail=120
           } > diag.txt 2>&1 || true

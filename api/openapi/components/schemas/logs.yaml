@@ -1,0 +1,101 @@
+# 日志检索契约（M4-002，FR-E-04；数据源 ClickHouse logs 宽表 §6）
+# 关联键：client_mac 为 Vector 归一化后的 12 位小写 hex（去冒号/短横线）
+
+LogRow:
+  type: object
+  required: [ts, type]
+  properties:
+    ts:
+      type: string
+      format: date-time
+      description: 事件时间（UTC，毫秒精度）
+    type:
+      type: string
+      enum: [dhcp, dns]
+      description: 事件来源：DHCP 租约事件 / DNS 查询
+    severity:
+      type: string
+      description: 原始日志级别（DEBUG/INFO/ERROR…）
+    clientMac:
+      type: string
+      description: 客户端 MAC（12 位小写 hex，归一化关联键；DNS 事件可为空）
+    clientIp:
+      type: string
+      description: DHCP 租约 IP（v4/v6 文本；按需与组织 CIDR 关联）
+    sip:
+      type: string
+      description: DNS 查询源 IP（v4/v6 文本）
+    domain:
+      type: string
+      description: 查询域名（DNS 事件）
+    rcode:
+      type: string
+      description: DNS 应答码（NOERROR/NXDOMAIN…）
+    action:
+      type: string
+      description: 动作（lease_commit / resolve / blocked…；封禁拦截见 §5）
+    category:
+      type: string
+      description: 命中封禁时的策略分类（FR-B-18）
+    detail:
+      type: string
+      description: 原始详情（结构化事件描述）
+
+LogPage:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: 'logs.yaml#/LogRow'
+    nextCursor:
+      type: string
+      description: 下一页游标（(ts, client_mac, domain) 元组编码）；空=已到尾页
+    total:
+      type: integer
+      description: 满足过滤的总事件数（count() 同条件精确值）
+
+TopEntry:
+  type: object
+  required: [key, count]
+  properties:
+    key:
+      type: string
+      description: TopN 维度键：域名或 client_mac（依 by 参数）
+    count:
+      type: integer
+      description: 窗口内事件数
+
+TopList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: 'logs.yaml#/TopEntry'
+    total:
+      type: integer
+      description: 满足过滤的总事件数（TopN 全体口径）
+
+QpsPoint:
+  type: object
+  required: [ts, count]
+  properties:
+    ts:
+      type: string
+      format: date-time
+      description: 分桶起点（UTC）
+    count:
+      type: integer
+      description: 该桶内事件数
+
+QpsSeries:
+  type: object
+  required: [points]
+  properties:
+    points:
+      type: array
+      items:
+        $ref: 'logs.yaml#/QpsPoint'

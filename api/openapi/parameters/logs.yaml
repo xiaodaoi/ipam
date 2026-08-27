@@ -1,0 +1,121 @@
+# 日志检索共享查询参数（M4-002）
+
+LogFrom:
+  name: from
+  in: query
+  required: true
+  schema:
+    type: string
+    format: date-time
+  description: 时间窗起点（UTC，必填）；窗口上限 31 天
+  examples:
+    sample:
+      value: "2026-08-26T00:00:00Z"
+
+LogTo:
+  name: to
+  in: query
+  schema:
+    type: string
+    format: date-time
+  description: 时间窗终点（UTC，缺省=当前时间）
+
+LogType:
+  name: type
+  in: query
+  schema:
+    type: string
+    enum: [dhcp, dns]
+  description: 事件来源过滤
+
+LogMac:
+  name: mac
+  in: query
+  schema:
+    type: string
+  description: 客户端 MAC 过滤（冒号分隔或 12 位 hex，服务端归一化后匹配）
+
+LogIp:
+  name: ip
+  in: query
+  schema:
+    type: string
+  description: 客户端 IP 过滤：精确地址或 CIDR（对 client_ip/sip 任一命中）
+
+LogDomain:
+  name: domain
+  in: query
+  schema:
+    type: string
+  description: 域名子串过滤（不区分大小写；DNS 事件）
+
+LogAction:
+  name: action
+  in: query
+  schema:
+    type: string
+  description: 动作过滤（lease_commit / resolve / blocked…）
+
+LogOrgId:
+  name: orgId
+  in: query
+  schema:
+    type: string
+    format: uuid
+  description: 组织过滤：展开该节点子树全部 CIDR ∪ 组内资产 MAC 后查询（§13.4 关联链）
+
+LogCursor:
+  name: cursor
+  in: query
+  schema:
+    type: string
+  description: 分页游标（取自上一页 nextCursor）
+
+LogPageSize:
+  name: pageSize
+  in: query
+  schema:
+    type: integer
+    minimum: 1
+    maximum: 500
+    default: 100
+  description: 每页条数
+
+LogBy:
+  name: by
+  in: query
+  schema:
+    type: string
+    enum: [domain, client]
+    default: domain
+  description: TopN 维度：domain=域名 / client=客户端 MAC
+
+LogLimit:
+  name: limit
+  in: query
+  schema:
+    type: integer
+    minimum: 1
+    maximum: 100
+    default: 10
+  description: TopN 返回条数
+
+LogIntervalSec:
+  name: intervalSec
+  in: query
+  schema:
+    type: integer
+    minimum: 1
+    maximum: 86400
+    default: 60
+  description: QPS 分桶秒数
+
+LogExportLimit:
+  name: exportLimit
+  in: query
+  schema:
+    type: integer
+    minimum: 1
+    maximum: 10000
+    default: 10000
+  description: 导出行数上限（CSV 单次转储，超限截断）
