@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-27 · 首次全栈 compose 冒烟实证通过（闸⑥ 7 项断言本地全绿）+ M4 实测归档
+
+- **做了**：本地 Docker 全栈起跑（12 容器 Healthy），逐项实证闸⑥ [1]~[7]：control-plane/kea/unbound/K1/local-data 热注/CH 检索 [6]/TopN MV [7]；连带修复八处环境与代码缺陷（详见 commit 9be85b4）：compose 卷声明、Dockerfile 换源剥 scheme、unbound chroot+zone SOA 缺失（K1 根因）、CH tokenbf 三参、vector 0.46 迁移+日志格式补 srcip 捕获、Go 驱动 UInt64 扫描、CI 秒级时间戳误用。
+- **验证结果**：[1]~[7] PASS；vector→CH→/logs 域过滤端到端实测通（sip 落列 ::ffff 映射正确）；四组件健康灯全 up；lint/test 绿。commit 9be85b4 已推送，CI 将首次完整复现实证。
+- **里程碑**：M0~M4 全部任务卡的"容器实测"验收路径打通——M1~M4 review 列 14 张卡可依此批量归档；日志链路三段（引擎日志→采集→查询）全部实证。
+- **遗留**：组织树 PoC 数据未灌（orgId 过滤待演示数据）；水位采样 FR-E-05 P1。
+
 ## 2026-08-27 · CI 归因与 compose 卷声明修复
 
 - **归因**：09c2903 轮 CI——api-lint/web-ci 绿；compose-smoke 挂在 `service "unbound" refers to undefined volume unbound-logs: invalid compose project`（ci-diag 分支实锤），**存量问题非 M4 引入**（7533703 同因）；hook-ci 失败=Kea dev 头文件真机依赖，CI 无法安装（M1-003 已知限制）。
