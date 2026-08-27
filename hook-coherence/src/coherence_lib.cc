@@ -106,5 +106,5 @@ std::string ResolveClientMac(const std::string& opt79Payload,
                              const std::string& rawMacFallback) {
   auto m = ParseOption79(opt79Payload);
   if (!m.empty()) return m;
-  return NormalizeMac(rawMacFallback);
+  return ipam::coherence::NormalizeMac(rawMacFallback);
 }
