@@ -18,7 +18,8 @@
     "ledger": "Address Ledger",
     "subnets": "Subnets",
     "dualstack": "Dual-stack",
-    "options": "Options & Classes"
+    "options": "Options & Classes",
+    "reservations": "Reservations & Bindings"
   },
   "logs": {
     "title": "Log Center",

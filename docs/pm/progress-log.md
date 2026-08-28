@@ -3,6 +3,14 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-08-28 · M2-017 完成：保留与绑定页 + Pools 回填缺陷修复
+
+- **做了**：bulkReservations client + 三卡页（批量创建/保留列表/绑定列表，后端零改动）；DHCP 菜单「保留与绑定」child。
+- **诊断战果**：联调发现台账全量 0 行 → 逐层实证定位 **PgSubnetRepo List/Get 不回填 Pools** 既有缺陷（台账 0 行 + kea 空池双影响）→ loadPools 修复。
+- **验证结果**：全链测试绿 + lint 0 + 零外链；容器 e2e——pools 有值、台账 100 行、reserved 过滤精确 4 条、bulk 事务回滚语义验证。
+- **里程碑**：主导航 14 页；DHCP 菜单 5/6（缺 DHCPv6 PD 委派 P2）。
+- **遗留 → M3-007 立卡**：bind 配置式下发（host_cmds 缺失 + 命令式重载丢失 + bulk 回滚 bind 缺口）P1。
+- **运维事件**：构建缓存堆满磁盘（ENOSPC，postgres unhealthy 同根因）→ builder/image prune 释放 58G。
 ## 2026-08-28 · M2-016 完成：DHCP 选项与类匹配页（Kea 真实下发打通）
 
 - **做了**：/dhcp/options+/dhcp/classes CRUD（闸① 0 errors）；迁移 0011 自动应用（M5-005 runner 首秀）；internal/module/dhcp 启用；kea BuildConfigFull 注入 option-data/client-classes；前端 DHCP 菜单双卡页。

@@ -226,3 +226,16 @@ export const createDhcpClass = (b: { name: string; test: string; options: DhcpCl
 export const updateDhcpClass = (id: string, b: { test?: string; options?: DhcpClassOptionIn[]; enabled?: boolean }) =>
   req<DhcpClassRow>(`/dhcp/classes/${id}`, patch(b));
 export const deleteDhcpClass = (id: string) => req<void>(`/dhcp/classes/${id}`, del);
+
+// ── 保留与绑定（M2-017，§561 菜单 4/6；bulk CSV 语义事务性）──
+export type ReservationBulkEntryIn = {
+  kind: 'bind' | 'reserve';
+  address: string;
+  mac?: string;
+  reason?: string;
+};
+export type ReservationBulkResult = components['schemas']['ReservationBulkResult'];
+export const bulkReservations = (b: {
+  entries: ReservationBulkEntryIn[];
+  subnetId: string;
+}) => req<ReservationBulkResult>('/reservations/bulk', j(b));

@@ -24,6 +24,40 @@ func scanSubnet(row pgx.Row) (Subnet, error) {
 	return s, err
 }
 
+// loadPools 按 subnet_id 分组回填地址池。
+// 修复前 List/Get 只读 subnet 主表：Pools 恒空 → 台账逐池枚举 0 行、kea 下发空池（M2-017 诊断发现）。
+func (r *PgSubnetRepo) loadPools(ctx context.Context, subs []Subnet) error {
+	if len(subs) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(subs))
+	for i := range subs {
+		ids = append(ids, subs[i].ID)
+	}
+	rows, err := r.pool.Query(ctx,
+		`SELECT subnet_id::text, host(start_addr), host(end_addr), kind
+		 FROM address_pool WHERE subnet_id::text = ANY($1) ORDER BY start_addr`, ids)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	bySub := map[string][]Pool{}
+	for rows.Next() {
+		var sid, start, end, kind string
+		if err := rows.Scan(&sid, &start, &end, &kind); err != nil {
+			return err
+		}
+		bySub[sid] = append(bySub[sid], Pool{StartAddr: start, EndAddr: end, Kind: kind})
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for i := range subs {
+		subs[i].Pools = bySub[subs[i].ID]
+	}
+	return nil
+}
+
 func (r *PgSubnetRepo) List(ctx context.Context, orgID string, family int) ([]Subnet, error) {
 	q := `SELECT ` + subnetCols + ` FROM subnet WHERE true`
 	var args []any
@@ -48,6 +82,9 @@ func (r *PgSubnetRepo) List(ctx context.Context, orgID string, family int) ([]Su
 			return nil, err
 		}
 		out = append(out, s)
+	}
+	if err := r.loadPools(ctx, out); err != nil {
+		return nil, err
 	}
 	return out, rows.Err()
 }
