@@ -71,6 +71,8 @@ jobs:
   # ── 闸⑤ web 构建+typecheck+零外链断言 ──
   web-ci:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -97,6 +99,14 @@ jobs:
           name: web-build-log
           path: /tmp/web-build.log
           retention-days: 3
+      - name: push web diag branch
+        if: failure()
+        run: |
+          git config user.email "ci@ipam.local"
+          git config user.name "ci-diag"
+          tail -c 6000 /tmp/web-build.log > diag-web.txt || true
+          git add diag-web.txt && git commit -m "ci web diag ${GITHUB_RUN_ID}" || true
+          git push -f origin "HEAD:refs/heads/ci-diag" || true
       - name: sync & 零外链断言
         run: |
           bash scripts/sync-webui.sh
