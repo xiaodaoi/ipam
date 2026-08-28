@@ -83,6 +83,8 @@ jobs:
           cache-dependency-path: web/pnpm-lock.yaml
       - name: install & typecheck & build
         working-directory: web
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
         run: |
           pnpm install --frozen-lockfile
           pnpm --filter @vben/web-ipam run typecheck
