@@ -26,6 +26,7 @@ import (
 	"github.com/xiaodaoi/ipam/internal/module/ipam"
 	logq "github.com/xiaodaoi/ipam/internal/module/logquery"
 	"github.com/xiaodaoi/ipam/internal/module/platform"
+	"github.com/xiaodaoi/ipam/internal/pkg/migrator"
 )
 
 // logsAPI 组合用命名包装（logquery.Handler 经此提升方法）。
@@ -136,6 +137,9 @@ func newEngine(version string) *gin.Engine {
 		pool, err = pgxpool.New(context.Background(), dsn)
 		if err != nil {
 			log.Fatalf("pg pool: %v", err)
+		}
+		if err := migrator.Run(context.Background(), pool, os.Getenv("IPAM_MIGRATIONS_DIR"), log.Printf); err != nil {
+			log.Fatalf("migrations: %v", err)
 		}
 		orgStore = ipam.NewOrgRepo(pool)
 		subRepo = ipam.NewSubnetRepo(pool)

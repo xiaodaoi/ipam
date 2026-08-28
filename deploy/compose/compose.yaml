@@ -40,8 +40,10 @@ services:
       IPAM_CH_USER: ${CLICKHOUSE_USER:-ipam}
       IPAM_CH_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
       IPAM_KEA_API: "http://kea-ctrl-agent:8000"
+      IPAM_MIGRATIONS_DIR: "/srv/migrations"
     volumes:
       - ipam-run:/run/ipam
+      - ../../db/postgresql/migrations:/srv/migrations:ro
     ports:
       - "${IPAM_PORT:-8443}:8443"
     restart: unless-stopped
