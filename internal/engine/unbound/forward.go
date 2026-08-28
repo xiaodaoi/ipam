@@ -17,7 +17,16 @@ var ErrUnavailable = fmt.Errorf("unbound-control unavailable")
 
 // ExecController unbound-control 下发（forward_add/forward_remove）。
 type ExecController struct {
-	Bin string // 缺省 unbound-control；测试注入 fake
+	Bin  string // 缺省 unbound-control；测试注入 fake
+	Conf string // 客户端配置路径（-c 注入）；空=容器默认 conf（M3-008：sock 通道注入）
+}
+
+// cmdArgs 组装命令行（-c 前置注入客户端配置）。
+func (e ExecController) cmdArgs(args ...string) []string {
+	if e.Conf != "" {
+		return append([]string{"-c", e.Conf}, args...)
+	}
+	return args
 }
 
 func (e ExecController) run(args ...string) error {
@@ -28,7 +37,7 @@ func (e ExecController) run(args ...string) error {
 	if _, err := exec.LookPath(bin); err != nil {
 		return ErrUnavailable
 	}
-	out, err := exec.Command(bin, args...).CombinedOutput()
+	out, err := exec.Command(bin, e.cmdArgs(args...)...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%s %v: %v: %s", bin, args, err, out)
 	}

@@ -300,7 +300,7 @@ func newEngine(version string) *gin.Engine {
 	}
 
 	var upRepo dnsmodule.UpstreamRepo = dnsmodule.NewMemUpstreamRepo()
-	var unboundCtl dnsmodule.UnboundController = unboundengine.ExecController{}
+	var unboundCtl dnsmodule.UnboundController = unboundengine.ExecController{Conf: os.Getenv("IPAM_UNBOUND_CONF")}
 	if pool != nil {
 		upRepo = dnsmodule.NewPgUpstreamRepo(pool)
 	}

@@ -32,6 +32,7 @@ export IPAM_HTTP_ADDR="${IPAM_HTTP_ADDR:-127.0.0.1:8443}"
 export IPAM_DB_DSN="postgres://${PG_USER}:${PG_PASS}@127.0.0.1:${IPAM_PG_PORT:-5432}/${PG_DB}?sslmode=disable"
 export IPAM_CH_ADDR="127.0.0.1:${IPAM_CH_PORT:-9000}"
 export IPAM_MIGRATIONS_DIR="$root/db/postgresql/migrations"
+export IPAM_UNBOUND_CONF="$root/config/unbound/unbound.conf"
 export IPAM_CH_DB="$CH_DB" IPAM_CH_USER="$CH_USER" IPAM_CH_PASSWORD="$CH_PASS"
 # 前端走磁盘 dist（改前端后 pnpm build:ipam 即生效，无需 go 重编/镜像）；Vite 模式下也可留空走 embed
 [ -d web/apps/web-ipam/dist ] && export IPAM_WEBUI_DIR="$root/web/apps/web-ipam/dist"

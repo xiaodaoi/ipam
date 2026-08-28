@@ -41,9 +41,11 @@ services:
       IPAM_CH_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
       IPAM_KEA_API: "http://kea-ctrl-agent:8000"
       IPAM_MIGRATIONS_DIR: "/srv/migrations"
+      IPAM_UNBOUND_CONF: "/etc/unbound-ctl/unbound.conf"
     volumes:
       - ipam-run:/run/ipam
       - ../../db/postgresql/migrations:/srv/migrations:ro
+      - ../../config/unbound:/etc/unbound-ctl:ro
     ports:
       - "${IPAM_PORT:-8443}:8443"
     restart: unless-stopped

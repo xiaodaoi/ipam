@@ -3,6 +3,13 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-08-28 · M3-008 完成：unbound 命令通道打通
+
+- **做了**：ExecController.Conf（-c 注入）+ compose 挂载 config/unbound 只读 + IPAM_UNBOUND_CONF 注入；dev.sh 同步。
+- **根因**：control-plane 内置 conf 是 TCP 模式（control-enable:no），unbound 容器真实配置是 unix sock 模式——客户端读错配置。
+- **验证结果**：容器 e2e——POST /upstreams 201 无 X-Unbound-Warning（forward_add 经 sock 真实成功）。
+- **里程碑**：**DNS 域运行时命令通道打通**（与 M3-007 的 Kea 侧对称收口，两大引擎真实下发全通）。
+- **遗留**：settings 渲染 confPath 与 unbound 真实配置不同文件——conf 持久化路径设计后续卡。
 ## 2026-08-28 · M3-007 完成：Kea 绑定配置式下发（DHCP 域 kea 路径全收敛）
 
 - **做了**：BuildConfigFull 投影 subnet reservations；LedgerService/SubnetService 双 apply 收敛（4 个 kea 命令调用点退役）；Create 的 KeaSubnetID 本地递增分配（修多子网撞车）；bulk 回滚缺口修复（含失败行自身）。

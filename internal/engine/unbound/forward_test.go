@@ -22,3 +22,20 @@ func TestExecController_缺二进制返回不可用(t *testing.T) {
 		t.Fatal("want error when binary missing")
 	}
 }
+
+func TestExecController_cmdArgs注入Conf(t *testing.T) {
+	e := ExecController{Conf: "/etc/unbound-ctl/unbound.conf"}
+	got := e.cmdArgs("forward_add", "corp.local.", "10.0.0.53")
+	want := []string{"-c", "/etc/unbound-ctl/unbound.conf", "forward_add", "corp.local.", "10.0.0.53"}
+	if len(got) != len(want) {
+		t.Fatalf("len=%d want=%d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("[%d] got %s want %s", i, got[i], want[i])
+		}
+	}
+	if e2 := (ExecController{}).cmdArgs("status"); len(e2) != 1 || e2[0] != "status" {
+		t.Fatalf("空 Conf 不应注入: %v", e2)
+	}
+}
