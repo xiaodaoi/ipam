@@ -1,0 +1,118 @@
+# DHCP 选项与类匹配 schema（M2-016，C-02/C-03；Kea option-data/client-classes 投影）
+
+DhcpOption:
+  type: object
+  required: [id, optionCode, name, data, enabled]
+  properties:
+    id: { type: string, format: uuid }
+    optionCode:
+      type: integer
+      description: DHCP 选项码（3=router、6=domain-name-servers 等）
+    name:
+      type: string
+      description: Kea 标准选项名（如 routers、domain-name-servers）
+    data:
+      type: string
+      description: 选项值（Kea option-data 的 data 字段）
+    enabled:
+      type: boolean
+
+DhcpOptionList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: 'dhcpoption.yaml#/DhcpOption'
+
+DhcpOptionCreate:
+  type: object
+  required: [data, name, optionCode]
+  properties:
+    optionCode: { type: integer, minimum: 1, maximum: 255 }
+    name:
+      type: string
+      maxLength: 64
+      description: Kea 标准选项名
+    data:
+      type: string
+      maxLength: 256
+    enabled:
+      type: boolean
+      default: true
+
+DhcpOptionUpdate:
+  type: object
+  description: PATCH 全部可选
+  properties:
+    optionCode: { type: integer, minimum: 1, maximum: 255 }
+    name: { type: string, maxLength: 64 }
+    data: { type: string, maxLength: 256 }
+    enabled: { type: boolean }
+
+DhcpClassOption:
+  type: object
+  required: [data, name, optionCode]
+  properties:
+    optionCode: { type: integer, minimum: 1, maximum: 255 }
+    name: { type: string, maxLength: 64 }
+    data: { type: string, maxLength: 256 }
+
+DhcpClass:
+  type: object
+  required: [id, name, test, options, enabled]
+  properties:
+    id: { type: string, format: uuid }
+    name:
+      type: string
+      description: 类名（Kea client-classes 引用键，创建后不可改）
+    test:
+      type: string
+      description: Kea eval 匹配表达式（如 option[61].hex matches '.*'）
+    options:
+      type: array
+      description: 命中该类时下发的选项
+      items:
+        $ref: 'dhcpoption.yaml#/DhcpClassOption'
+    enabled:
+      type: boolean
+
+DhcpClassList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: 'dhcpoption.yaml#/DhcpClass'
+
+DhcpClassCreate:
+  type: object
+  required: [name, options, test]
+  properties:
+    name:
+      type: string
+      maxLength: 64
+      pattern: '^[a-zA-Z0-9_-]+$'
+    test:
+      type: string
+      maxLength: 256
+    options:
+      type: array
+      items:
+        $ref: 'dhcpoption.yaml#/DhcpClassOption'
+    enabled:
+      type: boolean
+      default: true
+
+DhcpClassUpdate:
+  type: object
+  description: PATCH 可选；name 为引用键不可改（改名字请删建）
+  properties:
+    test: { type: string, maxLength: 256 }
+    options:
+      type: array
+      items:
+        $ref: 'dhcpoption.yaml#/DhcpClassOption'
+    enabled: { type: boolean }

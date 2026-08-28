@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io/fs"
 	"log"
 	"mime"
@@ -21,6 +22,7 @@ import (
 	keaengine "github.com/xiaodaoi/ipam/internal/engine/kea"
 	unboundengine "github.com/xiaodaoi/ipam/internal/engine/unbound"
 	"github.com/xiaodaoi/ipam/internal/module/dashboard"
+	dhcpmodule "github.com/xiaodaoi/ipam/internal/module/dhcp"
 	dnsmodule "github.com/xiaodaoi/ipam/internal/module/dns"
 	dualstack "github.com/xiaodaoi/ipam/internal/module/dualstack"
 	"github.com/xiaodaoi/ipam/internal/module/ipam"
@@ -37,6 +39,9 @@ type dashAPI struct{ *dashboard.Handler }
 
 // dsAPI 双栈模板 handler 包装（dualstack.Handler 与 platform.Handler 同名冲突）。
 type dsAPI struct{ *dualstack.Handler }
+
+// dhcpAPI DHCP 选项与类匹配 handler 包装（dhcp.Handler 与 platform.Handler 字段名冲突）。
+type dhcpAPI struct{ *dhcpmodule.Handler }
 
 func pgLight(pool *pgxpool.Pool) func(context.Context) dashboard.Light {
 	if pool == nil {
@@ -131,6 +136,7 @@ func newEngine(version string) *gin.Engine {
 	var orgStore ipam.OrgStore = ipam.NewMemOrgStore()
 	var subRepo ipam.SubnetRepo = ipam.NewMemSubnetRepo()
 	var keaDeploy ipam.KeaDeployer = ipam.NewNoopKea()
+	var keaCmd *keaengine.CtrlAgent
 	var pool *pgxpool.Pool
 	if dsn := os.Getenv("IPAM_DB_DSN"); dsn != "" {
 		var err error
@@ -143,7 +149,9 @@ func newEngine(version string) *gin.Engine {
 		}
 		orgStore = ipam.NewOrgRepo(pool)
 		subRepo = ipam.NewSubnetRepo(pool)
-		keaDeploy = keaengine.NewCtrlAgent(os.Getenv("IPAM_KEA_API"))
+		agent := keaengine.NewCtrlAgent(os.Getenv("IPAM_KEA_API"))
+		keaDeploy = agent
+		keaCmd = agent
 	}
 
 	orgH := ipam.NewOrgHandler(ipam.NewOrgService(orgStore))
@@ -247,6 +255,39 @@ func newEngine(version string) *gin.Engine {
 		log.Printf("user bootstrap: %v", err)
 	}
 
+	// DHCP 选项与类匹配（M2-016，C-02/C-03）：kea BuildConfigFull 注入 + config-set 下发
+	var dhcpStore dhcpmodule.Store = dhcpmodule.NewMemStore()
+	if pool != nil {
+		dhcpStore = dhcpmodule.NewPgStore(pool)
+	}
+	applyDhcp := func(ctx context.Context) error {
+		if keaCmd == nil {
+			return errors.New("kea unavailable")
+		}
+		subs, err := subRepo.List(ctx, "", 0)
+		if err != nil {
+			return err
+		}
+		opts, err := dhcpStore.ListOptions(ctx)
+		if err != nil {
+			return err
+		}
+		classes, err := dhcpStore.ListClasses(ctx)
+		if err != nil {
+			return err
+		}
+		cfg, err := keaengine.BuildConfigFull(subs, opts, classes)
+		if err != nil {
+			return err
+		}
+		_, err = keaCmd.Command(ctx, "config-set", "dhcp4", cfg)
+		if err != nil {
+			log.Printf("[dhcp-apply] config-set: %v", err)
+		}
+		return err
+	}
+	dhcpH := dhcpmodule.NewHandler(dhcpStore, applyDhcp)
+
 	var upRepo dnsmodule.UpstreamRepo = dnsmodule.NewMemUpstreamRepo()
 	var unboundCtl dnsmodule.UnboundController = unboundengine.ExecController{}
 	if pool != nil {
@@ -325,13 +366,14 @@ func newEngine(version string) *gin.Engine {
 		*dsAPI
 		*platform.AuthHandler
 		*platform.UserHandler
+		*dhcpAPI
 		*dnsmodule.DnsHandler
 		*dnsmodule.ForwardHandler
 		*dnsmodule.ZoneHandler
 		*dnsmodule.BlocklistHandler
 		*dnsmodule.SettingsHandler
 		*confApplier
-	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore), platform.NewUserHandler(userStore), dnsH, fwdH, zoneH, blH, settingsH, applier}
+	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore), platform.NewUserHandler(userStore), &dhcpAPI{dhcpH}, dnsH, fwdH, zoneH, blH, settingsH, applier}
 	// RBAC 写权限拦截（M5-003）先于审计：被 403 的请求不入账。
 	// 操作审计（M4-003+M5-002）：actor 从 JWT claims 解析（human/bot 区分 §12.3）。
 	r.Use(platform.NewRBACMiddleware())

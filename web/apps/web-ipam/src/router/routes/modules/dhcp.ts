@@ -19,6 +19,12 @@ const routes: RouteRecordRaw[] = [
         meta: { icon: 'lucide:network', title: $t('page.dhcp.subnets') },
       },
       {
+        name: 'DhcpOptions',
+        path: '/dhcp/options',
+        component: () => import('#/views/dhcp/options/index.vue'),
+        meta: { icon: 'lucide:sliders-horizontal', title: $t('page.dhcp.options') },
+      },
+      {
         name: 'Dualstack',
         path: '/dhcp/dualstack',
         component: () => import('#/views/dhcp/dualstack/index.vue'),

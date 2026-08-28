@@ -1,0 +1,211 @@
+# DHCP 选项与类匹配端点（M2-016，C-02/C-03；§13.4 DHCP 菜单 5/6）
+
+DhcpOptionsCollection:
+  get:
+    operationId: listDhcpOptions
+    tags: [dhcp]
+    summary: 标准选项列表（C-02）
+    description: 全局标准 DHCP 选项（Kea 全局 option-data 投影）；enabled=false 不参与下发。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: 选项列表
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/dhcpoption.yaml#/DhcpOptionList'
+            examples:
+              ok:
+                summary: 单条标准选项
+                value:
+                  items:
+                    - id: "d1d1d1d1-0000-0000-0000-000000000001"
+                      optionCode: 3
+                      name: routers
+                      data: "192.168.9.1"
+                      enabled: true
+  post:
+    operationId: createDhcpOption
+    tags: [dhcp]
+    summary: 新建标准选项
+    description: (optionCode,name) 唯一；变更后触发 Kea config-set 下发（软失败，X-Kea-Warning）。所需 scope 为 admin。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/dhcpoption.yaml#/DhcpOptionCreate'
+          examples:
+            router:
+              summary: 网关选项
+              value:
+                optionCode: 3
+                name: routers
+                data: "192.168.9.1"
+    responses:
+      '201':
+        description: 已创建
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/dhcpoption.yaml#/DhcpOption'
+      '400':
+        $ref: '../components/responses/auth.yaml#/AuthUnauthorized'
+
+DhcpOptionItem:
+  patch:
+    operationId: updateDhcpOption
+    tags: [dhcp]
+    summary: 更新标准选项
+    description: PATCH 全部可选；变更后触发 Kea config-set 下发（软失败，X-Kea-Warning）。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: optionId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/dhcpoption.yaml#/DhcpOptionUpdate'
+          examples:
+            disable:
+              summary: 停用
+              value:
+                enabled: false
+    responses:
+      '200':
+        description: 已更新
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/dhcpoption.yaml#/DhcpOption'
+      '400':
+        $ref: '../components/responses/auth.yaml#/AuthUnauthorized'
+  delete:
+    operationId: deleteDhcpOption
+    tags: [dhcp]
+    summary: 删除标准选项
+    description: 删除后触发 Kea config-set 重收敛（软失败）。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: optionId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204':
+        description: 已删除
+      '400':
+        $ref: '../components/responses/auth.yaml#/AuthUnauthorized'
+
+DhcpClassesCollection:
+  get:
+    operationId: listDhcpClasses
+    tags: [dhcp]
+    summary: 类匹配规则列表（C-03）
+    description: Kea client-classes 投影；test 为 eval 表达式，命中类时下发其 options。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: 类列表
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/dhcpoption.yaml#/DhcpClassList'
+            examples:
+              ok:
+                summary: 打印机类
+                value:
+                  items:
+                    - id: "d2d2d2d2-0000-0000-0000-000000000001"
+                      name: printers
+                      test: "option[61].hex == option[61].hex"
+                      options:
+                        - optionCode: 3
+                          name: routers
+                          data: "192.168.9.1"
+                      enabled: true
+  post:
+    operationId: createDhcpClass
+    tags: [dhcp]
+    summary: 新建类匹配规则
+    description: 类名唯一（Kea 引用键，创建后不可改）；变更后触发 config-set 下发（软失败）。所需 scope 为 admin。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/dhcpoption.yaml#/DhcpClassCreate'
+          examples:
+            printers:
+              summary: 打印机类
+              value:
+                name: printers
+                test: "option[61].hex == option[61].hex"
+                options:
+                  - optionCode: 3
+                    name: routers
+                    data: "192.168.9.1"
+    responses:
+      '201':
+        description: 已创建
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/dhcpoption.yaml#/DhcpClass'
+      '400':
+        $ref: '../components/responses/auth.yaml#/AuthUnauthorized'
+
+DhcpClassItem:
+  patch:
+    operationId: updateDhcpClass
+    tags: [dhcp]
+    summary: 更新类匹配规则（test/options/启停）
+    description: name 为引用键不可改（改名字请删建）。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: classId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/dhcpoption.yaml#/DhcpClassUpdate'
+          examples:
+            disable:
+              summary: 停用
+              value:
+                enabled: false
+    responses:
+      '200':
+        description: 已更新
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/dhcpoption.yaml#/DhcpClass'
+      '400':
+        $ref: '../components/responses/auth.yaml#/AuthUnauthorized'
+  delete:
+    operationId: deleteDhcpClass
+    tags: [dhcp]
+    summary: 删除类匹配规则
+    description: 删除后触发 Kea config-set 重收敛（软失败）；引用该类的配置需自行调整。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: classId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204':
+        description: 已删除
+      '400':
+        $ref: '../components/responses/auth.yaml#/AuthUnauthorized'

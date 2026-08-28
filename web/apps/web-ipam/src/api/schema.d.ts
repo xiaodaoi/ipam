@@ -49,6 +49,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/dhcp/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 标准选项列表（C-02）
+         * @description 全局标准 DHCP 选项（Kea 全局 option-data 投影）；enabled=false 不参与下发。
+         */
+        get: operations["listDhcpOptions"];
+        put?: never;
+        /**
+         * 新建标准选项
+         * @description (optionCode,name) 唯一；变更后触发 Kea config-set 下发（软失败，X-Kea-Warning）。所需 scope 为 admin。
+         */
+        post: operations["createDhcpOption"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dhcp/options/{optionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * 删除标准选项
+         * @description 删除后触发 Kea config-set 重收敛（软失败）。
+         */
+        delete: operations["deleteDhcpOption"];
+        options?: never;
+        head?: never;
+        /**
+         * 更新标准选项
+         * @description PATCH 全部可选；变更后触发 Kea config-set 下发（软失败，X-Kea-Warning）。
+         */
+        patch: operations["updateDhcpOption"];
+        trace?: never;
+    };
+    "/dhcp/classes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 类匹配规则列表（C-03）
+         * @description Kea client-classes 投影；test 为 eval 表达式，命中类时下发其 options。
+         */
+        get: operations["listDhcpClasses"];
+        put?: never;
+        /**
+         * 新建类匹配规则
+         * @description 类名唯一（Kea 引用键，创建后不可改）；变更后触发 config-set 下发（软失败）。所需 scope 为 admin。
+         */
+        post: operations["createDhcpClass"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dhcp/classes/{classId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * 删除类匹配规则
+         * @description 删除后触发 Kea config-set 重收敛（软失败）；引用该类的配置需自行调整。
+         */
+        delete: operations["deleteDhcpClass"];
+        options?: never;
+        head?: never;
+        /**
+         * 更新类匹配规则（test/options/启停）
+         * @description name 为引用键不可改（改名字请删建）。
+         */
+        patch: operations["updateDhcpClass"];
+        trace?: never;
+    };
     "/auth/login": {
         parameters: {
             query?: never;
@@ -1790,6 +1886,67 @@ export interface components {
             /** @default true */
             enabled: boolean;
         };
+        DhcpOption: {
+            /** Format: uuid */
+            id: string;
+            /** @description DHCP 选项码（3=router、6=domain-name-servers 等） */
+            optionCode: number;
+            /** @description Kea 标准选项名（如 routers、domain-name-servers） */
+            name: string;
+            /** @description 选项值（Kea option-data 的 data 字段） */
+            data: string;
+            enabled: boolean;
+        };
+        DhcpOptionList: {
+            items: components["schemas"]["DhcpOption"][];
+        };
+        DhcpOptionCreate: {
+            optionCode: number;
+            /** @description Kea 标准选项名 */
+            name: string;
+            data: string;
+            /** @default true */
+            enabled: boolean;
+        };
+        /** @description PATCH 全部可选 */
+        DhcpOptionUpdate: {
+            optionCode?: number;
+            name?: string;
+            data?: string;
+            enabled?: boolean;
+        };
+        DhcpClassOption: {
+            optionCode: number;
+            name: string;
+            data: string;
+        };
+        DhcpClass: {
+            /** Format: uuid */
+            id: string;
+            /** @description 类名（Kea client-classes 引用键，创建后不可改） */
+            name: string;
+            /** @description Kea eval 匹配表达式（如 option[61].hex matches '.*'） */
+            test: string;
+            /** @description 命中该类时下发的选项 */
+            options: components["schemas"]["DhcpClassOption"][];
+            enabled: boolean;
+        };
+        DhcpClassList: {
+            items: components["schemas"]["DhcpClass"][];
+        };
+        DhcpClassCreate: {
+            name: string;
+            test: string;
+            options: components["schemas"]["DhcpClassOption"][];
+            /** @default true */
+            enabled: boolean;
+        };
+        /** @description PATCH 可选；name 为引用键不可改（改名字请删建） */
+        DhcpClassUpdate: {
+            test?: string;
+            options?: components["schemas"]["DhcpClassOption"][];
+            enabled?: boolean;
+        };
         /**
          * @description 服务健康灯（unknown=未配置探测地址或 PoC 模式）
          * @enum {string}
@@ -2048,6 +2205,192 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    listDhcpOptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 选项列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DhcpOptionList"];
+                };
+            };
+        };
+    };
+    createDhcpOption: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DhcpOptionCreate"];
+            };
+        };
+        responses: {
+            /** @description 已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DhcpOption"];
+                };
+            };
+            400: components["responses"]["AuthUnauthorized"];
+        };
+    };
+    deleteDhcpOption: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                optionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已删除 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["AuthUnauthorized"];
+        };
+    };
+    updateDhcpOption: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                optionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DhcpOptionUpdate"];
+            };
+        };
+        responses: {
+            /** @description 已更新 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DhcpOption"];
+                };
+            };
+            400: components["responses"]["AuthUnauthorized"];
+        };
+    };
+    listDhcpClasses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 类列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DhcpClassList"];
+                };
+            };
+        };
+    };
+    createDhcpClass: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DhcpClassCreate"];
+            };
+        };
+        responses: {
+            /** @description 已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DhcpClass"];
+                };
+            };
+            400: components["responses"]["AuthUnauthorized"];
+        };
+    };
+    deleteDhcpClass: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                classId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已删除 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["AuthUnauthorized"];
+        };
+    };
+    updateDhcpClass: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                classId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DhcpClassUpdate"];
+            };
+        };
+        responses: {
+            /** @description 已更新 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DhcpClass"];
+                };
+            };
+            400: components["responses"]["AuthUnauthorized"];
         };
     };
     authLogin: {

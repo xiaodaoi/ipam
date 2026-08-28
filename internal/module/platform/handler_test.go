@@ -13,6 +13,7 @@ import (
 
 	apigen "github.com/xiaodaoi/ipam/api/gen/go"
 	"github.com/xiaodaoi/ipam/internal/module/dashboard"
+	dhcpmodule "github.com/xiaodaoi/ipam/internal/module/dhcp"
 	dnsmodule "github.com/xiaodaoi/ipam/internal/module/dns"
 	dualstack "github.com/xiaodaoi/ipam/internal/module/dualstack"
 	"github.com/xiaodaoi/ipam/internal/module/ipam"
@@ -25,6 +26,9 @@ type logsAPI struct{ *logq.Handler }
 type dashAPI struct{ *dashboard.Handler }
 
 type dsAPI struct{ *dualstack.Handler }
+
+// dhcpAPI DHCP 选项与类匹配 handler 包装（platform 包内测试辅助，与 main 同构）。
+type dhcpAPI struct{ *dhcpmodule.Handler }
 
 func newTestRouter(h *Handler) *gin.Engine {
 	gin.SetMode(gin.TestMode)
@@ -51,6 +55,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		*dsAPI
 		*AuthHandler
 		*UserHandler
+		*dhcpAPI
 		*dnsmodule.DnsHandler
 		*dnsmodule.ForwardHandler
 		*dnsmodule.ZoneHandler
@@ -68,6 +73,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		&dsAPI{dualstack.NewHandler(dualstack.NewMemStore())},
 		NewAuthHandler(NewMemUserStore()),
 		NewUserHandler(NewMemUserStore()),
+		&dhcpAPI{dhcpmodule.NewHandler(dhcpmodule.NewMemStore(), nil)},
 		dnsmodule.NewDnsHandler(dnsSvc),
 		dnsmodule.NewForwardHandler(dnsmodule.NewForwardService(dnsmodule.NewMemForwardRuleRepo(), dnsmodule.NewMemUpstreamRepo(), fakeUnbound{})),
 		dnsmodule.NewZoneHandler(dnsmodule.NewZoneService(dnsmodule.NewMemZoneRepo(), fakeUnbound{}), nil),

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/xiaodaoi/ipam/internal/module/dhcp"
 	"github.com/xiaodaoi/ipam/internal/module/ipam"
 )
 
@@ -67,4 +68,38 @@ func defaultBaseConfig() map[string]any {
 			},
 		},
 	}
+}
+
+// BuildConfigFull 在 BuildConfig 之上注入全局 option-data（C-02）与 client-classes（C-03）。
+// disabled 条目不进配置；空切片不注入对应键（保持基础模板形态）。下发沿 config-set 原子语义。
+func BuildConfigFull(subnets []ipam.Subnet, opts []dhcp.DhcpOption, classes []dhcp.DhcpClass) (Dhcp4Config, error) {
+	cfg, err := BuildConfig(subnets)
+	if err != nil {
+		return cfg, err
+	}
+	var globalOD []map[string]any
+	for _, o := range opts {
+		if !o.Enabled {
+			continue
+		}
+		globalOD = append(globalOD, map[string]any{"code": o.OptionCode, "data": o.Data})
+	}
+	if len(globalOD) > 0 {
+		cfg.Dhcp4["option-data"] = globalOD
+	}
+	var ccs []map[string]any
+	for _, c := range classes {
+		if !c.Enabled {
+			continue
+		}
+		od := make([]map[string]any, 0, len(c.Options))
+		for _, co := range c.Options {
+			od = append(od, map[string]any{"code": co.OptionCode, "data": co.Data})
+		}
+		ccs = append(ccs, map[string]any{"name": c.Name, "test": c.Test, "option-data": od})
+	}
+	if len(ccs) > 0 {
+		cfg.Dhcp4["client-classes"] = ccs
+	}
+	return cfg, nil
 }

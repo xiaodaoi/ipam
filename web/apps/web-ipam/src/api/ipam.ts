@@ -209,3 +209,20 @@ export const updateUser = (id: string, b: {
   displayName?: string; enabled?: boolean; password?: string; roles?: string[];
 }) => req<UserRow>(`/users/${id}`, patch(b));
 export const deleteUser = (id: string) => req<void>(`/users/${id}`, del);
+
+// ── DHCP 选项与类匹配（M2-016，C-02/C-03）──
+export type DhcpOptionRow = components['schemas']['DhcpOption'];
+export type DhcpClassRow = components['schemas']['DhcpClass'];
+export type DhcpClassOptionIn = { optionCode: number; name: string; data: string };
+export const listDhcpOptions = () => req<{ items: DhcpOptionRow[] }>('/dhcp/options');
+export const createDhcpOption = (b: { optionCode: number; name: string; data: string; enabled?: boolean }) =>
+  req<DhcpOptionRow>('/dhcp/options', j(b));
+export const updateDhcpOption = (id: string, b: { optionCode?: number; name?: string; data?: string; enabled?: boolean }) =>
+  req<DhcpOptionRow>(`/dhcp/options/${id}`, patch(b));
+export const deleteDhcpOption = (id: string) => req<void>(`/dhcp/options/${id}`, del);
+export const listDhcpClasses = () => req<{ items: DhcpClassRow[] }>('/dhcp/classes');
+export const createDhcpClass = (b: { name: string; test: string; options: DhcpClassOptionIn[]; enabled?: boolean }) =>
+  req<DhcpClassRow>('/dhcp/classes', j(b));
+export const updateDhcpClass = (id: string, b: { test?: string; options?: DhcpClassOptionIn[]; enabled?: boolean }) =>
+  req<DhcpClassRow>(`/dhcp/classes/${id}`, patch(b));
+export const deleteDhcpClass = (id: string) => req<void>(`/dhcp/classes/${id}`, del);

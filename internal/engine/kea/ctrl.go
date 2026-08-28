@@ -79,7 +79,7 @@ func (c *CtrlAgent) DeploySubnet(ctx context.Context, subnets []ipam.Subnet, dry
 	if len(subnets) == 0 {
 		return 0, fmt.Errorf("empty subnet list")
 	}
-	resp, err := c.Command(ctx, "config-set", "dhcp4", cfg.Dhcp4)
+	resp, err := c.Command(ctx, "config-set", "dhcp4", cfg)
 	if err != nil {
 		return 0, err
 	}

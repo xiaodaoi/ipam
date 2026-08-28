@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-08-28 · M2-016 完成：DHCP 选项与类匹配页（Kea 真实下发打通）
+
+- **做了**：/dhcp/options+/dhcp/classes CRUD（闸① 0 errors）；迁移 0011 自动应用（M5-005 runner 首秀）；internal/module/dhcp 启用；kea BuildConfigFull 注入 option-data/client-classes；前端 DHCP 菜单双卡页。
+- **验证结果**：全链测试绿 + lint 0 + 零外链 PASS；容器 e2e——合法配置被 Kea 原子接受（无错误日志），非法配置结构化软失败（X-Kea-Warning + 数据落库）。
+- **里程碑**：**Kea 真实下发链路打通**——修复 ctrl.go RealApply 同源 bug（Dhcp4 包裹缺失，子网真实下发此前也会失败）；迁移 runner 首个增量实战（0011 零手工）。
+- **遗留**：Kea 自定义选项定义 P2；eval 语法前端预校验 P2；DHCP 菜单最后 1 页待确认（§13.4 第 2 项）。
 ## 2026-08-28 · M5-005 完成：迁移 runner
 
 - **做了**：控制面启动自动应用增量迁移（schema_migrations 记账 + 存量库基线 + 简单协议多语句执行）；compose 只读挂载 + dev.sh 注入；未配置目录跳过。

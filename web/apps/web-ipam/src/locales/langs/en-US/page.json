@@ -17,7 +17,8 @@
     "title": "DHCP Service",
     "ledger": "Address Ledger",
     "subnets": "Subnets",
-    "dualstack": "Dual-stack"
+    "dualstack": "Dual-stack",
+    "options": "Options & Classes"
   },
   "logs": {
     "title": "Log Center",

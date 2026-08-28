@@ -17,7 +17,8 @@
     "title": "DHCP 服务",
     "ledger": "地址台账",
     "subnets": "子网管理",
-    "dualstack": "双栈管理"
+    "dualstack": "双栈管理",
+    "options": "选项与类匹配"
   },
   "logs": {
     "title": "日志中心",

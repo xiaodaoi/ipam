@@ -33,6 +33,8 @@ tags:
     description: 仪表盘聚合快照（一级菜单 F-01、§13.4）
   - name: dualstack
     description: DHCP 双栈绑定模板（v4↔v6 池映射，§4.3）
+  - name: dhcp
+    description: DHCP 选项与类匹配（C-02/C-03，§13.4 DHCP 菜单 5/6）
   - name: auth
     description: 认证与会话（M5-001 PoC 直通；正式 JWT 见 M5-002、§12.3）
 paths:
@@ -40,6 +42,14 @@ paths:
     $ref: './paths/dualstack.yaml#/DualstackTemplateCollection'
   /dualstack/templates/{templateId}:
     $ref: './paths/dualstack.yaml#/DualstackTemplateItem'
+  /dhcp/options:
+    $ref: './paths/dhcpoption.yaml#/DhcpOptionsCollection'
+  /dhcp/options/{optionId}:
+    $ref: './paths/dhcpoption.yaml#/DhcpOptionItem'
+  /dhcp/classes:
+    $ref: './paths/dhcpoption.yaml#/DhcpClassesCollection'
+  /dhcp/classes/{classId}:
+    $ref: './paths/dhcpoption.yaml#/DhcpClassItem'
   /auth/login:
     $ref: './paths/auth.yaml#/AuthLogin'
   /auth/user/info:
