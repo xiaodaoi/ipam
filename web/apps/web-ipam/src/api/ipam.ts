@@ -1,5 +1,7 @@
 import type { components } from './schema';
 
+import { useAccessStore } from '@vben/stores';
+
 /**
  * IPAM 控制面 API 类型化客户端（§13.2：统一走生成的 schema 类型，禁散装 fetch）。
  * 运行时走 Vben 环境 VITE_GLOB_API_URL（dev 代理 /api → :8443）。
@@ -13,13 +15,17 @@ export type Asset = components['schemas']['Asset'];
 const BASE = (import.meta.env.VITE_GLOB_API_URL as string) || '/api/v1';
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...init,
-  });
+  // 与 request.ts 同构：请求期取 accessStore（pinia 已装），携带 bearer
+  const token = useAccessStore().accessToken;
+  const headers = new Headers(init?.headers);
+  headers.set('Content-Type', 'application/json');
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  const res = await fetch(`${BASE}${path}`, { ...init, headers });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error((body as { code?: string; detail?: string }).detail || `HTTP ${res.status}`);
+    throw new Error(
+      (body as { code?: string; detail?: string }).detail || `HTTP ${res.status}`,
+    );
   }
   return res.json() as Promise<T>;
 }
