@@ -86,9 +86,17 @@ jobs:
         env:
           NODE_OPTIONS: "--max-old-space-size=4096"
         run: |
-          pnpm install --frozen-lockfile
-          pnpm --filter @vben/web-ipam run typecheck
-          pnpm run build:ipam
+          set -o pipefail
+          { pnpm install --frozen-lockfile \
+            && pnpm --filter @vben/web-ipam run typecheck \
+            && pnpm run build:ipam; } 2>&1 | tee /tmp/web-build.log
+      - name: upload web build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build-log
+          path: /tmp/web-build.log
+          retention-days: 3
       - name: sync & 零外链断言
         run: |
           bash scripts/sync-webui.sh
