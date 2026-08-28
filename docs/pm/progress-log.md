@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-08-28 · M5-003 完成：RBAC 写权限拦截
+
+- **做了**：NewRBACMiddleware——变更类请求强制 admin JWT（无令牌 401/user 角色 403 FORBIDDEN/login 白名单放行），装配于审计中间件之前（被拒请求不入账）。
+- **验证结果**：5 组单测+容器实测（admin POST 201/无令牌 401/GET 不受限）；lint 0/全仓 test 绿。
+- **里程碑**：认证授权语义完整（鉴别=JWT、授权=RBAC、审计=真实身份），§12.3 三要素闭环。
+- **遗留**：端点级细粒度 scope P2；多用户/Bot Token 管理界面 P1。
 ## 2026-08-28 · live-tail 页落地 + vector type 语义修复 + SSE 时序验证方法论
 
 - **做了**：live-tail 页（/logs-center/tail，EventSource 断线自动重连、类型过滤、倒序保留 200 条、连接状态 Tag）；vector .rtype 修复（unbound 行此前误存 qtype 'A'/'SOA'、notice 透传空 type——固定 'dns' + 未匹配 abort 丢弃）；SSE 无 from 回拨 5s。
