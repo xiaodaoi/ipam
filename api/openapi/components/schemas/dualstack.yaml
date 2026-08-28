@@ -1,0 +1,53 @@
+# 双栈绑定模板 schema（M2-012，PG prefix_template 表）
+
+DualstackTemplate:
+  type: object
+  required: [id, name, ipv4Cidr, ipv6Prefix, encoding, expr, enabled]
+  properties:
+    id: { type: string, format: uuid }
+    name:
+      type: string
+      description: 模板名称（如 办公-v4池A）
+    ipv4Cidr:
+      type: string
+      description: 关联 IPv4 网段（daemon 按租约 IPv4 最长前缀自动选模板）
+    ipv6Prefix:
+      type: string
+      description: 生成 IPv6 的前缀（如 2407::）
+    encoding:
+      type: string
+      enum: [B, A, CUSTOM]
+      description: 地址编码（§4.3：B 型 / hex）
+    expr:
+      type: string
+      description: 表达式（如 {v4.hextet4} / {v4.hex32} / 自定义）
+    dnsSync:
+      type: boolean
+      description: 联动时同步 DNS 记录
+    graceHours:
+      type: integer
+      description: grace 期（小时）
+    enabled:
+      type: boolean
+
+DualstackTemplateList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: 'dualstack.yaml#/DualstackTemplate'
+
+DualstackTemplateCreate:
+  type: object
+  required: [name, ipv4Cidr, ipv6Prefix, encoding, expr]
+  properties:
+    name: { type: string, maxLength: 64 }
+    ipv4Cidr: { type: string }
+    ipv6Prefix: { type: string }
+    encoding: { type: string, enum: [B, A, CUSTOM] }
+    expr: { type: string }
+    dnsSync: { type: boolean, default: true }
+    graceHours: { type: integer, minimum: 0, default: 24 }
+    enabled: { type: boolean, default: true }

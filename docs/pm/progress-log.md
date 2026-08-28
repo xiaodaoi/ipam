@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-08-28 · M2-012 完成：双栈管理页+prefix_template HTTP CRUD
+
+- **做了**：发现 prefix_template 无 HTTP API 缺口→spec-first 补 /dualstack/templates CRUD；dualstack 模块（Mem/PG 双 Store+Coherence 投影）；前端双栈管理页挂 DHCP 菜单。
+- **验证结果**：2 组单测+全仓绿+lint 0；容器端到端 POST 创建（PG RETURNING id）+list+SPA 200。
+- **里程碑**：主导航可用页面 11 个；DHCP 菜单 4/6（子网/台账/双栈/台账重叠）。
+- **遗留**：daemon 动态装载 PG 模板 P1（联动实效关键）；模板编辑 P1。
 ## 2026-08-28 · M2-011 完成：DNS 缓存性能+安全诊断页——§13.4 DNS 六菜单前端全齐
 
 - **做了**：缓存与性能页（TTL/serve-expired 表单、flush、每域名 TTL 覆盖）+ 安全与诊断页（RRL/DNSSEC 占位/测试台占位）；DNS 菜单六子页齐。

@@ -177,3 +177,15 @@ export const upsertTtlOverride = (b: { domain: string; ttl: number }) =>
   req<PerDomainTtl>('/dns/settings/ttl-overrides', j(b));
 export const flushCache = (zone?: string) =>
   req<{ flushed: string; cmd: string }>(`/dns/cache/flush${zone ? `?zone=${zone}` : ''}`, j({}));
+
+// ── 双栈绑定模板（M2-012，§4.3 多池对）──
+export type DualstackTemplate = components['schemas']['DualstackTemplate'];
+
+export const listDualstackTemplates = () =>
+  req<{ items: DualstackTemplate[] }>('/dualstack/templates');
+export const createDualstackTemplate = (b: {
+  name: string; ipv4Cidr: string; ipv6Prefix: string;
+  encoding: string; expr: string; dnsSync?: boolean; graceHours?: number;
+}) => req<DualstackTemplate>('/dualstack/templates', j(b));
+export const deleteDualstackTemplate = (id: string) =>
+  req<void>(`/dualstack/templates/${id}`, del);

@@ -14,6 +14,7 @@ import (
 	apigen "github.com/xiaodaoi/ipam/api/gen/go"
 	"github.com/xiaodaoi/ipam/internal/module/dashboard"
 	dnsmodule "github.com/xiaodaoi/ipam/internal/module/dns"
+	dualstack "github.com/xiaodaoi/ipam/internal/module/dualstack"
 	"github.com/xiaodaoi/ipam/internal/module/ipam"
 	logq "github.com/xiaodaoi/ipam/internal/module/logquery"
 )
@@ -22,6 +23,8 @@ import (
 type logsAPI struct{ *logq.Handler }
 
 type dashAPI struct{ *dashboard.Handler }
+
+type dsAPI struct{ *dualstack.Handler }
 
 func newTestRouter(h *Handler) *gin.Engine {
 	gin.SetMode(gin.TestMode)
@@ -45,6 +48,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		*logsAPI
 		*logq.AuditHandler
 		*dashAPI
+		*dsAPI
 		*AuthHandler
 		*dnsmodule.DnsHandler
 		*dnsmodule.ForwardHandler
@@ -60,6 +64,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		&logsAPI{logq.NewHandler(logq.NewService(logq.NewMemStore(), nil))},
 		logq.NewAuditHandler(logq.NewMemAuditStore()),
 		&dashAPI{dashboard.NewHandler(dashboard.NewService(logq.NewMemStore(), nil, nil, dashboard.Lights{}))},
+		&dsAPI{dualstack.NewHandler(dualstack.NewMemStore())},
 		NewAuthHandler(),
 		dnsmodule.NewDnsHandler(dnsSvc),
 		dnsmodule.NewForwardHandler(dnsmodule.NewForwardService(dnsmodule.NewMemForwardRuleRepo(), dnsmodule.NewMemUpstreamRepo(), fakeUnbound{})),

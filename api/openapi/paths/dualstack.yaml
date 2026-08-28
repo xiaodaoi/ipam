@@ -1,0 +1,81 @@
+# 双栈绑定模板端点（M2-012，§4.3 多池对）
+DualstackTemplateCollection:
+  get:
+    operationId: listDualstackTemplates
+    tags: [dualstack]
+    summary: 查询双栈绑定模板
+    description: |
+      多池对 v4↔v6 绑定模板列表（§4.3）；daemon 按租约 IPv4 最长前缀自动选模板，
+      例：192.168.0.10 → 2407::192:168:0:10。
+    security: []
+    responses:
+      '200':
+        description: 模板列表
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/dualstack.yaml#/DualstackTemplateList'
+            examples:
+              ok:
+                summary: 单模板
+                value:
+                  items:
+                    - id: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
+                      name: 办公-v4池A
+                      ipv4Cidr: 192.168.0.0/24
+                      ipv6Prefix: 2407::/64
+                      encoding: B
+                      expr: "{v4.hextet4}"
+                      dnsSync: true
+                      graceHours: 24
+                      enabled: true
+  post:
+    operationId: createDualstackTemplate
+    tags: [dualstack]
+    summary: 新建双栈绑定模板
+    description: 建立一组 v4 网段 ↔ v6 前缀的映射模板；daemon 动态装载后参与联动匹配。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/dualstack.yaml#/DualstackTemplateCreate'
+    responses:
+      '201':
+        description: 已创建
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/dualstack.yaml#/DualstackTemplate'
+            examples:
+              ok:
+                summary: 模板已建
+                value:
+                  id: "ef0f0f0f-0f0f-0f0f-0f0f-0f0f0f0f0f0f"
+                  name: 办公-v4池A
+                  ipv4Cidr: 192.168.0.0/24
+                  ipv6Prefix: 2407::/64
+                  encoding: B
+                  expr: "{v4.hextet4}"
+                  dnsSync: true
+                  graceHours: 24
+                  enabled: true
+      '400':
+        $ref: '../components/responses/auth.yaml#/AuthUnauthorized'
+
+DualstackTemplateItem:
+  delete:
+    operationId: deleteDualstackTemplate
+    tags: [dualstack]
+    summary: 删除双栈绑定模板
+    description: 删除后 daemon 不再使用该模板匹配新租约；既有绑定不受影响。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: templateId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204':
+        description: 已删除

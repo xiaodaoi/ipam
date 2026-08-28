@@ -22,6 +22,7 @@ import (
 	unboundengine "github.com/xiaodaoi/ipam/internal/engine/unbound"
 	"github.com/xiaodaoi/ipam/internal/module/dashboard"
 	dnsmodule "github.com/xiaodaoi/ipam/internal/module/dns"
+	dualstack "github.com/xiaodaoi/ipam/internal/module/dualstack"
 	"github.com/xiaodaoi/ipam/internal/module/ipam"
 	logq "github.com/xiaodaoi/ipam/internal/module/logquery"
 	"github.com/xiaodaoi/ipam/internal/module/platform"
@@ -32,6 +33,9 @@ type logsAPI struct{ *logq.Handler }
 
 // dashAPI 同上（规避 dashboard.Handler 与 platform.Handler 嵌入名冲突）。
 type dashAPI struct{ *dashboard.Handler }
+
+// dsAPI 双栈模板 handler 包装（dualstack.Handler 与 platform.Handler 同名冲突）。
+type dsAPI struct{ *dualstack.Handler }
 
 func pgLight(pool *pgxpool.Pool) func(context.Context) dashboard.Light {
 	if pool == nil {
@@ -223,6 +227,13 @@ func newEngine(version string) *gin.Engine {
 	}
 	dashH := dashboard.NewHandler(dashboard.NewService(logStore, subSrc, bindSrc, lights))
 
+	// 双栈绑定模板（M2-012，§4.3）：daemon 联动匹配的模板数据源
+	var dsStore dualstack.Store = dualstack.NewMemStore()
+	if pool != nil {
+		dsStore = dualstack.NewPgStore(pool)
+	}
+	dsH := dualstack.NewHandler(dsStore)
+
 	var upRepo dnsmodule.UpstreamRepo = dnsmodule.NewMemUpstreamRepo()
 	var unboundCtl dnsmodule.UnboundController = unboundengine.ExecController{}
 	if pool != nil {
@@ -298,6 +309,7 @@ func newEngine(version string) *gin.Engine {
 		*logsAPI
 		*logq.AuditHandler
 		*dashAPI
+		*dsAPI
 		*platform.AuthHandler
 		*dnsmodule.DnsHandler
 		*dnsmodule.ForwardHandler
@@ -305,7 +317,7 @@ func newEngine(version string) *gin.Engine {
 		*dnsmodule.BlocklistHandler
 		*dnsmodule.SettingsHandler
 		*confApplier
-	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, platform.NewAuthHandler(), dnsH, fwdH, zoneH, blH, settingsH, applier}
+	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(), dnsH, fwdH, zoneH, blH, settingsH, applier}
 	// RBAC 写权限拦截（M5-003）先于审计：被 403 的请求不入账。
 	// 操作审计（M4-003+M5-002）：actor 从 JWT claims 解析（human/bot 区分 §12.3）。
 	r.Use(platform.NewRBACMiddleware())

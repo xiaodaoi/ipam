@@ -4,6 +4,51 @@
  */
 
 export interface paths {
+    "/dualstack/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查询双栈绑定模板
+         * @description 多池对 v4↔v6 绑定模板列表（§4.3）；daemon 按租约 IPv4 最长前缀自动选模板，
+         *     例：192.168.0.10 → 2407::192:168:0:10。
+         */
+        get: operations["listDualstackTemplates"];
+        put?: never;
+        /**
+         * 新建双栈绑定模板
+         * @description 建立一组 v4 网段 ↔ v6 前缀的映射模板；daemon 动态装载后参与联动匹配。
+         */
+        post: operations["createDualstackTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dualstack/templates/{templateId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * 删除双栈绑定模板
+         * @description 删除后 daemon 不再使用该模板匹配新租约；既有绑定不受影响。
+         */
+        delete: operations["deleteDualstackTemplate"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/login": {
         parameters: {
             query?: never;
@@ -1571,6 +1616,45 @@ export interface components {
             /** @description 出错请求的路径 */
             instance?: string;
         };
+        DualstackTemplate: {
+            /** Format: uuid */
+            id: string;
+            /** @description 模板名称（如 办公-v4池A） */
+            name: string;
+            /** @description 关联 IPv4 网段（daemon 按租约 IPv4 最长前缀自动选模板） */
+            ipv4Cidr: string;
+            /** @description 生成 IPv6 的前缀（如 2407::） */
+            ipv6Prefix: string;
+            /**
+             * @description 地址编码（§4.3：B 型 / hex）
+             * @enum {string}
+             */
+            encoding: "B" | "A" | "CUSTOM";
+            /** @description 表达式（如 {v4.hextet4} / {v4.hex32} / 自定义） */
+            expr: string;
+            /** @description 联动时同步 DNS 记录 */
+            dnsSync?: boolean;
+            /** @description grace 期（小时） */
+            graceHours?: number;
+            enabled: boolean;
+        };
+        DualstackTemplateList: {
+            items: components["schemas"]["DualstackTemplate"][];
+        };
+        DualstackTemplateCreate: {
+            name: string;
+            ipv4Cidr: string;
+            ipv6Prefix: string;
+            /** @enum {string} */
+            encoding: "B" | "A" | "CUSTOM";
+            expr: string;
+            /** @default true */
+            dnsSync: boolean;
+            /** @default 24 */
+            graceHours: number;
+            /** @default true */
+            enabled: boolean;
+        };
         /**
          * @description 服务健康灯（unknown=未配置探测地址或 PoC 模式）
          * @enum {string}
@@ -1766,6 +1850,71 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listDualstackTemplates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 模板列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DualstackTemplateList"];
+                };
+            };
+        };
+    };
+    createDualstackTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DualstackTemplateCreate"];
+            };
+        };
+        responses: {
+            /** @description 已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DualstackTemplate"];
+                };
+            };
+            400: components["responses"]["AuthUnauthorized"];
+        };
+    };
+    deleteDualstackTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已删除 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     authLogin: {
         parameters: {
             query?: never;
