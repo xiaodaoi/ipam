@@ -15,7 +15,8 @@
   },
   "dhcp": {
     "title": "DHCP 服务",
-    "ledger": "地址台账"
+    "ledger": "地址台账",
+    "subnets": "子网管理"
   },
   "logs": {
     "title": "日志中心",

@@ -13,6 +13,12 @@ const routes: RouteRecordRaw[] = [
     path: '/dhcp',
     children: [
       {
+        name: 'DhcpSubnets',
+        path: '/dhcp/subnets',
+        component: () => import('#/views/dhcp/subnets/index.vue'),
+        meta: { icon: 'lucide:network', title: $t('page.dhcp.subnets') },
+      },
+      {
         name: 'Ledger',
         path: '/dhcp/ledger',
         component: () => import('#/views/dhcp/ledger/index.vue'),

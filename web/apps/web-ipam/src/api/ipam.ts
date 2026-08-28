@@ -144,3 +144,13 @@ export const listLinkedRecords = (zoneId: string) =>
 // 封禁名单
 export const listBlocklists = () => req<{ items: Blocklist[] }>('/dns/blocklists');
 export const syncBlocklist = (id: string) => req<unknown>(`/dns/blocklists/${id}/sync`, j({}));
+
+// ── DHCP 子网与池（M2-002 API 消费）──
+// GET /orgs 返回组织树（与 /orgs/tree 同源；flat 场景前端自行展平）
+export const listOrgs = () => req<OrgTreeNode[]>('/orgs');
+
+export const createSubnet = (b: {
+  orgId: string; name: string; family: 4 | 6; cidr: string;
+  pools?: { startAddr: string; endAddr: string; kind: string }[];
+}) => req<Subnet>('/subnets', j(b));
+export const deleteSubnet = (id: string) => req<void>(`/subnets/${id}`, del);

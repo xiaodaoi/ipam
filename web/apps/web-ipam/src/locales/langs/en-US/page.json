@@ -15,7 +15,8 @@
   },
   "dhcp": {
     "title": "DHCP Service",
-    "ledger": "Address Ledger"
+    "ledger": "Address Ledger",
+    "subnets": "Subnets"
   },
   "logs": {
     "title": "Log Center",
