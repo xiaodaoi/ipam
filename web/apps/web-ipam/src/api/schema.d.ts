@@ -396,6 +396,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/dns/diagnose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 解析测试台（dig 式实时查询）
+         * @description 从 control-plane 向 DNS 服务（IPAM_DNS_DIAG_ADDR，默认 unbound:53）发起实时查询，
+         *     结构化返回 rcode/答案/RTT；用于安全与诊断页验证解析行为与封禁效果。所需 scope 为 dns.write。
+         */
+        post: operations["diagnoseDns"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dns/blocklists": {
         parameters: {
             query?: never;
@@ -1417,6 +1438,34 @@ export interface components {
             flushed: string;
             /** @description 如 unbound-control flush_zone corp.local. */
             command: string;
+        };
+        DiagnoseRequest: {
+            /** @description 查询名（如 example.com）；PTR 可直接填 IPv4，服务端转反查名 */
+            name: string;
+            /**
+             * @description 记录类型
+             * @enum {string}
+             */
+            type: "A" | "AAAA" | "CNAME" | "MX" | "NS" | "TXT" | "PTR" | "SOA";
+        };
+        DiagnoseResult: {
+            /** @description NOERROR/NXDOMAIN/SERVFAIL/REFUSED 等标准码；网络失败为 Timeout/NetworkError */
+            rcode: string;
+            /** @description 往返耗时（毫秒） */
+            rttMs: number;
+            /** @description 查询目标（host:port） */
+            server: string;
+            answers: components["schemas"]["DiagnoseAnswer"][];
+        };
+        DiagnoseAnswer: {
+            /** @description 记录属主名 */
+            name: string;
+            /** @description 记录类型（A/AAAA/CNAME/MX/NS/TXT/PTR/SOA） */
+            type: string;
+            /** @description TTL 秒（authoritative answer 缺失时省略） */
+            ttl?: number;
+            /** @description 记录值（MX 为 "优先级 目标" 形态，TXT 为合并文本） */
+            value: string;
         };
         LogRow: {
             /**
@@ -2466,6 +2515,31 @@ export interface operations {
                     "application/json": components["schemas"]["FlushResult"];
                 };
             };
+        };
+    };
+    diagnoseDns: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiagnoseRequest"];
+            };
+        };
+        responses: {
+            /** @description 查询完成（含业务失败如 NXDOMAIN/SERVFAIL，均在 rcode 表达） */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiagnoseResult"];
+                };
+            };
+            400: components["responses"]["AuthUnauthorized"];
         };
     };
     listBlocklists: {

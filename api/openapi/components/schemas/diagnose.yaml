@@ -1,0 +1,49 @@
+# 解析测试台 schema（M2-014，§13.4 安全与诊断）
+
+DiagnoseRequest:
+  type: object
+  required: [name, type]
+  properties:
+    name:
+      type: string
+      description: 查询名（如 example.com）；PTR 可直接填 IPv4，服务端转反查名
+      maxLength: 253
+    type:
+      type: string
+      enum: [A, AAAA, CNAME, MX, NS, TXT, PTR, SOA]
+      description: 记录类型
+
+DiagnoseAnswer:
+  type: object
+  required: [name, type, value]
+  properties:
+    name:
+      type: string
+      description: 记录属主名
+    type:
+      type: string
+      description: 记录类型（A/AAAA/CNAME/MX/NS/TXT/PTR/SOA）
+    ttl:
+      type: integer
+      description: TTL 秒（authoritative answer 缺失时省略）
+    value:
+      type: string
+      description: 记录值（MX 为 "优先级 目标" 形态，TXT 为合并文本）
+
+DiagnoseResult:
+  type: object
+  required: [rcode, rttMs, server, answers]
+  properties:
+    rcode:
+      type: string
+      description: NOERROR/NXDOMAIN/SERVFAIL/REFUSED 等标准码；网络失败为 Timeout/NetworkError
+    rttMs:
+      type: integer
+      description: 往返耗时（毫秒）
+    server:
+      type: string
+      description: 查询目标（host:port）
+    answers:
+      type: array
+      items:
+        $ref: 'diagnose.yaml#/DiagnoseAnswer'

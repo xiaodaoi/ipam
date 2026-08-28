@@ -1,0 +1,56 @@
+# 解析测试台端点（M2-014，§13.4 安全与诊断）
+
+DiagnoseCollection:
+  post:
+    operationId: diagnoseDns
+    tags: [dns]
+    summary: 解析测试台（dig 式实时查询）
+    description: |
+      从 control-plane 向 DNS 服务（IPAM_DNS_DIAG_ADDR，默认 unbound:53）发起实时查询，
+      结构化返回 rcode/答案/RTT；用于安全与诊断页验证解析行为与封禁效果。所需 scope 为 dns.write。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/diagnose.yaml#/DiagnoseRequest'
+          examples:
+            aRecord:
+              summary: A 查询
+              value:
+                name: example.com
+                type: A
+            ptrByIp:
+              summary: PTR 反查（直接填 IPv4）
+              value:
+                name: 192.168.0.10
+                type: PTR
+    responses:
+      '200':
+        description: 查询完成（含业务失败如 NXDOMAIN/SERVFAIL，均在 rcode 表达）
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/diagnose.yaml#/DiagnoseResult'
+            examples:
+              ok:
+                summary: 正常应答
+                value:
+                  rcode: NOERROR
+                  rttMs: 12
+                  server: unbound:53
+                  answers:
+                    - name: example.com.
+                      type: A
+                      ttl: 300
+                      value: 93.184.216.34
+              nxdomain:
+                summary: 不存在
+                value:
+                  rcode: NXDOMAIN
+                  rttMs: 8
+                  server: unbound:53
+                  answers: []
+      '400':
+        $ref: '../components/responses/auth.yaml#/AuthUnauthorized'

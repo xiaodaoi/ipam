@@ -113,6 +113,22 @@ func (h *DnsHandler) DeleteUpstream(c *gin.Context, upstreamId rtypes.UUID) {
 	c.Status(http.StatusNoContent)
 }
 
+// DiagnoseDns POST /dns/diagnose（M2-014 解析测试台）。
+// 业务失败（NXDOMAIN/SERVFAIL）与网络失败均在 rcode 表达，仅入参非法返回 400。
+func (h *DnsHandler) DiagnoseDns(c *gin.Context) {
+	var body apigen.DiagnoseRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "BAD_REQUEST", err.Error())
+		return
+	}
+	res, err := h.svc.Diagnose(c.Request.Context(), body.Name, string(body.Type))
+	if err != nil {
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "BAD_REQUEST", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, res)
+}
+
 func toGenUpstream(u Upstream, h Health) apigen.Upstream {
 	protocol := apigen.UpstreamProtocol(u.Protocol)
 	up := h.Up

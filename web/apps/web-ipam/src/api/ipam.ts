@@ -172,6 +172,9 @@ export const deleteOrg = (id: string) => req<void>(`/orgs/${id}`, del);
 
 // ── DNS 缓存与性能 / 安全参数（M3-005 API 消费）──
 export type DnsSettings = components['schemas']['DnsSettings'];
+export type DiagnoseResult = components['schemas']['DiagnoseResult'];
+export const diagnoseDns = (b: { name: string; type: string }) =>
+  req<DiagnoseResult>('/dns/diagnose', j(b));
 export type PerDomainTtl = components['schemas']['PerDomainTtl'];
 
 export const getDnsSettings = () => req<DnsSettings>('/dns/settings');

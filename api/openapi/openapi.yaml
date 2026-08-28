@@ -72,6 +72,8 @@ paths:
     $ref: './paths/settings.yaml#/TtlOverridesCollection'
   /dns/cache/flush:
     $ref: './paths/settings.yaml#/CacheFlush'
+  /dns/diagnose:
+    $ref: './paths/diagnose.yaml#/DiagnoseCollection'
   /dns/blocklists:
     $ref: './paths/blocklist.yaml#/BlocklistsCollection'
   /dns/blocklists/{listId}:
@@ -268,6 +270,12 @@ components:
       $ref: './components/schemas/settings.yaml#/PerDomainTtl'
     FlushResult:
       $ref: './components/schemas/settings.yaml#/FlushResult'
+    DiagnoseRequest:
+      $ref: './components/schemas/diagnose.yaml#/DiagnoseRequest'
+    DiagnoseResult:
+      $ref: './components/schemas/diagnose.yaml#/DiagnoseResult'
+    DiagnoseAnswer:
+      $ref: './components/schemas/diagnose.yaml#/DiagnoseAnswer'
     LogRow:
       $ref: './components/schemas/logs.yaml#/LogRow'
     LogPage:

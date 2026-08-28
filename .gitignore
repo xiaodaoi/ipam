@@ -30,3 +30,6 @@ web/apps/*/dist.zip
 web/packages/**/dist/
 web/.turbo/
 # 运行产物
+
+# 前端本地 env 不入库（安全红线：密钥/环境差异不入库）
+web/apps/web-ipam/.env.*

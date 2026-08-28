@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-08-28 · M2-014 完成：解析测试台真实现
+
+- **做了**：spec /dns/diagnose + gen（闸① 0 errors）；后端 miekg/dns 查询（PTR 直填 IP 便利形态、业务失败结构化 200）；前端安全页真表单+答案表；LICENSES.md 登记 miekg/dns（BSD-2）。
+- **验证结果**：单测 5 组绿+lint 0+零外链 PASS；容器 e2e——example.com A 查询真实递归 NOERROR（2 答案 ttl300），PTR 超时结构化返回。
+- **里程碑**：DNS 菜单 6/6 全部真实现；安全诊断页从占位毕业。
+- **顺手治理**：清理误入暂存区的根目录 control-plane 二进制与 .env.*（红线：环境文件不入库，.gitignore 已补）。
 ## 2026-08-28 · M2-013 完成 + 调试循环建立（make dev）
 
 - **M2-013**：daemon 从 PG prefix_template 动态装载（TplLoader 缓存+30s 刷新+失败保旧缓存）；e2e 日志 `loaded 1 templates from PG`。双栈页→联动闭环打通。

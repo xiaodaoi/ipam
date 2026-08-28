@@ -1,13 +1,21 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 
-import { Card, Input, InputNumber, message, Switch } from 'ant-design-vue';
+import { Button, Card, Input, InputNumber, message, Select, Switch, Table, Tag } from 'ant-design-vue';
 
-import { getDnsSettings, updateDnsSettings, type DnsSettings } from '#/api/ipam';
+import {
+  diagnoseDns,
+  getDnsSettings,
+  updateDnsSettings,
+  type DiagnoseResult,
+  type DnsSettings,
+} from '#/api/ipam';
 
 const settings = ref<DnsSettings>();
-const testQuery = ref('');
-const testResult = ref<string>();
+const testName = ref('');
+const testType = ref('A');
+const testing = ref(false);
+const diag = ref<DiagnoseResult>();
 const saving = ref(false);
 
 async function load() {
@@ -23,12 +31,21 @@ async function save() {
     saving.value = false;
   }
 }
-function runTest() {
-  // 解析测试台 P1（需 unbound dig 容器联动）；当前给出指引占位
-  testResult.value =
-    '解析测试台将在后续版本提供（需选定 view 并从指定来源发起 dig 式查询）。' +
-    '当前可在服务器上执行：dig @127.0.0.1 ' +
-    (testQuery.value || 'example.com') + ' +short';
+const QTYPE_OPTIONS = ['A', 'AAAA', 'CNAME', 'MX', 'NS', 'TXT', 'PTR', 'SOA'].map(
+  (t) => ({ label: t, value: t }),
+);
+const RCODE_COLOR: Record<string, string> = { NOERROR: 'green', NXDOMAIN: 'orange' };
+
+async function runTest() {
+  if (!testName.value) return;
+  testing.value = true;
+  try {
+    diag.value = await diagnoseDns({ name: testName.value, type: testType.value });
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '查询失败');
+  } finally {
+    testing.value = false;
+  }
 }
 onMounted(load);
 </script>
@@ -61,13 +78,41 @@ onMounted(load);
       </div>
     </Card>
 
-    <Card title="解析测试台（占位）">
-      <div class="flex items-center gap-3">
-        <Input v-model:value="testQuery" placeholder="如 api.corp.local" style="width: 260px" />
-        <Button @click="runTest">发起测试</Button>
+    <Card title="解析测试台（dig 式，经 unbound 实时查询）">
+      <div class="flex flex-wrap items-center gap-3">
+        <Input
+          v-model:value="testName"
+          placeholder="如 example.com；PTR 直接填 192.168.0.10"
+          style="width: 320px"
+          @press-enter="runTest"
+        />
+        <Select v-model:value="testType" style="width: 100px" :options="QTYPE_OPTIONS" />
+        <Button type="primary" :loading="testing" @click="runTest">查询</Button>
       </div>
-      <div v-if="testResult" class="mt-3 rounded bg-gray-50 p-3 font-mono text-xs text-gray-600">
-        {{ testResult }}
+      <div v-if="diag" class="mt-3">
+        <div class="flex items-center gap-3">
+          <Tag :color="RCODE_COLOR[diag.rcode] ?? 'red'">{{ diag.rcode }}</Tag>
+          <span class="text-xs text-gray-400">
+            {{ diag.rttMs }}ms · {{ diag.server }} · {{ diag.answers.length }} 条答案
+          </span>
+        </div>
+        <Table
+          v-if="diag.answers.length"
+          class="mt-2"
+          :data-source="diag.answers.map((a, i) => ({ ...a, key: i }))"
+          :columns="[
+            { title: '记录名', dataIndex: 'name' },
+            { title: '类型', dataIndex: 'type', width: 90 },
+            { title: 'TTL', dataIndex: 'ttl', width: 90 },
+            { title: '值', dataIndex: 'value' },
+          ]"
+          size="small"
+          :pagination="false"
+        >
+          <template #bodyCell="{ column, record }">
+            <template v-if="column.dataIndex === 'ttl'">{{ record.ttl ?? '-' }}</template>
+          </template>
+        </Table>
       </div>
     </Card>
   </div>
