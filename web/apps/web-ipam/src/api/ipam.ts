@@ -83,3 +83,24 @@ export interface AuditQuery {
 }
 export const listAudits = (q: AuditQuery) =>
   req<AuditPage>(`/audits${qsOf(q as never)}`);
+
+// SSE live-tail（M4-003 /logs/tail）：EventSource 原生断线重连
+// （同源 Cookie/Authorization 由 URL from 参数+无鉴权读端点决定，PoC 免头）
+export function openLogTail(
+  params: { from?: string; type?: string; domain?: string; action?: string },
+  handlers: { onRow: (row: any) => void; onOpen?: () => void; onError?: (e: Event) => void },
+): EventSource {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v) qs.set(k, String(v));
+  const es = new EventSource(`${BASE}/logs/tail${qs.size ? `?${qs}` : ''}`);
+  es.onopen = () => handlers.onOpen?.();
+  es.onerror = (e) => handlers.onError?.(e);
+  es.addEventListener('log', (ev) => {
+    try {
+      handlers.onRow(JSON.parse((ev as MessageEvent).data));
+    } catch {
+      /* 忽略非 JSON 心跳帧 */
+    }
+  });
+  return es;
+}

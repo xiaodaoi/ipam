@@ -19,6 +19,12 @@ const routes: RouteRecordRaw[] = [
         meta: { icon: 'lucide:search', title: $t('page.logs.search') },
       },
       {
+        name: 'LogTail',
+        path: '/logs-center/tail',
+        component: () => import('#/views/logs/tail/index.vue'),
+        meta: { icon: 'lucide:radio', title: $t('page.logs.tail') },
+      },
+      {
         name: 'LogAudit',
         path: '/logs-center/audit',
         component: () => import('#/views/logs/audit/index.vue'),

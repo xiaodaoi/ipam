@@ -20,6 +20,7 @@
   "logs": {
     "title": "Log Center",
     "search": "Search",
-    "audit": "Audit"
+    "audit": "Audit",
+    "tail": "Live Tail"
   }
 }

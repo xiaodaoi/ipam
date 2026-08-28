@@ -67,7 +67,8 @@ source = '''
   .address = ""
   .sip = m.srcip
   .domain = m.qname
-  .rtype = m.qtype
+  .qtype = m.qtype
+  .rtype = "dns"
 '''
 
 # ── 归一化统一 schema（logs 宽表字段，§3 ClickHouse）──
@@ -77,6 +78,9 @@ source = '''
 type = "remap"
 inputs = ["parse_kea", "parse_unbound"]
 source = '''
+  if .rtype != "dhcp" && .rtype != "dns" {
+    abort
+  }
   ip_v = if .address == "" { null } else { .address }
   mac_v = if .client_mac == "" { "" } else { downcase!(.client_mac) }
   sip_v = if .sip == "" || .sip == null { null } else { .sip }

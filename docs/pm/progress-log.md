@@ -3,6 +3,13 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-08-28 · live-tail 页落地 + vector type 语义修复 + SSE 时序验证方法论
+
+- **做了**：live-tail 页（/logs-center/tail，EventSource 断线自动重连、类型过滤、倒序保留 200 条、连接状态 Tag）；vector .rtype 修复（unbound 行此前误存 qtype 'A'/'SOA'、notice 透传空 type——固定 'dns' + 未匹配 abort 丢弃）；SSE 无 from 回拨 5s。
+- **验证结果**：SSE 端到端实测通过（curl -N 收含 id/data 的完整事件帧；实测确认事件到达延迟 8~15s=vector 批 5s+轮询+CH merge，非代码缺陷）；typecheck/build/零外链/lint 全绿。
+- **踩坑**：VRL 对象字面量不能内联 if 表达式；字符串拼接动态类型全 fallible 须 err 解构或预变量；宿主 jammy glibc 2.35 无法运行 Playwright chromium build（需 2.39+）——浏览器 e2e 必须容器化。
+- **里程碑**：日志中心三页齐（检索/实时流/审计），M2-007 完整交付。
+- **遗留**：vector sink 偶发停摆探针 P1；echarts P1。
 ## 2026-08-27 · M2-007 完成：日志中心两页（检索+审计）
 
 - **做了**：日志检索页（时间窗/type/domain 过滤、游标"加载更多"、TopN 域名 tab、QPS CSS 柱状曲线 30s 自刷新）+ 操作审计页（actorType/action/q 过滤、7 天窗、游标分页、人工/Bot 着色）；「日志中心」一级菜单两子页 + zh/en locale；api/ipam.ts 扩 4 个类型化客户端。

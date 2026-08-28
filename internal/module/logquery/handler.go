@@ -236,7 +236,9 @@ func (h *Handler) StreamLogTail(c *gin.Context, params apigen.StreamLogTailParam
 	if params.From != nil {
 		f.From = *params.From
 	} else {
-		f.From = time.Now().UTC()
+		// 无显式位点时回拨 5s：吸收 vector 落盘与容器时钟的毫秒漂移，
+		// 首批重放由 newerThan+lastKey 幂等去重，不会重复推送
+		f.From = time.Now().UTC().Add(-5 * time.Second)
 	}
 	if last := c.GetHeader("Last-Event-ID"); last != "" {
 		if ts, _, _ := ParseCursor(last); !ts.IsZero() {
