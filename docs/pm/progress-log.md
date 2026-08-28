@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-08-27 · M2-007 完成：日志中心两页（检索+审计）
+
+- **做了**：日志检索页（时间窗/type/domain 过滤、游标"加载更多"、TopN 域名 tab、QPS CSS 柱状曲线 30s 自刷新）+ 操作审计页（actorType/action/q 过滤、7 天窗、游标分页、人工/Bot 着色）；「日志中心」一级菜单两子页 + zh/en locale；api/ipam.ts 扩 4 个类型化客户端。
+- **验证结果**：typecheck/build/零外链 PASS；golangci 0；容器重建后 SPA 路由 /logs-center/{search,audit} 200。
+- **里程碑**：主导航四大可用区（仪表盘/DHCP 台账/日志中心×2）全部消费真实 API；日志中心 6 端点前端消费完毕。
+- **遗留**：live-tail 页消费（M4-003 SSE）P1；echarts 曲线升级 P1。
 ## 2026-08-27 · 登录"内部服务器错误"根因修复（响应拦截器语义）+ 构建缓存治理
 
 - **根因**：vben requestClient 默认 responseReturn='data'（mock 私约 {code:0,data}），后端 REST 裸 JSON 无 code 字段 → 登录成功响应被误判失败抛错；docker build cache 50GB 压垮 7G 内存宿主致构建卡死。
