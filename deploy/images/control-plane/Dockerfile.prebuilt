@@ -1,0 +1,31 @@
+# control-plane 预构建产物镜像（CI 用）：跳过 web 构建阶段 + 从 ipam/unbound 镜像
+# 直接复用 unbound 二进制（confApplier 的 checkconf/reload 依赖），避免重复源码编译。
+# 前置：compose build unbound（同 tag 引用）；dist 置于 cmd/control-plane/webui/dist。
+FROM ubuntu:jammy AS build
+ARG GO_DL=https://go.dev
+RUN apt-get update -qq >/dev/null; apt-get install -y -qq ca-certificates curl git >/dev/null
+RUN curl -fsSL "${GO_DL}/dl/go1.27.0.linux-amd64.tar.gz" | tar -C /usr/local -xz
+ENV PATH=/usr/local/go/bin:$PATH \
+    GOPATH=/go \
+    GOPROXY=https://goproxy.cn,direct \
+    GOTOOLCHAIN=local
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN test -f cmd/control-plane/webui/dist/index.html || (echo "FAIL: webui/dist 缺失——先提供预构建产物" && exit 1)
+RUN go build -ldflags "-s -w -X main.version=${VERSION:-0.1.0-dev}" -o /out/control-plane ./cmd/control-plane
+
+# unbound 二进制/库直接取自已构建的 ipam/unbound 镜像（避免重复自编译）
+FROM ipam/unbound:0.1.0-dev AS unbound-layer
+
+FROM ubuntu:jammy
+COPY --from=unbound-layer /usr/sbin/unbound /usr/local/sbin/unbound
+COPY --from=unbound-layer /usr/sbin/unbound-checkconf /usr/local/sbin/unbound-checkconf
+COPY --from=unbound-layer /usr/lib/x86_64-linux-gnu/libunbound.so* /usr/lib/x86_64-linux-gnu/
+RUN mkdir -p /var/log/unbound /run/ipam /var/lib/unbound \
+    && ln -s /usr/local/sbin/unbound /usr/local/bin/unbound \
+    && ln -s /usr/local/sbin/unbound-checkconf /usr/local/bin/unbound-checkconf
+COPY --from=build /out/control-plane /usr/local/bin/control-plane
+EXPOSE 8443
+ENTRYPOINT ["/usr/local/bin/control-plane"]

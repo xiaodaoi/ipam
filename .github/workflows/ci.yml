@@ -91,6 +91,12 @@ jobs:
         run: |
           bash scripts/sync-webui.sh
           bash scripts/check-webui-offline.sh
+      - name: upload webui dist（供 compose-smoke 预构建镜像）
+        uses: actions/upload-artifact@v4
+        with:
+          name: webui-dist
+          path: cmd/control-plane/webui/dist/
+          retention-days: 1
 
   # ── K4：C++ hook 核心库编译+测试+行数门禁（Kea 胶水层需真机头文件，CI 跳过）──
   hook-ci:
@@ -119,7 +125,10 @@ jobs:
           git push -f origin "HEAD:refs/heads/ci-diag"
 
   # ── 闸⑥ compose 冒烟（M0-006 落地前自动跳过）──
+  # 依赖 web-ci 产物：control-plane 镜像走预构建 Dockerfile（跳过 runner 内 node 构建，
+  # 规避与 web-ci 并行的内存 OOM）。--no-build 跳过 compose 内建构建。
   compose-smoke:
+    needs: web-ci
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -127,12 +136,26 @@ jobs:
       POSTGRES_PASSWORD: ci-smoke-password
     steps:
       - uses: actions/checkout@v4
+      - name: download webui dist
+        uses: actions/download-artifact@v4
+        with:
+          name: webui-dist
+          path: cmd/control-plane/webui/dist/
+      - name: build自建镜像（unbound 先行：prebuilt 镜像引用其产物）
+        run: |
+          cd deploy/compose
+          docker compose build unbound kea-dhcp4 kea-dhcp6 kea-ctrl-agent coherence-daemon
+      - name: build control-plane (prebuilt dist)
+        run: |
+          docker build -f deploy/images/control-plane/Dockerfile.prebuilt \
+            --build-arg GO_DL=https://golang.google.cn \
+            -t ipam/control-plane:0.1.0-dev .
       - name: smoke
         run: |
           if [ ! -f deploy/compose/compose.yaml ]; then
             echo "skip: compose.yaml 未落地（M0-006）"; exit 0
           fi
-          cd deploy/compose && docker compose up -d --wait
+          cd deploy/compose && docker compose up -d --wait --no-build
           echo "[1] control-plane"
           curl -fsS http://127.0.0.1:8443/api/v1/system/info | grep -q ipam-control-plane
           echo "[2] kea ctrl-agent api"
