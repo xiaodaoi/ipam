@@ -3,6 +3,13 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-08-27 · 登录"内部服务器错误"根因修复（响应拦截器语义）+ 构建缓存治理
+
+- **根因**：vben requestClient 默认 responseReturn='data'（mock 私约 {code:0,data}），后端 REST 裸 JSON 无 code 字段 → 登录成功响应被误判失败抛错；docker build cache 50GB 压垮 7G 内存宿主致构建卡死。
+- **做了**：request.ts 改 responseReturn='body'（RFC9457 错误语义保持 401 拦截兼容）；builder prune 清 38GB；npm install -g pnpm 走阿里源（上一轮）。
+- **验证结果**：容器重建后 login/user/info/dashboard 全 200、错误口令 401 正确分支；typecheck/build/零外链绿；commit 3064f3c。
+- **里程碑**：Web 界面登录闭环打通（admin/admin123 → 仪表盘总览+地址台账可用）。
+- **遗留**：浏览器 e2e 容器化（宿主 glibc 限制）；构建产物 hash 缓存需用户强刷一次。
 ## 2026-08-27 · M5-002 完成：正式 JWT + 审计真实身份接通
 
 - **做了**：标准 HS256 JWT 替换 PoC 令牌（响应结构零变更，平滑升级）；claims sub/uid/roles/typ；审计 ActorProvider 从 JWT 解析 human/bot + token_sub 指纹落 operation_audit（M4-003 预留钩子接通）。
