@@ -18,6 +18,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('#/views/system/orgs/index.vue'),
         meta: { icon: 'lucide:network', title: $t('page.system.orgs') },
       },
+      {
+        name: 'SystemUsers',
+        path: '/system/users',
+        component: () => import('#/views/system/users/index.vue'),
+        meta: { icon: 'lucide:users', title: $t('page.system.users') },
+      },
     ],
   },
 ];

@@ -234,6 +234,15 @@ func newEngine(version string) *gin.Engine {
 	}
 	dsH := dualstack.NewHandler(dsStore)
 
+	// 用户与角色（M5-004）：登录校验与用户管理共用；空表引导播种 admin
+	var userStore platform.UserStore = platform.NewMemUserStore()
+	if pool != nil {
+		userStore = platform.NewPgUserStore(pool)
+	}
+	if err := platform.EnsureBootstrap(context.Background(), userStore); err != nil {
+		log.Printf("user bootstrap: %v", err)
+	}
+
 	var upRepo dnsmodule.UpstreamRepo = dnsmodule.NewMemUpstreamRepo()
 	var unboundCtl dnsmodule.UnboundController = unboundengine.ExecController{}
 	if pool != nil {
@@ -311,13 +320,14 @@ func newEngine(version string) *gin.Engine {
 		*dashAPI
 		*dsAPI
 		*platform.AuthHandler
+		*platform.UserHandler
 		*dnsmodule.DnsHandler
 		*dnsmodule.ForwardHandler
 		*dnsmodule.ZoneHandler
 		*dnsmodule.BlocklistHandler
 		*dnsmodule.SettingsHandler
 		*confApplier
-	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(), dnsH, fwdH, zoneH, blH, settingsH, applier}
+	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore), platform.NewUserHandler(userStore), dnsH, fwdH, zoneH, blH, settingsH, applier}
 	// RBAC 写权限拦截（M5-003）先于审计：被 403 的请求不入账。
 	// 操作审计（M4-003+M5-002）：actor 从 JWT claims 解析（human/bot 区分 §12.3）。
 	r.Use(platform.NewRBACMiddleware())

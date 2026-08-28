@@ -198,3 +198,14 @@ export const createDualstackTemplate = (b: {
 }) => req<DualstackTemplate>('/dualstack/templates', j(b));
 export const deleteDualstackTemplate = (id: string) =>
   req<void>(`/dualstack/templates/${id}`, del);
+
+// ── 用户与角色（M5-004，§13.4 系统管理）──
+export type UserRow = components['schemas']['User'];
+export const listUsers = () => req<{ items: UserRow[] }>('/users');
+export const createUser = (b: {
+  displayName?: string; password: string; roles?: string[]; username: string;
+}) => req<UserRow>('/users', j(b));
+export const updateUser = (id: string, b: {
+  displayName?: string; enabled?: boolean; password?: string; roles?: string[];
+}) => req<UserRow>(`/users/${id}`, patch(b));
+export const deleteUser = (id: string) => req<void>(`/users/${id}`, del);

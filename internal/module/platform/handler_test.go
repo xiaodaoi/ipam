@@ -50,6 +50,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		*dashAPI
 		*dsAPI
 		*AuthHandler
+		*UserHandler
 		*dnsmodule.DnsHandler
 		*dnsmodule.ForwardHandler
 		*dnsmodule.ZoneHandler
@@ -65,7 +66,8 @@ func newTestRouter(h *Handler) *gin.Engine {
 		logq.NewAuditHandler(logq.NewMemAuditStore()),
 		&dashAPI{dashboard.NewHandler(dashboard.NewService(logq.NewMemStore(), nil, nil, dashboard.Lights{}))},
 		&dsAPI{dualstack.NewHandler(dualstack.NewMemStore())},
-		NewAuthHandler(),
+		NewAuthHandler(NewMemUserStore()),
+		NewUserHandler(NewMemUserStore()),
 		dnsmodule.NewDnsHandler(dnsSvc),
 		dnsmodule.NewForwardHandler(dnsmodule.NewForwardService(dnsmodule.NewMemForwardRuleRepo(), dnsmodule.NewMemUpstreamRepo(), fakeUnbound{})),
 		dnsmodule.NewZoneHandler(dnsmodule.NewZoneService(dnsmodule.NewMemZoneRepo(), fakeUnbound{}), nil),

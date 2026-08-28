@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -14,9 +15,14 @@ import (
 
 func newAuthRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
+	store := NewMemUserStore()
+	if err := EnsureBootstrap(context.Background(), store); err != nil {
+		panic(err)
+	}
+	h := NewAuthHandler(store)
 	r := gin.New()
-	r.POST("/api/v1/auth/login", func(c *gin.Context) { NewAuthHandler().AuthLogin(c) })
-	r.GET("/api/v1/auth/user/info", func(c *gin.Context) { NewAuthHandler().GetAuthUserInfo(c) })
+	r.POST("/api/v1/auth/login", h.AuthLogin)
+	r.GET("/api/v1/auth/user/info", h.GetAuthUserInfo)
 	return r
 }
 
@@ -72,7 +78,7 @@ func TestLoginIssueAndUserInfo(t *testing.T) {
 	if err := json.Unmarshal(wOK.Body.Bytes(), &info); err != nil {
 		t.Fatal(err)
 	}
-	if info.UserId != "1" || len(info.Roles) != 1 || info.Roles[0] != "admin" || info.HomePath != "/overview" {
+	if info.UserId == "" || len(info.Roles) != 1 || info.Roles[0] != "admin" || info.HomePath != "/overview" {
 		t.Fatalf("userinfo 异常: %+v", info)
 	}
 }

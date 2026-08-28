@@ -1,0 +1,72 @@
+# 用户与角色 schema（M5-004，§13.4 系统管理；角色对齐 M5-003 RBAC admin/user 两级）
+
+User:
+  type: object
+  required: [id, username, displayName, roles, enabled, createdAt]
+  properties:
+    id: { type: string, format: uuid }
+    username:
+      type: string
+      description: 登录名（唯一）
+    displayName:
+      type: string
+      description: 显示名
+    roles:
+      type: array
+      items: { type: string, enum: [admin, user] }
+      description: 角色（admin 写权限 / user 只读，admin 蕴含 user；§12.3）
+    enabled:
+      type: boolean
+      description: 启停（禁用即拒绝登录）
+    createdAt:
+      type: string
+      format: date-time
+
+UserList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: 'user.yaml#/User'
+
+UserCreate:
+  type: object
+  required: [password, username]
+  properties:
+    username:
+      type: string
+      maxLength: 64
+      minLength: 2
+      pattern: '^[a-zA-Z0-9_.-]+$'
+      description: 登录名（唯一，字母数字与 _.- ）
+    displayName:
+      type: string
+      maxLength: 64
+    password:
+      type: string
+      maxLength: 128
+      minLength: 8
+      description: 明文仅请求期接收，bcrypt 落库
+    roles:
+      type: array
+      items: { type: string, enum: [admin, user] }
+      default: [user]
+
+UserUpdate:
+  type: object
+  description: PATCH 语义全部可选；password 提供即重置
+  properties:
+    displayName:
+      type: string
+      maxLength: 64
+    password:
+      type: string
+      maxLength: 128
+      minLength: 8
+    roles:
+      type: array
+      items: { type: string, enum: [admin, user] }
+    enabled:
+      type: boolean

@@ -12,7 +12,7 @@ servers:
   - url: /api/v1
 tags:
   - name: platform
-    description: 平台能力（系统信息/健康/认证/审计）
+    description: 平台能力（系统信息/健康/认证/审计/用户与角色）
   - name: org
     description: 组织分组主数据（多级自定义树，§13.4）
   - name: subnet
@@ -50,6 +50,10 @@ paths:
     $ref: './paths/auth.yaml#/AuthCodes'
   /auth/logout:
     $ref: './paths/auth.yaml#/AuthLogout'
+  /users:
+    $ref: './paths/user.yaml#/UsersCollection'
+  /users/{userId}:
+    $ref: './paths/user.yaml#/UserItem'
   /dashboard:
     $ref: './paths/dashboard.yaml#/DashboardOverview'
   /logs:
@@ -306,6 +310,14 @@ components:
       $ref: './components/schemas/auth.yaml#/AuthCodesList'
     AuthLogoutDone:
       $ref: './components/schemas/auth.yaml#/AuthLogoutDone'
+    User:
+      $ref: './components/schemas/user.yaml#/User'
+    UserList:
+      $ref: './components/schemas/user.yaml#/UserList'
+    UserCreate:
+      $ref: './components/schemas/user.yaml#/UserCreate'
+    UserUpdate:
+      $ref: './components/schemas/user.yaml#/UserUpdate'
     Problem:
       type: object
       description: RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。

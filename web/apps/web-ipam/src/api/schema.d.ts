@@ -152,6 +152,55 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 用户列表
+         * @description 全量用户（不含口令散列）；user 角色可读（按钮级操作由前端按角色收敛）。
+         */
+        get: operations["listUsers"];
+        put?: never;
+        /**
+         * 新建用户
+         * @description 用户名唯一；口令 bcrypt 落库。所需 scope 为 admin（RBAC 写拦截，M5-003）。
+         */
+        post: operations["createUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * 删除用户
+         * @description 自保护同 PATCH（不能删自己、不能删最后一名启用 admin）。
+         */
+        delete: operations["deleteUser"];
+        options?: never;
+        head?: never;
+        /**
+         * 更新用户（重置密码/角色/启停）
+         * @description PATCH 全部可选。自保护：不能停用/删除自己、不能变更自己角色；
+         *     最后一名启用 admin 的停用或角色摘除被拒（防锁死）。
+         */
+        patch: operations["updateUser"];
+        trace?: never;
+    };
     "/dashboard": {
         parameters: {
             query?: never;
@@ -1650,6 +1699,43 @@ export interface components {
         AuthLogoutDone: {
             ok?: boolean;
         };
+        User: {
+            /** Format: uuid */
+            id: string;
+            /** @description 登录名（唯一） */
+            username: string;
+            /** @description 显示名 */
+            displayName: string;
+            /** @description 角色（admin 写权限 / user 只读，admin 蕴含 user；§12.3） */
+            roles: ("admin" | "user")[];
+            /** @description 启停（禁用即拒绝登录） */
+            enabled: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        UserList: {
+            items: components["schemas"]["User"][];
+        };
+        UserCreate: {
+            /** @description 登录名（唯一，字母数字与 _.- ） */
+            username: string;
+            displayName?: string;
+            /** @description 明文仅请求期接收，bcrypt 落库 */
+            password: string;
+            /**
+             * @default [
+             *       "user"
+             *     ]
+             */
+            roles: ("admin" | "user")[];
+        };
+        /** @description PATCH 语义全部可选；password 提供即重置 */
+        UserUpdate: {
+            displayName?: string;
+            password?: string;
+            roles?: ("admin" | "user")[];
+            enabled?: boolean;
+        };
         /** @description RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。 */
         Problem: {
             /** @description 问题类型 URI，稳定不变供程序匹配 */
@@ -2078,6 +2164,99 @@ export interface operations {
                     "application/json": components["schemas"]["AuthLogoutDone"];
                 };
             };
+        };
+    };
+    listUsers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 用户列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserList"];
+                };
+            };
+        };
+    };
+    createUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserCreate"];
+            };
+        };
+        responses: {
+            /** @description 已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            400: components["responses"]["AuthUnauthorized"];
+        };
+    };
+    deleteUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已删除 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["AuthUnauthorized"];
+        };
+    };
+    updateUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserUpdate"];
+            };
+        };
+        responses: {
+            /** @description 已更新 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            400: components["responses"]["AuthUnauthorized"];
         };
     };
     getDashboardOverview: {

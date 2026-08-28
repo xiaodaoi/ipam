@@ -36,6 +36,7 @@
   },
   "system": {
     "title": "System",
-    "orgs": "Organizations"
+    "orgs": "Organizations",
+    "users": "Users & Roles"
   }
 }

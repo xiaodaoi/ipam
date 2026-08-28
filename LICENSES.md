@@ -11,6 +11,7 @@
 | gin-gonic/gin | MIT | HTTP 框架（D2） | ✅ 可用 |
 | oapi-codegen/runtime | Apache-2.0 | 生成代码运行时依赖 | ✅ 可用 |
 | miekg/dns | BSD-2-Clause | DNS 报文构造/解析（M2-014 解析测试台） | ✅ 可用 |
+| golang.org/x/crypto | BSD-3-Clause | bcrypt 口令散列（M5-004 用户管理） | ✅ 可用 |
 | PowerDNS | GPL-2.0 | ~~已否决~~（D4） | ❌ 不引入 |
 | mosdns 系 | GPL-3.0 | ~~已否决~~（§11.2） | ❌ 不引入 |
 
