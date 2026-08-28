@@ -3,6 +3,11 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-08-28 · M3-001 修复：上游「添加」按钮无效（用户报障）
+
+- **根因**：Create 上游在 unbound 下发失败时返回 503（数据已落库），前端 add() 无 try/catch → 表单不重置、列表不刷新，看起来"点了没反应"。
+- **修复**：后端 soft-fail（201 + X-Unbound-Warning 头，对齐 Update/Delete 语义）；前端 add()/remove() 加反馈并始终刷新列表。
+- **验证**：容器端到端 POST→201+warning 头，列表即时可见；测试绿 lint 0。
 ## 2026-08-28 · M2-012 完成：双栈管理页+prefix_template HTTP CRUD
 
 - **做了**：发现 prefix_template 无 HTTP API 缺口→spec-first 补 /dualstack/templates CRUD；dualstack 模块（Mem/PG 双 Store+Coherence 投影）；前端双栈管理页挂 DHCP 菜单。

@@ -55,7 +55,14 @@ func (h *DnsHandler) CreateUpstream(c *gin.Context) {
 	}
 	saved, err := h.svc.Create(c.Request.Context(), u)
 	if err != nil {
-		problem.Write(c, http.StatusServiceUnavailable, "https://ipam.local/problems/unbound-down", "UNBOUND_DOWN", "上游已保存但 unbound 下发失败")
+		if saved.ID == "" {
+			// PG 写入也失败了，真 503
+			problem.Write(c, http.StatusServiceUnavailable, "https://ipam.local/problems/unbound-down", "UNBOUND_DOWN", "上游保存失败且 unbound 下发失败")
+			return
+		}
+		// PG 已落库但 unbound 下发失败：返回 201 + Warning 头（soft-fail）
+		c.Header("X-Unbound-Warning", "UNBOUND_DOWN")
+		c.JSON(http.StatusCreated, toGenUpstream(saved, Health{}))
 		return
 	}
 	c.JSON(http.StatusCreated, toGenUpstream(saved, Health{}))

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 
-import { Button, Card, Input, Select, Table, Tag } from 'ant-design-vue';
+import { Button, Card, Input, Select, Table, Tag, message } from 'ant-design-vue';
 
 import {
   createUpstream,
@@ -29,12 +29,23 @@ async function load() {
 }
 async function add() {
   if (!form.value.name || !form.value.addr) return;
-  await createUpstream({ ...form.value, addrs: [form.value.addr], weight: 1, enabled: true });
-  form.value = { name: '', addr: '', protocol: 'udp' };
+  try {
+    await createUpstream({ ...form.value, addrs: [form.value.addr], weight: 1, enabled: true });
+    message.success('上游已添加');
+    form.value = { name: '', addr: '', protocol: 'udp' };
+  } catch {
+    message.error('添加失败');
+  }
   await load();
 }
 async function remove(id?: string) {
-  if (id) await deleteUpstream(id);
+  if (!id) return;
+  try {
+    await deleteUpstream(id);
+    message.success('已删除');
+  } catch {
+    message.error('删除失败');
+  }
   await load();
 }
 onMounted(() => {
