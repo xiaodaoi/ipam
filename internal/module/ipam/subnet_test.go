@@ -33,7 +33,7 @@ func newSubnetSvc(t *testing.T) (*SubnetService, *fakeKea, *MemOrgStore) {
 	t.Helper()
 	orgs := NewMemOrgStore()
 	kea := &fakeKea{}
-	svc := NewSubnetService(NewMemSubnetRepo(), orgs, kea)
+	svc := NewSubnetService(NewMemSubnetRepo(), orgs, kea, nil)
 	return svc, kea, orgs
 }
 

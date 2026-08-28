@@ -59,7 +59,7 @@ func TestLedgerService_Reserve占用拒绝(t *testing.T) {
 	src := func(context.Context) LedgerSource {
 		return LedgerSource{Bindings: []LedgerBinding{{IPv4: "10.1.0.1", State: "active"}}}
 	}
-	svc := NewLedgerService(src, NewMemReservationRepo(), NewNoopKea(), NewMemSubnetRepo())
+	svc := NewLedgerService(src, NewMemReservationRepo(), NewMemSubnetRepo(), nil)
 	if err := svc.Reserve(context.Background(), "s1", "10.1.0.1"); !errors.Is(err, ErrAddrOccupied) {
 		t.Fatalf("err=%v want ADDR_OCCUPIED", err)
 	}
@@ -68,12 +68,34 @@ func TestLedgerService_Reserve占用拒绝(t *testing.T) {
 func TestLedgerService_BindStatic_成功后占位(t *testing.T) {
 	repo := NewMemReservationRepo()
 	svc := NewLedgerService(func(context.Context) LedgerSource { return LedgerSource{} },
-		repo, NewNoopKea(), NewMemSubnetRepo())
+		repo, NewMemSubnetRepo(), nil)
 	if err := svc.BindStatic(context.Background(), "s1", "10.1.0.9", "aa:bb:cc:dd:ee:09"); err != nil {
 		t.Fatal(err)
 	}
 	// 再次绑定同地址应被占用检查拒绝
 	if err := svc.BindStatic(context.Background(), "s1", "10.1.0.9", "aa:bb:cc:dd:ee:0a"); !errors.Is(err, ErrAddrOccupied) {
 		t.Fatalf("second bind err=%v want ADDR_OCCUPIED", err)
+	}
+}
+
+func TestBulkReservations_apply失败整体回滚(t *testing.T) {
+	// M3-007 核心回归：apply（kea config-set）失败时整体回滚，含 bind 行 Upsert
+	// （修复 M2-017 发现的残留缺口：原实现回滚范围不含失败行自身）
+	repo := NewMemReservationRepo()
+	svc := NewLedgerService(func(context.Context) LedgerSource { return LedgerSource{} },
+		repo, NewMemSubnetRepo(), func(context.Context) error { return errors.New("kea unavailable") })
+	res, err := svc.BulkReservations(context.Background(), "s1", []BulkEntry{
+		{Kind: "reserve", Address: "10.99.1.30"},
+		{Kind: "bind", Address: "10.99.1.40", MAC: "aa:bb:cc:dd:ee:10"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.OK {
+		t.Fatal("apply 失败应 ok:false")
+	}
+	rows, _ := repo.List(context.Background())
+	if len(rows) != 0 {
+		t.Fatalf("apply 失败应整体回滚（含 bind 行）: %+v", rows)
 	}
 }

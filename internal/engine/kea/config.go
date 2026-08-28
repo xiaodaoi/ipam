@@ -3,7 +3,9 @@ package kea
 import (
 	"encoding/json"
 	"fmt"
+	"net/netip"
 	"os"
+	"strings"
 
 	"github.com/xiaodaoi/ipam/internal/module/dhcp"
 	"github.com/xiaodaoi/ipam/internal/module/ipam"
@@ -72,7 +74,7 @@ func defaultBaseConfig() map[string]any {
 
 // BuildConfigFull 在 BuildConfig 之上注入全局 option-data（C-02）与 client-classes（C-03）。
 // disabled 条目不进配置；空切片不注入对应键（保持基础模板形态）。下发沿 config-set 原子语义。
-func BuildConfigFull(subnets []ipam.Subnet, opts []dhcp.DhcpOption, classes []dhcp.DhcpClass) (Dhcp4Config, error) {
+func BuildConfigFull(subnets []ipam.Subnet, opts []dhcp.DhcpOption, classes []dhcp.DhcpClass, binds []ipam.Reservation) (Dhcp4Config, error) {
 	cfg, err := BuildConfig(subnets)
 	if err != nil {
 		return cfg, err
@@ -100,6 +102,31 @@ func BuildConfigFull(subnets []ipam.Subnet, opts []dhcp.DhcpOption, classes []dh
 	}
 	if len(ccs) > 0 {
 		cfg.Dhcp4["client-classes"] = ccs
+	}
+	// host reservations（M3-007 配置式 bind）：按地址归属子网投影到 reservations 段。
+	// 仅 MAC 非空行（reserve 冻结语义不走 host reservation）；跨网段地址不投影。
+	if len(binds) > 0 {
+		if sub4, ok := cfg.Dhcp4["subnet4"].([]map[string]any); ok {
+			for i := range sub4 {
+				cidr, _ := sub4[i]["subnet"].(string)
+				p, perr := netip.ParsePrefix(strings.TrimSpace(cidr))
+				if perr != nil {
+					continue
+				}
+				var resv []map[string]any
+				for _, b := range binds {
+					if b.MAC == "" {
+						continue
+					}
+					if ip, ierr := netip.ParseAddr(b.IPv4); ierr == nil && p.Contains(ip) {
+						resv = append(resv, map[string]any{"ip-address": b.IPv4, "hw-address": b.MAC})
+					}
+				}
+				if len(resv) > 0 {
+					sub4[i]["reservations"] = resv
+				}
+			}
+		}
 	}
 	return cfg, nil
 }

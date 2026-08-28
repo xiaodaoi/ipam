@@ -32,10 +32,6 @@ type KeaDeployer interface {
 	// dryRun=true 时仅生成与校验，不发网络调用。
 	DeploySubnet(ctx context.Context, subnets []Subnet, dryRun bool) (int, error)
 	RemoveSubnet(ctx context.Context, subnetID int) error
-	// ReserveAddress 将单地址置为保留（excluded 语义）。
-	ReserveAddress(ctx context.Context, subnetID, addr string) error
-	// BindStatic 下发 host reservation（MAC↔地址）。
-	BindStatic(ctx context.Context, subnetID, addr, mac string) error
 }
 
 var (
@@ -58,13 +54,22 @@ type SubnetRepo interface {
 
 // SubnetService 业务规则：org 存在性、CIDR/族校验、Kea 下发与回滚。
 type SubnetService struct {
-	repo SubnetRepo
-	orgs OrgStore
-	kea  KeaDeployer
+	repo  SubnetRepo
+	orgs  OrgStore
+	kea   KeaDeployer
+	apply func(ctx context.Context) error
 }
 
-func NewSubnetService(repo SubnetRepo, orgs OrgStore, kea KeaDeployer) *SubnetService {
-	return &SubnetService{repo: repo, orgs: orgs, kea: kea}
+func NewSubnetService(repo SubnetRepo, orgs OrgStore, kea KeaDeployer, apply func(ctx context.Context) error) *SubnetService {
+	return &SubnetService{repo: repo, orgs: orgs, kea: kea, apply: apply}
+}
+
+// notifyApply 统一下发触发（M3-007 配置式：整段 config-set；apply 未注入则跳过）。
+func (s *SubnetService) notifyApply(ctx context.Context) error {
+	if s.apply == nil {
+		return nil
+	}
+	return s.apply(ctx)
 }
 
 func validateSubnet(s Subnet) error {
@@ -92,18 +97,31 @@ func (s *SubnetService) Create(ctx context.Context, in Subnet, dryRun bool) (Sub
 	if err := validateSubnet(in); err != nil {
 		return Subnet{}, err
 	}
-	keaID, err := s.kea.DeploySubnet(ctx, []Subnet{in}, dryRun)
+	// KeaSubnetID 本地持久分配（M3-007：修复原"读回 kea 第一个 id"在多子网场景的撞车）
+	existing, err := s.repo.List(ctx, "", 0)
 	if err != nil {
+		return Subnet{}, err
+	}
+	maxID := 0
+	for i := range existing {
+		if existing[i].KeaSubnetID > maxID {
+			maxID = existing[i].KeaSubnetID
+		}
+	}
+	in.KeaSubnetID = maxID + 1
+	if _, err := s.kea.DeploySubnet(ctx, []Subnet{in}, true); err != nil { // dryRun 本地校验
 		return Subnet{}, ErrKeaDown
 	}
-	in.KeaSubnetID = keaID
 	if dryRun {
 		return in, nil
 	}
 	saved, err := s.repo.Create(ctx, in)
 	if err != nil {
-		_ = s.kea.RemoveSubnet(ctx, keaID) // best-effort 回滚引擎侧
 		return Subnet{}, err
+	}
+	if err := s.notifyApply(ctx); err != nil {
+		_ = s.repo.Delete(ctx, saved.ID) // 下发失败回滚落库（沿严格语义）
+		return Subnet{}, ErrKeaDown
 	}
 	return saved, nil
 }
@@ -126,8 +144,12 @@ func (s *SubnetService) Update(ctx context.Context, id string, in Subnet) (Subne
 	if err != nil {
 		return Subnet{}, err
 	}
-	if _, err := s.kea.DeploySubnet(ctx, []Subnet{next}, false); err != nil {
+	if _, err := s.kea.DeploySubnet(ctx, []Subnet{next}, true); err != nil { // dryRun 本地校验
 		_, _ = s.repo.Update(ctx, cur) // 回滚 DB
+		return Subnet{}, ErrKeaDown
+	}
+	if err := s.notifyApply(ctx); err != nil {
+		_, _ = s.repo.Update(ctx, cur) // 回滚 DB 旧值
 		return Subnet{}, ErrKeaDown
 	}
 	return next, nil

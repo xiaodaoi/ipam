@@ -94,11 +94,6 @@ func (c *CtrlAgent) DeploySubnet(ctx context.Context, subnets []ipam.Subnet, dry
 	return id, nil
 }
 
-// ReserveAddress 保留单地址（excluded 语义占位；完整 reserved 段经 config-set 表达）。
-func (c *CtrlAgent) ReserveAddress(ctx context.Context, subnetID, addr string) error {
-	return c.commandNoop(ctx)
-}
-
 // BindStatic host reservation 下发（reservation-add 语义）。
 func (c *CtrlAgent) BindStatic(ctx context.Context, subnetID, addr, mac string) error {
 	_, err := c.Command(ctx, "reservation-add", "dhcp4", map[string]any{
@@ -109,8 +104,6 @@ func (c *CtrlAgent) BindStatic(ctx context.Context, subnetID, addr, mac string) 
 	})
 	return err
 }
-
-func (c *CtrlAgent) commandNoop(ctx context.Context) error { return nil }
 
 // RemoveSubnet 摘除指定 subnet-id（真实模式）。
 func (c *CtrlAgent) RemoveSubnet(ctx context.Context, subnetID int) error {

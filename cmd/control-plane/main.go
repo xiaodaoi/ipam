@@ -155,7 +155,14 @@ func newEngine(version string) *gin.Engine {
 	}
 
 	orgH := ipam.NewOrgHandler(ipam.NewOrgService(orgStore))
-	subH := ipam.NewSubnetHandler(ipam.NewSubnetService(subRepo, orgStore, keaDeploy))
+	var applyDhcpFn func(context.Context) error
+	notifyDhcp := func(ctx context.Context) error {
+		if applyDhcpFn == nil {
+			return nil
+		}
+		return applyDhcpFn(ctx)
+	}
+	subH := ipam.NewSubnetHandler(ipam.NewSubnetService(subRepo, orgStore, keaDeploy, notifyDhcp))
 
 	var resRepo ipam.ReservationRepo = ipam.NewMemReservationRepo()
 	if pool != nil {
@@ -183,7 +190,44 @@ func newEngine(version string) *gin.Engine {
 			Assets: assets, Subnets: subs,
 		}
 	}
-	ledgerH := ipam.NewLedgerHandler(ipam.NewLedgerService(ledgerSrc, resRepo, keaDeploy, subRepo))
+	// DHCP 选项/类（M2-016）+ host reservations 配置式下发（M3-007）：统一 config-set 收敛点
+	var dhcpStore dhcpmodule.Store = dhcpmodule.NewMemStore()
+	if pool != nil {
+		dhcpStore = dhcpmodule.NewPgStore(pool)
+	}
+	applyDhcpFn = func(ctx context.Context) error {
+		if keaCmd == nil {
+			return errors.New("kea unavailable")
+		}
+		subs, err := subRepo.List(ctx, "", 0)
+		if err != nil {
+			return err
+		}
+		opts, err := dhcpStore.ListOptions(ctx)
+		if err != nil {
+			return err
+		}
+		classes, err := dhcpStore.ListClasses(ctx)
+		if err != nil {
+			return err
+		}
+		binds, err := resRepo.List(ctx)
+		if err != nil {
+			return err
+		}
+		cfg, err := keaengine.BuildConfigFull(subs, opts, classes, binds)
+		if err != nil {
+			return err
+		}
+		_, err = keaCmd.Command(ctx, "config-set", "dhcp4", cfg)
+		if err != nil {
+			log.Printf("[dhcp-apply] config-set: %v", err)
+		}
+		return err
+	}
+	dhcpH := dhcpmodule.NewHandler(dhcpStore, applyDhcpFn)
+
+	ledgerH := ipam.NewLedgerHandler(ipam.NewLedgerService(ledgerSrc, resRepo, subRepo, notifyDhcp))
 	var assetRepo ipam.AssetRepo = ipam.NewMemAssetRepo()
 	if pool != nil {
 		assetRepo = ipam.NewPgAssetRepo(pool)
@@ -254,39 +298,6 @@ func newEngine(version string) *gin.Engine {
 	if err := platform.EnsureBootstrap(context.Background(), userStore); err != nil {
 		log.Printf("user bootstrap: %v", err)
 	}
-
-	// DHCP 选项与类匹配（M2-016，C-02/C-03）：kea BuildConfigFull 注入 + config-set 下发
-	var dhcpStore dhcpmodule.Store = dhcpmodule.NewMemStore()
-	if pool != nil {
-		dhcpStore = dhcpmodule.NewPgStore(pool)
-	}
-	applyDhcp := func(ctx context.Context) error {
-		if keaCmd == nil {
-			return errors.New("kea unavailable")
-		}
-		subs, err := subRepo.List(ctx, "", 0)
-		if err != nil {
-			return err
-		}
-		opts, err := dhcpStore.ListOptions(ctx)
-		if err != nil {
-			return err
-		}
-		classes, err := dhcpStore.ListClasses(ctx)
-		if err != nil {
-			return err
-		}
-		cfg, err := keaengine.BuildConfigFull(subs, opts, classes)
-		if err != nil {
-			return err
-		}
-		_, err = keaCmd.Command(ctx, "config-set", "dhcp4", cfg)
-		if err != nil {
-			log.Printf("[dhcp-apply] config-set: %v", err)
-		}
-		return err
-	}
-	dhcpH := dhcpmodule.NewHandler(dhcpStore, applyDhcp)
 
 	var upRepo dnsmodule.UpstreamRepo = dnsmodule.NewMemUpstreamRepo()
 	var unboundCtl dnsmodule.UnboundController = unboundengine.ExecController{}

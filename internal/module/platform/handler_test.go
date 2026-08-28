@@ -39,7 +39,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 	resRepo := ipam.NewMemReservationRepo()
 	ledgerSvc := ipam.NewLedgerService(func(context.Context) ipam.LedgerSource {
 		return ipam.LedgerSource{Subnets: []ipam.Subnet{}}
-	}, resRepo, kea, subRepo)
+	}, resRepo, subRepo, nil)
 	dnsSvc := dnsmodule.NewService(dnsmodule.NewMemUpstreamRepo(),
 		dnsmodule.NewProber(time.Second, func(context.Context, string) (time.Duration, error) { return 0, nil }),
 		fakeUnbound{})
@@ -64,7 +64,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		*stubApplier
 	}{h,
 		ipam.NewOrgHandler(ipam.NewOrgService(orgStore)),
-		ipam.NewSubnetHandler(ipam.NewSubnetService(subRepo, orgStore, kea)),
+		ipam.NewSubnetHandler(ipam.NewSubnetService(subRepo, orgStore, kea, nil)),
 		ipam.NewLedgerHandler(ledgerSvc),
 		ipam.NewAssetHandler(ipam.NewAssetService(ipam.NewMemAssetRepo(), orgStore)),
 		&logsAPI{logq.NewHandler(logq.NewService(logq.NewMemStore(), nil))},

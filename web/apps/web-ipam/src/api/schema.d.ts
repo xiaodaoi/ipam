@@ -1925,7 +1925,7 @@ export interface components {
             id: string;
             /** @description 类名（Kea client-classes 引用键，创建后不可改） */
             name: string;
-            /** @description Kea eval 匹配表达式（如 option[61].hex matches '.*'） */
+            /** @description Kea eval 匹配表达式（如 option[61].hex == option[61].hex） */
             test: string;
             /** @description 命中该类时下发的选项 */
             options: components["schemas"]["DhcpClassOption"][];

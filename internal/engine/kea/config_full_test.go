@@ -17,10 +17,11 @@ func TestBuildConfigFull_注入选项与类(t *testing.T) {
 			{OptionCode: 6, Name: "domain-name-servers", Data: "1.1.1.1", Enabled: false},
 		},
 		[]dhcp.DhcpClass{
-			{Name: "printers", Test: "option[61].hex == option[61].hex '.*'", Enabled: true,
+			{Name: "printers", Test: "option[61].hex == option[61].hex", Enabled: true,
 				Options: []dhcp.ClassOption{{OptionCode: 3, Name: "routers", Data: "192.168.9.254"}}},
 			{Name: "offclass", Test: "x", Enabled: false},
 		},
+		nil,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -40,7 +41,7 @@ func TestBuildConfigFull_注入选项与类(t *testing.T) {
 }
 
 func TestBuildConfig_空选项保持基础形态(t *testing.T) {
-	cfg, err := BuildConfigFull([]ipam.Subnet{}, nil, nil)
+	cfg, err := BuildConfigFull([]ipam.Subnet{}, nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,5 +50,28 @@ func TestBuildConfig_空选项保持基础形态(t *testing.T) {
 	}
 	if _, ok := cfg.Dhcp4["option-data"]; ok {
 		t.Fatal("空选项不应注入 option-data 键")
+	}
+}
+
+func TestBuildConfigFull_hostReservations投影(t *testing.T) {
+	cfg, err := BuildConfigFull(
+		[]ipam.Subnet{{Family: 4, CIDR: "192.168.9.0/24", KeaSubnetID: 9}},
+		nil, nil,
+		[]ipam.Reservation{
+			{MAC: "aa:bb:cc:dd:ee:01", IPv4: "192.168.9.40"},
+			{MAC: "", IPv4: "192.168.9.41"},
+			{MAC: "aa:bb:cc:dd:ee:02", IPv4: "10.99.9.40"},
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(cfg.Dhcp4)
+	s := string(b)
+	if !strings.Contains(s, `"reservations"`) || !strings.Contains(s, "aa:bb:cc:dd:ee:01") {
+		t.Fatalf("bind 行应投影进子网 reservations: %s", s)
+	}
+	if strings.Contains(s, "192.168.9.41") || strings.Contains(s, "10.99.9.40") {
+		t.Fatalf("reserve 行与跨网段地址不应投影: %s", s)
 	}
 }

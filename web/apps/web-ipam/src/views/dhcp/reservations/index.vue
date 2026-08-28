@@ -40,7 +40,7 @@ async function loadLists() {
   try {
     const [r, b] = await Promise.all([
       listLedger({ state: 'reserved' }),
-      listLedger({ state: 'bound' }),
+      listLedger({ state: 'static' }),
     ]);
     resRows.value = r.items ?? [];
     bindRows.value = b.items ?? [];

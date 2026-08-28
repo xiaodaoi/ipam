@@ -24,12 +24,20 @@ type ReservationRepo interface {
 type LedgerService struct {
 	source func(ctx context.Context) LedgerSource
 	repo   ReservationRepo
-	kea    KeaDeployer
 	subs   SubnetRepo
+	apply  func(ctx context.Context) error
 }
 
-func NewLedgerService(source func(context.Context) LedgerSource, repo ReservationRepo, kea KeaDeployer, subs SubnetRepo) *LedgerService {
-	return &LedgerService{source: source, repo: repo, kea: kea, subs: subs}
+func NewLedgerService(source func(context.Context) LedgerSource, repo ReservationRepo, subs SubnetRepo, apply func(context.Context) error) *LedgerService {
+	return &LedgerService{source: source, repo: repo, subs: subs, apply: apply}
+}
+
+// notifyApply 统一下发触发（M3-007 配置式：整段 config-set；apply 未注入则跳过——PoC 内存模式）。
+func (s *LedgerService) notifyApply(ctx context.Context) error {
+	if s.apply == nil {
+		return nil
+	}
+	return s.apply(ctx)
 }
 
 // Query 见 QueryLedger。
@@ -45,7 +53,7 @@ func (s *LedgerService) Reserve(ctx context.Context, subnetID, addr string) erro
 	if err := s.repo.Upsert(ctx, Reservation{IPv4: addr}); err != nil {
 		return err
 	}
-	return s.kea.ReserveAddress(ctx, subnetID, addr)
+	return s.notifyApply(ctx)
 }
 
 // BindStatic 转静态绑定：占用检查→写 MAC 预留→Kea host reservation。
@@ -56,7 +64,7 @@ func (s *LedgerService) BindStatic(ctx context.Context, subnetID, addr, mac stri
 	if err := s.repo.Upsert(ctx, Reservation{MAC: mac, IPv4: addr}); err != nil {
 		return err
 	}
-	return s.kea.BindStatic(ctx, subnetID, addr, mac)
+	return s.notifyApply(ctx)
 }
 
 // assertFree 地址已被绑定或在线占用则拒绝（409 ADDR_OCCUPIED）。

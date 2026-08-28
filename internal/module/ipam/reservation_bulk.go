@@ -67,42 +67,41 @@ func (s *LedgerService) BulkReservations(ctx context.Context, subnetID string, e
 		return res, nil // 整体回滚：无任何写入
 	}
 
-	// 阶段二：应用
+	// 阶段二：应用（逐条落库；Kea 配置式下发统一在末尾执行——任一失败整体回滚，
+	// 修复 M2-017 发现的 bind 残留缺口：原实现回滚范围不含失败行自身的 Upsert）
 	applied := 0
 	for i, e := range entries {
-		line := i + 1
 		var uerr error
 		if e.Kind == "bind" {
-			uerr = s.applyBind(ctx, subnetID, e.Address, e.MAC)
+			uerr = s.applyBind(ctx, e.Address, e.MAC)
 		} else {
-			uerr = s.applyReserve(ctx, subnetID, e.Address)
+			uerr = s.applyReserve(ctx, e.Address)
 		}
 		if uerr != nil {
-			// 尽力回滚已应用项
-			_ = s.rollbackApplied(ctx, subnetID, entries[:i])
+			_ = s.rollbackApplied(ctx, subnetID, entries[:i+1])
 			res.OK = false
-			res.Failures = append(res.Failures, BulkFailure{Line: line, Reason: uerr.Error()})
+			res.Failures = append(res.Failures, BulkFailure{Line: i + 1, Reason: uerr.Error()})
 			return res, nil
 		}
 		applied++
+	}
+	if err := s.notifyApply(ctx); err != nil {
+		_ = s.rollbackApplied(ctx, subnetID, entries)
+		res.OK = false
+		res.Failures = append(res.Failures, BulkFailure{Line: len(entries) + 1, Reason: "kea config-set: " + err.Error()})
+		return res, nil
 	}
 	res.Applied = applied
 	return res, nil
 }
 
 // applyReserve/applyBind 直写仓储（绕过 assertFree——预检已完成，避免重复 List）。
-func (s *LedgerService) applyReserve(ctx context.Context, subnetID, addr string) error {
-	if err := s.repo.Upsert(ctx, Reservation{IPv4: addr}); err != nil {
-		return err
-	}
-	return s.kea.ReserveAddress(ctx, subnetID, addr)
+func (s *LedgerService) applyReserve(ctx context.Context, addr string) error {
+	return s.repo.Upsert(ctx, Reservation{IPv4: addr})
 }
 
-func (s *LedgerService) applyBind(ctx context.Context, subnetID, addr, mac string) error {
-	if err := s.repo.Upsert(ctx, Reservation{MAC: mac, IPv4: addr}); err != nil {
-		return err
-	}
-	return s.kea.BindStatic(ctx, subnetID, addr, mac)
+func (s *LedgerService) applyBind(ctx context.Context, addr, mac string) error {
+	return s.repo.Upsert(ctx, Reservation{MAC: mac, IPv4: addr})
 }
 
 // rollbackApplied 尽力移除已应用项（Kea 侧再删除 + 仓储删除）。

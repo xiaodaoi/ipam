@@ -8,7 +8,7 @@ import (
 func newBulkSvc() (*LedgerService, *MemReservationRepo) {
 	repo := NewMemReservationRepo()
 	svc := NewLedgerService(func(context.Context) LedgerSource { return LedgerSource{} },
-		repo, NewNoopKea(), NewMemSubnetRepo())
+		repo, NewMemSubnetRepo(), nil)
 	return svc, repo
 }
 
@@ -31,7 +31,7 @@ func TestBulkReservations_占用行导致整体回滚(t *testing.T) {
 	repo := NewMemReservationRepo()
 	svc := NewLedgerService(func(context.Context) LedgerSource {
 		return LedgerSource{Bindings: []LedgerBinding{{IPv4: "10.1.0.10", State: "active"}}}
-	}, repo, NewNoopKea(), NewMemSubnetRepo())
+	}, repo, NewMemSubnetRepo(), nil)
 
 	res, _ := svc.BulkReservations(context.Background(), "s1", []BulkEntry{
 		{Kind: "reserve", Address: "10.1.0.11"}, // 本可成功

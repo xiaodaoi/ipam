@@ -344,8 +344,6 @@ func NewNoopKea() *NoopKea { return &NoopKea{} }
 
 func (n *NoopKea) DeploySubnet(_ context.Context, _ []Subnet, _ bool) (int, error) { return 1, nil }
 func (n *NoopKea) RemoveSubnet(_ context.Context, _ int) error                     { return nil }
-func (n *NoopKea) ReserveAddress(_ context.Context, _, _ string) error             { return nil }
-func (n *NoopKea) BindStatic(_ context.Context, _, _, _ string) error              { return nil }
 
 // LoadLedgerBindings 台账绑定源：读 PG coherence_binding（active/grace）。
 func LoadLedgerBindings(ctx context.Context, pool *pgxpool.Pool) ([]LedgerBinding, error) {

@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-08-28 · M3-007 完成：Kea 绑定配置式下发（DHCP 域 kea 路径全收敛）
+
+- **做了**：BuildConfigFull 投影 subnet reservations；LedgerService/SubnetService 双 apply 收敛（4 个 kea 命令调用点退役）；Create 的 KeaSubnetID 本地递增分配（修多子网撞车）；bulk 回滚缺口修复（含失败行自身）。
+- **验证结果**：容器 e2e 决定性通过——bulk ok:true applied:3，kea config-get 实收 3 子网（id 唯一）+ reservations + option-data + client-classes，零错误。
+- **里程碑**：**DHCP 域 kea 下发全面配置式收敛**（单一收敛点 applyDhcp：子网+池+选项+类+绑定一次 config-set 原子生效）；控制面单测含回滚回归锚点。
+- **遗留**：reserve 池切分 P2；host reservation 租约联调 P2。
 ## 2026-08-28 · M2-017 完成：保留与绑定页 + Pools 回填缺陷修复
 
 - **做了**：bulkReservations client + 三卡页（批量创建/保留列表/绑定列表，后端零改动）；DHCP 菜单「保留与绑定」child。
