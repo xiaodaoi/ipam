@@ -107,7 +107,9 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
 }
 
 export const requestClient = createRequestClient(apiURL, {
-  responseReturn: 'data',
+  // 后端为 REST 裸 JSON（RFC9457 错误），非 {code,data,message} 包装：
+  // 直接返回 body，避免 vben mock 的 code===0 约定把成功响应当失败
+  responseReturn: 'body',
 });
 
 export const baseRequestClient = new RequestClient({ baseURL: apiURL });
