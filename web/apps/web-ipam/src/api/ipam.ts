@@ -53,3 +53,33 @@ export type PoolUtilization = components['schemas']['PoolUtilization'];
 
 export const getDashboard = (poolTopN?: number) =>
   req<DashboardOverview>(`/dashboard${poolTopN ? `?poolTopN=${poolTopN}` : ''}`);
+
+export type TopList = components['schemas']['TopList'];
+export type QpsSeries = components['schemas']['QpsSeries'];
+export type AuditEntry = components['schemas']['AuditEntry'];
+export type AuditPage = components['schemas']['AuditPage'];
+
+const qsOf = (o: Record<string, string | number | undefined>) => {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(o)) if (v !== undefined && v !== '') qs.set(k, String(v));
+  const s = qs.toString();
+  return s ? `?${s}` : '';
+};
+
+export interface LogQuery {
+  from: string; to?: string; type?: string; mac?: string; ip?: string;
+  domain?: string; action?: string; cursor?: string; pageSize?: number;
+}
+export const listLogs = (q: LogQuery) =>
+  req<components['schemas']['LogPage']>(`/logs${qsOf(q as never)}`);
+export const listLogTop = (q: LogQuery & { by?: string; limit?: number }) =>
+  req<TopList>(`/logs/top${qsOf(q as never)}`);
+export const getLogQps = (q: LogQuery & { intervalSec?: number }) =>
+  req<QpsSeries>(`/logs/qps${qsOf(q as never)}`);
+
+export interface AuditQuery {
+  from: string; to?: string; actorType?: string; action?: string;
+  q?: string; cursor?: string; pageSize?: number;
+}
+export const listAudits = (q: AuditQuery) =>
+  req<AuditPage>(`/audits${qsOf(q as never)}`);

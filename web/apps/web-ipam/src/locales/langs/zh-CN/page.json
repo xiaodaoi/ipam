@@ -16,5 +16,10 @@
   "dhcp": {
     "title": "DHCP 服务",
     "ledger": "地址台账"
+  },
+  "logs": {
+    "title": "日志中心",
+    "search": "查询检索",
+    "audit": "操作审计"
   }
 }

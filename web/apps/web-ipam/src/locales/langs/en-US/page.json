@@ -16,5 +16,10 @@
   "dhcp": {
     "title": "DHCP Service",
     "ledger": "Address Ledger"
+  },
+  "logs": {
+    "title": "Log Center",
+    "search": "Search",
+    "audit": "Audit"
   }
 }
