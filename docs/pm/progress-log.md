@@ -3,6 +3,13 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-08-28 · CI 七道闸首次全绿（run 33142407177）+ gitignore 陷阱修复
+
+- **根因链**：web/.gitignore 裸词 `logs` 误伤 src/views/logs 三页面未入库 → CI TS2307 三模块缺失。本地 typecheck 全过（文件存在），仅 CI 缺文件——"本地绿 CI 红"的经典形态。
+- **修复**：gitignore 收窄为 `/logs`（日志产物语义）；三个 .vue 页面入库。
+- **CI 编排升级（同批落地）**：web-ci 上传 dist artifact → compose-smoke needs 串行下载 → control-plane 走 Dockerfile.prebuilt（无 node 阶段，unbound 二进制复用 ipam/unbound 镜像产物）→ up --no-build。彻底解决 runner 双 node 构建并行 OOM。
+- **验证结果**：run 33142407177 = api-lint ✓ go-ci ✓ hook-ci ✓ web-ci ✓ compose-smoke ✓（K1~[7] 全断言）。openapi-diff 为 PR-only skip。
+- **里程碑**：**CI 六闸首次端到端全绿**。自 M0-005 建闸以来所有历史红项（compose 卷声明/hook 命名空间/gitignore/web OOM/vector 镜像/CH 语法）全部闭环。
 ## 2026-08-28 · M5-003 完成：RBAC 写权限拦截
 
 - **做了**：NewRBACMiddleware——变更类请求强制 admin JWT（无令牌 401/user 角色 403 FORBIDDEN/login 白名单放行），装配于审计中间件之前（被拒请求不入账）。
