@@ -27,16 +27,28 @@ func main() {
 	defer cancel()
 
 	store := coherence.NewMemStore()
+	var pool *pgxpool.Pool
 	if *dsn != "" {
-		connectPG(ctx, *dsn, store)
+		pool = connectPG(ctx, *dsn, store)
 	}
 
-	templates := func(id string) (coherence.Template, bool) {
-		// PoC 内置默认模板；prefix_template 动态读取在 M2
+	// 模板装载（M2-013）：PG 模式动态装载 prefix_template；纯内存 PoC 保留内置默认。
+	lookup := func(id string) (coherence.Template, bool) {
 		if id == "t-default" {
 			return coherence.Template{ID: id, Prefix: "2406::", Expr: "{v4.hextet4}"}, true
 		}
 		return coherence.Template{}, false
+	}
+	var tplAll func() []coherence.Template
+	if pool != nil {
+		tl := coherence.NewTplLoader(pool)
+		if n, err := tl.Refresh(ctx); err != nil {
+			log.Printf("template load: %v", err)
+		} else {
+			log.Printf("loaded %d templates from PG", n)
+		}
+		tl.StartRefreshLoop(ctx, 30*time.Second)
+		lookup, tplAll = tl.Lookup, tl.All
 	}
 
 	stopSnap := coherence.StartSnapshotLoop(*snapshotPath, 5*time.Second, store.All)
@@ -47,7 +59,11 @@ func main() {
 
 	lis := listen(*sock)
 	gs := grpc.NewServer()
-	coherencev1.RegisterCoherenceServer(gs, coherence.NewService(store, templates))
+	svc := coherence.NewService(store, lookup)
+	if tplAll != nil {
+		svc = svc.SetTemplateAll(tplAll)
+	}
+	coherencev1.RegisterCoherenceServer(gs, svc)
 	log.Printf("coherence-daemon listening on %s (pg=%v)", *sock, *dsn != "")
 	if err := gs.Serve(lis); err != nil {
 		log.Fatal(err)
@@ -66,8 +82,8 @@ func listen(sock string) net.Listener {
 	return lis
 }
 
-// connectPG 启动全量加载 + NOTIFY 订阅（§2.3 一致性对账，K9）。
-func connectPG(ctx context.Context, dsn string, store coherence.Store) {
+// connectPG 启动全量加载 + NOTIFY 订阅（§2.3 一致性对账，K9）；返回池供模板装载复用。
+func connectPG(ctx context.Context, dsn string, store coherence.Store) *pgxpool.Pool {
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
 		log.Fatalf("pg pool: %v", err)
@@ -86,4 +102,5 @@ func connectPG(ctx context.Context, dsn string, store coherence.Store) {
 			log.Printf("notify loop exit: %v", err)
 		}
 	}()
+	return pool
 }
