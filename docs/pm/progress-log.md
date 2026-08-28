@@ -3,6 +3,14 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+
+## 2026-08-28 · M3-009 完成：settings 渲染持久化路径打通（include 拆分）
+
+- **做了**：confApplier 渲染产物落盘 /etc/unbound-rendered（宿主 config/unbound rw 挂载）；主 conf include 拆分（静态身份段归主 conf，删静态 auth-zone）；SettingsService.Update notify 收敛（失败回滚落库值）；BuildConf 静态身份解耦 + forward-addr @ 格式修正 + RenderSettingsBlock 指令正名（ip-ratelimit）；control-plane 镜像补 unbound 用户。
+- **验证结果**：容器 e2e 决定性通过——PUT /dns/settings 200 → 渲染产物落盘 → **unbound get_option 实收 cache-max-ttl=300 / ip-ratelimit=400**；全链测试绿 + lint 0。
+- **里程碑**：**DNS 域全链路真实生效闭环**（settings/上游/转发/解析记录/封禁 → 五源渲染 → checkconf → 原子落盘 → reload → unbound 实收）；settings 保存自 M2-011 以来首次真正生效。
+- **遗留**：unbound 大版本升级时 include 合并语义回归验证 P2。
+
 ## 2026-08-28 · M3-008 完成：unbound 命令通道打通
 
 - **做了**：ExecController.Conf（-c 注入）+ compose 挂载 config/unbound 只读 + IPAM_UNBOUND_CONF 注入；dev.sh 同步。
