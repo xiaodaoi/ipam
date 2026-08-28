@@ -59,7 +59,7 @@ onMounted(load);
           <Switch v-model:checked="settings.rrlEnabled" />
         </div>
         <div>
-          <div class="mb-1 text-xs text-gray-400">ratelimit-per-ip（次/秒）</div>
+          <div class="mb-1 text-xs text-gray-400">ip-ratelimit（次/秒）</div>
           <InputNumber
             v-model:value="settings.rrlRate"
             :min="10"
@@ -74,7 +74,7 @@ onMounted(load);
         <Button type="primary" :loading="saving" @click="save">保存并生效</Button>
       </div>
       <div class="mt-2 text-xs text-gray-400">
-        限速超限的来源 IP 将被丢弃应答（ratelimit 语义按 unbound 官方定义）。
+        限速超限的来源 IP 将被丢弃应答（ip-ratelimit 按 unbound 官方定义）。
       </div>
     </Card>
 

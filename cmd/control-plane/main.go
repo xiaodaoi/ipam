@@ -335,13 +335,19 @@ func newEngine(version string) *gin.Engine {
 	if pool != nil {
 		settingsRepo = dnsmodule.NewPgSettingsRepo(pool)
 	}
-	settingsSvc := dnsmodule.NewSettingsService(settingsRepo, unboundCtl, "/etc/unbound/unbound.conf")
-	settingsH := dnsmodule.NewSettingsHandler(settingsSvc, settingsRepo)
 	applier := &confApplier{
 		pool: pool, upRepo: upRepo, frRepo: frRepo, zoneRepo: zoneRepo,
 		blRepo: blRepo, settings: settingsRepo, ctl: unboundCtl,
-		confPath: "/etc/unbound/unbound.conf",
+		confPath: "/etc/unbound-rendered/unbound-rendered.conf",
 	}
+	settingsSvc := dnsmodule.NewSettingsService(settingsRepo, unboundCtl, "/etc/unbound-rendered/unbound-rendered.conf", func(ctx context.Context) error {
+		_, err := applier.apply(ctx)
+		if err != nil {
+			log.Printf("[settings-notify] %v", err)
+		}
+		return err
+	})
+	settingsH := dnsmodule.NewSettingsHandler(settingsSvc, settingsRepo)
 	zoneH := dnsmodule.NewZoneHandler(zoneSvc, func(ctx context.Context, zoneName string) []dnsmodule.LinkedRecord {
 		if pool == nil {
 			return nil

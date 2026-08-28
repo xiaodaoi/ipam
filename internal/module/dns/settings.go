@@ -39,15 +39,16 @@ type SettingsRepo interface {
 
 var ErrInvalidConf = errors.New("INVALID_CONF")
 
-// SettingsService 参数 CRUD：持久化→重渲染→checkconf→reload（校验失败不改运行态）。
+// SettingsService 参数 CRUD：持久化→重渲染→checkconf→落库→notify 全量收敛（M3-009）。
 type SettingsService struct {
 	repo     SettingsRepo
 	ctl      UnboundController
 	confPath string
+	notify   func(ctx context.Context) error // confApplier 全量渲染+落盘+reload
 }
 
-func NewSettingsService(repo SettingsRepo, ctl UnboundController, confPath string) *SettingsService {
-	return &SettingsService{repo: repo, ctl: ctl, confPath: confPath}
+func NewSettingsService(repo SettingsRepo, ctl UnboundController, confPath string, notify func(context.Context) error) *SettingsService {
+	return &SettingsService{repo: repo, ctl: ctl, confPath: confPath, notify: notify}
 }
 
 // Get 读缓存+安全参数（缺省返回默认）。
@@ -66,7 +67,8 @@ func (s *SettingsService) Get(ctx context.Context) (Settings, error) {
 	return cache, nil
 }
 
-// Update 保存→渲染→checkconf→reload；checkconf 失败回滚已保存值并返回 ErrInvalidConf。
+// Update 保存→渲染→checkconf→落库→notify 全量收敛（写渲染产物+reload）；
+// checkconf/notify 失败回滚已保存值并返回 ErrInvalidConf（M3-009：渲染产物真正落到 unbound 可见路径）。
 func (s *SettingsService) Update(ctx context.Context, in Settings) error {
 	old, _ := s.Get(ctx)
 	raw, _ := json.Marshal(in)
@@ -78,8 +80,13 @@ func (s *SettingsService) Update(ctx context.Context, in Settings) error {
 	if err := s.repo.Set(ctx, "cache", raw); err != nil {
 		return err
 	}
-	_ = s.ctl.Reload(ctx)
-	_ = old
+	if s.notify != nil {
+		if err := s.notify(ctx); err != nil {
+			oldRaw, _ := json.Marshal(old)
+			_ = s.repo.Set(ctx, "cache", oldRaw) // 回滚落库值
+			return fmt.Errorf("%w: %v", ErrInvalidConf, err)
+		}
+	}
 	return nil
 }
 
@@ -111,9 +118,14 @@ func RenderSettingsBlock(s Settings) string {
 	fmt.Fprintf(&sb, "cache-min-ttl: %d\n", s.CacheMinTtl)
 	fmt.Fprintf(&sb, "cache-max-ttl: %d\n", s.CacheMaxTtl)
 	fmt.Fprintf(&sb, "serve-expired: %s\n", boolYN(s.ServeExpired))
-	fmt.Fprintf(&sb, "ratelimit: %s\n", boolYN(s.RrlEnabled))
+	// RRL（F-R4/B-08）：unbound 指令为数值型；per-ip 限速指令名是 ip-ratelimit（M3-009 修正，
+	// 原 ratelimit-per-ip 指令不存在且布尔值非法——unbound-checkconf 容器实测复现）
 	if s.RrlEnabled {
-		fmt.Fprintf(&sb, "ratelimit-per-ip: %d\n", s.RrlRate)
+		fmt.Fprintf(&sb, "ratelimit: 1000000\n")          // 全局放宽，限速点在每客户端 IP
+		fmt.Fprintf(&sb, "ip-ratelimit: %d\n", s.RrlRate) // 次/秒/IP
+	} else {
+		fmt.Fprintf(&sb, "ratelimit: 0\n")
+		fmt.Fprintf(&sb, "ip-ratelimit: 0\n")
 	}
 	fmt.Fprintf(&sb, "val-permissive-mode: %s\n", boolYN(!s.DnssecValidate))
 	if s.TcpOnly {

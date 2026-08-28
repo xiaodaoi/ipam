@@ -78,7 +78,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		dnsmodule.NewForwardHandler(dnsmodule.NewForwardService(dnsmodule.NewMemForwardRuleRepo(), dnsmodule.NewMemUpstreamRepo(), fakeUnbound{})),
 		dnsmodule.NewZoneHandler(dnsmodule.NewZoneService(dnsmodule.NewMemZoneRepo(), fakeUnbound{}), nil),
 		dnsmodule.NewBlocklistHandler(dnsmodule.NewBlocklistService(dnsmodule.NewMemBlocklistRepo(), nil, fakeUnbound{}, "/tmp/rpz")),
-		dnsmodule.NewSettingsHandler(dnsmodule.NewSettingsService(dnsmodule.NewMemSettingsRepo(), fakeUnbound{}, "/tmp/unbound.conf"), dnsmodule.NewMemSettingsRepo()),
+		dnsmodule.NewSettingsHandler(dnsmodule.NewSettingsService(dnsmodule.NewMemSettingsRepo(), fakeUnbound{}, "/tmp/unbound.conf", nil), dnsmodule.NewMemSettingsRepo()),
 		&stubApplier{},
 	}
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})

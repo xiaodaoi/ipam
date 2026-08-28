@@ -90,7 +90,7 @@ func (e ExecController) CheckConf(_ context.Context, confPath, renderedBlock str
 		return err
 	}
 	defer func() { _ = os.Remove(tmp.Name()) }()
-	if _, err := tmp.WriteString(base + "\n# candidate\n" + renderedBlock); err != nil {
+	if _, err := tmp.WriteString(base + "\nserver:\n# candidate\n" + renderedBlock); err != nil {
 		_ = tmp.Close()
 		return err
 	}

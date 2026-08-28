@@ -88,6 +88,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
  && rm -rf /tmp/unbound* \
  && apt-get purge -y build-essential libssl-dev libexpat1-dev libevent-dev flex bison \
  && rm -rf /var/lib/apt/lists/* \
+ && useradd -r -s /usr/sbin/nologin unbound \
  && useradd -r -u 10001 ipam
 COPY --from=build /out/control-plane /usr/local/bin/control-plane
 USER ipam

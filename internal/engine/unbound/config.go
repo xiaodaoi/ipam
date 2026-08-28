@@ -2,6 +2,7 @@ package unbound
 
 import (
 	"fmt"
+	"net/netip"
 	"strings"
 )
 
@@ -52,11 +53,8 @@ func BuildConf(in ConfInput) string {
 	} else {
 		sb.WriteString("server:\n")
 	}
-	sb.WriteString("  interface: 0.0.0.0\n")
-	sb.WriteString("  access-control: 0.0.0.0/0 allow\n")
-	// 日志链路（§6）：统一落盘到挂载卷供 vector 采集；分级采样开关 P1（FR-E-05）
-	sb.WriteString("  logfile: /var/log/unbound/unbound.log\n")
-	sb.WriteString("  log-queries: yes\n")
+	// interface/access-control/logfile 等静态身份段归主 conf（include 展开）——
+	// 渲染产物重复 interface 会触发 unbound fatal（同端口双绑定，M3-009）
 
 	// 默认转发（forward-zone "."）
 	writeForward(&sb, ".", in.DefaultFwd)
@@ -94,6 +92,11 @@ func writeForward(sb *strings.Builder, domain string, addrs []string) {
 	}
 	fmt.Fprintf(sb, "forward-zone:\n  name: %s\n", name)
 	for _, a := range addrs {
+		// unbound forward-addr 语法为 host@port（冒号格式非法——M3-009 容器实测）
+		if ap, err := netip.ParseAddrPort(a); err == nil {
+			fmt.Fprintf(sb, "  forward-addr: %s@%d\n", ap.Addr(), ap.Port())
+			continue
+		}
 		fmt.Fprintf(sb, "  forward-addr: %s\n", a)
 	}
 }

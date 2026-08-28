@@ -28,6 +28,9 @@ services:
         APT_MIRROR: "${APT_MIRROR:-}"
         GO_DL: "${GO_DL:-https://go.dev}"
     image: ipam/control-plane:${IPAM_VERSION:-0.1.0-dev}
+    group_add:
+      - "${HOST_GID:-1000}"  # 渲染产物目录（config/unbound）组写；与宿主目录属组一致
+      - "${UNBOUND_GID:-999}"  # unbound-ctl.sock 组（unbound 容器用户 gid）；M3-009
     depends_on:
       postgresql:
         condition: service_healthy
@@ -46,6 +49,7 @@ services:
       - ipam-run:/run/ipam
       - ../../db/postgresql/migrations:/srv/migrations:ro
       - ../../config/unbound:/etc/unbound-ctl:ro
+      - ../../config/unbound:/etc/unbound-rendered
     ports:
       - "${IPAM_PORT:-8443}:8443"
     restart: unless-stopped
@@ -111,6 +115,7 @@ services:
     volumes:
       - ipam-run:/run/ipam
       - ../../config/unbound:/etc/unbound:ro
+      - ../../config/unbound:/etc/unbound-rendered:ro
       - unbound-logs:/var/log/unbound
     ports:
       - "${UNBOUND_PORT:-5353}:53/udp"
