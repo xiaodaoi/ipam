@@ -8,7 +8,7 @@ ENV GOPROXY=https://goproxy.cn,direct \
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -ldflags "-s -w" -o /out/coherence-daemon ./cmd/coherence-daemon
+RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod go build -ldflags "-s -w" -o /out/coherence-daemon ./cmd/coherence-daemon
 
 FROM ubuntu:jammy
 ARG APT_MIRROR=""

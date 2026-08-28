@@ -2,6 +2,8 @@ name: ipam
 
 services:
   postgresql:
+    ports:
+      - "127.0.0.1:${IPAM_PG_PORT:-5432}:5432"
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-ipam}
@@ -64,6 +66,8 @@ services:
 
   clickhouse:
     image: clickhouse/clickhouse-server:24.8-alpine
+    ports:
+      - "127.0.0.1:${IPAM_CH_PORT:-9000}:9000"
     environment:
       CLICKHOUSE_DB: ${CLICKHOUSE_DB:-ipam}
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-ipam}

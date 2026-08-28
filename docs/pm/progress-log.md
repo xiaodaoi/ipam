@@ -3,6 +3,11 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-08-28 · M2-013 完成 + 调试循环建立（make dev）
+
+- **M2-013**：daemon 从 PG prefix_template 动态装载（TplLoader 缓存+30s 刷新+失败保旧缓存）；e2e 日志 `loaded 1 templates from PG`。双栈页→联动闭环打通。
+- **用户报障 401**：ipam.ts req() 裸 fetch 不带 Authorization → 全部写操作 401 TOKEN_MISSING。修复：接入 accessStore 携带 bearer；错误 detail 透出（不再只显示"添加失败"）。
+- **调试循环**：make dev——宿主跑 control-plane（IPAM_WEBUI_DIR 磁盘 dist / IPAM_HTTP_ADDR），容器只跑依赖（PG/CH 发布 127.0.0.1 回环端口）；make dev 附 Vite HMR（--web）。30s 从零到可登录，免镜像构建；Dockerfile 加 go 缓存挂载提速正式构建。
 ## 2026-08-28 · M3-001 修复：上游「添加」按钮无效（用户报障）
 
 - **根因**：Create 上游在 unbound 下发失败时返回 503（数据已落库），前端 add() 无 try/catch → 表单不重置、列表不刷新，看起来"点了没反应"。

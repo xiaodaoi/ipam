@@ -1,37 +1,32 @@
-# Go
-*.test
-*.out
-/bin/
 
-# Node / Vben
-node_modules/
-web/.turbo/
-**/.turbo/
-web/packages/**/dist/
-**/*.tsbuildinfo
-web/apps/*/dist/
-cmd/control-plane/webui/dist/
-
-# Env & secrets（密钥一律不入库）
-.env
-.env.*
-!.env.example
-secrets/
-/run/
-
-# IDE / OS
-.idea/
-.vscode/
-.DS_Store
-
-# 运行产物
-/var/lib/ipam/
-*.log
-web/apps/*/dist.zip
-deploy/compose/.env
-.omo/
 api/openapi/.gen-bundled.yaml
-
+/bin/
 # C++ 本地沙箱构建产物（CMakeCache 内嵌绝对路径，进 git 必炸 CI）
-hook-coherence/build/
+cmd/control-plane/webui/dist/
+deploy/compose/.env
+.DS_Store
+.env
+!.env.example
+# Env & secrets（密钥一律不入库）
+# Go
 hook-coherence/bin/
+hook-coherence/build/
+.idea/
+# IDE / OS
+*.log
+node_modules/
+# Node / Vben
+.omo/
+*.out
+/run/
+secrets/
+*.test
+**/*.tsbuildinfo
+**/.turbo/
+/var/lib/ipam/
+.vscode/
+web/apps/*/dist/
+web/apps/*/dist.zip
+web/packages/**/dist/
+web/.turbo/
+# 运行产物

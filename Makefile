@@ -10,6 +10,10 @@ help: ## 列出可用目标与说明
 doctor: ## 工具链自检（go/pnpm/docker/oapi-codegen/spectral…）
 	@bash scripts/doctor.sh
 
+dev: ## 调试循环：宿主跑 control-plane + 容器跑依赖（免镜像构建；scripts/dev.sh --web 附带前端 HMR）
+	bash scripts/dev.sh
+dev-web: ## 仅前端 Vite dev server（/api 代理 → 宿主 8443）
+	(cd web && pnpm --filter @vben/web-ipam run dev)
 build: ## 构建全部（Go 二进制 + 前端产物；未就绪部分自动跳过并提示）
 	@bash scripts/make-part.sh build
 

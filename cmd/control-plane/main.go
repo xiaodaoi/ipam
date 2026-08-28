@@ -325,7 +325,7 @@ func newEngine(version string) *gin.Engine {
 	// spec servers.url=/api/v1 → 统一前缀注册
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 
-	dist, err := webui.FS()
+	dist, err := webuiFS()
 	if err != nil {
 		log.Fatalf("webui fs: %v", err)
 	}
@@ -367,8 +367,20 @@ func newEngine(version string) *gin.Engine {
 // version 构建期注入：-ldflags "-X main.version=x.y.z"
 var version = "0.1.0-dev"
 
+// webuiFS 开发旁路：IPAM_WEBUI_DIR 指向磁盘 dist 时直接读盘（前端改完免镜像重建）；
+// 未设置走 go:embed（§13.3 单二进制交付不变）。
+func webuiFS() (fs.FS, error) {
+	if dir := os.Getenv("IPAM_WEBUI_DIR"); dir != "" {
+		return os.DirFS(dir), nil
+	}
+	return webui.FS()
+}
+
 func main() {
-	addr := ":8443"
+	addr := os.Getenv("IPAM_HTTP_ADDR")
+	if addr == "" {
+		addr = ":8443"
+	}
 	log.Printf("control-plane %s listening on %s", version, addr)
 	if err := newEngine(version).Run(addr); err != nil {
 		log.Fatal(err)
