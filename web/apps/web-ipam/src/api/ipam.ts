@@ -154,3 +154,12 @@ export const createSubnet = (b: {
   pools?: { startAddr: string; endAddr: string; kind: string }[];
 }) => req<Subnet>('/subnets', j(b));
 export const deleteSubnet = (id: string) => req<void>(`/subnets/${id}`, del);
+
+// ── 组织管理（M2-001 API 消费，系统管理★主数据）──
+export const createOrg = (b: { parentId?: string | null; name: string }) =>
+  req<OrgTreeNode>('/orgs', j(b));
+export const updateOrg = (
+  id: string,
+  b: { parentId?: string | null; name?: string },
+) => req<OrgTreeNode>(`/orgs/${id}`, patch(b));
+export const deleteOrg = (id: string) => req<void>(`/orgs/${id}`, del);

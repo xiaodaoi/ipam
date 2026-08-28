@@ -30,5 +30,9 @@
     "forward": "转发规则",
     "records": "解析记录",
     "blocklist": "封禁管控"
+  },
+  "system": {
+    "title": "系统管理",
+    "orgs": "组织管理"
   }
 }

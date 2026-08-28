@@ -30,5 +30,9 @@
     "forward": "Forward Rules",
     "records": "Records",
     "blocklist": "Blocklists"
+  },
+  "system": {
+    "title": "System",
+    "orgs": "Organizations"
   }
 }
