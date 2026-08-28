@@ -104,3 +104,43 @@ export function openLogTail(
   });
   return es;
 }
+
+// ── DNS 服务（M3 交付 API 消费）──
+export type Upstream = components['schemas']['Upstream'];
+export type ForwardRule = components['schemas']['ForwardRule'];
+export type DnsZone = components['schemas']['DnsZone'];
+export type DnsRecord = components['schemas']['DnsRecord'];
+export type Blocklist = components['schemas']['Blocklist'];
+
+const j = (body: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(body) });
+const patch = (body: unknown): RequestInit => ({ method: 'PATCH', body: JSON.stringify(body) });
+const del: RequestInit = { method: 'DELETE' };
+
+// 上游
+export const listUpstreams = () => req<{ items: Upstream[] }>('/upstreams');
+export const createUpstream = (b: Partial<Upstream>) => req<Upstream>('/upstreams', j(b));
+export const updateUpstream = (id: string, b: Partial<Upstream>) => req<Upstream>(`/upstreams/${id}`, patch(b));
+export const deleteUpstream = (id: string) => req<void>(`/upstreams/${id}`, del);
+
+// 转发规则
+export const listForwardRules = () => req<{ items: ForwardRule[] }>('/forward-rules');
+export const createForwardRule = (b: Partial<ForwardRule> & { dryRun?: boolean }) =>
+  req<ForwardRule>('/forward-rules', j(b));
+export const deleteForwardRule = (id: string) => req<void>(`/forward-rules/${id}`, del);
+
+// zone 与记录
+export const listDnsZones = () => req<{ items: DnsZone[] }>('/dns/zones');
+export const createDnsZone = (b: { name: string; kind: string }) => req<DnsZone>('/dns/zones', j(b));
+export const listDnsRecords = (zoneId: string) =>
+  req<{ items: DnsRecord[] }>(`/dns/zones/${zoneId}/records`);
+export const createDnsRecord = (zoneId: string, b: Partial<DnsRecord>) =>
+  req<DnsRecord>(`/dns/zones/${zoneId}/records`, j(b));
+export const deleteDnsRecord = (zoneId: string, recordId: string) =>
+  req<void>(`/dns/zones/${zoneId}/records/${recordId}`, del);
+export const listLinkedRecords = (zoneId: string) =>
+  req<{ items: { name: string; recType: string; rdata: string; mac: string }[] }>(
+    `/dns/zones/${zoneId}/linked`);
+
+// 封禁名单
+export const listBlocklists = () => req<{ items: Blocklist[] }>('/dns/blocklists');
+export const syncBlocklist = (id: string) => req<unknown>(`/dns/blocklists/${id}/sync`, j({}));

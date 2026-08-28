@@ -22,5 +22,12 @@
     "search": "查询检索",
     "audit": "操作审计",
     "tail": "实时流"
+  },
+  "dns": {
+    "title": "DNS 服务",
+    "upstream": "上游管理",
+    "forward": "转发规则",
+    "records": "解析记录",
+    "blocklist": "封禁管控"
   }
 }

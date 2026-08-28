@@ -22,5 +22,12 @@
     "search": "Search",
     "audit": "Audit",
     "tail": "Live Tail"
+  },
+  "dns": {
+    "title": "DNS Service",
+    "upstream": "Upstreams",
+    "forward": "Forward Rules",
+    "records": "Records",
+    "blocklist": "Blocklists"
   }
 }
