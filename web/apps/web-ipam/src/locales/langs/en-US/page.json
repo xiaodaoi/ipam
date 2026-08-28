@@ -29,7 +29,9 @@
     "upstream": "Upstreams",
     "forward": "Forward Rules",
     "records": "Records",
-    "blocklist": "Blocklists"
+    "blocklist": "Blocklists",
+    "cache": "Cache",
+    "security": "Security"
   },
   "system": {
     "title": "System",

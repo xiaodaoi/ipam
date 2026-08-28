@@ -29,7 +29,9 @@
     "upstream": "上游管理",
     "forward": "转发规则",
     "records": "解析记录",
-    "blocklist": "封禁管控"
+    "blocklist": "封禁管控",
+    "cache": "缓存与性能",
+    "security": "安全与诊断"
   },
   "system": {
     "title": "系统管理",

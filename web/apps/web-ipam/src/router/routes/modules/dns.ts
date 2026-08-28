@@ -31,6 +31,18 @@ const routes: RouteRecordRaw[] = [
         meta: { icon: 'lucide:book-open', title: $t('page.dns.records') },
       },
       {
+        name: 'DnsCache',
+        path: '/dns-service/cache',
+        component: () => import('#/views/dns/cache/index.vue'),
+        meta: { icon: 'lucide:gauge', title: $t('page.dns.cache') },
+      },
+      {
+        name: 'DnsSecurity',
+        path: '/dns-service/security',
+        component: () => import('#/views/dns/security/index.vue'),
+        meta: { icon: 'lucide:shield-check', title: $t('page.dns.security') },
+      },
+      {
         name: 'DnsBlocklist',
         path: '/dns-service/blocklist',
         component: () => import('#/views/dns/blocklist/index.vue'),

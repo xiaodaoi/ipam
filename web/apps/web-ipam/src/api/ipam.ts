@@ -163,3 +163,17 @@ export const updateOrg = (
   b: { parentId?: string | null; name?: string },
 ) => req<OrgTreeNode>(`/orgs/${id}`, patch(b));
 export const deleteOrg = (id: string) => req<void>(`/orgs/${id}`, del);
+
+// ── DNS 缓存与性能 / 安全参数（M3-005 API 消费）──
+export type DnsSettings = components['schemas']['DnsSettings'];
+export type PerDomainTtl = components['schemas']['PerDomainTtl'];
+
+export const getDnsSettings = () => req<DnsSettings>('/dns/settings');
+export const updateDnsSettings = (b: DnsSettings) =>
+  req<DnsSettings>('/dns/settings', { method: 'PUT', body: JSON.stringify(b) });
+export const listTtlOverrides = () =>
+  req<{ items: PerDomainTtl[] }>('/dns/settings/ttl-overrides');
+export const upsertTtlOverride = (b: { domain: string; ttl: number }) =>
+  req<PerDomainTtl>('/dns/settings/ttl-overrides', j(b));
+export const flushCache = (zone?: string) =>
+  req<{ flushed: string; cmd: string }>(`/dns/cache/flush${zone ? `?zone=${zone}` : ''}`, j({}));
