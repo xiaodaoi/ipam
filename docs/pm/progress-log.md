@@ -4,6 +4,11 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-29 · 里程碑出口：编辑闭环与安全/日志/诊断域
+
+- **做了**：`docs/dev/里程碑出口-编辑闭环与安全日志诊断域.md`——本段 12 卡（M2-021~M2-031、M5-012/031）的跨模块实现说明：出口范围/设计对接点/关键代码路径（黑名单两级检查/lease6 命令链/DNSSEC 渲染链/view 匹配闭包/编辑模式类型纪律）/各卡 e2e 证据表/事故与教训（ENOSPC ×2、锚点陷阱系列、镜像空行、JWT 验签顺序）/遗留与远期演进（refresh token 触发条件）。
+- **里程碑状态**：板面功能项全清，review 列待人工验收。
+
 ## 2026-08-29 · M2-031 完成：解析测试台 view/模拟来源
 
 - **做了**：spec clientIp/viewHint + gen；DnsHandler policyView 注入（ListPolicyGroups + netip CIDR 匹配）；main 装配（var 提前 + 闭包）；前端模拟来源 Input + viewHint Tag；diagnoseDns 签名 schema 化（修正 M2-014 违例）。
