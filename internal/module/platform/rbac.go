@@ -18,7 +18,7 @@ import (
 //   - 变更类请求（POST/PATCH/DELETE）另须 admin 角色（user 只读）。
 //
 // 位置：审计中间件之前（被拦截的请求不入审计）。
-func NewRBACMiddleware(users UserStore) gin.HandlerFunc {
+func NewRBACMiddleware(users UserStore, bl *TokenBlacklist) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 登录/登出端点自身放行（无令牌前提）
 		if fp := c.FullPath(); fp == "/api/v1/auth/login" || fp == "/api/v1/auth/logout" {
@@ -31,10 +31,18 @@ func NewRBACMiddleware(users UserStore) gin.HandlerFunc {
 			return
 		}
 
-		claims, err := ParseJWT(strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer "))
+		tok := strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer ")
+		claims, err := ParseJWT(tok)
 		if err != nil {
 			problem.Write(c, http.StatusUnauthorized,
 				"https://ipam.local/problems/unauthorized", "TOKEN_MISSING", "未携带有效访问令牌")
+			c.Abort()
+			return
+		}
+		// M5-011：登出黑名单（已吊销令牌立即失效）
+		if bl != nil && bl.Revoked(TokenHash(tok)) {
+			problem.Write(c, http.StatusUnauthorized,
+				"https://ipam.local/problems/unauthorized", "TOKEN_REVOKED", "令牌已吊销（已登出）")
 			c.Abort()
 			return
 		}

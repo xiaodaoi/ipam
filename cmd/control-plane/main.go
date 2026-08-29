@@ -312,6 +312,7 @@ func newEngine(version string) *gin.Engine {
 	if err := platform.EnsureBootstrap(context.Background(), userStore); err != nil {
 		log.Printf("user bootstrap: %v", err)
 	}
+	bl := platform.NewTokenBlacklist() // M5-011：登出黑名单（AuthHandler/RBAC 共用）
 
 	var upRepo dnsmodule.UpstreamRepo = dnsmodule.NewMemUpstreamRepo()
 	var unboundCtl dnsmodule.UnboundController = unboundengine.ExecController{Conf: os.Getenv("IPAM_UNBOUND_CONF")}
@@ -404,10 +405,10 @@ func newEngine(version string) *gin.Engine {
 		*dnsmodule.BlocklistHandler
 		*dnsmodule.SettingsHandler
 		*confApplier
-	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore), platform.NewUserHandler(userStore), &dhcpAPI{dhcpH}, dnsH, fwdH, zoneH, blH, settingsH, applier}
+	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore, bl), platform.NewUserHandler(userStore), &dhcpAPI{dhcpH}, dnsH, fwdH, zoneH, blH, settingsH, applier}
 	// RBAC 写权限拦截（M5-003）先于审计：被 403 的请求不入账。
 	// 操作审计（M4-003+M5-002）：actor 从 JWT claims 解析（human/bot 区分 §12.3）。
-	r.Use(platform.NewRBACMiddleware(userStore)) // M5-010：认证+授权一体（enabled/ver 校验）
+	r.Use(platform.NewRBACMiddleware(userStore, bl)) // M5-010/M5-011：认证+授权+登出吊销
 	r.Use(logq.NewAuditRecorder(auditRepo, platform.JWTActorProvider))
 	// spec servers.url=/api/v1 → 统一前缀注册
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})

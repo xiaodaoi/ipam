@@ -10,12 +10,15 @@ import (
 	apigen "github.com/xiaodaoi/ipam/api/gen/go"
 )
 
-// AuthHandler 实现 apigen.ServerInterface 中 auth 域端点（M5-004：真实账号 bcrypt 校验）。
+// AuthHandler 实现 apigen.ServerInterface 中 auth 域端点（M5-004/M5-011：bcrypt 校验+登出吊销）。
 type AuthHandler struct {
 	users UserStore
+	bl    *TokenBlacklist
 }
 
-func NewAuthHandler(users UserStore) *AuthHandler { return &AuthHandler{users: users} }
+func NewAuthHandler(users UserStore, bl *TokenBlacklist) *AuthHandler {
+	return &AuthHandler{users: users, bl: bl}
+}
 
 // AuthLogin POST /auth/login
 func (h *AuthHandler) AuthLogin(c *gin.Context) {
@@ -67,9 +70,14 @@ func (h *AuthHandler) ListAuthCodes(c *gin.Context) {
 	c.JSON(http.StatusOK, claims.Roles)
 }
 
-// LogoutAuth POST /auth/logout（PoC 无状态令牌，仅闭环前端登出）
+// LogoutAuth POST /auth/logout（M5-011：登出即吊销——有效令牌入黑名单至自然过期）。
 func (h *AuthHandler) LogoutAuth(c *gin.Context) {
 	ok := true
+	if tok := bearerOf(c.GetHeader("Authorization")); tok != "" {
+		if claims, perr := ParseJWT(tok); perr == nil {
+			h.bl.Add(TokenHash(tok), time.Unix(claims.Exp, 0))
+		}
+	}
 	c.JSON(http.StatusOK, apigen.AuthLogoutDone{Ok: &ok})
 }
 

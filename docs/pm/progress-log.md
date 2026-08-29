@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-28 · M5-011 完成：登出即吊销（TokenBlacklist）
+
+- **做了**：auth_blacklist.go（TokenBlacklist：SHA256 指纹 + 惰性过期清理）；AuthHandler 接入 bl（LogoutAuth 吊销有效令牌）；RBAC 中间件黑名单检查；单测锚定（黑名单语义 + 登出吊销 + guest 隔离性）。
+- **验证结果**：全链测试绿 + lint 0；容器 e2e 决定性通过——登录 200 → GET 200 → logout 200 → 同令牌 GET **401 TOKEN_REVOKED** → 新登录 200。
+- **里程碑**：M5-010/M5-011 安全闭环（禁用/改密 token_version 吊销 + 登出黑名单即时吊销）。
+- **遗留**：黑名单重启清空（多实例部署需持久化）P2；「全设备登出」走 token_version Bump。
+
 ## 2026-08-28 · M2-020 完成：子网编辑功能（网关/DNS 修改闭环）
 
 - **做了**：ipam.ts updateSubnet；子网页编辑模式（editingId + edit() 行预填 + PATCH/POST 分支 + 提交文案动态 + family 编辑禁用 + 操作列编辑按钮）。

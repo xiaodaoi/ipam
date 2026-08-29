@@ -177,7 +177,7 @@ func TestDisabledUserCannotLogin(t *testing.T) {
 		t.Fatal(err)
 	}
 	auth := gin.New()
-	ah := NewAuthHandler(store)
+	ah := NewAuthHandler(store, NewTokenBlacklist())
 	auth.POST("/api/v1/auth/login", ah.AuthLogin)
 	if w := doJSON(auth, http.MethodPost, "/api/v1/auth/login", "", `{"username":"op03","password":"12345678"}`); w.Code != http.StatusUnauthorized {
 		t.Fatalf("禁用账号登录应 401: %d %s", w.Code, w.Body.String())
@@ -195,7 +195,7 @@ func TestTokenRevocation_禁用与改密即吊销(t *testing.T) {
 	oldToken := IssueTokenFor(admin.Username, admin.ID, admin.Roles, admin.TokenVersion)
 
 	auth := gin.New()
-	ah := NewAuthHandler(store)
+	ah := NewAuthHandler(store, NewTokenBlacklist())
 	auth.POST("/api/v1/auth/login", ah.AuthLogin)
 
 	// 1) 改密 → Bump → 存量令牌 ver 不匹配（模拟：旧令牌 ver=1，用户 ver=2）
