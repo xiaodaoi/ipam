@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
-import { Button, Card, Input, Select, Table, TabPane, Tabs, Tag } from 'ant-design-vue';
+import { Button, Card, Input, Select, Table, TabPane, Tabs, Tag, message } from 'ant-design-vue';
 
-import { getLogQps, listLogTop, listLogs, type LogQuery } from '#/api/ipam';
+import { exportLogsCsv, getLogQps, listLogTop, listLogs, type LogQuery } from '#/api/ipam';
 
 const RANGE_PRESETS = [
   { label: '近1小时', hours: 1 },
@@ -45,6 +45,17 @@ async function loadLogs(cursor?: string) {
   }
 }
 
+async function onExport() {
+  const params: Record<string, string> = { from: isoAgo(hours.value), to: nowIso() };
+  if (filterType.value) params.type = filterType.value;
+  if (filterDomain.value) params.domain = filterDomain.value;
+  try {
+    await exportLogsCsv(params);
+    message.success('导出已开始下载');
+  } catch (e) {
+    message.error((e as Error).message || '导出失败');
+  }
+}
 const columns = [
   { title: '时间', dataIndex: 'ts', width: 190 },
   { title: '类型', dataIndex: 'type', width: 80 },
@@ -103,6 +114,7 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         <Select v-model:value="filterType" allow-clear placeholder="类型" style="width: 100px" :options="[{ value: 'dhcp', label: 'DHCP' }, { value: 'dns', label: 'DNS' }]" />
         <Input v-model:value="filterDomain" allow-clear placeholder="域名子串" style="width: 220px" @press-enter="reload()" />
         <Button type="primary" @click="reload()">查询</Button>
+        <Button class="ml-1" @click="onExport">导出 CSV</Button>
         <span class="text-xs text-gray-400">满足条件 {{ total }} 条</span>
       </div>
     </Card>

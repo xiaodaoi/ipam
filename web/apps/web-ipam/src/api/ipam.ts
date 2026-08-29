@@ -261,3 +261,22 @@ export const bulkReservations = (b: {
   entries: ReservationBulkEntryIn[];
   subnetId: string;
 }) => req<ReservationBulkResult>('/reservations/bulk', j(b));
+
+// 导出日志 CSV（M2-029）：blob 下载（非 JSON——不走 req 封装）。
+export async function exportLogsCsv(params: Record<string, string>): Promise<void> {
+  const token = useAccessStore().accessToken;
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const q = new URLSearchParams(params).toString();
+  const res = await fetch(`${BASE}/logs/export${q ? `?${q}` : ''}`, { headers });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { detail?: string };
+    throw new Error(body.detail || `HTTP ${res.status}`);
+  }
+  const blob = await res.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = res.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1] ?? 'logs.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}

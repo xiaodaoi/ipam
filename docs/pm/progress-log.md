@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-29 · M2-029 完成：日志 CSV 导出前端
+
+- **做了**：ipam.ts exportLogsCsv（fetch blob + Content-Disposition 文件名解析）；search 页「导出 CSV」按钮（当前筛选 from/to/type/domain 映射 ExportLogsParams）；streamLogTail 确认无缺口（tail 页 EventSource 已接）。
+- **验证结果**：typecheck 0 + 零外链 PASS；e2e——GET /logs/export 200 + Content-Disposition logs-20260828.csv + CSV BOM/表头/真实 unbound 数据行。
+- **里程碑**：**日志域前端闭环**（检索/TopN/QPS/审计/tail SSE/CSV 导出全入口）。
+- **踩坑留痕**：单行 import 块用 `} from ...` 锚点会切断——锚点前必须确认块形态。
+
 ## 2026-08-29 · M2-028 完成：双栈模板更新（编辑闭环 100%）
 
 - **做了**：spec patch+DualstackTemplateUpdate+gen；Store 接口+ErrTemplateNotFound+Mem/Pg Update+handler UpdateDualstackTemplate；前端 updateDualstackTemplate+dualstack 页编辑模式。
