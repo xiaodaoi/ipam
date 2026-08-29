@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-29 · M2-027 完成：策略分组前端管理区
+
+- **做了**：ipam.ts（PolicyGroupRow + listPolicyGroups/createPolicyGroup/compilePolicyGroup）；blocklist 页策略分组 Card（创建表单 cidrs 逗号分隔/listIds 多选 + Table + 编译按钮 + RPZ 编译结果展示）。
+- **验证结果**：typecheck 0 + 零外链 PASS；容器重建 + API 全链回归（create → list 回读一致 → compile 真实产出 RPZ zone /var/lib/ipam/rpz/recursor.zone，entries=1 + reloadCommand）。
+- **里程碑**：**blocklists 域全闭环**（名单查/建/删/同步 + 条目查/加/删 + 策略分组查/建/编译——前端入口全通）。
+- **遗留**：提示页定制 P2。
+
 ## 2026-08-29 · M2-026 完成：前端 API 补齐（名单新建 + 区域删除）
 
 - **做了**：ipam.ts（BlocklistCreateRow + createBlocklist/deleteDnsZone）；blocklist 页新建名单表单（name/kind/syncUrl，feed 条件显示订阅 URL）；records 页 zone Select 旁删区按钮（confirm 防误删 + 删除后自动回选）。

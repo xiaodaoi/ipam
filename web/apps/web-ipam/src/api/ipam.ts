@@ -119,6 +119,7 @@ export type DnsRecord = components['schemas']['DnsRecord'];
 export type Blocklist = components['schemas']['Blocklist'];
 export type BlocklistEntryRow = components['schemas']['BlocklistEntry'];
 export type BlocklistCreateRow = components['schemas']['BlocklistCreate'];
+export type PolicyGroupRow = components['schemas']['PolicyGroup'];
 
 const j = (body: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(body) });
 const patch = (body: unknown): RequestInit => ({ method: 'PATCH', body: JSON.stringify(body) });
@@ -161,6 +162,9 @@ export const deleteBlocklistEntry = (id: string, pattern: string) => req<void>(`
 export const listBlocklistEntries = (id: string) => req<{ items: BlocklistEntryRow[]; total?: number }>(`/dns/blocklists/${id}/entries`);
 export const addBlocklistEntry = (id: string, body: Partial<BlocklistEntryRow>) => req<BlocklistEntryRow>(`/dns/blocklists/${id}/entries`, j(body));
 export const createBlocklist = (body: BlocklistCreateRow) => req<Blocklist>('/dns/blocklists', j(body));
+export const listPolicyGroups = () => req<{ items: PolicyGroupRow[] }>('/dns/policy-groups');
+export const createPolicyGroup = (body: components['schemas']['PolicyGroupCreate']) => req<PolicyGroupRow>('/dns/policy-groups', j(body));
+export const compilePolicyGroup = (id: string) => req<components['schemas']['RpzCompileResult']>(`/dns/policy-groups/${id}/compile`, j({}));
 
 // ── DHCP 子网与池（M2-002 API 消费）──
 // GET /orgs 返回组织树（与 /orgs/tree 同源；flat 场景前端自行展平）
