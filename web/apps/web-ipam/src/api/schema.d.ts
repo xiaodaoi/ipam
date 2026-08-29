@@ -1173,7 +1173,9 @@ export interface components {
             description?: string;
         };
         AddressPool: {
+            /** @description dynamic=池起址；pd=委派前缀起始 */
             startAddr: string;
+            /** @description dynamic=池止址；pd=由后端推导（prefix+prefix-len 范围尾） */
             endAddr: string;
             /**
              * @description excluded=保留段（§13.4 冻结不下发）
@@ -1181,6 +1183,10 @@ export interface components {
              * @enum {string}
              */
             kind: "dynamic" | "pd" | "excluded";
+            /** @description PD 池前缀长度（kind=pd 必填，如 48） */
+            prefixLen?: number;
+            /** @description PD 委派前缀长度（kind=pd 必填，如 64，≥prefixLen） */
+            delegatedLen?: number;
         };
         SubnetCreate: {
             /** Format: uuid */

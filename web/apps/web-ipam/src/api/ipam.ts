@@ -157,7 +157,7 @@ export const listOrgs = () => req<OrgTreeNode[]>('/orgs');
 
 export const createSubnet = (b: {
   orgId: string; name: string; family: 4 | 6; cidr: string;
-  pools?: { startAddr: string; endAddr: string; kind: string }[];
+  pools?: { startAddr: string; endAddr?: string; kind: string; prefixLen?: number; delegatedLen?: number }[];
 }) => req<Subnet>('/subnets', j(b));
 export const deleteSubnet = (id: string) => req<void>(`/subnets/${id}`, del);
 

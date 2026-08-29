@@ -222,8 +222,23 @@ func newEngine(version string) *gin.Engine {
 		_, err = keaCmd.Command(ctx, "config-set", "dhcp4", cfg)
 		if err != nil {
 			log.Printf("[dhcp-apply] config-set: %v", err)
+			return err
 		}
-		return err
+		// M2-018：存在 v6 子网时同步下发 Dhcp6（经 agent 转发 dhcp6 socket）
+		cfg6, err6 := keaengine.BuildConfig6(subs)
+		if err6 != nil {
+			return err6
+		}
+		if s6, ok := cfg6.Dhcp6["subnet6"].([]map[string]any); ok && len(s6) > 0 {
+			if _, err := keaCmd.Command(ctx, "config-set", "dhcp6", cfg6); err != nil {
+				log.Printf("[dhcp6-apply] config-set: %v", err)
+				return err
+			}
+		}
+		// config-write：运行态落盘（Kea 重启后配置不回滚到启动文件——M2-018 诊断发现）
+		_, _ = keaCmd.Command(ctx, "config-write", "dhcp4", map[string]any{})
+		_, _ = keaCmd.Command(ctx, "config-write", "dhcp6", map[string]any{})
+		return nil
 	}
 	dhcpH := dhcpmodule.NewHandler(dhcpStore, applyDhcpFn)
 

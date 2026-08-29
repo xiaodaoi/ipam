@@ -2,18 +2,42 @@ package ipam
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"net/netip"
 )
 
 // PgSubnetRepo PG 实现（迁移 0003）。
 type PgSubnetRepo struct{ pool *pgxpool.Pool }
 
 func NewSubnetRepo(pool *pgxpool.Pool) *PgSubnetRepo { return &PgSubnetRepo{pool: pool} }
+
+// nullInt *int → pgx 可空参数（nil=NULL）。
+func nullInt(p *int) any {
+	if p == nil {
+		return nil
+	}
+	return *p
+}
+
+// pdRangeEnd PD 池范围尾推导（prefix+prefix-len 的最后一个地址，M2-018）。
+func pdRangeEnd(prefix string, plen int) (string, error) {
+	ip, err := netip.ParseAddr(prefix)
+	if err != nil {
+		return "", err
+	}
+	a16 := ip.As16()
+	hostBits := 128 - plen
+	for i := 0; i < hostBits; i++ {
+		a16[15-i/8] |= 1 << (uint(i) % 8)
+	}
+	return netip.AddrFrom16(a16).String(), nil
+}
 
 const subnetCols = `id, coalesce(org_id::text,''), name, family, cidr::text,
   coalesce(kea_subnet_id,0), coalesce(description,'')`
@@ -35,7 +59,7 @@ func (r *PgSubnetRepo) loadPools(ctx context.Context, subs []Subnet) error {
 		ids = append(ids, subs[i].ID)
 	}
 	rows, err := r.pool.Query(ctx,
-		`SELECT subnet_id::text, host(start_addr), host(end_addr), kind
+		`SELECT subnet_id::text, host(start_addr), host(end_addr), kind, prefix_len, delegated_len
 		 FROM address_pool WHERE subnet_id::text = ANY($1) ORDER BY start_addr`, ids)
 	if err != nil {
 		return err
@@ -44,10 +68,11 @@ func (r *PgSubnetRepo) loadPools(ctx context.Context, subs []Subnet) error {
 	bySub := map[string][]Pool{}
 	for rows.Next() {
 		var sid, start, end, kind string
-		if err := rows.Scan(&sid, &start, &end, &kind); err != nil {
+		var plen, dlen *int
+		if err := rows.Scan(&sid, &start, &end, &kind, &plen, &dlen); err != nil {
 			return err
 		}
-		bySub[sid] = append(bySub[sid], Pool{StartAddr: start, EndAddr: end, Kind: kind})
+		bySub[sid] = append(bySub[sid], Pool{StartAddr: start, EndAddr: end, Kind: kind, PrefixLen: plen, DelegatedLen: dlen})
 	}
 	if err := rows.Err(); err != nil {
 		return err
@@ -111,15 +136,37 @@ func (r *PgSubnetRepo) Create(ctx context.Context, s Subnet) (Subnet, error) {
 		return Subnet{}, err
 	}
 	s.ID = id
-	for _, p := range s.Pools {
-		if _, err := r.pool.Exec(ctx,
-			`INSERT INTO address_pool(subnet_id,family,start_addr,end_addr,kind)
-			 VALUES($1,$2,$3,$4,$5)`,
-			id, s.Family, p.StartAddr, p.EndAddr, p.Kind); err != nil {
-			return Subnet{}, err
-		}
+	if err := insertPools(ctx, r, id, s); err != nil {
+		return Subnet{}, err
 	}
 	return s, nil
+}
+
+// insertPools 池落库（pd 池 endAddr 由 prefix+prefix-len 推导，M2-018）。
+func insertPools(ctx context.Context, r *PgSubnetRepo, id string, s Subnet) error {
+	for i := range s.Pools {
+		p := &s.Pools[i]
+		endAddr := p.EndAddr
+		plen, dlen := nullInt(p.PrefixLen), nullInt(p.DelegatedLen)
+		if p.Kind == "pd" {
+			if p.PrefixLen == nil || p.DelegatedLen == nil {
+				return errors.New("PD pool requires prefixLen/delegatedLen")
+			}
+			end, err := pdRangeEnd(p.StartAddr, *p.PrefixLen)
+			if err != nil {
+				return err
+			}
+			endAddr = end
+			p.EndAddr = end // 回填推导值（创建响应/内存投影一致）
+		}
+		if _, err := r.pool.Exec(ctx,
+			`INSERT INTO address_pool(subnet_id,family,start_addr,end_addr,kind,prefix_len,delegated_len)
+			 VALUES($1,$2,$3,$4,$5,$6,$7)`,
+			id, s.Family, p.StartAddr, endAddr, p.Kind, plen, dlen); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *PgSubnetRepo) Update(ctx context.Context, s Subnet) (Subnet, error) {
@@ -131,12 +178,8 @@ func (r *PgSubnetRepo) Update(ctx context.Context, s Subnet) (Subnet, error) {
 	if _, err := r.pool.Exec(ctx, `DELETE FROM address_pool WHERE subnet_id=$1`, s.ID); err != nil {
 		return Subnet{}, err
 	}
-	for _, p := range s.Pools {
-		if _, err := r.pool.Exec(ctx,
-			`INSERT INTO address_pool(subnet_id,family,start_addr,end_addr,kind) VALUES($1,$2,$3,$4,$5)`,
-			s.ID, s.Family, p.StartAddr, p.EndAddr, p.Kind); err != nil {
-			return Subnet{}, err
-		}
+	if err := insertPools(ctx, r, s.ID, s); err != nil {
+		return Subnet{}, err
 	}
 	return s, nil
 }

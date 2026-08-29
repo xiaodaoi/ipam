@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 
-import { Button, Card, Input, Select, Table, Tag, Tree } from 'ant-design-vue';
+import { Button, Card, Input, InputNumber, Select, Table, Tag, Tree } from 'ant-design-vue';
 
 import {
   createSubnet,
@@ -26,6 +26,9 @@ const form = ref({
   cidr: '',
   poolStart: '',
   poolEnd: '',
+  poolKind: 'dynamic' as 'dynamic' | 'pd',
+  poolPrefixLen: 64,
+  poolDelegatedLen: 80,
 });
 
 function flattenOrgs(nodes: OrgTreeNode[], depth = 0): { id: string; label: string }[] {
@@ -51,15 +54,20 @@ async function load() {
 async function add() {
   const f = form.value;
   if (!f.orgId || !f.name || !f.cidr) return;
-  const pools =
-    f.poolStart && f.poolEnd
-      ? [{ startAddr: f.poolStart, endAddr: f.poolEnd, kind: 'dynamic' }]
-      : undefined;
+  let pools:
+    | { startAddr: string; endAddr?: string; kind: string; prefixLen?: number; delegatedLen?: number }[]
+    | undefined;
+  if (f.family === 6 && f.poolKind === 'pd' && f.poolStart && f.poolPrefixLen && f.poolDelegatedLen) {
+    // PD 委派池：startAddr=委派前缀，endAddr 由后端推导（M2-018）
+    pools = [{ startAddr: f.poolStart, prefixLen: f.poolPrefixLen, delegatedLen: f.poolDelegatedLen, kind: 'pd' }];
+  } else if (f.poolStart && f.poolEnd) {
+    pools = [{ startAddr: f.poolStart, endAddr: f.poolEnd, kind: f.family === 6 ? f.poolKind : 'dynamic' }];
+  }
   await createSubnet({
     orgId: f.orgId, name: f.name, family: f.family, cidr: f.cidr, pools,
   });
   showForm.value = false;
-  form.value = { orgId: f.orgId, name: '', family: 4, cidr: '', poolStart: '', poolEnd: '' };
+  form.value = { orgId: f.orgId, name: '', family: 4, cidr: '', poolStart: '', poolEnd: '', poolKind: 'dynamic', poolPrefixLen: 64, poolDelegatedLen: 80 };
   await load();
 }
 async function remove(id?: string) {
@@ -127,14 +135,40 @@ const columns = [
           <div class="mb-1 text-xs text-gray-400">CIDR</div>
           <Input v-model:value="form.cidr" style="width: 180px" placeholder="10.61.172.0/24" />
         </div>
-        <div>
-          <div class="mb-1 text-xs text-gray-400">池起</div>
-          <Input v-model:value="form.poolStart" style="width: 140px" placeholder="10.61.172.100" />
-        </div>
-        <div>
-          <div class="mb-1 text-xs text-gray-400">池止</div>
-          <Input v-model:value="form.poolEnd" style="width: 140px" placeholder="10.61.172.200" />
-        </div>
+        <template v-if="form.family === 6">
+          <div>
+            <div class="mb-1 text-xs text-gray-400">池类型</div>
+            <Select v-model:value="form.poolKind" style="width: 110px" :options="[{ value: 'dynamic', label: '地址池' }, { value: 'pd', label: 'PD 委派' }]" />
+          </div>
+          <div>
+            <div class="mb-1 text-xs text-gray-400">{{ form.poolKind === 'pd' ? '委派前缀' : '池起' }}</div>
+            <Input v-model:value="form.poolStart" style="width: 170px" :placeholder="form.poolKind === 'pd' ? '2001:db8:1::' : '2406:172::100'" />
+          </div>
+          <template v-if="form.poolKind === 'pd'">
+            <div>
+              <div class="mb-1 text-xs text-gray-400">前缀长度</div>
+              <InputNumber v-model:value="form.poolPrefixLen" :min="1" :max="128" style="width: 80px" />
+            </div>
+            <div>
+              <div class="mb-1 text-xs text-gray-400">委派长度</div>
+              <InputNumber v-model:value="form.poolDelegatedLen" :min="1" :max="128" style="width: 80px" />
+            </div>
+          </template>
+          <div v-if="form.poolKind === 'dynamic'">
+            <div class="mb-1 text-xs text-gray-400">池止</div>
+            <Input v-model:value="form.poolEnd" style="width: 140px" placeholder="2406:172::200" />
+          </div>
+        </template>
+        <template v-else>
+          <div>
+            <div class="mb-1 text-xs text-gray-400">池起</div>
+            <Input v-model:value="form.poolStart" style="width: 140px" placeholder="10.61.172.100" />
+          </div>
+          <div>
+            <div class="mb-1 text-xs text-gray-400">池止</div>
+            <Input v-model:value="form.poolEnd" style="width: 140px" placeholder="10.61.172.200" />
+          </div>
+        </template>
         <Button type="primary" @click="add">创建（下发 Kea）</Button>
       </div>
 

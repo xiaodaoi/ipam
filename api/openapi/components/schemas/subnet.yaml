@@ -35,13 +35,25 @@ AddressPool:
   properties:
     startAddr:
       type: string
+      description: dynamic=池起址；pd=委派前缀起始
     endAddr:
       type: string
+      description: dynamic=池止址；pd=由后端推导（prefix+prefix-len 范围尾）
     kind:
       type: string
       enum: [dynamic, pd, excluded]
       default: dynamic
       description: excluded=保留段（§13.4 冻结不下发）
+    prefixLen:
+      type: integer
+      minimum: 1
+      maximum: 128
+      description: PD 池前缀长度（kind=pd 必填，如 48）
+    delegatedLen:
+      type: integer
+      minimum: 1
+      maximum: 128
+      description: PD 委派前缀长度（kind=pd 必填，如 64，≥prefixLen）
 
 SubnetCreate:
   type: object

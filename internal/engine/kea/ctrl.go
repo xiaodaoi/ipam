@@ -71,6 +71,9 @@ func (c *CtrlAgent) DeploySubnet(ctx context.Context, subnets []ipam.Subnet, dry
 		return 0, err
 	}
 	if dryRun {
+		if _, err := BuildConfig6(subnets); err != nil { // M2-018：v6 投影本地校验
+			return 0, err
+		}
 		if len(subnets) > 0 {
 			return subnets[0].KeaSubnetID, nil
 		}
@@ -84,6 +87,16 @@ func (c *CtrlAgent) DeploySubnet(ctx context.Context, subnets []ipam.Subnet, dry
 		return 0, err
 	}
 	_ = resp
+	// M2-018：存在 v6 子网时同步下发 Dhcp6（经 agent 转发 dhcp6 socket）
+	cfg6, err6 := BuildConfig6(subnets)
+	if err6 != nil {
+		return 0, err6
+	}
+	if s6, ok := cfg6.Dhcp6["subnet6"].([]map[string]any); ok && len(s6) > 0 {
+		if _, err := c.Command(ctx, "config-set", "dhcp6", cfg6); err != nil {
+			return 0, err
+		}
+	}
 	// 首个 subnet 的 id 由服务端按序分配（1..n）；本地计算同步
 	id := 1
 	for _, s := range subnets {

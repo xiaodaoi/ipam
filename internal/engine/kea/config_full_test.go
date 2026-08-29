@@ -75,3 +75,48 @@ func TestBuildConfigFull_hostReservations投影(t *testing.T) {
 		t.Fatalf("reserve 行与跨网段地址不应投影: %s", s)
 	}
 }
+
+func TestBuildConfig6_含pdPools(t *testing.T) {
+	plen, dlen := 64, 80
+	cfg, err := BuildConfig6([]ipam.Subnet{
+		{Family: 6, CIDR: "2406:172::/64", KeaSubnetID: 1, Pools: []ipam.Pool{
+			{StartAddr: "2406:172::", Kind: "pd", PrefixLen: &plen, DelegatedLen: &dlen},
+			{StartAddr: "2406:172::10", EndAddr: "2406:172::20", Kind: "dynamic"},
+		}},
+		{Family: 4, CIDR: "10.0.0.0/24"},
+		{Family: 6, CIDR: "2406:173::/64", Pools: []ipam.Pool{
+			{StartAddr: "2406:173::", Kind: "pd"}, // 缺 len 剔除
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(cfg.Dhcp6)
+	var parsed struct {
+		Subnet6 []struct {
+			Subnet  string           `json:"subnet"`
+			PdPools []map[string]any `json:"pd-pools"`
+			Pools   []map[string]any `json:"pools"`
+		} `json:"subnet6"`
+	}
+	if err := json.Unmarshal(b, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	if len(parsed.Subnet6) != 2 {
+		t.Fatalf("v4 过滤后 subnet6 应 2 个: %d", len(parsed.Subnet6))
+	}
+	first, second := parsed.Subnet6[0], parsed.Subnet6[1]
+	if first.Subnet != "2406:172::/64" || len(first.PdPools) != 1 {
+		t.Fatalf("pd-pools 投影异常: %+v", first)
+	}
+	if first.PdPools[0]["prefix-len"].(float64) != 64 || first.PdPools[0]["delegated-len"].(float64) != 80 {
+		t.Fatalf("pd-pools len 异常: %+v", first.PdPools[0])
+	}
+	if len(first.Pools) != 1 || !strings.Contains(first.Pools[0]["pool"].(string), "2406:172::10") {
+		t.Fatalf("dynamic pool 缺失: %+v", first.Pools)
+	}
+	// 缺 len 的 pd 池不投影（子网本身保留，无 pools/pd-pools 键）
+	if second.Subnet != "2406:173::/64" || second.PdPools != nil || second.Pools != nil {
+		t.Fatalf("缺 len 池的子网不应携带池: %+v", second)
+	}
+}

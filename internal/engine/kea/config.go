@@ -130,3 +130,48 @@ func BuildConfigFull(subnets []ipam.Subnet, opts []dhcp.DhcpOption, classes []dh
 	}
 	return cfg, nil
 }
+
+// Dhcp6Config v6 配置容器（M2-018：kea-dhcp6 的 config-set 载荷）。
+type Dhcp6Config struct {
+	Dhcp6 map[string]any `json:"Dhcp6"`
+}
+
+// BuildConfig6 由 v6 子网组装 Dhcp6 配置：dynamic 池 → pools；pd 池 → pd-pools（M2-018）。
+func BuildConfig6(subnets []ipam.Subnet) (Dhcp6Config, error) {
+	base := map[string]any{
+		"interfaces-config": map[string]any{"interfaces": []string{"eth0"}},
+		"valid-lifetime":    3600,
+		"lease-database":    map[string]any{"type": "memfile"},
+	}
+	sub6 := make([]map[string]any, 0, len(subnets))
+	for i := range subnets {
+		s := subnets[i]
+		if s.Family != 6 {
+			continue
+		}
+		sub := map[string]any{"id": s.KeaSubnetID, "subnet": s.CIDR}
+		var pools6, pdPools []map[string]any
+		for _, p := range s.Pools {
+			if p.Kind == "pd" {
+				if p.PrefixLen != nil && p.DelegatedLen != nil {
+					pdPools = append(pdPools, map[string]any{
+						"prefix":        p.StartAddr,
+						"prefix-len":    *p.PrefixLen,
+						"delegated-len": *p.DelegatedLen,
+					})
+				}
+				continue
+			}
+			pools6 = append(pools6, map[string]any{"pool": fmt.Sprintf("%s - %s", p.StartAddr, p.EndAddr)})
+		}
+		if len(pools6) > 0 {
+			sub["pools"] = pools6
+		}
+		if len(pdPools) > 0 {
+			sub["pd-pools"] = pdPools
+		}
+		sub6 = append(sub6, sub)
+	}
+	base["subnet6"] = sub6
+	return Dhcp6Config{Dhcp6: base}, nil
+}

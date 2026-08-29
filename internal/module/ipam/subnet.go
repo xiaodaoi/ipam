@@ -9,9 +9,11 @@ import (
 
 // Pool 地址池（§13.4：dynamic/pd/excluded 三类）。
 type Pool struct {
-	StartAddr string
-	EndAddr   string
-	Kind      string
+	StartAddr    string
+	EndAddr      string
+	Kind         string
+	PrefixLen    *int // PD 池前缀长度（kind=pd 必填，M2-018）
+	DelegatedLen *int // PD 委派前缀长度（kind=pd 必填）
 }
 
 // Subnet 子网领域对象（PG subnet 行 + 池列表）。

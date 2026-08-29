@@ -100,7 +100,7 @@ func poolsFromGen(pools *[]apigen.AddressPool) []Pool {
 		if p.Kind != nil {
 			kind = string(*p.Kind)
 		}
-		out = append(out, Pool{StartAddr: p.StartAddr, EndAddr: p.EndAddr, Kind: kind})
+		out = append(out, Pool{StartAddr: p.StartAddr, EndAddr: p.EndAddr, Kind: kind, PrefixLen: p.PrefixLen, DelegatedLen: p.DelegatedLen})
 	}
 	return out
 }
@@ -109,7 +109,7 @@ func toGenSubnet(s Subnet) apigen.Subnet {
 	pools := []apigen.AddressPool{}
 	for _, p := range s.Pools {
 		k := apigen.AddressPoolKind(p.Kind)
-		pools = append(pools, apigen.AddressPool{StartAddr: p.StartAddr, EndAddr: p.EndAddr, Kind: &k})
+		pools = append(pools, apigen.AddressPool{StartAddr: p.StartAddr, EndAddr: p.EndAddr, Kind: &k, PrefixLen: p.PrefixLen, DelegatedLen: p.DelegatedLen})
 	}
 	orgID := guuid.MustParse(s.OrgID)
 	return apigen.Subnet{
