@@ -132,6 +132,9 @@ export const deleteUpstream = (id: string) => req<void>(`/upstreams/${id}`, del)
 export const listForwardRules = () => req<{ items: ForwardRule[] }>('/forward-rules');
 export const createForwardRule = (b: Partial<ForwardRule> & { dryRun?: boolean }) =>
   req<ForwardRule>('/forward-rules', j(b));
+export const updateForwardRule = (id: string, b: {
+  upstreamIds?: string[]; enabled?: boolean; note?: string;
+}) => req<ForwardRule>(`/forward-rules/${id}`, patch(b));
 export const deleteForwardRule = (id: string) => req<void>(`/forward-rules/${id}`, del);
 
 // zone 与记录

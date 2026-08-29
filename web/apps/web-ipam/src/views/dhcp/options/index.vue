@@ -31,6 +31,8 @@ const clsRows = ref<DhcpClassRow[]>([]);
 const loading = ref(false);
 const optForm = ref({ code: 3, name: 'routers', data: '' });
 const clsForm = ref({ name: '', test: "option[61].hex == option[61].hex", rows: [] as DhcpClassOptionIn[] });
+const editingOpt = ref<string>();
+const editingCls = ref<string>();
 let timer: ReturnType<typeof setInterval> | undefined;
 
 async function load() {
@@ -50,15 +52,21 @@ async function addOption() {
     return;
   }
   try {
-    await createDhcpOption({
-      optionCode: optForm.value.code,
-      name: optForm.value.name,
-      data: optForm.value.data,
-    });
-    message.success('选项已创建');
+    if (editingOpt.value) {
+      await updateDhcpOption(editingOpt.value, {
+        optionCode: optForm.value.code, name: optForm.value.name, data: optForm.value.data,
+      });
+      message.success('选项已更新');
+    } else {
+      await createDhcpOption({
+        optionCode: optForm.value.code, name: optForm.value.name, data: optForm.value.data,
+      });
+      message.success('选项已创建');
+    }
+    editingOpt.value = undefined;
     optForm.value = { code: optForm.value.code, name: 'routers', data: '' };
   } catch (e) {
-    message.error(e instanceof Error ? e.message : '创建失败');
+    message.error(e instanceof Error ? e.message : '操作失败');
   }
   await load();
 }
@@ -70,6 +78,10 @@ async function toggleOption(r: DhcpOptionRow, enabled: boolean) {
     message.error(e instanceof Error ? e.message : '操作失败');
   }
   await load();
+}
+function editOpt(r: DhcpOptionRow) {
+  editingOpt.value = r.id;
+  optForm.value = { code: r.optionCode, name: r.name, data: r.data };
 }
 async function removeOption(id?: string) {
   if (!id) return;
@@ -98,15 +110,21 @@ async function addClass() {
     return;
   }
   try {
-    await createDhcpClass({
-      name: clsForm.value.name,
-      options: clsForm.value.rows,
-      test: clsForm.value.test,
-    });
-    message.success('类已创建');
+    if (editingCls.value) {
+      await updateDhcpClass(editingCls.value, { test: clsForm.value.test, options: clsForm.value.rows });
+      message.success('类已更新');
+    } else {
+      await createDhcpClass({
+        name: clsForm.value.name,
+        options: clsForm.value.rows,
+        test: clsForm.value.test,
+      });
+      message.success('类已创建');
+    }
+    editingCls.value = undefined;
     clsForm.value = { name: '', test: clsForm.value.test, rows: [] };
   } catch (e) {
-    message.error(e instanceof Error ? e.message : '创建失败');
+    message.error(e instanceof Error ? e.message : '操作失败');
   }
   await load();
 }
@@ -119,6 +137,10 @@ async function toggleClass(r: DhcpClassRow, enabled: boolean) {
   }
   await load();
 }
+function editCls(r: DhcpClassRow) {
+  editingCls.value = r.id;
+  clsForm.value = { name: r.name, test: r.test, rows: [...(r.options ?? [])] };
+}
 async function removeClass(id?: string) {
   if (!id) return;
   try {
@@ -128,6 +150,14 @@ async function removeClass(id?: string) {
     message.error(e instanceof Error ? e.message : '删除失败');
   }
   await load();
+}
+function cancelEditOpt() {
+  editingOpt.value = undefined;
+  optForm.value = { code: optForm.value.code, name: 'routers', data: '' };
+}
+function cancelEditCls() {
+  editingCls.value = undefined;
+  clsForm.value = { name: '', test: clsForm.value.test, rows: [] };
 }
 const optsSummary = (options?: DhcpClassOptionIn[]) =>
   (options ?? []).map((o) => `${o.name}=${o.data}`).join(', ') || '-';
@@ -154,7 +184,8 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           <div class="mb-1 text-xs text-gray-400">值</div>
           <Input v-model:value="optForm.data" style="width: 180px" placeholder="192.168.9.1" />
         </div>
-        <Button type="primary" @click="addOption">创建选项</Button>
+        <Button type="primary" @click="addOption">{{ editingOpt ? '保存修改' : '创建选项' }}</Button>
+        <Button v-if="editingOpt" @click="cancelEditOpt">取消编辑</Button>
         <div class="w-full text-xs text-gray-400">
           变更后经 Kea config-set 原子下发；disabled 选项不进配置。
         </div>
@@ -182,6 +213,7 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             />
           </template>
           <template v-else-if="column.key === 'op'">
+            <Button size="small" class="mr-1" @click="editOpt(record as DhcpOptionRow)">编辑</Button>
             <Button size="small" danger @click="removeOption(record.id)">删除</Button>
           </template>
         </template>
@@ -200,7 +232,8 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             <Input v-model:value="clsForm.test" placeholder="option[61].hex == option[61].hex" />
           </div>
           <Button @click="addClassRow">+ 添加类内选项</Button>
-          <Button type="primary" @click="addClass">创建类</Button>
+          <Button type="primary" @click="addClass">{{ editingCls ? '保存修改' : '创建类' }}</Button>
+          <Button v-if="editingCls" @click="cancelEditCls">取消编辑</Button>
         </div>
         <div v-for="(r, i) in clsForm.rows" :key="i" class="mt-2 flex flex-wrap items-center gap-2">
           <InputNumber v-model:value="r.optionCode" :min="1" :max="255" style="width: 90px" />
@@ -241,6 +274,7 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             <Tag class="font-mono">{{ record.test || '-' }}</Tag>
           </template>
           <template v-else-if="column.key === 'op'">
+            <Button size="small" class="mr-1" @click="editCls(record as DhcpClassRow)">编辑</Button>
             <Button size="small" danger @click="removeClass(record.id)">删除</Button>
           </template>
         </template>

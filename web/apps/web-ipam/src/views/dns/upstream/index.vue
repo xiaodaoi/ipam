@@ -7,10 +7,12 @@ import {
   createUpstream,
   deleteUpstream,
   listUpstreams,
+  updateUpstream,
   type Upstream,
 } from '#/api/ipam';
 
 const rows = ref<Upstream[]>([]);
+const editingId = ref<string>();
 const loading = ref(false);
 type Proto = 'udp' | 'tcp' | 'dot';
 const form = ref<{ name: string; addr: string; protocol: Proto }>({
@@ -30,13 +32,29 @@ async function load() {
 async function add() {
   if (!form.value.name || !form.value.addr) return;
   try {
-    await createUpstream({ ...form.value, addrs: [form.value.addr], weight: 1, enabled: true });
-    message.success('上游已添加');
+    if (editingId.value) {
+      await updateUpstream(editingId.value, {
+        name: form.value.name, addrs: [form.value.addr], protocol: form.value.protocol,
+      });
+      message.success('上游已更新并下发 Kea');
+    } else {
+      await createUpstream({ ...form.value, addrs: [form.value.addr], weight: 1, enabled: true });
+      message.success('上游已添加');
+    }
+    editingId.value = undefined;
     form.value = { name: '', addr: '', protocol: 'udp' };
   } catch (e) {
-    message.error(e instanceof Error ? e.message : '添加失败');
+    message.error(e instanceof Error ? e.message : '操作失败');
   }
   await load();
+}
+function edit(r: Upstream) {
+  editingId.value = r.id;
+  form.value = { name: r.name, addr: (r.addrs ?? [])[0] ?? '', protocol: (r.protocol as Proto) ?? 'udp' };
+}
+function cancelEdit() {
+  editingId.value = undefined;
+  form.value = { name: '', addr: '', protocol: 'udp' };
 }
 async function remove(id?: string) {
   if (!id) return;
@@ -69,7 +87,8 @@ const HEALTH_COLOR: Record<string, string> = { up: 'green', down: 'red', unknown
       <Input v-model:value="form.addr" placeholder="地址 如 223.5.5.5:53" style="width: 200px" />
       <Select v-model:value="form.protocol" style="width: 90px" :options="[
         { value: 'udp', label: 'UDP' }, { value: 'tcp', label: 'TCP' }, { value: 'dot', label: 'DoT' }]" />
-      <Button type="primary" @click="add">添加</Button>
+      <Button type="primary" @click="add">{{ editingId ? '保存修改' : '添加' }}</Button>
+      <Button v-if="editingId" @click="cancelEdit">取消编辑</Button>
     </div>
     <Table
       :data-source="rows"
@@ -78,7 +97,7 @@ const HEALTH_COLOR: Record<string, string> = { up: 'green', down: 'red', unknown
         { title: '地址', dataIndex: 'addrs' },
         { title: '协议', dataIndex: 'protocol', width: 90 },
         { title: '探活', dataIndex: 'health', width: 100 },
-        { title: '操作', key: 'op', width: 80 },
+        { title: '操作', key: 'op', width: 120 },
       ]"
       row-key="id"
       size="small"
@@ -97,6 +116,7 @@ const HEALTH_COLOR: Record<string, string> = { up: 'green', down: 'red', unknown
           <span v-if="record.health?.rttMs !== undefined && record.health?.rttMs !== null" class="text-xs text-gray-400">{{ record.health.rttMs }}ms</span>
         </template>
         <template v-else-if="column.key === 'op'">
+          <Button size="small" class="mr-1" @click="edit(record as Upstream)">编辑</Button>
           <Button size="small" danger @click="remove(record.id)">删除</Button>
         </template>
       </template>

@@ -8,11 +8,13 @@ import {
   deleteForwardRule,
   listForwardRules,
   listUpstreams,
+  updateForwardRule,
   type ForwardRule,
   type Upstream,
 } from '#/api/ipam';
 
 const rows = ref<ForwardRule[]>([]);
+const editingId = ref<string>();
 const upstreams = ref<Upstream[]>([]);
 const loading = ref(false);
 const form = ref({ domain: '', upstreamId: '', note: '' });
@@ -32,14 +34,30 @@ function upstreamName(id: string): string {
 }
 async function add() {
   if (!form.value.domain || !form.value.upstreamId) return;
-  await createForwardRule({
-    domain: form.value.domain.endsWith('.') ? form.value.domain : `${form.value.domain}.`,
-    upstreamIds: [form.value.upstreamId],
-    enabled: true,
-    note: form.value.note,
-  });
+  const domain = form.value.domain.endsWith('.') ? form.value.domain : `${form.value.domain}.`;
+  if (editingId.value) {
+    await updateForwardRule(editingId.value, {
+      upstreamIds: [form.value.upstreamId],
+      enabled: true,
+      note: form.value.note,
+    });
+  } else {
+    await createForwardRule({
+      domain,
+      upstreamIds: [form.value.upstreamId],
+      enabled: true,
+      note: form.value.note,
+    });
+  }
+  editingId.value = undefined;
   form.value = { domain: '', upstreamId: '', note: '' };
   await load();
+}
+function edit(r: ForwardRule) {
+  editingId.value = r.id;
+  form.value = {
+    domain: r.domain, upstreamId: (r.upstreamIds ?? [])[0] ?? '', note: r.note ?? '',
+  };
 }
 async function remove(id?: string) {
   if (id) await deleteForwardRule(id);
@@ -56,7 +74,8 @@ onMounted(load);
       <Select v-model:value="form.upstreamId" placeholder="上游" style="width: 180px"
         :options="upstreams.map((u) => ({ value: u.id, label: u.name }))" />
       <Input v-model:value="form.note" placeholder="备注（可选）" style="width: 160px" />
-      <Button type="primary" @click="add">添加</Button>
+      <Button type="primary" @click="add">{{ editingId ? '保存修改' : '添加' }}</Button>
+      <Button v-if="editingId" @click="editingId = undefined; form = { domain: '', upstreamId: '', note: '' }">取消编辑</Button>
     </div>
     <Table
       :data-source="rows"
@@ -80,6 +99,7 @@ onMounted(load);
           <Switch :checked="record.enabled" size="small" disabled />
         </template>
         <template v-else-if="column.key === 'op'">
+          <Button size="small" class="mr-1" @click="edit(record as ForwardRule)">编辑</Button>
           <Button size="small" danger @click="remove(record.id)">删除</Button>
         </template>
       </template>

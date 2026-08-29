@@ -232,7 +232,7 @@ const columns = [
             <Tag v-else color="orange">未下发</Tag>
           </template>
           <template v-else-if="column.key === 'op'">
-            <Button size="small" class="mr-1" @click="edit(record)">编辑</Button>
+            <Button size="small" class="mr-1" @click="edit(record as Subnet)">编辑</Button>
             <Button size="small" danger @click="remove(record.id)">删除</Button>
           </template>
         </template>

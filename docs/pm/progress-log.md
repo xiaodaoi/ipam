@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-28 · M2-021 完成：编辑闭环批次（上游/转发规则/选项类）
+
+- **做了**：三页编辑模式（editingId + edit() 预填 + PATCH/POST 分支 + 提交按钮动态文案 + 取消编辑按钮 + op 编辑按钮）；ipam.ts updateForwardRule（前端 API 补齐，spec/后端已有）。
+- **验证结果**：typecheck 0 + 零外链 PASS + 全链测试绿 + lint 0；容器 e2e——上游 PATCH（223.6.6.6→223.7.7.7）200+回读一致、转发 PATCH（note）200+回读一致、选项 PATCH（routers data）200+回读一致。
+- **里程碑**：**全站管理页编辑闭环**（子网/上游/转发/选项类/用户/组织）。
+- **遗留**：双栈页编辑（spec 无 update——删建模式可接受）P2；封禁条目编辑（条目增删已有）P2。
+
 ## 2026-08-28 · M5-011 完成：登出即吊销（TokenBlacklist）
 
 - **做了**：auth_blacklist.go（TokenBlacklist：SHA256 指纹 + 惰性过期清理）；AuthHandler 接入 bl（LogoutAuth 吊销有效令牌）；RBAC 中间件黑名单检查；单测锚定（黑名单语义 + 登出吊销 + guest 隔离性）。
