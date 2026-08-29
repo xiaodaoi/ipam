@@ -224,15 +224,14 @@ func newEngine(version string) *gin.Engine {
 			log.Printf("[dhcp-apply] config-set: %v", err)
 			return err
 		}
-		// M2-018：存在 v6 子网时同步下发 Dhcp6（经 agent 转发 dhcp6 socket）
+		// M2-018/M2-019：存在 v6 子网时同步下发 Dhcp6（经 agent 转发 dhcp6 socket）；
+		// v6 失败降级为软失败（log 记录，kea6 恢复后 PATCH 重触发全量补齐）——避免连坐 v4（M2-019 实测）
 		cfg6, err6 := keaengine.BuildConfig6(subs)
 		if err6 != nil {
-			return err6
-		}
-		if s6, ok := cfg6.Dhcp6["subnet6"].([]map[string]any); ok && len(s6) > 0 {
+			log.Printf("[dhcp6-apply] build: %v", err6)
+		} else if s6, ok := cfg6.Dhcp6["subnet6"].([]map[string]any); ok && len(s6) > 0 {
 			if _, err := keaCmd.Command(ctx, "config-set", "dhcp6", cfg6); err != nil {
-				log.Printf("[dhcp6-apply] config-set: %v", err)
-				return err
+				log.Printf("[dhcp6-apply] config-set（软失败）: %v", err)
 			}
 		}
 		// config-write：运行态落盘（Kea 重启后配置不回滚到启动文件——M2-018 诊断发现）

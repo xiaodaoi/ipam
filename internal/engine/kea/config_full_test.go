@@ -120,3 +120,42 @@ func TestBuildConfig6_含pdPools(t *testing.T) {
 		t.Fatalf("缺 len 池的子网不应携带池: %+v", second)
 	}
 }
+
+func TestBuildConfig_子网级optionData(t *testing.T) {
+	// M2-019：子网级网关/DNS → subnet option-data（覆盖全局）
+	cfg, err := BuildConfig([]ipam.Subnet{
+		{Family: 4, CIDR: "10.99.3.0/24", KeaSubnetID: 6, Gateway: "10.99.3.1",
+			DNSServers: "223.5.5.5, 114.114.114.114",
+			Pools:      []ipam.Pool{{StartAddr: "10.99.3.10", EndAddr: "10.99.3.100", Kind: "dynamic"}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(cfg.Dhcp4)
+	s := string(b)
+	for _, want := range []string{`"option-data"`, `"routers"`, `10.99.3.1`, `"domain-name-servers"`, `223.5.5.5`} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("子网级 option-data 缺失 %s: %s", want, s)
+		}
+	}
+}
+
+func TestBuildConfig6_子网级dnsServers(t *testing.T) {
+	cfg, err := BuildConfig6([]ipam.Subnet{
+		{Family: 6, CIDR: "2406:174::/64", KeaSubnetID: 7, DNSServers: "2406:174::53",
+			Pools: []ipam.Pool{{StartAddr: "2406:174::", Kind: "pd", PrefixLen: ipamInt(64), DelegatedLen: ipamInt(80)}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(cfg.Dhcp6)
+	s := string(b)
+	if !strings.Contains(s, `"dns-servers"`) || !strings.Contains(s, "2406:174::53") {
+		t.Fatalf("v6 dns-servers 缺失: %s", s)
+	}
+	if !strings.Contains(s, `"pd-pools"`) {
+		t.Fatalf("pd-pools 缺失: %s", s)
+	}
+}
+
+func ipamInt(v int) *int { return &v }

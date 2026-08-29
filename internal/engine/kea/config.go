@@ -40,11 +40,23 @@ func BuildConfig(subnets []ipam.Subnet) (Dhcp4Config, error) {
 				"pool": fmt.Sprintf("%s - %s", p.StartAddr, p.EndAddr),
 			})
 		}
-		sub4 = append(sub4, map[string]any{
+		sub := map[string]any{
 			"id":     s.KeaSubnetID,
 			"subnet": s.CIDR,
 			"pools":  pools,
-		})
+		}
+		// 子网级 option-data（M2-019：网关/DNS，覆盖全局）
+		var od []map[string]any
+		if s.Gateway != "" {
+			od = append(od, map[string]any{"name": "routers", "data": s.Gateway})
+		}
+		if s.DNSServers != "" {
+			od = append(od, map[string]any{"name": "domain-name-servers", "data": s.DNSServers})
+		}
+		if len(od) > 0 {
+			sub["option-data"] = od
+		}
+		sub4 = append(sub4, sub)
 		_ = i
 	}
 	base["subnet4"] = sub4
@@ -150,6 +162,9 @@ func BuildConfig6(subnets []ipam.Subnet) (Dhcp6Config, error) {
 			continue
 		}
 		sub := map[string]any{"id": s.KeaSubnetID, "subnet": s.CIDR}
+		if s.DNSServers != "" {
+			sub["option-data"] = []map[string]any{{"name": "dns-servers", "data": s.DNSServers}}
+		}
 		var pools6, pdPools []map[string]any
 		for _, p := range s.Pools {
 			if p.Kind == "pd" {

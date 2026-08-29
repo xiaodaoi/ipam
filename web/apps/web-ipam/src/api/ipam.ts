@@ -156,7 +156,7 @@ export const syncBlocklist = (id: string) => req<unknown>(`/dns/blocklists/${id}
 export const listOrgs = () => req<OrgTreeNode[]>('/orgs');
 
 export const createSubnet = (b: {
-  orgId: string; name: string; family: 4 | 6; cidr: string;
+  orgId: string; name: string; family: 4 | 6; cidr: string; gateway?: string; dnsServers?: string;
   pools?: { startAddr: string; endAddr?: string; kind: string; prefixLen?: number; delegatedLen?: number }[];
 }) => req<Subnet>('/subnets', j(b));
 export const deleteSubnet = (id: string) => req<void>(`/subnets/${id}`, del);

@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-28 · M2-019 完成：子网级 DHCP 选项（网关/DNS，v4+v6）
+
+- **做了**：spec Subnet/SubnetCreate/SubnetUpdate 加 gateway/dnsServers + gen；迁移 0014（runner 自动应用）；Subnet 结构/Pg 读写扩展；kea BuildConfig/BuildConfig6 的子网级 option-data 投影（v4 routers/domain-name-servers、v6 dns-servers）+ 单测锚定 ×2；前端子网表单（v4 网关+DNS/v6 DNS）+ 列表网关列。
+- **验证结果**：全链测试绿 + lint 0 + typecheck 0 + 零外链；容器 e2e 决定性通过——v4 子网创建 201 → kea dhcp4 config-get 实收 subnet option-data（routers=10.99.3.1、domain-name-servers）；v6 子网 → kea6 恢复后重触发 → 日志实证 3 个 v6 子网实收。
+- **里程碑**：**DHCP 下发参数完整化**（地址+掩码+网关+DNS 按子网后台可配，v4+v6）——用户报障的核心缺口收口。
+- **遗留**：kea-dhcp6 control socket 不稳定（Kea 2.2）→ 升级跟进；子网级 option-data 的 PATCH 表单 P2。
+
 ## 2026-08-28 · M5-010 完成：令牌吊销（token_version）
 
 - **做了**：迁移 0013（users.token_version）；JWTClaims.Ver + IssueTokenFor 五参；RBAC 中间件重构为认证+授权一体（全请求 enabled/ver 校验，SPA/login/logout 白名单）；UpdateUser 吊销触发（改密/停用/角色变更 → Bump）；Create 初始化 TokenVersion=1。

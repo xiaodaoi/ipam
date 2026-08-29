@@ -1,0 +1,3 @@
+-- 0014: 子网级 DHCP 选项（M2-019：网关/DNS，v4+v6）
+ALTER TABLE subnet ADD COLUMN IF NOT EXISTS gateway text NOT NULL DEFAULT '';
+ALTER TABLE subnet ADD COLUMN IF NOT EXISTS dns_servers text NOT NULL DEFAULT '';

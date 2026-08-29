@@ -1165,8 +1165,12 @@ export interface components {
             name: string;
             /** @enum {integer} */
             family: 4 | 6;
-            /** @description 如 10.61.172.0/24 或 2406:172::/64 */
+            /** @description 如 10.61.172.0/24 或 2406:172::/64（掩码由 CIDR 隐含） */
             cidr: string;
+            /** @description 网关（v4 option routers；v6 留空——v6 网关走 RA） */
+            gateway?: string;
+            /** @description DNS 服务器（逗号分隔；v4 domain-name-servers / v6 dns-servers） */
+            dnsServers?: string;
             pools: components["schemas"]["AddressPool"][];
             /** @description 下发 Kea 后的 subnet-id（引擎回写） */
             keaSubnetId?: number | null;
@@ -1189,6 +1193,10 @@ export interface components {
             delegatedLen?: number;
         };
         SubnetCreate: {
+            /** @description 网关（v4 option routers；v6 留空） */
+            gateway?: string;
+            /** @description DNS 服务器（逗号分隔；v4 domain-name-servers / v6 dns-servers） */
+            dnsServers?: string;
             /** Format: uuid */
             orgId: string;
             name: string;
@@ -1204,6 +1212,10 @@ export interface components {
             description?: string;
         };
         SubnetUpdate: {
+            /** @description 网关（v4；v6 留空） */
+            gateway?: string;
+            /** @description DNS 服务器（逗号分隔） */
+            dnsServers?: string;
             name?: string;
             pools?: components["schemas"]["AddressPool"][];
             description?: string;

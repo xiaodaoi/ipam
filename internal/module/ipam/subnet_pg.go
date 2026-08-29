@@ -40,11 +40,12 @@ func pdRangeEnd(prefix string, plen int) (string, error) {
 }
 
 const subnetCols = `id, coalesce(org_id::text,''), name, family, cidr::text,
-  coalesce(kea_subnet_id,0), coalesce(description,'')`
+  coalesce(kea_subnet_id,0), coalesce(description,''), coalesce(gateway,''), coalesce(dns_servers,'')`
 
 func scanSubnet(row pgx.Row) (Subnet, error) {
 	var s Subnet
-	err := row.Scan(&s.ID, &s.OrgID, &s.Name, &s.Family, &s.CIDR, &s.KeaSubnetID, &s.Description)
+	err := row.Scan(&s.ID, &s.OrgID, &s.Name, &s.Family, &s.CIDR, &s.KeaSubnetID, &s.Description,
+		&s.Gateway, &s.DNSServers)
 	return s, err
 }
 
@@ -129,9 +130,9 @@ func (r *PgSubnetRepo) Get(ctx context.Context, id string) (Subnet, bool, error)
 func (r *PgSubnetRepo) Create(ctx context.Context, s Subnet) (Subnet, error) {
 	var id string
 	err := r.pool.QueryRow(ctx,
-		`INSERT INTO subnet(org_id,name,family,cidr,kea_subnet_id,description)
-		 VALUES($1,$2,$3,$4,$5,$6) RETURNING id`,
-		nullStr(s.OrgID), s.Name, s.Family, s.CIDR, s.KeaSubnetID, nullStr(s.Description)).Scan(&id)
+		`INSERT INTO subnet(org_id,name,family,cidr,kea_subnet_id,description,gateway,dns_servers)
+		 VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+		nullStr(s.OrgID), s.Name, s.Family, s.CIDR, s.KeaSubnetID, nullStr(s.Description), s.Gateway, s.DNSServers).Scan(&id)
 	if err != nil {
 		return Subnet{}, err
 	}
@@ -171,8 +172,8 @@ func insertPools(ctx context.Context, r *PgSubnetRepo, id string, s Subnet) erro
 
 func (r *PgSubnetRepo) Update(ctx context.Context, s Subnet) (Subnet, error) {
 	if _, err := r.pool.Exec(ctx,
-		`UPDATE subnet SET name=$2, cidr=$3, description=$4, updated_at=now() WHERE id=$1`,
-		s.ID, s.Name, s.CIDR, nullStr(s.Description)); err != nil {
+		`UPDATE subnet SET name=$2, cidr=$3, gateway=$4, dns_servers=$5, description=$6, updated_at=now() WHERE id=$1`,
+		s.ID, s.Name, s.CIDR, s.Gateway, s.DNSServers, nullStr(s.Description)); err != nil {
 		return Subnet{}, err
 	}
 	if _, err := r.pool.Exec(ctx, `DELETE FROM address_pool WHERE subnet_id=$1`, s.ID); err != nil {

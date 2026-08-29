@@ -24,6 +24,8 @@ const form = ref({
   name: '',
   family: 4 as 4 | 6,
   cidr: '',
+  gateway: '',
+  dnsServers: '',
   poolStart: '',
   poolEnd: '',
   poolKind: 'dynamic' as 'dynamic' | 'pd',
@@ -65,9 +67,10 @@ async function add() {
   }
   await createSubnet({
     orgId: f.orgId, name: f.name, family: f.family, cidr: f.cidr, pools,
+    gateway: f.gateway || undefined, dnsServers: f.dnsServers || undefined,
   });
   showForm.value = false;
-  form.value = { orgId: f.orgId, name: '', family: 4, cidr: '', poolStart: '', poolEnd: '', poolKind: 'dynamic', poolPrefixLen: 64, poolDelegatedLen: 80 };
+  form.value = { orgId: f.orgId, name: '', family: 4, cidr: '', gateway: '', dnsServers: '', poolStart: '', poolEnd: '', poolKind: 'dynamic', poolPrefixLen: 64, poolDelegatedLen: 80 };
   await load();
 }
 async function remove(id?: string) {
@@ -90,6 +93,7 @@ const columns = [
   { title: 'CIDR', dataIndex: 'cidr' },
   { title: '族', dataIndex: 'family', width: 60 },
   { title: '组织', dataIndex: 'orgId', width: 160 },
+  { title: '网关', key: 'gateway', width: 120 },
   { title: '池数', key: 'pools', width: 70 },
   { title: 'Kea ID', dataIndex: 'keaSubnetId', width: 90 },
   { title: '操作', key: 'op', width: 80 },
@@ -134,6 +138,15 @@ const columns = [
         <div>
           <div class="mb-1 text-xs text-gray-400">CIDR</div>
           <Input v-model:value="form.cidr" style="width: 180px" placeholder="10.61.172.0/24" />
+        </div>
+        <div>
+          <div class="mb-1 text-xs text-gray-400">{{ form.family === 6 ? 'DNS 服务器' : '网关' }}</div>
+          <Input v-model:value="form.gateway" v-if="form.family === 4" style="width: 140px" placeholder="10.61.172.1" />
+          <Input v-model:value="form.dnsServers" v-if="form.family === 6" style="width: 170px" placeholder="2406:172::53" />
+        </div>
+        <div v-if="form.family === 4">
+          <div class="mb-1 text-xs text-gray-400">DNS 服务器</div>
+          <Input v-model:value="form.dnsServers" style="width: 170px" placeholder="223.5.5.5, 114.114.114.114" />
         </div>
         <template v-if="form.family === 6">
           <div>
@@ -181,6 +194,7 @@ const columns = [
         :pagination="false"
       >
         <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'gateway'">{{ record.gateway || '-' }}</template>
           <template v-if="column.dataIndex === 'family'">
             <Tag :color="record.family === 4 ? 'blue' : 'purple'">v{{ record.family }}</Tag>
           </template>
