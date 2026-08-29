@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-29 · M2-030 完成：DNSSEC 校验开关（B-10）
+
+- **做了**：BuildConf trust-anchor 输出（IANA 根锚 DS 20326 常量，离线免联网）+ settings_test 断言；security 页 DNSSEC Switch 去灰置 + 文案 B-10；镜像重建部署。
+- **验证结果**：全链绿；e2e——PUT dnssecValidate=true → unbound-rendered.conf 实收 trust-anchor + val-permissive-mode: no → false → yes + 锚消失（双向闭环）。
+- **里程碑**：**B-10 闭环——架构文档最后一个 P2 功能块落地**。
+- **踩坑留痕**：control-plane build 空行≠重建成功（Go 改动后 grep Built 确认）；渲染 conf 在 unbound-rendered.conf（include 拆分）。
+
 ## 2026-08-29 · M2-029 完成：日志 CSV 导出前端
 
 - **做了**：ipam.ts exportLogsCsv（fetch blob + Content-Disposition 文件名解析）；search 页「导出 CSV」按钮（当前筛选 from/to/type/domain 映射 ExportLogsParams）；streamLogTail 确认无缺口（tail 页 EventSource 已接）。

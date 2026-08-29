@@ -68,8 +68,8 @@ onMounted(load);
           />
         </div>
         <div class="flex items-center gap-2">
-          <span>DNSSEC 校验（P2）</span>
-          <Switch v-model:checked="settings.dnssecValidate" disabled />
+          <span>DNSSEC 校验（B-10）</span>
+          <Switch v-model:checked="settings.dnssecValidate" />
         </div>
         <Button type="primary" :loading="saving" @click="save">保存并生效</Button>
       </div>
