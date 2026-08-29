@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 
-import { Button, Card, Table, Tag } from 'ant-design-vue';
+import { Button, Card, Table, Tag, message } from 'ant-design-vue';
 
-import { listBlocklists, syncBlocklist, type Blocklist } from '#/api/ipam';
+import { deleteBlocklist, listBlocklists, syncBlocklist, type Blocklist } from '#/api/ipam';
 
 const rows = ref<Blocklist[]>([]);
 const loading = ref(false);
@@ -20,6 +20,11 @@ async function load() {
 }
 async function sync(id?: string) {
   if (id) await syncBlocklist(id);
+  await load();
+}
+async function removeList(id: string) {
+  await deleteBlocklist(id);
+  message.success('名单已删除');
   await load();
 }
 const KIND_TEXT: Record<string, string> = { builtin: '内置', custom: '自定义', feed: '订阅' };
@@ -63,6 +68,7 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         </template>
         <template v-else-if="column.key === 'op'">
           <Button v-if="record.kind === 'feed'" size="small" @click="sync(record.id)">立即同步</Button>
+          <Button v-if="record.kind !== 'builtin'" class="ml-1" size="small" danger @click="removeList(record.id)">删除</Button>
         </template>
       </template>
     </Table>

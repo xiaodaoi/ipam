@@ -50,6 +50,9 @@ var (
 )
 
 // BlocklistRepo 持久化。
+// errBlocklistNotFound 名单/条目不存在（M2-024 删除语义）。
+var errBlocklistNotFound = errors.New("blocklist not found")
+
 type BlocklistRepo interface {
 	List(ctx context.Context) ([]Blocklist, error)
 	Create(ctx context.Context, b Blocklist) (Blocklist, error)
@@ -61,6 +64,10 @@ type BlocklistRepo interface {
 	CreatePolicyGroup(ctx context.Context, p PolicyGroup) (PolicyGroup, error)
 	// EntriesForLists 聚合多名单条目（编译用）。
 	EntriesForLists(ctx context.Context, listIDs []string) ([]Entry, error)
+	// DeleteList 删除名单并级联删条目（M2-024）；不存在返回 errBlocklistNotFound。
+	DeleteList(ctx context.Context, id string) error
+	// DeleteEntry 按名单+pattern 自然键删条目（M2-024）；不存在返回 errBlocklistNotFound。
+	DeleteEntry(ctx context.Context, listID, pattern string) error
 }
 
 // FeedFetcher 订阅源拉取抽象（测试注入）。
@@ -329,10 +336,71 @@ func (r *MemBlocklistRepo) EntriesForLists(_ context.Context, listIDs []string) 
 // PgBlocklistRepo PG 实现（迁移 0001 + 0007 索引）。
 type PgBlocklistRepo struct{ pool *pgxpool.Pool }
 
+func (r *MemBlocklistRepo) DeleteList(_ context.Context, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.lists[id]; !ok {
+		return errBlocklistNotFound
+	}
+	delete(r.lists, id)
+	kept := r.entries[:0]
+	for _, e := range r.entries {
+		if e.ListID != id {
+			kept = append(kept, e)
+		}
+	}
+	r.entries = kept
+	return nil
+}
+
+func (r *MemBlocklistRepo) DeleteEntry(_ context.Context, listID, pattern string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	kept := r.entries[:0]
+	found := false
+	for _, e := range r.entries {
+		if e.ListID == listID && e.Pattern == pattern {
+			found = true
+			continue
+		}
+		kept = append(kept, e)
+	}
+	r.entries = kept
+	if !found {
+		return errBlocklistNotFound
+	}
+	return nil
+}
+
 func NewPgBlocklistRepo(pool *pgxpool.Pool) *PgBlocklistRepo { return &PgBlocklistRepo{pool: pool} }
 
+func (r *PgBlocklistRepo) DeleteList(ctx context.Context, id string) error {
+	if _, err := r.pool.Exec(ctx, `DELETE FROM blocklist_entry WHERE list_id = $1`, id); err != nil {
+		return err
+	}
+	tag, err := r.pool.Exec(ctx, `DELETE FROM blocklist WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return errBlocklistNotFound
+	}
+	return nil
+}
+
+func (r *PgBlocklistRepo) DeleteEntry(ctx context.Context, listID, pattern string) error {
+	tag, err := r.pool.Exec(ctx, `DELETE FROM blocklist_entry WHERE list_id = $1 AND pattern = $2`, listID, pattern)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return errBlocklistNotFound
+	}
+	return nil
+}
+
 func (r *PgBlocklistRepo) List(ctx context.Context) ([]Blocklist, error) {
-	rows, err := r.pool.Query(ctx, `SELECT id::text, name, kind, coalesce(sync_url,''), coalesce(last_sync,'1970-01-01'::timestamptz), version FROM blocklist ORDER BY created_at`)
+	rows, err := r.pool.Query(ctx, `SELECT id::text, name, kind, coalesce(sync_url,''), coalesce(last_sync,'1970-01-01'::timestamptz), version FROM blocklist ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}

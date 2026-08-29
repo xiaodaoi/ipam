@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-29 · M2-024 完成：封禁列表条目删除 + 列表删除
+
+- **做了**：spec delete ×2（deleteBlocklist / deleteBlocklistEntry pattern query）+ gen；BlocklistRepo 接口 + errBlocklistNotFound + Mem/PG 双实现（级联删/自然键删）；handler 2 端点（404/409 builtin/204 与 errors.Is 404/204）；前端 ipam.ts 2 函数 + blocklist 页删除按钮。
+- **顺手修**：PgBlocklistRepo.List `ORDER BY created_at` 引用不存在列（先前 bug）——GET 列表一直 500 → 改 ORDER BY name。
+- **验证结果**：typecheck 0 + 全链绿 + 零外链 PASS；e2e 决定性——GET 列表 200（修复实证）、条目删除 204+回读消失、列表删除 204+回读消失（GET 200 真验证）。
+- **遗留**：条目前端管理区 P2；列表级 PATCH 编辑（rename 影响 rpz zone 命名）P2。
+
 ## 2026-08-29 · M2-023 完成：上游多地址编辑
 
 - **做了**：upstream/index.vue 三处——edit 预填 `addrs.join(',')`（修复多地址截断为第 1 个）、PATCH/POST 分支提交 `split(',').map(trim).filter(Boolean)`（逗号分隔多地址输入）。

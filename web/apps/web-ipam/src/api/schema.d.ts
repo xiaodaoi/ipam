@@ -621,7 +621,11 @@ export interface paths {
          *     拉取/解析失败返回 502 且保留旧数据（风险项）。所需 scope 为 blocklist.write。
          */
         post: operations["syncBlocklist"];
-        delete?: never;
+        /**
+         * 删除名单（级联删条目）（M2-024）
+         * @description 删除名单及其全部条目；kind=builtin 内置名单不可删（409）。scope 为 blocklist.write。
+         */
+        delete: operations["deleteBlocklist"];
         options?: never;
         head?: never;
         patch?: never;
@@ -645,7 +649,11 @@ export interface paths {
          * @description 同名单内 pattern 去重；动作映射见 §5.2。scope 为 blocklist.write。
          */
         post: operations["addBlocklistEntry"];
-        delete?: never;
+        /**
+         * 删除条目（M2-024）
+         * @description 按名单+pattern 自然键删除。scope 为 blocklist.write。
+         */
+        delete: operations["deleteBlocklistEntry"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3222,6 +3230,40 @@ export interface operations {
             };
         };
     };
+    deleteBlocklist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已删除 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 名单不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 内置名单不可删除 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     listBlocklistEntries: {
         parameters: {
             query?: {
@@ -3272,6 +3314,36 @@ export interface operations {
                     "application/json": components["schemas"]["BlocklistEntry"];
                     examples: unknown;
                 };
+            };
+        };
+    };
+    deleteBlocklistEntry: {
+        parameters: {
+            query: {
+                /** @description 条目 pattern（自然键） */
+                pattern: string;
+            };
+            header?: never;
+            path: {
+                listId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已删除 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 条目不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

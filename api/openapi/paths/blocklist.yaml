@@ -81,6 +81,25 @@ BlocklistItem:
                 title: { type: string }
                 status: { type: integer }
                 code: { type: string }
+  delete:
+    operationId: deleteBlocklist
+    tags: [blocklist]
+    summary: 删除名单（级联删条目）（M2-024）
+    description: 删除名单及其全部条目；kind=builtin 内置名单不可删（409）。scope 为 blocklist.write。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: listId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204':
+        description: 已删除
+      '404':
+        description: 名单不存在
+      '409':
+        description: 内置名单不可删除
+
 BlocklistEntriesCollection:
   get:
     operationId: listBlocklistEntries
@@ -136,6 +155,28 @@ BlocklistEntriesCollection:
             ok:
               summary: 示例
               value: { listId: '22222222-2222-2222-2222-222222222222', triggerType: qname, pattern: '*.gamble.com', action: nxdomain }
+  delete:
+    operationId: deleteBlocklistEntry
+    tags: [blocklist]
+    summary: 删除条目（M2-024）
+    description: 按名单+pattern 自然键删除。scope 为 blocklist.write。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: listId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: pattern
+        in: query
+        required: true
+        schema: { type: string, maxLength: 256 }
+        description: 条目 pattern（自然键）
+    responses:
+      '204':
+        description: 已删除
+      '404':
+        description: 条目不存在
+
 PolicyGroupsCollection:
   get:
     operationId: listPolicyGroups

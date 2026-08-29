@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"errors"
 	"net/http"
 
 	guuid "github.com/google/uuid"
@@ -204,4 +205,40 @@ func toGenPolicy(g PolicyGroup) apigen.PolicyGroup {
 		Cidrs:    g.Cidrs,
 		ListIds:  ids,
 	}
+}
+
+// DeleteBlocklist DELETE /dns/blocklists/{listId}（M2-024）：级联删条目；builtin 拒删。
+func (h *BlocklistHandler) DeleteBlocklist(c *gin.Context, listId rtypes.UUID) {
+	bl, ok, err := h.svc.repo.Get(c.Request.Context(), listId.String())
+	if err != nil {
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	if !ok {
+		problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "BLOCKLIST_NOT_FOUND", "名单不存在")
+		return
+	}
+	if bl.Kind == "builtin" {
+		problem.Write(c, http.StatusConflict, "https://ipam.local/problems/conflict", "BUILTIN_IMMUTABLE", "内置名单不可删除")
+		return
+	}
+	if err := h.svc.repo.DeleteList(c.Request.Context(), listId.String()); err != nil {
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// DeleteBlocklistEntry DELETE /dns/blocklists/{listId}/entries?pattern=（M2-024）。
+func (h *BlocklistHandler) DeleteBlocklistEntry(c *gin.Context, listId rtypes.UUID, params apigen.DeleteBlocklistEntryParams) {
+	err := h.svc.repo.DeleteEntry(c.Request.Context(), listId.String(), params.Pattern)
+	if err != nil {
+		if errors.Is(err, errBlocklistNotFound) {
+			problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "BLOCKLIST_ENTRY_NOT_FOUND", "条目不存在")
+			return
+		}
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	c.Status(http.StatusNoContent)
 }

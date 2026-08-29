@@ -153,6 +153,8 @@ export const listLinkedRecords = (zoneId: string) =>
 // 封禁名单
 export const listBlocklists = () => req<{ items: Blocklist[] }>('/dns/blocklists');
 export const syncBlocklist = (id: string) => req<unknown>(`/dns/blocklists/${id}/sync`, j({}));
+export const deleteBlocklist = (id: string) => req<void>(`/dns/blocklists/${id}`, del);
+export const deleteBlocklistEntry = (id: string, pattern: string) => req<void>(`/dns/blocklists/${id}/entries?pattern=${encodeURIComponent(pattern)}`, del);
 
 // ── DHCP 子网与池（M2-002 API 消费）──
 // GET /orgs 返回组织树（与 /orgs/tree 同源；flat 场景前端自行展平）
