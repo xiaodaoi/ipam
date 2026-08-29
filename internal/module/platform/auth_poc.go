@@ -28,9 +28,9 @@ func IssueToken(now time.Time) string {
 	}, now)
 }
 
-// IssueTokenFor 按用户记录签发 JWT（M5-004：真实账号，角色进 claims）。
-func IssueTokenFor(sub, uid string, roles []string) string {
-	return IssueJWT(JWTClaims{Sub: sub, UID: uid, Roles: roles, Typ: "user"}, timeNowUTC())
+// IssueTokenFor 按用户记录签发 JWT（M5-004/M5-010：角色+会话版本进 claims）。
+func IssueTokenFor(sub, uid string, roles []string, ver int) string {
+	return IssueJWT(JWTClaims{Sub: sub, UID: uid, Roles: roles, Typ: "user", Ver: ver}, timeNowUTC())
 }
 
 // ValidateToken 校验并返回 claims（含 Sub/Roles/Typ）。

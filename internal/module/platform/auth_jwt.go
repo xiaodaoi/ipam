@@ -19,7 +19,8 @@ type JWTClaims struct {
 	Sub   string   `json:"sub"` // 账号
 	UID   string   `json:"uid"`
 	Roles []string `json:"roles"`
-	Typ   string   `json:"typ"` // user | bot
+	Typ   string   `json:"typ"`           // user | bot
+	Ver   int      `json:"ver,omitempty"` // 会话版本（M5-010：0=存量令牌，按 1 兼容）
 	Exp   int64    `json:"exp"`
 }
 

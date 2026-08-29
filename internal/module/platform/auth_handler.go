@@ -33,7 +33,7 @@ func (h *AuthHandler) AuthLogin(c *gin.Context) {
 		writeAuthErr(c, http.StatusUnauthorized, "BAD_CREDENTIALS", "账号或口令错误")
 		return
 	}
-	c.JSON(http.StatusOK, apigen.AuthLoginResult{AccessToken: IssueTokenFor(rec.Username, rec.ID, rec.Roles)})
+	c.JSON(http.StatusOK, apigen.AuthLoginResult{AccessToken: IssueTokenFor(rec.Username, rec.ID, rec.Roles, rec.TokenVersion)})
 }
 
 // GetAuthUserInfo GET /auth/user/info

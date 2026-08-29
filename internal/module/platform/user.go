@@ -17,12 +17,13 @@ import (
 
 // User 用户投影（不含口令散列，对外返回）。
 type User struct {
-	ID          string    `json:"id"`
-	Username    string    `json:"username"`
-	DisplayName string    `json:"displayName"`
-	Roles       []string  `json:"roles"`
-	Enabled     bool      `json:"enabled"`
-	CreatedAt   time.Time `json:"createdAt"`
+	ID           string    `json:"id"`
+	Username     string    `json:"username"`
+	DisplayName  string    `json:"displayName"`
+	Roles        []string  `json:"roles"`
+	Enabled      bool      `json:"enabled"`
+	CreatedAt    time.Time `json:"createdAt"`
+	TokenVersion int       `json:"-"`
 }
 
 // UserRecord 含口令散列的内部行（登录校验专用，禁止出 API）。
@@ -58,6 +59,8 @@ type UserStore interface {
 	Update(ctx context.Context, id string, in UserUpdateInput) (User, error)
 	Delete(ctx context.Context, id string) error
 	Count(ctx context.Context) (int, error)
+	// BumpTokenVersion 会话版本 +1（M5-010：改密/停用/角色变更即吊销存量令牌）。
+	BumpTokenVersion(ctx context.Context, id string) error
 }
 
 // HashPassword bcrypt 落库（DefaultCost=10）。
@@ -154,6 +157,7 @@ func (s *MemUserStore) Create(_ context.Context, in UserCreateInput) (User, erro
 		User: User{
 			ID: uuid.NewString(), Username: in.Username, DisplayName: in.DisplayName,
 			Roles: normalizeRoles(in.Roles), Enabled: true, CreatedAt: timeNowUTC(),
+			TokenVersion: 1,
 		},
 		PasswordHash: hash,
 	}
@@ -207,6 +211,20 @@ func (s *MemUserStore) Delete(_ context.Context, id string) error {
 	return errors.New("user not found")
 }
 
+// BumpTokenVersion 会话版本 +1（M5-010：改密/停用/角色变更即吊销存量令牌）。
+func (s *MemUserStore) BumpTokenVersion(_ context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for name, r := range s.m {
+		if r.ID == id {
+			r.TokenVersion++
+			s.m[name] = r
+			return nil
+		}
+	}
+	return errors.New("user not found")
+}
+
 func (s *MemUserStore) Count(_ context.Context) (int, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -220,7 +238,7 @@ type PgUserStore struct{ pool *pgxpool.Pool }
 
 func NewPgUserStore(pool *pgxpool.Pool) *PgUserStore { return &PgUserStore{pool: pool} }
 
-const userCols = `id::text, username, display_name, roles, enabled, created_at`
+const userCols = `id::text, username, display_name, roles, enabled, created_at, token_version`
 
 func (s *PgUserStore) List(ctx context.Context) ([]User, error) {
 	rows, err := s.pool.Query(ctx, `SELECT `+userCols+` FROM users ORDER BY username`)
@@ -231,7 +249,7 @@ func (s *PgUserStore) List(ctx context.Context) ([]User, error) {
 	out := []User{}
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Roles, &u.Enabled, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Roles, &u.Enabled, &u.CreatedAt, &u.TokenVersion); err != nil {
 			return nil, err
 		}
 		out = append(out, u)
@@ -251,7 +269,7 @@ func (s *PgUserStore) getBy(ctx context.Context, cond, arg string) (UserRecord, 
 	r := UserRecord{}
 	err := s.pool.QueryRow(ctx,
 		`SELECT `+userCols+`, password_hash FROM users WHERE `+cond, arg).
-		Scan(&r.ID, &r.Username, &r.DisplayName, &r.Roles, &r.Enabled, &r.CreatedAt, &r.PasswordHash)
+		Scan(&r.ID, &r.Username, &r.DisplayName, &r.Roles, &r.Enabled, &r.CreatedAt, &r.TokenVersion, &r.PasswordHash)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return UserRecord{}, false, nil
 	}
@@ -270,6 +288,7 @@ func (s *PgUserStore) Create(ctx context.Context, in UserCreateInput) (User, err
 		Username: in.Username, DisplayName: in.DisplayName,
 		Roles: normalizeRoles(in.Roles), Enabled: true, CreatedAt: timeNowUTC(),
 	}
+	u.TokenVersion = 1
 	err = s.pool.QueryRow(ctx,
 		`INSERT INTO users(username, display_name, password_hash, roles)
 		 VALUES($1,$2,$3,$4) RETURNING id::text, created_at`,
@@ -311,12 +330,18 @@ func (s *PgUserStore) Update(ctx context.Context, id string, in UserUpdateInput)
 		`UPDATE users SET display_name=$2, password_hash=$3, roles=$4, enabled=$5, updated_at=now()
 		 WHERE id::text=$1 RETURNING `+userCols,
 		id, displayName, hash, roles, enabled).
-		Scan(&u.ID, &u.Username, &u.DisplayName, &u.Roles, &u.Enabled, &u.CreatedAt)
+		Scan(&u.ID, &u.Username, &u.DisplayName, &u.Roles, &u.Enabled, &u.CreatedAt, &u.TokenVersion)
 	return u, err
 }
 
 func (s *PgUserStore) Delete(ctx context.Context, id string) error {
 	_, err := s.pool.Exec(ctx, `DELETE FROM users WHERE id::text=$1`, id)
+	return err
+}
+
+// BumpTokenVersion 会话版本 +1（M5-010：改密/停用/角色变更即吊销存量令牌）。
+func (s *PgUserStore) BumpTokenVersion(ctx context.Context, id string) error {
+	_, err := s.pool.Exec(ctx, `UPDATE users SET token_version = token_version + 1 WHERE id::text=$1`, id)
 	return err
 }
 

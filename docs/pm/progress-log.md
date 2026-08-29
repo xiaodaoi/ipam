@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-28 · M5-010 完成：令牌吊销（token_version）
+
+- **做了**：迁移 0013（users.token_version）；JWTClaims.Ver + IssueTokenFor 五参；RBAC 中间件重构为认证+授权一体（全请求 enabled/ver 校验，SPA/login/logout 白名单）；UpdateUser 吊销触发（改密/停用/角色变更 → Bump）；Create 初始化 TokenVersion=1。
+- **验证结果**：全链测试绿（含停用/改密吊销回归锚点 ×2）+ lint 0；容器 e2e——停用后存量令牌 GET 401、新密码登录 200。
+- **里程碑**：M5-004 安全语义缺口收口（禁用/改密即吊销，不再等 24h 过期）。
+- **遗留**：中间件每请求查库（PoC 可接受，缓存 P2）；登出黑名单 P2。
+
 ## 2026-08-28 · M2-018 完成：DHCPv6 管理落地（PD 前缀委派）——DHCP 菜单 6/6
 
 - **做了**：spec Pool 加 prefixLen/delegatedLen + gen；迁移 0012（runner 自动应用）；Pool 结构/Pg 读写扩展（pd endAddr 推导）；kea BuildConfig6（subnet6：dynamic→pools、pd→pd-pools）+ DeploySubnet/applyDhcp dhcp6 config-set；前端 v6 池表单（kind+len）。

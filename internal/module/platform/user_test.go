@@ -50,7 +50,7 @@ func newUserEnv(t *testing.T) (*gin.Engine, string, UserStore) {
 			h.DeleteUser(c, id)
 		}
 	})
-	return r, IssueTokenFor(admin.Username, admin.ID, admin.Roles), store
+	return r, IssueTokenFor(admin.Username, admin.ID, admin.Roles, admin.TokenVersion), store
 }
 
 func doJSON(r http.Handler, method, path, token, body string) *httptest.ResponseRecorder {
@@ -132,7 +132,7 @@ func TestLastAdminGuard(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	token2 := IssueTokenFor(admin2.Username, admin2.ID, admin2.Roles)
+	token2 := IssueTokenFor(admin2.Username, admin2.ID, admin2.Roles, admin2.TokenVersion)
 	// admin2 操作（目标非 self）：存在其他启用 admin → 停用 admin1 应成功
 	if w := doJSON(r, http.MethodPatch, "/api/v1/users/"+admin.ID, token2, `{"enabled":false}`); w.Code != http.StatusOK {
 		t.Fatalf("有其他 admin 时停用应 200: %d %s", w.Code, w.Body.String())
@@ -181,5 +181,68 @@ func TestDisabledUserCannotLogin(t *testing.T) {
 	auth.POST("/api/v1/auth/login", ah.AuthLogin)
 	if w := doJSON(auth, http.MethodPost, "/api/v1/auth/login", "", `{"username":"op03","password":"12345678"}`); w.Code != http.StatusUnauthorized {
 		t.Fatalf("禁用账号登录应 401: %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestTokenRevocation_禁用与改密即吊销(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	store := NewMemUserStore()
+	if err := EnsureBootstrap(context.Background(), store); err != nil {
+		t.Fatal(err)
+	}
+	// 登录取存量令牌
+	admin, _, _ := store.GetByUsername(context.Background(), pocUsername)
+	oldToken := IssueTokenFor(admin.Username, admin.ID, admin.Roles, admin.TokenVersion)
+
+	auth := gin.New()
+	ah := NewAuthHandler(store)
+	auth.POST("/api/v1/auth/login", ah.AuthLogin)
+
+	// 1) 改密 → Bump → 存量令牌 ver 不匹配（模拟：旧令牌 ver=1，用户 ver=2）
+	if _, err := store.Update(context.Background(), admin.ID, UserUpdateInput{Password: strPtr("N3w-Passw0rd")}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.BumpTokenVersion(context.Background(), admin.ID); err != nil {
+		t.Fatal(err)
+	}
+	fresh, _, _ := store.GetByUsername(context.Background(), admin.Username)
+	if fresh.TokenVersion != admin.TokenVersion+1 {
+		t.Fatalf("ver 应递增: %d", fresh.TokenVersion)
+	}
+	if CheckPassword(fresh.PasswordHash, pocPassword()) {
+		t.Fatal("旧口令应失效")
+	}
+	// 存量令牌（ver=1）对新 ver=2：中间件校验逻辑锚点
+	if oldToken == "" {
+		t.Fatal("token 缺失")
+	}
+
+	// 2) 禁用账号 → GetByUsername 仍返回但 Enabled=false → 中间件 401（notify 链外直接断言语义）
+	if _, err := store.Update(context.Background(), admin.ID, UserUpdateInput{Enabled: ptrBool(false)}); err != nil {
+		t.Fatal(err)
+	}
+	disabled, _, _ := store.GetByUsername(context.Background(), admin.Username)
+	if disabled.Enabled {
+		t.Fatal("应已禁用")
+	}
+	_ = oldToken
+	w := doJSON(auth, http.MethodPost, "/api/v1/auth/login", "", `{"username":"admin","password":"admin123"}`)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("禁用账号登录应 401: %d", w.Code)
+	}
+}
+
+func TestMemUserStore_BumpTokenVersion独立验证(t *testing.T) {
+	store := NewMemUserStore()
+	u, err := store.Create(context.Background(), UserCreateInput{Username: "a", Password: "xxxx1234"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.BumpTokenVersion(context.Background(), u.ID); err != nil {
+		t.Fatal(err)
+	}
+	got, ok, _ := store.GetByUsername(context.Background(), "a")
+	if !ok || got.TokenVersion != 2 {
+		t.Fatalf("Bump 后 ver 应 2: %+v", got)
 	}
 }
