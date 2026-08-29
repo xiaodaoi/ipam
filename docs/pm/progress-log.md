@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-28 · M2-018 完成：DHCPv6 管理落地（PD 前缀委派）——DHCP 菜单 6/6
+
+- **做了**：spec Pool 加 prefixLen/delegatedLen + gen；迁移 0012（runner 自动应用）；Pool 结构/Pg 读写扩展（pd endAddr 推导）；kea BuildConfig6（subnet6：dynamic→pools、pd→pd-pools）+ DeploySubnet/applyDhcp dhcp6 config-set；前端 v6 池表单（kind+len）。
+- **验证结果**：kea 单测锚定 + 全链绿 + lint 0 + typecheck 0 + 零外链；容器 e2e——v6 子网+PD 创建 201（endAddr 推导回填、keaSubnetId 递增）→ 全量下发 → **kea-dhcp6 日志实证 reconfigure 实收 2 个 v6 子网**。
+- **里程碑**：**DHCP 菜单 6/6 收口**；v6 下发链（BuildConfig6→agent→dhcp6 socket）打通。
+- **遗留**：kea-dhcp6 control socket 在 reconfigure 后不稳定（Kea 2.2 行为，force-recreate 恢复）→ 升级跟进；PD 租约生命周期 P2。
+
 ## 2026-08-28 · M3-009 完成：settings 渲染持久化路径打通（include 拆分）
 
 - **做了**：confApplier 渲染产物落盘 /etc/unbound-rendered（宿主 config/unbound rw 挂载）；主 conf include 拆分（静态身份段归主 conf，删静态 auth-zone）；SettingsService.Update notify 收敛（失败回滚落库值）；BuildConf 静态身份解耦 + forward-addr @ 格式修正 + RenderSettingsBlock 指令正名（ip-ratelimit）；control-plane 镜像补 unbound 用户。
