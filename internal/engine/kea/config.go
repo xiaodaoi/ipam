@@ -152,8 +152,11 @@ type Dhcp6Config struct {
 func BuildConfig6(subnets []ipam.Subnet) (Dhcp6Config, error) {
 	base := map[string]any{
 		"interfaces-config": map[string]any{"interfaces": []string{"eth0"}},
-		"valid-lifetime":    3600,
-		"lease-database":    map[string]any{"type": "memfile"},
+		"hooks-libraries": []map[string]any{
+			{"library": "/usr/lib/x86_64-linux-gnu/kea/hooks/libdhcp_lease_cmds.so"},
+		},
+		"valid-lifetime": 3600,
+		"lease-database": map[string]any{"type": "memfile"},
 	}
 	sub6 := make([]map[string]any, 0, len(subnets))
 	for i := range subnets {

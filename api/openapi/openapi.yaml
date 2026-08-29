@@ -50,6 +50,8 @@ paths:
     $ref: './paths/dhcpoption.yaml#/DhcpClassesCollection'
   /dhcp/classes/{classId}:
     $ref: './paths/dhcpoption.yaml#/DhcpClassItem'
+  /dhcp/leases6:
+    $ref: './paths/dhcpoption.yaml#/DhcpLeases6Collection'
   /auth/login:
     $ref: './paths/auth.yaml#/AuthLogin'
   /auth/user/info:

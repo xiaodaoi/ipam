@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-29 · M2-022 完成：PD 租约查询（lease6 命令通道）
+
+- **做了**：kea lease_cmds hook 加载（模板 + BuildConfig6 base 双侧）；spec GET /dhcp/leases6 + gen；kea CtrlAgent.Lease6List（result 0/3 校验 + leases 投影）；dhcp ListDhcpLeases6（lease6List 函数注入 + nil 安全）；main lease6Fn（keaCmd nil 安全 + 指针转换）；前端 subnets 页 PD 租约卡（实时查询 + 刷新）。
+- **验证结果**：typecheck 0 + 全链测试绿 + lint 0 + 零外链 PASS；e2e——GET /dhcp/leases6 HTTP 200 + PD 租约回读全对（2406:172::100:0 IA_PD /80 duid/vlt）。
+- **踩坑留痕**：① Kea hooks-libraries 键名是 "library"（错键 "lib" → DHCP6_INIT_FAIL 重启循环）；② Command(nil args) → "arguments": null → Kea get(string) on non-map → nil 省略字段；③ Kea 2.2 lease 字段名 valid-lft；④ lease6-add 须用 kea 现存 subnet-id（kea6 restart 后配置由 daemon 重推）。
+- **里程碑**：**DHCPv6 PD 生命周期闭环**（委派池 → 租约可观测）。
+
 ## 2026-08-28 · M2-021 完成：编辑闭环批次（上游/转发规则/选项类）
 
 - **做了**：三页编辑模式（editingId + edit() 预填 + PATCH/POST 分支 + 提交按钮动态文案 + 取消编辑按钮 + op 编辑按钮）；ipam.ts updateForwardRule（前端 API 补齐，spec/后端已有）。

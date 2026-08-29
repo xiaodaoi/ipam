@@ -32,9 +32,11 @@ type commandResp struct {
 // Command 发送单条控制命令（config-set / subnet4-del 等）。
 func (c *CtrlAgent) Command(ctx context.Context, command string, service string, args any) (commandResp, error) {
 	payload := map[string]any{
-		"command":   command,
-		"service":   []string{service},
-		"arguments": args,
+		"command": command,
+		"service": []string{service},
+	}
+	if args != nil {
+		payload["arguments"] = args
 	}
 	body, _ := json.Marshal(payload)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/", bytes.NewReader(body))
@@ -125,4 +127,36 @@ func (c *CtrlAgent) RemoveSubnet(ctx context.Context, subnetID int) error {
 	}
 	_, err := c.Command(ctx, "subnet4-del", "dhcp4", map[string]any{"id": subnetID})
 	return err
+}
+
+// Lease6 单条 DHCPv6 租约投影（M2-022，lease_cmds hook 实时查询）。
+type Lease6 struct {
+	IPAddress     string `json:"ip-address"`
+	LeaseType     string `json:"type"`
+	PrefixLen     int    `json:"prefix-len,omitempty"`
+	DUID          string `json:"duid"`
+	IAID          uint32 `json:"iaid,omitempty"`
+	CLTT          int64  `json:"cltt,omitempty"`
+	ValidLifetime uint32 `json:"valid-lft,omitempty"`
+}
+
+// Lease6List 实时查询 Kea DHCPv6 租约（PD/NA；memfile 不入库）。
+// result 3 表示空结果（0 租约），视为空列表。
+func (c *CtrlAgent) Lease6List(ctx context.Context) ([]Lease6, error) {
+	resp, err := c.Command(ctx, "lease6-get-all", "dhcp6", nil)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Result != 0 && resp.Result != 3 {
+		return nil, fmt.Errorf("lease6-get-all: result=%d %s", resp.Result, resp.Text)
+	}
+	var out struct {
+		Leases []Lease6 `json:"leases"`
+	}
+	if len(resp.Args) > 0 {
+		if err := json.Unmarshal(resp.Args, &out); err != nil {
+			return nil, err
+		}
+	}
+	return out.Leases, nil
 }

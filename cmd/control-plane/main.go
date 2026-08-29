@@ -239,7 +239,34 @@ func newEngine(version string) *gin.Engine {
 		_, _ = keaCmd.Command(ctx, "config-write", "dhcp6", map[string]any{})
 		return nil
 	}
-	dhcpH := dhcpmodule.NewHandler(dhcpStore, applyDhcpFn)
+	lease6Fn := func(ctx context.Context) ([]apigen.DhcpLease6, error) {
+		if keaCmd == nil {
+			return nil, nil
+		}
+		ls, err := keaCmd.Lease6List(ctx)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]apigen.DhcpLease6, 0, len(ls))
+		for _, l := range ls {
+			item := apigen.DhcpLease6{IpAddress: l.IPAddress, LeaseType: apigen.DhcpLease6LeaseType(l.LeaseType), Duid: l.DUID}
+			if v := int(l.IAID); v > 0 {
+				item.Iaid = &v
+			}
+			if pn := int(l.PrefixLen); pn > 0 {
+				item.PrefixLen = &pn
+			}
+			if ct := int(l.CLTT); ct > 0 {
+				item.Cltt = &ct
+			}
+			if vl := int(l.ValidLifetime); vl > 0 {
+				item.ValidLifetime = &vl
+			}
+			out = append(out, item)
+		}
+		return out, nil
+	}
+	dhcpH := dhcpmodule.NewHandler(dhcpStore, applyDhcpFn, lease6Fn)
 
 	ledgerH := ipam.NewLedgerHandler(ipam.NewLedgerService(ledgerSrc, resRepo, subRepo, notifyDhcp))
 	var assetRepo ipam.AssetRepo = ipam.NewMemAssetRepo()

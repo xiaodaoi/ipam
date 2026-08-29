@@ -145,6 +145,26 @@ export interface paths {
         patch: operations["updateDhcpClass"];
         trace?: never;
     };
+    "/dhcp/leases6": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * DHCPv6 租约列表（M2-022）
+         * @description Kea lease6-get-all 实时投影（PD/NA 租约；Kea memfile 不入库，实时查询）。
+         */
+        get: operations["listDhcpLeases6"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/login": {
         parameters: {
             query?: never;
@@ -1965,6 +1985,23 @@ export interface components {
             options?: components["schemas"]["DhcpClassOption"][];
             enabled?: boolean;
         };
+        /** @description DHCPv6 租约（PD/NA，Kea lease_cmds 实时投影，不入库）。 */
+        DhcpLease6: {
+            /** @description 租约地址或委派前缀 */
+            ipAddress: string;
+            /** @enum {string} */
+            leaseType: "IA_NA" | "IA_PD";
+            /** @description 委派前缀长度（IA_PD 时有值） */
+            prefixLen?: number;
+            duid: string;
+            iaid?: number;
+            /** @description 客户端最近事务时间（unix 秒） */
+            cltt?: number;
+            validLifetime?: number;
+        };
+        DhcpLease6List: {
+            items: components["schemas"]["DhcpLease6"][];
+        };
         /**
          * @description 服务健康灯（unknown=未配置探测地址或 PoC 模式）
          * @enum {string}
@@ -2409,6 +2446,26 @@ export interface operations {
                 };
             };
             400: components["responses"]["AuthUnauthorized"];
+        };
+    };
+    listDhcpLeases6: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 租约列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DhcpLease6List"];
+                };
+            };
         };
     };
     authLogin: {

@@ -209,3 +209,29 @@ DhcpClassItem:
         description: 已删除
       '400':
         $ref: '../components/responses/auth.yaml#/AuthUnauthorized'
+DhcpLeases6Collection:
+  get:
+    operationId: listDhcpLeases6
+    tags: [dhcp]
+    summary: DHCPv6 租约列表（M2-022）
+    description: Kea lease6-get-all 实时投影（PD/NA 租约；Kea memfile 不入库，实时查询）。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: 租约列表
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/dhcpoption.yaml#/DhcpLease6List'
+            examples:
+              ok:
+                summary: 单条 PD 租约
+                value:
+                  items:
+                    - ipAddress: "2406:172::100:0"
+                      leaseType: IA_PD
+                      prefixLen: 80
+                      duid: "00:03:00:01:aa:bb:cc:dd:ee:01"
+                      iaid: 1
+                      cltt: 1756440000
+                      validLifetime: 3600

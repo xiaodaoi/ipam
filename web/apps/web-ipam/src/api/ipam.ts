@@ -219,9 +219,11 @@ export const deleteUser = (id: string) => req<void>(`/users/${id}`, del);
 
 // ── DHCP 选项与类匹配（M2-016，C-02/C-03）──
 export type DhcpOptionRow = components['schemas']['DhcpOption'];
+export type DhcpLease6Row = components['schemas']['DhcpLease6'];
 export type DhcpClassRow = components['schemas']['DhcpClass'];
 export type DhcpClassOptionIn = { optionCode: number; name: string; data: string };
 export const listDhcpOptions = () => req<{ items: DhcpOptionRow[] }>('/dhcp/options');
+export const listDhcpLeases6 = () => req<{ items: DhcpLease6Row[] }>('/dhcp/leases6');
 export const createDhcpOption = (b: { optionCode: number; name: string; data: string; enabled?: boolean }) =>
   req<DhcpOptionRow>('/dhcp/options', j(b));
 export const updateDhcpOption = (id: string, b: { optionCode?: number; name?: string; data?: string; enabled?: boolean }) =>

@@ -116,3 +116,24 @@ DhcpClassUpdate:
       items:
         $ref: 'dhcpoption.yaml#/DhcpClassOption'
     enabled: { type: boolean }
+DhcpLease6:
+  type: object
+  description: DHCPv6 租约（PD/NA，Kea lease_cmds 实时投影，不入库）。
+  required: [ipAddress, leaseType, duid]
+  properties:
+    ipAddress: { type: string, description: 租约地址或委派前缀 }
+    leaseType: { type: string, enum: [IA_NA, IA_PD] }
+    prefixLen: { type: integer, description: 委派前缀长度（IA_PD 时有值） }
+    duid: { type: string }
+    iaid: { type: integer }
+    cltt: { type: integer, description: 客户端最近事务时间（unix 秒） }
+    validLifetime: { type: integer }
+
+DhcpLease6List:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: 'dhcpoption.yaml#/DhcpLease6'

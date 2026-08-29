@@ -11,6 +11,8 @@ import {
   updateSubnet,
   type Subnet,
   type OrgTreeNode,
+  listDhcpLeases6,
+  type DhcpLease6Row,
 } from '#/api/ipam';
 
 const rows = ref<Subnet[]>([]);
@@ -105,7 +107,29 @@ async function remove(id?: string) {
   }
   await load();
 }
-onMounted(load);
+const lease6Rows = ref<DhcpLease6Row[]>([]);
+const lease6Loading = ref(false);
+const lease6Cols = [
+  { title: '地址/前缀', dataIndex: 'ipAddress' },
+  { title: '类型', dataIndex: 'leaseType', width: 90 },
+  { title: '前缀长', dataIndex: 'prefixLen', width: 80 },
+  { title: 'DUID', dataIndex: 'duid' },
+  { title: '有效期(s)', dataIndex: 'validLifetime', width: 100 },
+];
+
+async function loadLeases6() {
+  lease6Loading.value = true;
+  try {
+    lease6Rows.value = (await listDhcpLeases6()).items ?? [];
+  } finally {
+    lease6Loading.value = false;
+  }
+}
+
+onMounted(() => {
+  load();
+  void loadLeases6();
+});
 
 const orgName = (id?: string) => {
   const hit = orgOptions.value.find((o) => o.id === id);
@@ -237,6 +261,12 @@ const columns = [
           </template>
         </template>
       </Table>
+    </Card>
+    <Card title="PD 租约（DHCPv6 · Kea 实时查询）" class="mt-3">
+      <template #extra>
+        <Button size="small" :loading="lease6Loading" @click="loadLeases6">刷新</Button>
+      </template>
+      <Table :data-source="lease6Rows" :columns="lease6Cols" :loading="lease6Loading" size="small" row-key="ipAddress" />
     </Card>
   </div>
 </template>

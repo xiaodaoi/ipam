@@ -19,12 +19,13 @@ import (
 // 写操作成功后触发 apply 下发（main 注入：BuildConfigFull + config-set）；
 // 下发失败为软失败（X-Kea-Warning 头），CRUD 仍 2xx——对齐 M3-001 语义。
 type Handler struct {
-	store Store
-	apply func(ctx context.Context) error
+	store      Store
+	apply      func(context.Context) error
+	lease6List func(context.Context) ([]apigen.DhcpLease6, error)
 }
 
-func NewHandler(store Store, apply func(context.Context) error) *Handler {
-	return &Handler{store: store, apply: apply}
+func NewHandler(store Store, apply func(context.Context) error, lease6List func(context.Context) ([]apigen.DhcpLease6, error)) *Handler {
+	return &Handler{store: store, apply: apply, lease6List: lease6List}
 }
 
 var classNameRe = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
@@ -232,4 +233,21 @@ func toGenClass(c DhcpClass) apigen.DhcpClass {
 		Id: mustUUID(c.ID), Name: c.Name, Test: c.Test,
 		Options: toGenClassOptions(c.Options), Enabled: c.Enabled,
 	}
+}
+
+// ListDhcpLeases6 GET /dhcp/leases6（M2-022）——Kea lease6-get-all 实时投影。
+func (h *Handler) ListDhcpLeases6(c *gin.Context) {
+	if h.lease6List == nil {
+		c.JSON(http.StatusOK, apigen.DhcpLease6List{Items: []apigen.DhcpLease6{}})
+		return
+	}
+	items, err := h.lease6List(c.Request.Context())
+	if err != nil {
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "KEA_ERROR", err.Error())
+		return
+	}
+	if items == nil {
+		items = []apigen.DhcpLease6{}
+	}
+	c.JSON(http.StatusOK, apigen.DhcpLease6List{Items: items})
 }
