@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-29 · M5-012 完成：令牌黑名单持久化（重启恢复）
+
+- **做了**：迁移 0015（auth_token_blacklist 表 + until 索引）；TokenBlacklist.AttachDB（清理过期 + 加载未过期 + 启用双写）；Add best-effort 双写（INSERT ON CONFLICT DO UPDATE）；main.go pool 非空时 AttachDB（失败降级内存 + [bl-load] 日志）。
+- **验证结果**：platform 测试 ok + lint 0；e2e 决定性——登出 200 → 同令牌 401 → **重启 control-plane → 同令牌仍 401 TOKEN_REVOKED**（内存黑名单重启即清空，401 只能来自 DB 加载）→ 新登录 200；DB 层 schema_migrations 记录 0015_token_blacklist 已应用 + auth_token_blacklist 1 条。
+- **里程碑**：M5-011 登出即吊销的**跨重启安全闭环**。
+- **遗留**：多实例部署时 Revoked 仍走内存（单实例语义）——多实例需查库/Redis（P2）。
+
 ## 2026-08-29 · M2-022 完成：PD 租约查询（lease6 命令通道）
 
 - **做了**：kea lease_cmds hook 加载（模板 + BuildConfig6 base 双侧）；spec GET /dhcp/leases6 + gen；kea CtrlAgent.Lease6List（result 0/3 校验 + leases 投影）；dhcp ListDhcpLeases6（lease6List 函数注入 + nil 安全）；main lease6Fn（keaCmd nil 安全 + 指针转换）；前端 subnets 页 PD 租约卡（实时查询 + 刷新）。

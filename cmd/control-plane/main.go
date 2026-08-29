@@ -340,6 +340,11 @@ func newEngine(version string) *gin.Engine {
 		log.Printf("user bootstrap: %v", err)
 	}
 	bl := platform.NewTokenBlacklist() // M5-011：登出黑名单（AuthHandler/RBAC 共用）
+	if pool != nil {
+		if err := bl.AttachDB(context.Background(), pool); err != nil {
+			log.Printf("[bl-load] 黑名单持久化加载失败（降级内存）: %v", err)
+		}
+	}
 
 	var upRepo dnsmodule.UpstreamRepo = dnsmodule.NewMemUpstreamRepo()
 	var unboundCtl dnsmodule.UnboundController = unboundengine.ExecController{Conf: os.Getenv("IPAM_UNBOUND_CONF")}
