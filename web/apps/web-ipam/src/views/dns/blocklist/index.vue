@@ -8,6 +8,7 @@ import {
   deleteBlocklist,
   deleteBlocklistEntry,
   listBlocklistEntries,
+  createBlocklist,
   listBlocklists,
   syncBlocklist,
   type Blocklist,
@@ -23,6 +24,7 @@ const eLoading = ref(false);
 const selId = ref('');
 const selName = ref('');
 const eForm = ref<{ pattern: string; triggerType: 'qname' | 'response_ip'; action: 'nxdomain' | 'drop' | 'tcp_only' | 'redirect' }>({ pattern: '', triggerType: 'qname', action: 'nxdomain' });
+const cForm = ref<{ name: string; kind: 'builtin' | 'custom' | 'feed'; syncUrl: string }>({ name: '', kind: 'custom', syncUrl: '' });
 const entryCols = [
   { title: 'pattern', dataIndex: 'pattern' },
   { title: '触发', dataIndex: 'triggerType', width: 110 },
@@ -47,6 +49,13 @@ async function sync(id?: string) {
 async function removeList(id: string) {
   await deleteBlocklist(id);
   message.success('名单已删除');
+  await load();
+}
+async function createList() {
+  if (!cForm.value.name) return;
+  await createBlocklist({ name: cForm.value.name, kind: cForm.value.kind, syncUrl: cForm.value.syncUrl || undefined });
+  message.success('名单已创建');
+  cForm.value = { name: '', kind: 'custom', syncUrl: '' };
   await load();
 }
 async function openEntries(r: Blocklist) {
@@ -93,6 +102,12 @@ onBeforeUnmount(() => timer && clearInterval(timer));
     <template #extra>
       <Button size="small" @click="load()">刷新（30s 自动）</Button>
     </template>
+      <div class="mb-2 flex flex-wrap items-end gap-2">
+        <Input v-model:value="cForm.name" placeholder="名单名称" style="width: 200px" />
+        <Select v-model:value="cForm.kind" style="width: 120px" :options="[{ value: 'custom', label: '自定义' }, { value: 'feed', label: '订阅源' }]" />
+        <Input v-if="cForm.kind === 'feed'" v-model:value="cForm.syncUrl" placeholder="订阅 URL" style="width: 260px" />
+        <Button type="primary" size="small" @click="createList">新建名单</Button>
+      </div>
     <Table
       :data-source="rows"
       :columns="[

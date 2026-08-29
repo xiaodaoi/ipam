@@ -118,6 +118,7 @@ export type DnsZone = components['schemas']['DnsZone'];
 export type DnsRecord = components['schemas']['DnsRecord'];
 export type Blocklist = components['schemas']['Blocklist'];
 export type BlocklistEntryRow = components['schemas']['BlocklistEntry'];
+export type BlocklistCreateRow = components['schemas']['BlocklistCreate'];
 
 const j = (body: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(body) });
 const patch = (body: unknown): RequestInit => ({ method: 'PATCH', body: JSON.stringify(body) });
@@ -141,6 +142,7 @@ export const deleteForwardRule = (id: string) => req<void>(`/forward-rules/${id}
 // zone 与记录
 export const listDnsZones = () => req<{ items: DnsZone[] }>('/dns/zones');
 export const createDnsZone = (b: { name: string; kind: string }) => req<DnsZone>('/dns/zones', j(b));
+export const deleteDnsZone = (id: string) => req<void>(`/dns/zones/${id}`, del);
 export const listDnsRecords = (zoneId: string) =>
   req<{ items: DnsRecord[] }>(`/dns/zones/${zoneId}/records`);
 export const createDnsRecord = (zoneId: string, b: Partial<DnsRecord>) =>
@@ -158,6 +160,7 @@ export const deleteBlocklist = (id: string) => req<void>(`/dns/blocklists/${id}`
 export const deleteBlocklistEntry = (id: string, pattern: string) => req<void>(`/dns/blocklists/${id}/entries?pattern=${encodeURIComponent(pattern)}`, del);
 export const listBlocklistEntries = (id: string) => req<{ items: BlocklistEntryRow[]; total?: number }>(`/dns/blocklists/${id}/entries`);
 export const addBlocklistEntry = (id: string, body: Partial<BlocklistEntryRow>) => req<BlocklistEntryRow>(`/dns/blocklists/${id}/entries`, j(body));
+export const createBlocklist = (body: BlocklistCreateRow) => req<Blocklist>('/dns/blocklists', j(body));
 
 // ── DHCP 子网与池（M2-002 API 消费）──
 // GET /orgs 返回组织树（与 /orgs/tree 同源；flat 场景前端自行展平）

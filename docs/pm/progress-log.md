@@ -4,6 +4,14 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-29 · M2-026 完成：前端 API 补齐（名单新建 + 区域删除）
+
+- **做了**：ipam.ts（BlocklistCreateRow + createBlocklist/deleteDnsZone）；blocklist 页新建名单表单（name/kind/syncUrl，feed 条件显示订阅 URL）；records 页 zone Select 旁删区按钮（confirm 防误删 + 删除后自动回选）。
+- **验证结果**：typecheck 0 + 零外链 PASS；容器重建 + deleteDnsZone 回归（create → delete 204 → 回读已消失）；createBlocklist 由 M2-024 e2e 覆盖（201）。
+- **里程碑**：CRUD 完整性扫描后前端 API 面与 spec 对齐（blocklists 域全闭环：列表查/建/删/同步 + 条目查/加/删）。
+- **踩坑留痕**：多行 HTML 标签中间插行破坏结构（vue-tsc 过但 vite build Invalid end tag）——插入前确认标签闭合位置。
+- **遗留**：policy-groups 前端 P2；/logs/tail、/logs/export 前端 P2；dualstack update P2（删建可接受）。
+
 ## 2026-08-29 · M2-025 完成：封禁条目前端管理区
 
 - **做了**：ipam.ts（BlocklistEntryRow 类型 + listBlocklistEntries/addBlocklistEntry）；blocklist 页条目 Card——列表行「条目」按钮 → 条目 Card（添加表单 pattern/triggerType/action + Table + 行删除按钮）。

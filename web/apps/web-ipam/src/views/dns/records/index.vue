@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 
-import { Button, Card, Input, Select, Table, TabPane, Tabs } from 'ant-design-vue';
+import { Button, Card, Input, Select, Table, TabPane, Tabs, message } from 'ant-design-vue';
 
 import {
   createDnsRecord,
   createDnsZone,
   deleteDnsRecord,
+  deleteDnsZone,
   listDnsRecords,
   listDnsZones,
   listLinkedRecords,
@@ -62,6 +63,15 @@ async function removeRecord(id?: string) {
   if (id && zoneId.value) await deleteDnsRecord(zoneId.value, id);
   await loadRecords();
 }
+async function removeZone() {
+  const z = activeZone.value;
+  if (!z) return;
+  if (!window.confirm(`删除区域 ${z.name}？其下记录将一并删除。`)) return;
+  await deleteDnsZone(z.id);
+  zoneId.value = undefined;
+  await loadZones();
+  message.success('区域已删除');
+}
 onMounted(loadZones);
 
 const recordCols = [
@@ -86,6 +96,7 @@ const linkedCols = [
         <span>解析记录</span>
         <Select v-model:value="zoneId" style="width: 220px" :options="zones.map((z) => ({ value: z.id, label: z.name }))"
           @change="loadRecords()" />
+        <Button size="small" danger :disabled="!zoneId" @click="removeZone">删区</Button>
         <Button size="small" @click="addZone">+ 新建 zone</Button>
       </div>
     </template>
