@@ -159,6 +159,10 @@ export const createSubnet = (b: {
   orgId: string; name: string; family: 4 | 6; cidr: string; gateway?: string; dnsServers?: string;
   pools?: { startAddr: string; endAddr?: string; kind: string; prefixLen?: number; delegatedLen?: number }[];
 }) => req<Subnet>('/subnets', j(b));
+export const updateSubnet = (id: string, b: {
+  name?: string; cidr?: string; gateway?: string; dnsServers?: string;
+  pools?: { startAddr: string; endAddr?: string; kind: string; prefixLen?: number; delegatedLen?: number }[];
+}) => req<Subnet>(`/subnets/${id}`, patch(b));
 export const deleteSubnet = (id: string) => req<void>(`/subnets/${id}`, del);
 
 // ── 组织管理（M2-001 API 消费，系统管理★主数据）──

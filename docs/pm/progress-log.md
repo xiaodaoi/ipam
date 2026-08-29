@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-28 · M2-020 完成：子网编辑功能（网关/DNS 修改闭环）
+
+- **做了**：ipam.ts updateSubnet；子网页编辑模式（editingId + edit() 行预填 + PATCH/POST 分支 + 提交文案动态 + family 编辑禁用 + 操作列编辑按钮）。
+- **验证结果**：typecheck 0 + 零外链 PASS + 全链测试绿 + lint 0；容器 e2e 决定性通过——PATCH 编辑网关（10.99.3.1→10.99.3.254）→ 200 → **kea dhcp4 config-get 实收 routers: 10.99.3.254**（编辑→DB→kea 实收闭环）→ 回读一致。
+- **里程碑**：M2-019 网关/DNS 配置的编辑闭环完成（用户需求全链落地）。
+- **遗留**：无。
+
 ## 2026-08-28 · M2-019 完成：子网级 DHCP 选项（网关/DNS，v4+v6）
 
 - **做了**：spec Subnet/SubnetCreate/SubnetUpdate 加 gateway/dnsServers + gen；迁移 0014（runner 自动应用）；Subnet 结构/Pg 读写扩展；kea BuildConfig/BuildConfig6 的子网级 option-data 投影（v4 routers/domain-name-servers、v6 dns-servers）+ 单测锚定 ×2；前端子网表单（v4 网关+DNS/v6 DNS）+ 列表网关列。

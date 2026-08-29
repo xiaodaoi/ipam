@@ -1,18 +1,20 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 
-import { Button, Card, Input, InputNumber, Select, Table, Tag, Tree } from 'ant-design-vue';
+import { Button, Card, Input, InputNumber, message, Select, Table, Tag, Tree } from 'ant-design-vue';
 
 import {
   createSubnet,
   deleteSubnet,
   listOrgTree,
   listSubnets,
+  updateSubnet,
   type Subnet,
   type OrgTreeNode,
 } from '#/api/ipam';
 
 const rows = ref<Subnet[]>([]);
+const editingId = ref<string>();
 const orgTree = ref<OrgTreeNode[]>([]);
 const loading = ref(false);
 const filterOrgId = ref<string>();
@@ -65,13 +67,34 @@ async function add() {
   } else if (f.poolStart && f.poolEnd) {
     pools = [{ startAddr: f.poolStart, endAddr: f.poolEnd, kind: f.family === 6 ? f.poolKind : 'dynamic' }];
   }
-  await createSubnet({
-    orgId: f.orgId, name: f.name, family: f.family, cidr: f.cidr, pools,
-    gateway: f.gateway || undefined, dnsServers: f.dnsServers || undefined,
-  });
+  if (editingId.value) {
+    await updateSubnet(editingId.value, {
+      name: f.name, cidr: f.cidr,
+      gateway: f.gateway || undefined, dnsServers: f.dnsServers || undefined, pools,
+    });
+    message.success('子网已更新并下发 Kea');
+  } else {
+    await createSubnet({
+      orgId: f.orgId, name: f.name, family: f.family, cidr: f.cidr, pools,
+      gateway: f.gateway || undefined, dnsServers: f.dnsServers || undefined,
+    });
+  }
+  editingId.value = undefined;
   showForm.value = false;
   form.value = { orgId: f.orgId, name: '', family: 4, cidr: '', gateway: '', dnsServers: '', poolStart: '', poolEnd: '', poolKind: 'dynamic', poolPrefixLen: 64, poolDelegatedLen: 80 };
   await load();
+}
+function edit(r: Subnet) {
+  const p0 = (r.pools ?? [])[0];
+  editingId.value = r.id;
+  form.value = {
+    orgId: r.orgId, name: r.name, family: (r.family as 4 | 6), cidr: r.cidr,
+    gateway: r.gateway ?? '', dnsServers: r.dnsServers ?? '',
+    poolStart: p0?.startAddr ?? '', poolEnd: p0?.endAddr ?? '',
+    poolKind: (p0?.kind as 'dynamic' | 'pd') ?? 'dynamic',
+    poolPrefixLen: p0?.prefixLen ?? 64, poolDelegatedLen: p0?.delegatedLen ?? 80,
+  };
+  showForm.value = true;
 }
 async function remove(id?: string) {
   if (!id) return;
@@ -117,7 +140,7 @@ const columns = [
       <template #title>
         <div class="flex items-center gap-3">
           <span>子网与地址池</span>
-          <Button size="small" type="primary" @click="showForm = !showForm">{{ showForm ? '收起' : '+ 新建子网' }}</Button>
+          <Button size="small" type="primary" @click="editingId = undefined; showForm = !showForm">{{ showForm ? '收起' : '+ 新建子网' }}</Button>
         </div>
       </template>
 
@@ -133,7 +156,7 @@ const columns = [
         </div>
         <div>
           <div class="mb-1 text-xs text-gray-400">族</div>
-          <Select v-model:value="form.family" style="width: 80px" :options="[{ value: 4, label: 'IPv4' }, { value: 6, label: 'IPv6' }]" />
+          <Select v-model:value="form.family" :disabled="!!editingId" style="width: 80px" :options="[{ value: 4, label: 'IPv4' }, { value: 6, label: 'IPv6' }]" />
         </div>
         <div>
           <div class="mb-1 text-xs text-gray-400">CIDR</div>
@@ -182,7 +205,7 @@ const columns = [
             <Input v-model:value="form.poolEnd" style="width: 140px" placeholder="10.61.172.200" />
           </div>
         </template>
-        <Button type="primary" @click="add">创建（下发 Kea）</Button>
+        <Button type="primary" @click="add">{{ editingId ? '保存修改' : '创建（下发 Kea）' }}</Button>
       </div>
 
       <Table
@@ -209,6 +232,7 @@ const columns = [
             <Tag v-else color="orange">未下发</Tag>
           </template>
           <template v-else-if="column.key === 'op'">
+            <Button size="small" class="mr-1" @click="edit(record)">编辑</Button>
             <Button size="small" danger @click="remove(record.id)">删除</Button>
           </template>
         </template>
