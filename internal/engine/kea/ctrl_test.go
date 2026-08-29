@@ -75,3 +75,22 @@ func TestRemoveSubnet_未下发跳过(t *testing.T) {
 		t.Fatalf("id<=0 should no-op: %v", err)
 	}
 }
+
+func TestCtrlAgent_空结果容忍(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`[{"result": 3, "text": "0 IPv6 lease(s) found.", "arguments": {"leases": []}}]`))
+	}))
+	defer srv.Close()
+	c := NewCtrlAgent(srv.URL)
+	out, err := c.Command(context.Background(), "lease6-get-all", "dhcp6", nil)
+	if err != nil {
+		t.Fatalf("result 3 (empty) should not be an error: %v", err)
+	}
+	if out.Result != 3 {
+		t.Fatalf("want result 3, got %d", out.Result)
+	}
+	ls, err := c.Lease6List(context.Background())
+	if err != nil || len(ls) != 0 {
+		t.Fatalf("Lease6List empty: err=%v ls=%v", err, ls)
+	}
+}

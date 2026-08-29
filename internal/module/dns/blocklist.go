@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -50,8 +51,7 @@ var (
 )
 
 // BlocklistRepo 持久化。
-// errBlocklistNotFound 名单/条目不存在（M2-024 删除语义）。
-var errBlocklistNotFound = errors.New("blocklist not found")
+// ErrBlocklistNotFound 名单/条目不存在（M2-024 删除语义）。
 
 type BlocklistRepo interface {
 	List(ctx context.Context) ([]Blocklist, error)
@@ -64,9 +64,9 @@ type BlocklistRepo interface {
 	CreatePolicyGroup(ctx context.Context, p PolicyGroup) (PolicyGroup, error)
 	// EntriesForLists 聚合多名单条目（编译用）。
 	EntriesForLists(ctx context.Context, listIDs []string) ([]Entry, error)
-	// DeleteList 删除名单并级联删条目（M2-024）；不存在返回 errBlocklistNotFound。
+	// DeleteList 删除名单并级联删条目（M2-024）；不存在返回 ErrBlocklistNotFound。
 	DeleteList(ctx context.Context, id string) error
-	// DeleteEntry 按名单+pattern 自然键删条目（M2-024）；不存在返回 errBlocklistNotFound。
+	// DeleteEntry 按名单+pattern 自然键删条目（M2-024）；不存在返回 ErrBlocklistNotFound。
 	DeleteEntry(ctx context.Context, listID, pattern string) error
 }
 
@@ -340,7 +340,7 @@ func (r *MemBlocklistRepo) DeleteList(_ context.Context, id string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, ok := r.lists[id]; !ok {
-		return errBlocklistNotFound
+		return ErrBlocklistNotFound
 	}
 	delete(r.lists, id)
 	kept := r.entries[:0]
@@ -367,7 +367,7 @@ func (r *MemBlocklistRepo) DeleteEntry(_ context.Context, listID, pattern string
 	}
 	r.entries = kept
 	if !found {
-		return errBlocklistNotFound
+		return ErrBlocklistNotFound
 	}
 	return nil
 }
@@ -383,7 +383,7 @@ func (r *PgBlocklistRepo) DeleteList(ctx context.Context, id string) error {
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return errBlocklistNotFound
+		return ErrBlocklistNotFound
 	}
 	return nil
 }
@@ -394,7 +394,7 @@ func (r *PgBlocklistRepo) DeleteEntry(ctx context.Context, listID, pattern strin
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return errBlocklistNotFound
+		return ErrBlocklistNotFound
 	}
 	return nil
 }
@@ -512,4 +512,20 @@ func (r *PgBlocklistRepo) EntriesForLists(ctx context.Context, listIDs []string)
 		}
 	}
 	return out, rows.Err()
+}
+
+// MatchPolicyView 模拟来源 → view 匹配（M2-031）：遍历策略分组 CIDR，首中返回 viewName。
+func MatchPolicyView(groups []PolicyGroup, clientIP string) (string, bool) {
+	ip, err := netip.ParseAddr(clientIP)
+	if err != nil {
+		return "", false
+	}
+	for _, g := range groups {
+		for _, c := range g.Cidrs {
+			if p, err := netip.ParsePrefix(c); err == nil && p.Contains(ip) {
+				return g.ViewName, true
+			}
+		}
+	}
+	return "", false
 }

@@ -8,7 +8,6 @@ import (
 	"mime"
 	"net"
 	"net/http"
-	"net/netip"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -363,22 +362,11 @@ func newEngine(version string) *gin.Engine {
 	})
 	var blRepo dnsmodule.BlocklistRepo // 声明提前（M2-031 policyView 闭包捕获，赋值在下方）
 	policyViewFn := func(ctx context.Context, clientIP string) (string, bool) {
-		ip, err := netip.ParseAddr(clientIP)
-		if err != nil {
-			return "", false
-		}
 		groups, err := blRepo.ListPolicyGroups(ctx)
 		if err != nil {
 			return "", false
 		}
-		for _, g := range groups {
-			for _, c := range g.Cidrs {
-				if p, err := netip.ParsePrefix(c); err == nil && p.Contains(ip) {
-					return g.ViewName, true
-				}
-			}
-		}
-		return "", false
+		return dnsmodule.MatchPolicyView(groups, clientIP)
 	}
 	dnsH := dnsmodule.NewDnsHandler(dnsSvc, policyViewFn)
 	var frRepo dnsmodule.ForwardRuleRepo = dnsmodule.NewMemForwardRuleRepo()

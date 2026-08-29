@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-29 · M2-032 完成：质量与健壮性收尾
+
+- **做了**：回归锁单测 ×3（kea result-3 容忍 / blocklist 删除级联+自然键 / MatchPolicyView 五分支，抽包级函数）；sentinel 统一（双定义清理）；架构文档 B-10 同步（已落地 M2-030）；compose 6 服务日志限额（max-size 10m/max-file 3）。
+- **验证结果**：全量 go test 绿 + lint 0 + typecheck 0 + 产物链 PASS；全栈重建冒烟 5 端点 200 + docker inspect 实收日志限额。
+- **里程碑**：**测试债/文档债/运维债三项清偿**——出口回归抓到的弱点全部闭环。
+- **遗留**：vector/coherence-daemon（build 型）日志限额 P3。
+
 ## 2026-08-29 · 出口前最终回归（全绿）
 
 - **回归抓到 2 问题并修复**：① platform 测试 NewDnsHandler 签名漏适配（M2-031 连带）；② Command result 3（empty）被拦截 → 租约空表 500（ctrl.go 容忍修复）。

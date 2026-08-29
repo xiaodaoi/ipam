@@ -99,3 +99,63 @@ func TestCompile_增量编译返回zone信息(t *testing.T) {
 		t.Fatal("reload not triggered")
 	}
 }
+
+func TestMemRepo_DeleteList_级联删条目(t *testing.T) {
+	r := NewMemBlocklistRepo()
+	bl, _ := r.Create(context.Background(), Blocklist{Name: "l1", Kind: "custom"})
+	_, _ = r.UpsertEntries(context.Background(), []Entry{
+		{ListID: bl.ID, TriggerType: "qname", Pattern: "*.a.com", Action: "nxdomain"},
+		{ListID: bl.ID, TriggerType: "qname", Pattern: "*.b.com", Action: "nxdomain"},
+	})
+	if err := r.DeleteList(context.Background(), bl.ID); err != nil {
+		t.Fatalf("DeleteList: %v", err)
+	}
+	ents, _ := r.ListEntries(context.Background(), bl.ID, "")
+	if len(ents) != 0 {
+		t.Fatalf("entries should be cascaded, got %d", len(ents))
+	}
+	if _, ok, _ := r.Get(context.Background(), bl.ID); ok {
+		t.Fatal("list should be gone")
+	}
+}
+
+func TestMemRepo_DeleteEntry_自然键与未找到(t *testing.T) {
+	r := NewMemBlocklistRepo()
+	bl, _ := r.Create(context.Background(), Blocklist{Name: "l2", Kind: "custom"})
+	_, _ = r.UpsertEntries(context.Background(), []Entry{
+		{ListID: bl.ID, TriggerType: "qname", Pattern: "*.a.com", Action: "nxdomain"},
+		{ListID: bl.ID, TriggerType: "qname", Pattern: "*.b.com", Action: "nxdomain"},
+	})
+	if err := r.DeleteEntry(context.Background(), bl.ID, "*.a.com"); err != nil {
+		t.Fatalf("DeleteEntry: %v", err)
+	}
+	ents, _ := r.ListEntries(context.Background(), bl.ID, "")
+	if len(ents) != 1 || ents[0].Pattern != "*.b.com" {
+		t.Fatalf("want only *.b.com, got %+v", ents)
+	}
+	if err := r.DeleteEntry(context.Background(), bl.ID, "*.missing.com"); err != ErrBlocklistNotFound {
+		t.Fatalf("want ErrBlocklistNotFound, got %v", err)
+	}
+}
+
+func TestMatchPolicyView_CIDR首中与边界(t *testing.T) {
+	groups := []PolicyGroup{
+		{ViewName: "v10", Cidrs: []string{"10.0.0.0/8"}},
+		{ViewName: "v192", Cidrs: []string{"192.168.1.0/24", "192.168.2.0/24"}},
+	}
+	if v, ok := MatchPolicyView(groups, "10.99.1.1"); !ok || v != "v10" {
+		t.Fatalf("want v10, got %q %v", v, ok)
+	}
+	if v, ok := MatchPolicyView(groups, "192.168.2.9"); !ok || v != "v192" {
+		t.Fatalf("want v192, got %q %v", v, ok)
+	}
+	if _, ok := MatchPolicyView(groups, "8.8.8.8"); ok {
+		t.Fatal("no match should be false")
+	}
+	if _, ok := MatchPolicyView(groups, "not-an-ip"); ok {
+		t.Fatal("bad ip should be false")
+	}
+	if _, ok := MatchPolicyView([]PolicyGroup{{ViewName: "v", Cidrs: []string{"bad-cidr"}}}, "10.0.0.1"); ok {
+		t.Fatal("bad cidr should be skipped")
+	}
+}

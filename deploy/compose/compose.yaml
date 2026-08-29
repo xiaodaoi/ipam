@@ -4,6 +4,11 @@ services:
   postgresql:
     ports:
       - "127.0.0.1:${IPAM_PG_PORT:-5432}:5432"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-ipam}
@@ -27,6 +32,11 @@ services:
       args:
         APT_MIRROR: "${APT_MIRROR:-}"
         GO_DL: "${GO_DL:-https://go.dev}"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     image: ipam/control-plane:${IPAM_VERSION:-0.1.0-dev}
     group_add:
       - "${HOST_GID:-1000}"  # 渲染产物目录（config/unbound）组写；与宿主目录属组一致
@@ -59,6 +69,11 @@ services:
       context: ../..
       dockerfile: deploy/images/coherence-daemon/Dockerfile
       args: { APT_MIRROR: "${APT_MIRROR:-}" }
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     image: ipam/coherence-daemon:${IPAM_VERSION:-0.1.0-dev}
     depends_on:
       postgresql:
@@ -73,6 +88,11 @@ services:
     restart: unless-stopped
 
   clickhouse:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     image: clickhouse/clickhouse-server:24.8-alpine
     ports:
       - "127.0.0.1:${IPAM_CH_PORT:-9000}:9000"
@@ -88,6 +108,11 @@ services:
     restart: unless-stopped
 
   vector:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     image: ghcr.io/vectordotdev/vector:0.46.1-alpine
     command: ["--config", "/etc/vector/vector.toml", "--verbose"]
     environment:
@@ -108,6 +133,11 @@ services:
       context: ../..
       dockerfile: deploy/images/unbound/Dockerfile
       args: { APT_MIRROR: "${APT_MIRROR:-}" }
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     image: ipam/unbound:${IPAM_VERSION:-0.1.0-dev}
     depends_on:
       coherence-daemon:

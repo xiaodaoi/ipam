@@ -233,7 +233,7 @@ func (h *BlocklistHandler) DeleteBlocklist(c *gin.Context, listId rtypes.UUID) {
 func (h *BlocklistHandler) DeleteBlocklistEntry(c *gin.Context, listId rtypes.UUID, params apigen.DeleteBlocklistEntryParams) {
 	err := h.svc.repo.DeleteEntry(c.Request.Context(), listId.String(), params.Pattern)
 	if err != nil {
-		if errors.Is(err, errBlocklistNotFound) {
+		if errors.Is(err, ErrBlocklistNotFound) {
 			problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "BLOCKLIST_ENTRY_NOT_FOUND", "条目不存在")
 			return
 		}
