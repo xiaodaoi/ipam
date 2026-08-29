@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-29 · M2-023 完成：上游多地址编辑
+
+- **做了**：upstream/index.vue 三处——edit 预填 `addrs.join(',')`（修复多地址截断为第 1 个）、PATCH/POST 分支提交 `split(',').map(trim).filter(Boolean)`（逗号分隔多地址输入）。
+- **验证结果**：typecheck 0 + build:ipam ✓ + sync ✓ + 零外链 PASS；e2e——PATCH 多地址 200 + 回读 2 条（223.5.5.5:53, 119.29.29.29:53）。
+- **遗留**：封禁条目编辑 P2（删建可接受）；双栈页编辑 P2（spec 无 update）。
+
 ## 2026-08-29 · M5-012 完成：令牌黑名单持久化（重启恢复）
 
 - **做了**：迁移 0015（auth_token_blacklist 表 + until 索引）；TokenBlacklist.AttachDB（清理过期 + 加载未过期 + 启用双写）；Add best-effort 双写（INSERT ON CONFLICT DO UPDATE）；main.go pool 非空时 AttachDB（失败降级内存 + [bl-load] 日志）。

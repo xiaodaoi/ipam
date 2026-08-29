@@ -34,11 +34,11 @@ async function add() {
   try {
     if (editingId.value) {
       await updateUpstream(editingId.value, {
-        name: form.value.name, addrs: [form.value.addr], protocol: form.value.protocol,
+        name: form.value.name, addrs: form.value.addr.split(',').map((s) => s.trim()).filter(Boolean), protocol: form.value.protocol,
       });
       message.success('上游已更新并下发 Kea');
     } else {
-      await createUpstream({ ...form.value, addrs: [form.value.addr], weight: 1, enabled: true });
+      await createUpstream({ ...form.value, addrs: form.value.addr.split(',').map((s) => s.trim()).filter(Boolean), weight: 1, enabled: true });
       message.success('上游已添加');
     }
     editingId.value = undefined;
@@ -50,7 +50,7 @@ async function add() {
 }
 function edit(r: Upstream) {
   editingId.value = r.id;
-  form.value = { name: r.name, addr: (r.addrs ?? [])[0] ?? '', protocol: (r.protocol as Proto) ?? 'udp' };
+  form.value = { name: r.name, addr: (r.addrs ?? []).join(','), protocol: (r.protocol as Proto) ?? 'udp' };
 }
 function cancelEdit() {
   editingId.value = undefined;
