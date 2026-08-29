@@ -49,19 +49,32 @@ func (b *TokenBlacklist) Add(hash string, until time.Time) {
 	}
 }
 
-// Revoked 是否已被吊销（命中且未过期；过期条目惰性清除）。
+// Revoked 是否已被吊销（M5-031 两级检查）：
+//  1. 本地内存——本实例登出的令牌立即生效，免 DB 往返；
+//  2. miss 且 db 非 nil 时 PG 点查——其他实例登出的令牌全局立即生效（多实例语义）。
+//
+// PG 查询失败吞错返回 false：fail-open 窗口内后续 users 查询与业务写同处 PG 故障域必然失败，
+// 等效 fail-closed（不为此增加错误上报面）。
 func (b *TokenBlacklist) Revoked(hash string) bool {
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	until, ok := b.m[hash]
-	if !ok {
-		return false
-	}
-	if time.Now().After(until) {
+	if ok && time.Now().After(until) {
 		delete(b.m, hash)
-		return false
+		ok = false
 	}
-	return true
+	db := b.db
+	b.mu.Unlock()
+	if ok {
+		return true
+	}
+	if db != nil {
+		var exists bool
+		_ = db.QueryRow(context.Background(),
+			`SELECT EXISTS (SELECT 1 FROM auth_token_blacklist WHERE token_hash=$1 AND until > now())`,
+			hash).Scan(&exists)
+		return exists
+	}
+	return false
 }
 
 // Len 当前黑名单条数（诊断用）。

@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-29 · M5-031 完成：令牌黑名单多实例语义（Revoked 直查 PG）
+
+- **做了**：Revoked 两级检查（内存→miss→PG EXISTS 点查）；架构决策落卡——多实例选 PG 点查不引 Redis（控制面量级/故障域/运维面三依据），refresh token 列远期演进；M5-012 卡遗留同步改写。
+- **验证结果**：全链绿；e2e——真 token 200 → psql 直插 hash 模拟另一实例登出 → 同令牌 401 TOKEN_REVOKED（DB 点查路径命中）。
+- **踩坑留痕**：吊销检查在 JWT 验签后——e2e 必须用合法签名 token + DB 直插 hash，假 token 活不到 Revoked。
+
 ## 2026-08-29 · M2-030 完成：DNSSEC 校验开关（B-10）
 
 - **做了**：BuildConf trust-anchor 输出（IANA 根锚 DS 20326 常量，离线免联网）+ settings_test 断言；security 页 DNSSEC Switch 去灰置 + 文案 B-10；镜像重建部署。
