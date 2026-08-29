@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-29 · M2-025 完成：封禁条目前端管理区
+
+- **做了**：ipam.ts（BlocklistEntryRow 类型 + listBlocklistEntries/addBlocklistEntry）；blocklist 页条目 Card——列表行「条目」按钮 → 条目 Card（添加表单 pattern/triggerType/action + Table + 行删除按钮）。
+- **验证结果**：typecheck 0 + 零外链 PASS；容器重建 + entries API 回归完整（add 201 → list 200 1 条 → delete 204 全通——页三入口数据源）。
+- **里程碑**：**封禁列表页功能闭环**（列表查/删 + 条目查/加/删全前端入口）。
+- **遗留**：列表级 PATCH 编辑（rename 影响 rpz zone 命名）P2；builtin 拒删 409 分支未 e2e 覆盖 P2。
+
 ## 2026-08-29 · M2-024 完成：封禁列表条目删除 + 列表删除
 
 - **做了**：spec delete ×2（deleteBlocklist / deleteBlocklistEntry pattern query）+ gen；BlocklistRepo 接口 + errBlocklistNotFound + Mem/PG 双实现（级联删/自然键删）；handler 2 端点（404/409 builtin/204 与 errors.Is 404/204）；前端 ipam.ts 2 函数 + blocklist 页删除按钮。

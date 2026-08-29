@@ -117,6 +117,7 @@ export type ForwardRule = components['schemas']['ForwardRule'];
 export type DnsZone = components['schemas']['DnsZone'];
 export type DnsRecord = components['schemas']['DnsRecord'];
 export type Blocklist = components['schemas']['Blocklist'];
+export type BlocklistEntryRow = components['schemas']['BlocklistEntry'];
 
 const j = (body: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(body) });
 const patch = (body: unknown): RequestInit => ({ method: 'PATCH', body: JSON.stringify(body) });
@@ -155,6 +156,8 @@ export const listBlocklists = () => req<{ items: Blocklist[] }>('/dns/blocklists
 export const syncBlocklist = (id: string) => req<unknown>(`/dns/blocklists/${id}/sync`, j({}));
 export const deleteBlocklist = (id: string) => req<void>(`/dns/blocklists/${id}`, del);
 export const deleteBlocklistEntry = (id: string, pattern: string) => req<void>(`/dns/blocklists/${id}/entries?pattern=${encodeURIComponent(pattern)}`, del);
+export const listBlocklistEntries = (id: string) => req<{ items: BlocklistEntryRow[]; total?: number }>(`/dns/blocklists/${id}/entries`);
+export const addBlocklistEntry = (id: string, body: Partial<BlocklistEntryRow>) => req<BlocklistEntryRow>(`/dns/blocklists/${id}/entries`, j(body));
 
 // ── DHCP 子网与池（M2-002 API 消费）──
 // GET /orgs 返回组织树（与 /orgs/tree 同源；flat 场景前端自行展平）
