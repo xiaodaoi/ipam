@@ -217,6 +217,7 @@ export const createDualstackTemplate = (b: {
 }) => req<DualstackTemplate>('/dualstack/templates', j(b));
 export const deleteDualstackTemplate = (id: string) =>
   req<void>(`/dualstack/templates/${id}`, del);
+export const updateDualstackTemplate = (id: string, body: Partial<DualstackTemplate>) => req<DualstackTemplate>(`/dualstack/templates/${id}`, j(body));
 
 // ── 用户与角色（M5-004，§13.4 系统管理）──
 export type UserRow = components['schemas']['User'];

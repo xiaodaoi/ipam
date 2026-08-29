@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-29 · M2-028 完成：双栈模板更新（编辑闭环 100%）
+
+- **做了**：spec patch+DualstackTemplateUpdate+gen；Store 接口+ErrTemplateNotFound+Mem/Pg Update+handler UpdateDualstackTemplate；前端 updateDualstackTemplate+dualstack 页编辑模式。
+- **验证结果**：全链绿 + e2e（建模板 → PATCH 200 → 回读 ipv6Prefix/expr/graceHours 全一致 → DELETE 204）。
+- **里程碑**：**编辑闭环 100%**——全站管理页 CRUD 齐（子网/上游/转发/选项类/用户/组织/区域/记录/名单/模板）。
+- **遗留**：无编辑类缺口；policy-groups 提示页定制等 P2 另列。
+
 ## 2026-08-29 · M2-027 完成：策略分组前端管理区
 
 - **做了**：ipam.ts（PolicyGroupRow + listPolicyGroups/createPolicyGroup/compilePolicyGroup）；blocklist 页策略分组 Card（创建表单 cidrs 逗号分隔/listIds 多选 + Table + 编译按钮 + RPZ 编译结果展示）。

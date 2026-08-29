@@ -46,7 +46,11 @@ export interface paths {
         delete: operations["deleteDualstackTemplate"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * 更新双栈绑定模板（M2-028）
+         * @description 全量更新模板字段；变更后 daemon 按新模板匹配新租约，既有绑定不变。
+         */
+        patch: operations["updateDualstackTemplate"];
         trace?: never;
     };
     "/dhcp/options": {
@@ -1932,6 +1936,20 @@ export interface components {
             /** @default true */
             enabled: boolean;
         };
+        DualstackTemplateUpdate: {
+            name: string;
+            ipv4Cidr: string;
+            ipv6Prefix: string;
+            /** @enum {string} */
+            encoding: "B" | "A" | "CUSTOM";
+            expr: string;
+            /** @default true */
+            dnsSync: boolean;
+            /** @default 24 */
+            graceHours: number;
+            /** @default true */
+            enabled: boolean;
+        };
         DhcpOption: {
             /** Format: uuid */
             id: string;
@@ -2263,6 +2281,39 @@ export interface operations {
         responses: {
             /** @description 已删除 */
             204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateDualstackTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DualstackTemplateUpdate"];
+            };
+        };
+        responses: {
+            /** @description 已更新 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DualstackTemplate"];
+                };
+            };
+            /** @description 模板不存在 */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

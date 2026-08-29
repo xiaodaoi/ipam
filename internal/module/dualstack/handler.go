@@ -1,6 +1,7 @@
 package dualstack
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
@@ -82,6 +83,25 @@ func toGenTemplate(t Template) apigen.DualstackTemplate {
 	}
 }
 
+func fromGenUpdate(b apigen.DualstackTemplateUpdate, id string) Template {
+	grace := 24
+	if b.GraceHours != nil {
+		grace = *b.GraceHours
+	}
+	dnsSync := true
+	if b.DnsSync != nil {
+		dnsSync = *b.DnsSync
+	}
+	enabled := true
+	if b.Enabled != nil {
+		enabled = *b.Enabled
+	}
+	return Template{
+		ID: id, Name: b.Name, V4Cidr: b.Ipv4Cidr, V6Prefix: b.Ipv6Prefix,
+		Encoding: string(b.Encoding), Expr: b.Expr, DnsSync: dnsSync, GraceHours: grace, Enabled: enabled,
+	}
+}
+
 func fromGenCreate(b apigen.DualstackTemplateCreate) Template {
 	grace := 24
 	if b.GraceHours != nil {
@@ -100,4 +120,32 @@ func fromGenCreate(b apigen.DualstackTemplateCreate) Template {
 		Encoding: string(b.Encoding), Expr: b.Expr,
 		DnsSync: dnsSync, GraceHours: grace, Enabled: enabled,
 	}
+}
+
+// UpdateDualstackTemplate PATCH /dualstack/templates/{templateId}（M2-028）
+func (h *Handler) UpdateDualstackTemplate(c *gin.Context, templateId guuid.UUID) {
+	var body apigen.DualstackTemplateUpdate
+	if err := c.ShouldBindJSON(&body); err != nil {
+		problem.Write(c, http.StatusBadRequest,
+			"https://ipam.local/problems/bad-request", "BAD_REQUEST", err.Error())
+		return
+	}
+	if !strings.Contains(body.Ipv4Cidr, "/") || !strings.Contains(body.Ipv6Prefix, "/") {
+		problem.Write(c, http.StatusBadRequest,
+			"https://ipam.local/problems/bad-request", "INVALID_CIDR",
+			"ipv4Cidr 与 ipv6Prefix 须为 CIDR 形态（如 192.168.0.0/24、2407::/64）")
+		return
+	}
+	updated, err := h.store.Update(c.Request.Context(), fromGenUpdate(body, templateId.String()))
+	if err != nil {
+		if errors.Is(err, ErrTemplateNotFound) {
+			problem.Write(c, http.StatusNotFound,
+				"https://ipam.local/problems/not-found", "TEMPLATE_NOT_FOUND", "模板不存在")
+			return
+		}
+		problem.Write(c, http.StatusInternalServerError,
+			"https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, toGenTemplate(updated))
 }

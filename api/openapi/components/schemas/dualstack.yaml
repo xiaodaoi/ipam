@@ -51,3 +51,16 @@ DualstackTemplateCreate:
     dnsSync: { type: boolean, default: true }
     graceHours: { type: integer, minimum: 0, default: 24 }
     enabled: { type: boolean, default: true }
+
+DualstackTemplateUpdate:
+  type: object
+  required: [name, ipv4Cidr, ipv6Prefix, encoding, expr]
+  properties:
+    name: { type: string, maxLength: 64 }
+    ipv4Cidr: { type: string }
+    ipv6Prefix: { type: string }
+    encoding: { type: string, enum: [B, A, CUSTOM] }
+    expr: { type: string }
+    dnsSync: { type: boolean, default: true }
+    graceHours: { type: integer, minimum: 0, default: 24 }
+    enabled: { type: boolean, default: true }

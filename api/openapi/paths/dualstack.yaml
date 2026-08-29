@@ -65,6 +65,32 @@ DualstackTemplateCollection:
         $ref: '../components/responses/auth.yaml#/AuthUnauthorized'
 
 DualstackTemplateItem:
+  patch:
+    operationId: updateDualstackTemplate
+    tags: [dualstack]
+    summary: 更新双栈绑定模板（M2-028）
+    description: 全量更新模板字段；变更后 daemon 按新模板匹配新租约，既有绑定不变。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: templateId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/dualstack.yaml#/DualstackTemplateUpdate'
+    responses:
+      '200':
+        description: 已更新
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/dualstack.yaml#/DualstackTemplate'
+      '404':
+        description: 模板不存在
   delete:
     operationId: deleteDualstackTemplate
     tags: [dualstack]

@@ -1,18 +1,19 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 
-import { Button, Card, Input, Select, Switch, Table, Tag } from 'ant-design-vue';
+import { Button, Card, Input, Select, Switch, Table, Tag, message } from 'ant-design-vue';
 
 import {
   createDualstackTemplate,
   deleteDualstackTemplate,
+  updateDualstackTemplate,
   listDualstackTemplates,
   type DualstackTemplate,
 } from '#/api/ipam';
 
 const rows = ref<DualstackTemplate[]>([]);
 const loading = ref(false);
-const form = ref({
+const form = ref<{ name: string; ipv4Cidr: string; ipv6Prefix: string; encoding: 'B' | 'A' | 'CUSTOM'; expr: string; dnsSync: boolean; graceHours: number }>({
   name: '',
   ipv4Cidr: '',
   ipv6Prefix: '',
@@ -21,6 +22,7 @@ const form = ref({
   dnsSync: true,
   graceHours: 24,
 });
+const editingId = ref('');
 
 async function load() {
   loading.value = true;
@@ -31,13 +33,30 @@ async function load() {
     loading.value = false;
   }
 }
-async function add() {
-  if (!form.value.name || !form.value.ipv4Cidr || !form.value.ipv6Prefix) return;
-  await createDualstackTemplate({ ...form.value });
+function edit(r: DualstackTemplate) {
+  editingId.value = r.id;
+  form.value = {
+    name: r.name, ipv4Cidr: r.ipv4Cidr, ipv6Prefix: r.ipv6Prefix, encoding: r.encoding,
+    expr: r.expr, dnsSync: r.dnsSync ?? true, graceHours: r.graceHours ?? 24,
+  };
+}
+function cancelEdit() {
+  editingId.value = '';
   form.value = {
     name: '', ipv4Cidr: '', ipv6Prefix: '',
     encoding: 'B', expr: '{v4.hextet4}', dnsSync: true, graceHours: 24,
   };
+}
+async function add() {
+  if (!form.value.name || !form.value.ipv4Cidr || !form.value.ipv6Prefix) return;
+  if (editingId.value) {
+    await updateDualstackTemplate(editingId.value, { ...form.value });
+    message.success('模板已更新');
+  } else {
+    await createDualstackTemplate({ ...form.value });
+    message.success('模板已创建');
+  }
+  cancelEdit();
   await load();
 }
 async function remove(id?: string) {
@@ -82,7 +101,8 @@ const EXAMPLE = '例：192.168.0.10 → 2407::192:168:0:10';
         <span class="text-xs">DNS 同步</span>
         <Switch v-model:checked="form.dnsSync" size="small" />
       </div>
-      <Button type="primary" @click="add">创建模板</Button>
+      <Button type="primary" @click="add">{{ editingId ? '保存修改' : '创建模板' }}</Button>
+      <Button v-if="editingId" class="ml-1" @click="cancelEdit">取消编辑</Button>
       <div class="w-full text-xs text-gray-400">{{ EXAMPLE }}——daemon 按租约 IPv4 最长前缀自动选模板</div>
     </div>
 
@@ -110,6 +130,7 @@ const EXAMPLE = '例：192.168.0.10 → 2407::192:168:0:10';
           <Tag :color="record.dnsSync ? 'green' : 'default'">{{ record.dnsSync ? '开' : '关' }}</Tag>
         </template>
         <template v-else-if="column.key === 'op'">
+          <Button size="small" class="mr-1" @click="edit(record as DualstackTemplate)">编辑</Button>
           <Button size="small" danger @click="remove(record.id)">删除</Button>
         </template>
       </template>

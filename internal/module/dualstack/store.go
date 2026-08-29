@@ -4,6 +4,7 @@ package dualstack
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/google/uuid"
@@ -27,10 +28,15 @@ type Template struct {
 }
 
 // Store 持久化抽象（PG/内存双实现，沿用模块惯例）。
+// ErrTemplateNotFound 模板不存在（M2-028 更新语义）。
+var ErrTemplateNotFound = errors.New("dualstack template not found")
+
 type Store interface {
 	List(ctx context.Context) ([]Template, error)
 	Create(ctx context.Context, t Template) (Template, error)
 	Delete(ctx context.Context, id string) error
+	// Update 全量更新模板（M2-028）；未找到返回 ErrTemplateNotFound。
+	Update(ctx context.Context, t Template) (Template, error)
 }
 
 // NewMemStore 内存实现（PoC/单测）。
@@ -63,6 +69,17 @@ func (m *MemStore) Delete(_ context.Context, id string) error {
 }
 
 // CoherenceTemplates 转换为 coherence 联动匹配投影（daemon SetTemplateAll 同构）。
+// Update 全量更新模板（M2-028）；未找到返回 ErrTemplateNotFound。
+func (m *MemStore) Update(_ context.Context, t Template) (Template, error) {
+	for i, r := range m.rows {
+		if r.ID == t.ID {
+			m.rows[i] = t
+			return t, nil
+		}
+	}
+	return Template{}, ErrTemplateNotFound
+}
+
 func CoherenceTemplates(ts []Template) []coherence.Template {
 	out := make([]coherence.Template, 0, len(ts))
 	for _, t := range ts {
@@ -112,4 +129,18 @@ func (s *PgStore) Create(ctx context.Context, t Template) (Template, error) {
 func (s *PgStore) Delete(ctx context.Context, id string) error {
 	_, err := s.pool.Exec(ctx, `DELETE FROM prefix_template WHERE id=$1`, id)
 	return err
+}
+
+// Update 全量更新模板（M2-028）；未找到返回 ErrTemplateNotFound。
+func (s *PgStore) Update(ctx context.Context, t Template) (Template, error) {
+	tag, err := s.pool.Exec(ctx,
+		`UPDATE prefix_template SET name=$1, ipv4_cidr=$2, ipv6_prefix=$3, encoding=$4, expr=$5, dns_sync=$6, grace_hours=$7, enabled=$8 WHERE id=$9`,
+		t.Name, t.V4Cidr, t.V6Prefix, t.Encoding, t.Expr, t.DnsSync, t.GraceHours, t.Enabled, t.ID)
+	if err != nil {
+		return Template{}, err
+	}
+	if tag.RowsAffected() == 0 {
+		return Template{}, ErrTemplateNotFound
+	}
+	return t, nil
 }
