@@ -32,3 +32,7 @@
 - **验证结果**：go build/test/lint 全绿 + typecheck 0 + 零外链 PASS；容器重建 + e2e 决定性——建分组 201（cidrs=10.99.0.0/16→view-e2e）→ diagnose clientIp=10.99.1.1 → viewHint=view-e2e（rcode NOERROR）→ clientIp=8.8.8.8 → viewHint 无 → psql 清理。
 - **踩坑留痕**：① spec anchor 段尾有残留行（type 段 description 在 enum 后，探索时 sed 截断未看到，replace 后悬空成 YAML 重复键）——**replace 前必须看完整段**；② 单行 import 块 `} from` 锚点切断（M2-029 同款）；③ diagnoseDns 手写内联参数违例顺手修正为 schema 引用；④ 磁盘第二次满盘（ENOSPC）——bash 工具自身失败时改用 tmux（输出走内存）执行清理，journalctl vacuum + /tmp 清理恢复 54G。
 - **遗留**：无——**M2-014 遗留闭环，板面功能项全清**；提示页定制 P2 无需求信号，记录遗留。
+
+### 2026-08-29 · 会话2（出口前最终回归）
+- **回归修复**：Command 层 result 3（Kea empty 成功码）被统一错误拦截 → 租约空表 500（M2-022 e2e 时表有租约 result 0，空表场景本次回归暴露）——ctrl.go `out.Result != 0 && != 3` 容忍；e2e 空表 200 + 全冒烟 6 端点全 200。
+- **教训**：改跨模块函数签名（NewDnsHandler 双参）后必须全量 go test（当时只跑 dns 域，platform 域测试编译失败漏网）；**出口前全量回归是最后门禁**。

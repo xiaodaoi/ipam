@@ -59,7 +59,7 @@ func (c *CtrlAgent) Command(ctx context.Context, command string, service string,
 		return commandResp{}, fmt.Errorf("bad resp: %v (%s)", err, raw)
 	}
 	out := list[0]
-	if out.Result != 0 {
+	if out.Result != 0 && out.Result != 3 { // 3=empty：list/get 类命令的空结果是成功（M2-031 回归修复）
 		return out, fmt.Errorf("kea command %s failed: %s", command, out.Text)
 	}
 	return out, nil

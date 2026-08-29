@@ -74,7 +74,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		NewAuthHandler(NewMemUserStore(), NewTokenBlacklist()),
 		NewUserHandler(NewMemUserStore()),
 		&dhcpAPI{dhcpmodule.NewHandler(dhcpmodule.NewMemStore(), nil, nil)},
-		dnsmodule.NewDnsHandler(dnsSvc),
+		dnsmodule.NewDnsHandler(dnsSvc, nil),
 		dnsmodule.NewForwardHandler(dnsmodule.NewForwardService(dnsmodule.NewMemForwardRuleRepo(), dnsmodule.NewMemUpstreamRepo(), fakeUnbound{})),
 		dnsmodule.NewZoneHandler(dnsmodule.NewZoneService(dnsmodule.NewMemZoneRepo(), fakeUnbound{}), nil),
 		dnsmodule.NewBlocklistHandler(dnsmodule.NewBlocklistService(dnsmodule.NewMemBlocklistRepo(), nil, fakeUnbound{}, "/tmp/rpz")),
