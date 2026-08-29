@@ -10,8 +10,12 @@ DiagnoseRequest:
       maxLength: 253
     type:
       type: string
-      enum: [A, AAAA, CNAME, MX, NS, TXT, PTR, SOA]
       description: 记录类型
+      enum: [A, AAAA, CNAME, MX, NS, TXT, PTR, SOA]
+    clientIp:
+      type: string
+      description: 模拟来源 IP（用于 view 分流提示，不改变实际查询路径）
+      maxLength: 45
 
 DiagnoseAnswer:
   type: object
@@ -47,3 +51,6 @@ DiagnoseResult:
       type: array
       items:
         $ref: 'diagnose.yaml#/DiagnoseAnswer'
+    viewHint:
+      type: string
+      description: 模拟来源命中的策略分组 view（clientIp 未提供或无匹配时为空）

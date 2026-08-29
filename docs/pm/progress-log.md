@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-29 · M2-031 完成：解析测试台 view/模拟来源
+
+- **做了**：spec clientIp/viewHint + gen；DnsHandler policyView 注入（ListPolicyGroups + netip CIDR 匹配）；main 装配（var 提前 + 闭包）；前端模拟来源 Input + viewHint Tag；diagnoseDns 签名 schema 化（修正 M2-014 违例）。
+- **验证结果**：全链绿；e2e——分组 10.99.0.0/16→view-e2e，clientIp=10.99.1.1 → viewHint 命中，8.8.8.8 → 无提示。
+- **里程碑**：**M2-014 遗留闭环——板面功能项全清**（提示页定制 P2 无需求信号，记录遗留）。
+- **事故留痕**：ENOSPC 二次满盘——tmux（输出走内存）执行清理恢复 54G。
+
 ## 2026-08-29 · M5-031 完成：令牌黑名单多实例语义（Revoked 直查 PG）
 
 - **做了**：Revoked 两级检查（内存→miss→PG EXISTS 点查）；架构决策落卡——多实例选 PG 点查不引 Redis（控制面量级/故障域/运维面三依据），refresh token 列远期演进；M5-012 卡遗留同步改写。

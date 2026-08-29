@@ -17,9 +17,13 @@ import (
 // DnsHandler 实现 apigen.ServerInterface 中 dns 域端点（§13.4 DNS 服务）。
 type DnsHandler struct {
 	svc *Service
+	// policyView 模拟来源 → view 匹配（M2-031，main 装配注入；nil 时跳过）。
+	policyView func(ctx context.Context, clientIP string) (string, bool)
 }
 
-func NewDnsHandler(svc *Service) *DnsHandler { return &DnsHandler{svc: svc} }
+func NewDnsHandler(svc *Service, policyView func(ctx context.Context, clientIP string) (string, bool)) *DnsHandler {
+	return &DnsHandler{svc: svc, policyView: policyView}
+}
 
 // ListUpstreams GET /upstreams
 func (h *DnsHandler) ListUpstreams(c *gin.Context) {
@@ -125,6 +129,12 @@ func (h *DnsHandler) DiagnoseDns(c *gin.Context) {
 	if err != nil {
 		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "BAD_REQUEST", err.Error())
 		return
+	}
+	// M2-031：模拟来源 → view 分流提示（不改变实际查询路径）
+	if body.ClientIp != nil && h.policyView != nil {
+		if view, ok := h.policyView(c.Request.Context(), *body.ClientIp); ok {
+			res.ViewHint = &view
+		}
 	}
 	c.JSON(http.StatusOK, res)
 }

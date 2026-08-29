@@ -1642,6 +1642,8 @@ export interface components {
              * @enum {string}
              */
             type: "A" | "AAAA" | "CNAME" | "MX" | "NS" | "TXT" | "PTR" | "SOA";
+            /** @description 模拟来源 IP（用于 view 分流提示，不改变实际查询路径） */
+            clientIp?: string;
         };
         DiagnoseResult: {
             /** @description NOERROR/NXDOMAIN/SERVFAIL/REFUSED 等标准码；网络失败为 Timeout/NetworkError */
@@ -1651,6 +1653,8 @@ export interface components {
             /** @description 查询目标（host:port） */
             server: string;
             answers: components["schemas"]["DiagnoseAnswer"][];
+            /** @description 模拟来源命中的策略分组 view（clientIp 未提供或无匹配时为空） */
+            viewHint?: string;
         };
         DiagnoseAnswer: {
             /** @description 记录属主名 */

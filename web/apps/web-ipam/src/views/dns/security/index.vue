@@ -5,6 +5,7 @@ import { Button, Card, Input, InputNumber, message, Select, Switch, Table, Tag }
 
 import {
   diagnoseDns,
+  type DiagnoseRequestRow,
   getDnsSettings,
   updateDnsSettings,
   type DiagnoseResult,
@@ -13,7 +14,8 @@ import {
 
 const settings = ref<DnsSettings>();
 const testName = ref('');
-const testType = ref('A');
+const testType = ref<DiagnoseRequestRow['type']>('A');
+const testClientIp = ref('');
 const testing = ref(false);
 const diag = ref<DiagnoseResult>();
 const saving = ref(false);
@@ -40,7 +42,7 @@ async function runTest() {
   if (!testName.value) return;
   testing.value = true;
   try {
-    diag.value = await diagnoseDns({ name: testName.value, type: testType.value });
+    diag.value = await diagnoseDns({ name: testName.value, type: testType.value, clientIp: testClientIp.value || undefined });
   } catch (e) {
     message.error(e instanceof Error ? e.message : '查询失败');
   } finally {
@@ -87,6 +89,7 @@ onMounted(load);
           @press-enter="runTest"
         />
         <Select v-model:value="testType" style="width: 100px" :options="QTYPE_OPTIONS" />
+        <Input v-model:value="testClientIp" placeholder="模拟来源 IP（可选，提示命中 view）" style="width: 220px" />
         <Button type="primary" :loading="testing" @click="runTest">查询</Button>
       </div>
       <div v-if="diag" class="mt-3">
@@ -94,6 +97,7 @@ onMounted(load);
           <Tag :color="RCODE_COLOR[diag.rcode] ?? 'red'">{{ diag.rcode }}</Tag>
           <span class="text-xs text-gray-400">
             {{ diag.rttMs }}ms · {{ diag.server }} · {{ diag.answers.length }} 条答案
+            <Tag v-if="diag.viewHint" color="purple">view: {{ diag.viewHint }}</Tag>
           </span>
         </div>
         <Table
