@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-29 · M2-033 完成：Option 79 消费链路（hwaddr 投影）
+
+- **做了**：spec hwAddress/hwAddrSource + gen；Lease6 投影补 hw 三字段；lease6Fn 条件投影；前端 PD 租约卡 MAC 列。
+- **验证结果**：全链绿；e2e——lease6-add 带 hw-address → agent 原始响应含 hw-address → API 回读 MAC 全链一致；hwtype/hwaddr-source add 场景 Kea 不持久化（真实 relay 报文由 Kea 内部推导，投影代码同构就绪）。
+- **交付要求**：核心 DHCPv6 relay 启用 RFC 6939（网络设备侧配置）。
+- **里程碑**：地址族关联方案（Option 79 路径）**消费侧闭环**，MAC 数据就绪待 NDP/AC 采集器配合。
+
 ## 2026-08-29 · M2-032 完成：质量与健壮性收尾
 
 - **做了**：回归锁单测 ×3（kea result-3 容忍 / blocklist 删除级联+自然键 / MatchPolicyView 五分支，抽包级函数）；sentinel 统一（双定义清理）；架构文档 B-10 同步（已落地 M2-030）；compose 6 服务日志限额（max-size 10m/max-file 3）。

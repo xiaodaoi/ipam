@@ -138,6 +138,9 @@ type Lease6 struct {
 	IAID          uint32 `json:"iaid,omitempty"`
 	CLTT          int64  `json:"cltt,omitempty"`
 	ValidLifetime uint32 `json:"valid-lft,omitempty"`
+	HWAddress     string `json:"hw-address,omitempty"` // relay option79（RFC 6939）或 DUID-LL 解析；无则空
+	HWType        int    `json:"hwtype,omitempty"`
+	HWSource      int    `json:"hwaddr-source,omitempty"`
 }
 
 // Lease6List 实时查询 Kea DHCPv6 租约（PD/NA；memfile 不入库）。

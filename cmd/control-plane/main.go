@@ -250,6 +250,13 @@ func newEngine(version string) *gin.Engine {
 		out := make([]apigen.DhcpLease6, 0, len(ls))
 		for _, l := range ls {
 			item := apigen.DhcpLease6{IpAddress: l.IPAddress, LeaseType: apigen.DhcpLease6LeaseType(l.LeaseType), Duid: l.DUID}
+			if l.HWAddress != "" {
+				item.HwAddress = &l.HWAddress
+			}
+			if l.HWSource != 0 {
+				hs := l.HWSource
+				item.HwAddrSource = &hs
+			}
 			if v := int(l.IAID); v > 0 {
 				item.Iaid = &v
 			}

@@ -2028,6 +2028,10 @@ export interface components {
             /** @description 客户端最近事务时间（unix 秒） */
             cltt?: number;
             validLifetime?: number;
+            /** @description 客户端链路层地址——relay 插入 option 79（RFC 6939）或 DUID-LL/LLT 解析；两者皆无时为空 */
+            hwAddress?: string;
+            /** @description Kea hwaddr 来源编码（0=未知 2=relay option79 5=DUID 解析等） */
+            hwAddrSource?: number;
         };
         DhcpLease6List: {
             items: components["schemas"]["DhcpLease6"][];

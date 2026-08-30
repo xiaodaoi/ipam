@@ -114,6 +114,7 @@ const lease6Cols = [
   { title: '类型', dataIndex: 'leaseType', width: 90 },
   { title: '前缀长', dataIndex: 'prefixLen', width: 80 },
   { title: 'DUID', dataIndex: 'duid' },
+  { title: 'MAC', dataIndex: 'hwAddress' },
   { title: '有效期(s)', dataIndex: 'validLifetime', width: 100 },
 ];
 

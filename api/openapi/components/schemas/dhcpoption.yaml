@@ -128,6 +128,12 @@ DhcpLease6:
     iaid: { type: integer }
     cltt: { type: integer, description: 客户端最近事务时间（unix 秒） }
     validLifetime: { type: integer }
+    hwAddress:
+      type: string
+      description: 客户端链路层地址——relay 插入 option 79（RFC 6939）或 DUID-LL/LLT 解析；两者皆无时为空
+    hwAddrSource:
+      type: integer
+      description: Kea hwaddr 来源编码（0=未知 2=relay option79 5=DUID 解析等）
 
 DhcpLease6List:
   type: object
