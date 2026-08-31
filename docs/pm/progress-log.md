@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-31 · M2-039 完成：系统设置二级菜单（批 1 后端 + 批 2 前端）
+
+- **批 1**：GET/PUT /system/webui-settings + webui_settings 单行表（迁移 0017）+ WebuiHandler（serverIp/serverPort 从 Host 只读解析）——e2e 四步全过。
+- **批 2**：settings/index.vue 设置页（siteName/faviconUrl/logoUrl 输入 + serverIp/Port 只读展示 + document.title/favicon 动态应用）+ system.ts「系统设置」二级菜单路由。
+- **验证**：typecheck 0 + build ✓ + 零外链 PASS + 容器重建 + webui-settings API 冒烟 200（siteName 持久化复核）。
+- **v1 决策**：logo 上传以 URL 输入实现（文件上传 v2）；服务器 IP/端口只读展示（Web 改部署配置是反模式——改完失联）。
+
 ## 2026-08-31 · M2-039 批 1：系统设置二级菜单（后端 webui-settings）
 
 - **做了**：spec 三处 + gen + 迁移 0017（webui_settings 单行表）+ webui_handler.go（GET/PUT + serverIp/serverPort 从 Host 只读解析——修改走部署配置，Web 改部署配置是反模式）+ main/handler_test 装配。

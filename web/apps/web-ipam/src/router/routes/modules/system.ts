@@ -29,6 +29,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('#/views/system/roles/index.vue'),
         meta: { icon: 'lucide:shield-check', title: '角色管理', authority: ['system:read'] },
       },
+      {
+        path: '/system/settings',
+        component: () => import('#/views/system/settings/index.vue'),
+        meta: { icon: 'lucide:settings', title: '系统设置', authority: ['system:read'] },
+      },
     ],
   },
 ];
