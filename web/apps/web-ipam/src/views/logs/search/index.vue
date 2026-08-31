@@ -129,7 +129,13 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           :loading="loading"
           row-key="(_, i) => String(i)"
           size="small"
-          :pagination="{ pageSize: 50, showSizeChanger: false }"
+          :pagination="{
+            position: ['bottomLeft'],
+            pageSize: 50,
+            pageSizeOptions: ['20', '50', '100', '200'],
+            showSizeChanger: true,
+            showTotal: (t: number) => `共 ${t} 条`,
+          }"
         >
           <template #bodyCell="{ column, record, index }">
             <template v-if="column.dataIndex === 'ts'">{{ fmtTs(record.ts) }}</template>
