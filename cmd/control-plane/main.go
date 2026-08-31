@@ -452,6 +452,11 @@ func newEngine(version string) *gin.Engine {
 		}
 	}
 	rolesH := platform.NewRolesHandler(roleStore)
+	var webuiRepo platform.WebuiRepo = platform.NewMemWebuiRepo()
+	if pool != nil {
+		webuiRepo = platform.NewPgWebuiRepo(pool)
+	}
+	webuiH := platform.NewWebuiHandler(webuiRepo)
 	permLookup := func(ctx context.Context, role string) ([]string, bool) {
 		if pool == nil {
 			return nil, false
@@ -483,8 +488,9 @@ func newEngine(version string) *gin.Engine {
 		*dnsmodule.BlocklistHandler
 		*dnsmodule.SettingsHandler
 		*platform.RolesHandler
+		*platform.WebuiHandler
 		*confApplier
-	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore, bl, permLookup), platform.NewUserHandler(userStore), &dhcpAPI{dhcpH}, dnsH, fwdH, zoneH, blH, settingsH, rolesH, applier}
+	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore, bl, permLookup), platform.NewUserHandler(userStore), &dhcpAPI{dhcpH}, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, applier}
 	// RBAC 写权限拦截（M5-003）先于审计：被 403 的请求不入账。
 	// 操作审计（M4-003+M5-002）：actor 从 JWT claims 解析（human/bot 区分 §12.3）。
 	r.Use(platform.NewRBACMiddleware(userStore, bl, permLookup)) // M5-003/M5-010/M5-011/M2-035：认证+授权+吊销+域权限

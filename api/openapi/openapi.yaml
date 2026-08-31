@@ -62,6 +62,8 @@ paths:
     $ref: './paths/auth.yaml#/AuthCodes'
   /auth/logout:
     $ref: './paths/auth.yaml#/AuthLogout'
+  /system/webui-settings:
+    $ref: "./paths/webui.yaml#/WebuiSettingsCollection"
   /roles:
     $ref: "./paths/role.yaml#/RolesCollection"
   /roles/{roleId}:

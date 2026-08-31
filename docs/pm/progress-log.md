@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-31 · M2-039 批 1：系统设置二级菜单（后端 webui-settings）
+
+- **做了**：spec 三处 + gen + 迁移 0017（webui_settings 单行表）+ webui_handler.go（GET/PUT + serverIp/serverPort 从 Host 只读解析——修改走部署配置，Web 改部署配置是反模式）+ main/handler_test 装配。
+- **验证**：BUILD_OK + go test 无失败 + lint 0 issues + 容器重建 + e2e 四步全过（GET/PUT/持久化复核/缺 siteName 400）。
+- **踩坑留痕**：首次实施全部丢失——每步同批验证（ls/grep）重建实锤；upsert 的 ON CONFLICT 参数复用必须用 EXCLUDED。
+- **遗留**：批 2 前端（设置页 + 动态应用）+ 批 3 收尾。
+
 ## 2026-08-31 · M2-038 完成：日志分页优化（分页移左 + 每页 20/50/100/200）
 
 - **做了**：logs/search Table 分页配置——position bottomLeft（分页移左，返回顶部按钮避让）+ pageSizeOptions 20/50/100/200 + showSizeChanger + showTotal「共 N 条」。

@@ -1,0 +1,29 @@
+WebuiSettings:
+  type: object
+  required: [siteName]
+  properties:
+    siteName:
+      type: string
+      description: 站点名称（浏览器页签/侧栏显示）
+      maxLength: 64
+    faviconUrl:
+      type: string
+      description: 浏览器页签 LOGO URL
+      maxLength: 512
+    logoUrl:
+      type: string
+      description: 侧栏 LOGO URL
+      maxLength: 512
+    serverIp:
+      type: string
+      description: 服务器监听 IP（只读，取自部署配置）
+    serverPort:
+      type: string
+      description: 访问端口（只读，取自部署配置）
+
+WebuiSettingsUpdate:
+  type: object
+  properties:
+    siteName: { type: string, maxLength: 64 }
+    faviconUrl: { type: string, maxLength: 512 }
+    logoUrl: { type: string, maxLength: 512 }

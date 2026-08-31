@@ -1,0 +1,33 @@
+WebuiSettingsCollection:
+  get:
+    operationId: getWebuiSettings
+    tags: [platform]
+    summary: Web 页面设置读取（M2-039）
+    description: 站点名称/favicon/logo 等页面级设置；serverIp/serverPort 为当前服务监听信息（只读，修改走部署配置）。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: 设置
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/webui.yaml#/WebuiSettings'
+  put:
+    operationId: updateWebuiSettings
+    tags: [platform]
+    summary: Web 页面设置保存（M2-039）
+    description: serverIp/serverPort 为只读字段，PUT 中忽略。scope 为 system:write。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/webui.yaml#/WebuiSettingsUpdate'
+    responses:
+      '200':
+        description: 已保存
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/webui.yaml#/WebuiSettings'

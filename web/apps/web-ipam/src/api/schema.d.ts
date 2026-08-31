@@ -272,6 +272,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/system/webui-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Web 页面设置读取（M2-039）
+         * @description 站点名称/favicon/logo 等页面级设置；serverIp/serverPort 为当前服务监听信息（只读，修改走部署配置）。
+         */
+        get: operations["getWebuiSettings"];
+        /**
+         * Web 页面设置保存（M2-039）
+         * @description serverIp/serverPort 为只读字段，PUT 中忽略。scope 为 system:write。
+         */
+        put: operations["updateWebuiSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/roles": {
         parameters: {
             query?: never;
@@ -2077,6 +2101,23 @@ export interface components {
         DhcpLease6List: {
             items: components["schemas"]["DhcpLease6"][];
         };
+        WebuiSettings: {
+            /** @description 站点名称（浏览器页签/侧栏显示） */
+            siteName: string;
+            /** @description 浏览器页签 LOGO URL */
+            faviconUrl?: string;
+            /** @description 侧栏 LOGO URL */
+            logoUrl?: string;
+            /** @description 服务器监听 IP（只读，取自部署配置） */
+            serverIp?: string;
+            /** @description 访问端口（只读，取自部署配置） */
+            serverPort?: string;
+        };
+        WebuiSettingsUpdate: {
+            siteName?: string;
+            faviconUrl?: string;
+            logoUrl?: string;
+        };
         /** @description 角色（内置或自定义；permissions 为权限点集合：域:read|write）。 */
         Role: {
             /** @description 角色名（主键，创建后不可改） */
@@ -2708,6 +2749,50 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuthLogoutDone"];
+                };
+            };
+        };
+    };
+    getWebuiSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 设置 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebuiSettings"];
+                };
+            };
+        };
+    };
+    updateWebuiSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebuiSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description 已保存 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebuiSettings"];
                 };
             };
         };
