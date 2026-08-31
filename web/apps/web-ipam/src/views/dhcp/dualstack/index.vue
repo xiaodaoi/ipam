@@ -35,13 +35,16 @@ async function load() {
 }
 function edit(r: DualstackTemplate) {
   editingId.value = r.id;
+  showForm.value = true;
   form.value = {
     name: r.name, ipv4Cidr: r.ipv4Cidr, ipv6Prefix: r.ipv6Prefix, encoding: r.encoding,
     expr: r.expr, dnsSync: r.dnsSync ?? true, graceHours: r.graceHours ?? 24,
   };
 }
+const showForm = ref(false);
 function cancelEdit() {
   editingId.value = '';
+  showForm.value = false;
   form.value = {
     name: '', ipv4Cidr: '', ipv6Prefix: '',
     encoding: 'B', expr: '{v4.hextet4}', dnsSync: true, graceHours: 24,
@@ -75,7 +78,11 @@ const EXAMPLE = '例：192.168.0.10 → 2407::192:168:0:10';
       <Button size="small" @click="load()">刷新</Button>
     </template>
 
-    <div class="mb-4 flex flex-wrap items-end gap-2 rounded border border-gray-200 p-3">
+    <div class="mb-4">
+      <Button type="primary" size="small" @click="showForm = true; cancelEdit()">+ 新建模板</Button>
+    </div>
+    <VbenModal v-model:open="showForm" :title="editingId ? '编辑模板' : '新建双栈绑定模板'" draggable>
+    <div class="flex flex-wrap items-end gap-2">
       <div>
         <div class="mb-1 text-xs text-gray-400">名称</div>
         <Input v-model:value="form.name" style="width: 150px" placeholder="办公-v4池A" />
@@ -105,6 +112,7 @@ const EXAMPLE = '例：192.168.0.10 → 2407::192:168:0:10';
       <Button v-if="editingId" class="ml-1" @click="cancelEdit">取消编辑</Button>
       <div class="w-full text-xs text-gray-400">{{ EXAMPLE }}——daemon 按租约 IPv4 最长前缀自动选模板</div>
     </div>
+    </VbenModal>
 
     <Table
       :data-source="rows"
