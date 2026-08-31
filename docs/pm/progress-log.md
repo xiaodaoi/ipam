@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-29 · M2-036 完成：日志中心优化与 P0 修复
+
+- **修复**：tail SSE 重写为 fetch 流（EventSource 无法携带 Authorization 的 401 重连循环根除）；解析记录校验提示（静默 return 根除）；search 页加应答码/应答服务器列；cache 页加性能统计区（1h/24h/峰值，getLogQps 消费）；黑名单封禁闭环（local_zone 方案，45a028f）。
+- **验证**：SSE 流 4 帧真实数据；冒烟全 200；黑名单双向 e2e（拦截→恢复）；全链绿。
+- **移交**：window.prompt modal 化归 M2-034；RBAC 角色管理归 M2-035。
+
 ## 2026-08-29 · 黑名单封禁闭环打通（local_zone 方案，用户调试发现 RPZ 不生效）
 
 - **现象**：封禁条目 www.crphz.org 编译返回成功但域名仍可解析——假阳性（crphz.org 公网本就不存在，NXDOMAIN 是真实递归结果）。

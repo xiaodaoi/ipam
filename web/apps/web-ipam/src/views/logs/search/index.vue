@@ -62,6 +62,8 @@ const columns = [
   { title: '域名', dataIndex: 'domain' },
   { title: '客户端', dataIndex: 'clientMac', width: 130 },
   { title: 'IP', dataIndex: 'clientIp', width: 140 },
+  { title: '应答码', dataIndex: 'rcode', width: 100 },
+  { title: '应答服务器', dataIndex: 'sip', width: 140 },
   { title: '动作', dataIndex: 'action', width: 120 },
 ];
 function fmtTs(v: string) {

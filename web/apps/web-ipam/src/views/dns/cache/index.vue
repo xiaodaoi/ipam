@@ -6,6 +6,7 @@ import { Button, Card, Input, InputNumber, message, Switch, Table } from 'ant-de
 import {
   flushCache,
   getDnsSettings,
+  getLogQps,
   listTtlOverrides,
   updateDnsSettings,
   upsertTtlOverride,
@@ -43,7 +44,27 @@ async function addTtl() {
   newTtl.value = { domain: '', ttl: 300 };
   await load();
 }
-onMounted(load);
+const qps1h = ref(0);
+const qpsTotal = ref(0);
+const qpsPeak = ref(0);
+
+async function loadQps() {
+  try {
+    const from = new Date(Date.now() - 24 * 3600_000).toISOString();
+    const d = await getLogQps({ from, intervalSec: 3600 });
+    const pts = d.points ?? [];
+    const counts = pts.map((p) => p.count);
+    qpsTotal.value = counts.reduce((a, b) => a + b, 0);
+    qps1h.value = counts.slice(-1)[0] ?? 0;
+    qpsPeak.value = counts.length ? Math.max(...counts) : 0;
+  } catch {
+    /* QPS 数据不可用时保持 0 */
+  }
+}
+onMounted(() => {
+  load();
+  void loadQps();
+});
 
 const ttlCols = [
   { title: '域名', dataIndex: 'domain' },
@@ -86,6 +107,11 @@ const ttlCols = [
         <Button @click="addTtl">设置覆盖</Button>
       </div>
       <Table :data-source="ttlRows" :columns="ttlCols" row-key="domain" size="small" :pagination="false" />
+      <div class="mt-3 flex flex-wrap gap-6 rounded border border-gray-200 p-3 text-sm">
+        <span>最近 1 小时查询：<b>{{ qps1h }}</b></span>
+        <span>近 24 小时总查询：<b>{{ qpsTotal }}</b></span>
+        <span>小时峰值：<b>{{ qpsPeak }}</b></span>
+      </div>
     </Card>
   </div>
 </template>
