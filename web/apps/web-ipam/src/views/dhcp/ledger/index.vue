@@ -103,6 +103,7 @@ async function confirmBind() {
 </script>
 
 <template>
+  <div>
   <div style="display:flex;gap:16px;height:100%">
     <Card style="width:280px;flex-shrink:0" title="组织分组">
       <Tree
@@ -142,4 +143,5 @@ async function confirmBind() {
       <Button type="primary" class="ml-1" @click="confirmBind">绑定</Button>
     </div>
   </BindModal>
+  </div>
 </template>

@@ -93,6 +93,7 @@ onMounted(load);
 </script>
 
 <template>
+  <div>
   <Card title="组织管理（全局主数据 ★）">
     <template #extra>
       <div class="flex gap-2">
@@ -135,4 +136,5 @@ onMounted(load);
       <Button type="primary" class="ml-1" @click="confirmName">确定</Button>
     </div>
   </NameModal>
+  </div>
 </template>

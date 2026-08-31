@@ -102,6 +102,7 @@ const linkedCols = [
 </script>
 
 <template>
+  <div>
   <Card>
     <template #title>
       <div class="flex items-center gap-3">
@@ -146,4 +147,5 @@ const linkedCols = [
       <Button type="primary" class="ml-1" @click="createZoneConfirm">创建</Button>
     </div>
   </ZoneModal>
+  </div>
 </template>
