@@ -4,6 +4,14 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-31 · M2-037 批 1：Modal 不弹出修复（subnets useVbenModal 试点）
+
+- **现象**（用户调试）：点击新建子网/添加上游等按钮无 Modal 弹出——M2-034 的 v-model:open 全部无效。
+- **根因**：vben v5 的 Modal 显示控制是 modalApi.open()/close()/setState() 命令式（modal-api.ts:97/158/171 实锤），ModalProps 无 open 字段——v-model:open 为错误用法。
+- **修复**：subnets 页 useVbenModal 连接组件模式改造 7 处（const [FormModal, formModalApi] = useVbenModal；open/setState/close 替代 showForm 状态）。
+- **验证**：typecheck 0 + build ✓ 7.59s + sync 4.3M + 零外链 PASS。
+- **举一反三**：M2-034 改造的全部页面（9 页）同款修复——批 2/3/4 进行中。
+
 ## 2026-08-31 · 批 3 修正：二级菜单消失 bug（用户调试发现）
 
 - **现象**：M2-035 批 3 的 meta.authority（权限点）上线后二级菜单全消失——admin 也看不到。

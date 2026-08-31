@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 
-import { VbenModal } from '@vben/common-ui';
+import { useVbenModal } from '@vben/common-ui';
 
 import { Button, Card, Input, InputNumber, message, Select, Table, Tag, Tree } from 'ant-design-vue';
 
@@ -24,7 +24,7 @@ const loading = ref(false);
 const filterOrgId = ref<string>();
 
 // 新建表单
-const showForm = ref(false);
+const [FormModal, formModalApi] = useVbenModal({ draggable: true, title: '子网信息' });
 const form = ref({
   orgId: '',
   name: '',
@@ -84,7 +84,7 @@ async function add() {
     });
   }
   editingId.value = undefined;
-  showForm.value = false;
+  formModalApi.close();
   form.value = { orgId: f.orgId, name: '', family: 4, cidr: '', gateway: '', dnsServers: '', poolStart: '', poolEnd: '', poolKind: 'dynamic', poolPrefixLen: 64, poolDelegatedLen: 80 };
   await load();
 }
@@ -102,7 +102,8 @@ function edit(r: Subnet) {
     poolKind: (p0?.kind as 'dynamic' | 'pd') ?? 'dynamic',
     poolPrefixLen: p0?.prefixLen ?? 64, poolDelegatedLen: p0?.delegatedLen ?? 80,
   };
-  showForm.value = true;
+  formModalApi.setState({ title: '编辑子网' });
+  formModalApi.open();
 }
 async function remove(id?: string) {
   if (!id) return;
@@ -171,11 +172,11 @@ const columns = [
       <template #title>
         <div class="flex items-center gap-3">
           <span>子网与地址池</span>
-          <Button size="small" type="primary" @click="editingId = undefined; cancelEdit(); showForm = true">+ 新建子网</Button>
+          <Button size="small" type="primary" @click="editingId = undefined; cancelEdit(); formModalApi.setState({ title: '新建子网' }); formModalApi.open()">+ 新建子网</Button>
         </div>
       </template>
 
-      <VbenModal v-model:open="showForm" :title="editingId ? '编辑子网' : '新建子网'" draggable>
+      <FormModal class="w-[860px]">
         <div class="flex flex-wrap items-end gap-2">
         <div>
           <div class="mb-1 text-xs text-gray-400">组织</div>
@@ -239,7 +240,7 @@ const columns = [
         </template>
         <Button type="primary" @click="add">{{ editingId ? '保存修改' : '创建（下发 Kea）' }}</Button>
         </div>
-      </VbenModal>
+      </FormModal>
 
       <Table
         :data-source="rows"
