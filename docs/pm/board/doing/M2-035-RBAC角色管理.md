@@ -38,3 +38,7 @@
 - **验证结果**：e2e 决定性——GET /roles 内置 4 角色实收（admin 12 权限/operator 9/auditor 6/user 5）；POST /roles 自定义 dhcp-viewer 201；用户绑定自定义角色后 **GET /subnets 200（dhcp:read 生效）/ GET /users 403（system:read 缺——决定性）**；DELETE /roles/admin → 409 BUILTIN_ROLE 保护；全链绿（build/test/lint/typecheck）。
 - **踩坑留痕**：① gen 的 permissions 字段带 enum 时生成独立类型（[]apigen.RoleCreatePermissions）——需 string 转换循环；② Role schema 无 enum 时生成 []string（toGenRole 直接透传）；③ roleId 主键是 name（string）——spec 不能写 format: uuid（gen 生成 rtypes.UUID 签名不匹配）；④ handler_test 在 platform 包内——包内引用不需要 platform. 前缀。
 - **遗留**：批 2b（前端角色管理页）；批 3（前端菜单过滤）。
+
+### 2026-08-31 · 会话3（批 2b：前端角色管理页）
+- **做了**：views/system/roles/index.vue 新页面（角色列表 Table + 权限矩阵 VbenModal——6 域 × 查看/编辑 checkbox 共 12 权限点；内置角色 Tag 标识 + builtin 编辑/删除禁用；api/ipam.ts 加 RoleRow 类型与 listRoles/createRole/updateRole/deleteRole 四函数；router/routes/modules/system.ts 注册 /system/roles 子页）。
+- **验证结果**：typecheck 0 + build ✓ 7.78s + sync 4.3M + 零外链 PASS + 容器重建（Built=1）+ GET /roles 冒烟 200（页面数据源）。

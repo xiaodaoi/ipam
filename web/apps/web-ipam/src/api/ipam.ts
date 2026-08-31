@@ -314,3 +314,10 @@ export async function exportLogsCsv(params: Record<string, string>): Promise<voi
   a.click();
   URL.revokeObjectURL(a.href);
 }
+
+// ── 角色管理（M2-035，system 域）──
+export type RoleRow = components['schemas']['Role'];
+export const listRoles = () => req<{ items: RoleRow[] }>('/roles');
+export const createRole = (b: { name: string; permissions: string[] }) => req<RoleRow>('/roles', j(b));
+export const updateRole = (name: string, b: { permissions: string[] }) => req<RoleRow>(`/roles/${name}`, j(b));
+export const deleteRole = (name: string) => req<void>(`/roles/${name}`, del);
