@@ -3,7 +3,7 @@
 | 字段 | 内容 |
 |---|---|
 | ID | M2-037 |
-| 状态 | doing |
+| 状态 | review |
 | 来源 | 用户调试发现：点击新建子网/添加上游等按钮无 Modal 弹出——M2-034 的 v-model:open 为错误用法（vben v5 的 Modal 显示控制是 modalApi.open() 命令式，modal-api.ts:97 close/158 open/171 setState 实锤） |
 | 负责 | opencode(frontend) |
 | 创建 | 2026-08-31 |
@@ -20,9 +20,9 @@
 ## 页面清单（举一反三）
 
 - [x] 批 1 试点：dhcp/subnets（7 处改造，typecheck/build/零外链全绿）
-- [ ] 批 2：dns/upstream、dns/forward
-- [ ] 批 3：dhcp/dualstack、dhcp/options（两 Modal）、system/users、dns/blocklist
-- [ ] 批 4：system/orgs（名称 Modal）、dns/records（zone Modal）、dhcp/ledger（绑定 Modal）
+- [x] 批 2：dns/upstream、dns/forward
+- [x] 批 3：dhcp/dualstack、dhcp/options（两 Modal）、system/users、dns/blocklist
+- [x] 批 4：system/orgs（名称 Modal）、dns/records（zone Modal）、dhcp/ledger（绑定 Modal）
 
 ## 验收标准（可测）
 
@@ -37,6 +37,12 @@
 - **验证结果**：typecheck 0 + build ✓ 7.59s + sync 4.3M + 零外链 PASS。
 - **踩坑留痕**：① vben v5 的 Modal 无 v-model:open（ModalProps 无 open 字段）——显示控制唯一途径是 modalApi.open()/close()/setState()；② anchor 缩进先探再改（subnets 的 showForm.value 是 2 空格，4 空格锚点失配致首批 python 全部未落盘）。
 - **遗留**：批 2/3/4 九页改造进行中。
+
+### 2026-08-31 · 会话4（批 4：system/orgs + dns/records + dhcp/ledger 三页——全部收口）
+- **做了**：三页 prompt/VbenModal → useVbenModal 命令式改造（orgs 6 处 + records 7 处 + ledger 6 处——Modal 实例（NameModal/ZoneModal/BindModal）/setState 动态标题/open/close/模板闭配对）。
+- **验证结果**：typecheck 0 + build ✓ 6.72s + sync 4.3M + 零外链 PASS + go build/test 全绿 + lint 0 issues + 容器重建（Built=1）+ 11 端点冒烟全 200（子网/上游/转发/双栈/选项/用户/组织/名单/区域/台账/roles）。
+- **踩坑留痕**：① records 的 VbenModal import 从未落盘（批 2d-2 失败批的 add_vben_import 随整段回滚）——**历史失败批要考古落盘缺口**；② show 残留散点（orgs 取消按钮/ledger 取消按钮）在声明改造后 TS2339 暴露——**show 字段删除后必须 grep 全文件残留**。
+- **遗留**：无——**全部页面（10 页 13 Modal）useVbenModal 改造完成，v-model:open 清零**。
 
 ### 2026-08-31 · 会话3（批 3：dhcp/dualstack + dns/blocklist + system/users + dhcp/options）
 - **做了**：四页 useVbenModal 命令式改造（dualstack 7 处 + blocklist 6 处 + users 6 处 + options 10 处——双 Modal 实例（OptModal/ClsModal）/闭标签配对/按钮 setState+open）。

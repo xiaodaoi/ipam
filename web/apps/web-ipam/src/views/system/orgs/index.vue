@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { VbenModal } from '@vben/common-ui';
+import { useVbenModal } from '@vben/common-ui';
 
 import { Button, Card, Tree } from 'ant-design-vue';
 
@@ -39,15 +39,18 @@ async function load() {
   }
 }
 
-const nameModal = ref({ show: false, title: '', initial: '', action: null as null | ((name: string) => Promise<void>) });
+const nameModal = ref({ initial: '', action: null as null | ((name: string) => Promise<void>) });
+const [NameModal, nameModalApi] = useVbenModal({ draggable: true });
 
 function askName(title: string, initial: string, action: (name: string) => Promise<void>) {
-  nameModal.value = { show: true, title, initial, action };
+  nameModal.value = { initial, action };
+  nameModalApi.setState({ title });
+  nameModalApi.open();
 }
 async function confirmName() {
   const name = nameModal.value.initial.trim();
   if (!name) return;
-  nameModal.value.show = false;
+  nameModalApi.close();
   await nameModal.value.action?.(name);
 }
 
@@ -125,11 +128,11 @@ onMounted(load);
       暂无组织——点击右上角「+ 根组织」创建第一个节点
     </div>
   </Card>
-  <VbenModal v-model:open="nameModal.show" :title="nameModal.title" draggable>
+  <NameModal>
     <Input v-model:value="nameModal.initial" placeholder="组织名称" @pressEnter="confirmName" />
     <div class="mt-3 text-right">
-      <Button @click="nameModal.show = false">取消</Button>
+      <Button @click="nameModalApi.close()">取消</Button>
       <Button type="primary" class="ml-1" @click="confirmName">确定</Button>
     </div>
-  </VbenModal>
+  </NameModal>
 </template>

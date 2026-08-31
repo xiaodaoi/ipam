@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { useVbenModal } from '@vben/common-ui';
 
 import { Button, Card, Input, Select, Table, TabPane, Tabs, message } from 'ant-design-vue';
 
@@ -47,12 +48,13 @@ async function loadRecords() {
     loading.value = false;
   }
 }
-const zoneModal = ref({ show: false, name: '' });
+const zoneModal = ref({ name: '' });
+const [ZoneModal, zoneModalApi] = useVbenModal({ draggable: true, title: '新建 DNS 区域' });
 async function createZoneConfirm() {
   const name = zoneModal.value.name.trim();
   if (!name) return;
   await createDnsZone({ name: name.endsWith('.') ? name : `${name}.`, kind: 'auth' });
-  zoneModal.value.show = false;
+  zoneModalApi.close();
   zoneModal.value.name = '';
   await loadZones();
 }
@@ -107,7 +109,7 @@ const linkedCols = [
         <Select v-model:value="zoneId" style="width: 220px" :options="zones.map((z) => ({ value: z.id, label: z.name }))"
           @change="loadRecords()" />
         <Button size="small" danger :disabled="!zoneId" @click="removeZone">删区</Button>
-        <Button size="small" @click="zoneModal.show = true">+ 新建 zone</Button>
+        <Button size="small" @click="zoneModalApi.open()">+ 新建 zone</Button>
       </div>
     </template>
     <Tabs>
@@ -137,11 +139,11 @@ const linkedCols = [
       </TabPane>
     </Tabs>
   </Card>
-  <VbenModal v-model:open="zoneModal.show" title="新建 DNS 区域" draggable>
+  <ZoneModal>
     <Input v-model:value="zoneModal.name" placeholder="如 office.local" @pressEnter="createZoneConfirm" />
     <div class="mt-3 text-right">
-      <Button @click="zoneModal.show = false">取消</Button>
+      <Button @click="zoneModalApi.close()">取消</Button>
       <Button type="primary" class="ml-1" @click="createZoneConfirm">创建</Button>
     </div>
-  </VbenModal>
+  </ZoneModal>
 </template>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { VbenModal } from '@vben/common-ui';
+import { useVbenModal } from '@vben/common-ui';
 
 import { Card, Tag, message, Table, Tree } from 'ant-design-vue';
 
@@ -85,16 +85,19 @@ const actionReserve = async (row: LedgerRow) => {
   load();
 };
 
-const bindModal = ref({ show: false, address: '', subnetId: '', mac: '' });
+const bindModal = ref({ address: '', subnetId: '', mac: '' });
+const [BindModal, bindModalApi] = useVbenModal({ draggable: true });
 function askBind(row: LedgerRow) {
-  bindModal.value = { show: true, address: row.address, subnetId: row.subnetId ?? '', mac: '' };
+  bindModal.value = { address: row.address, subnetId: row.subnetId ?? '', mac: '' };
+  bindModalApi.setState({ title: `绑定 ${row.address}` });
+  bindModalApi.open();
 }
 async function confirmBind() {
   const mac = bindModal.value.mac.trim();
   if (!mac || !bindModal.value.subnetId) return;
   await bindStatic(bindModal.value.subnetId, bindModal.value.address, mac);
   message.success(`${bindModal.value.address} 已静态绑定 ${mac}`);
-  bindModal.value.show = false;
+  bindModalApi.close();
   load();
 }
 </script>
@@ -132,11 +135,11 @@ async function confirmBind() {
       <div style="margin-top:12px;text-align:right">共 {{ total }} 条</div>
     </Card>
   </div>
-  <VbenModal v-model:open="bindModal.show" :title="`绑定 ${bindModal.address}`" draggable>
+  <BindModal>
     <Input v-model:value="bindModal.mac" placeholder="MAC 如 aa:bb:cc:dd:ee:01" @pressEnter="confirmBind" />
     <div class="mt-3 text-right">
-      <Button @click="bindModal.show = false">取消</Button>
+      <Button @click="bindModalApi.close()">取消</Button>
       <Button type="primary" class="ml-1" @click="confirmBind">绑定</Button>
     </div>
-  </VbenModal>
+  </BindModal>
 </template>

@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-31 · M2-037 完成：Modal 不弹出修复（全站 10 页 13 Modal useVbenModal 化收口）
+
+- **四批收口**：批 1 subnets 试点（a582254）→ 批 2 upstream/forward（e42c1da）→ 批 3 dualstack/options/users/blocklist（04aa5ce）→ 批 4 orgs/records/ledger（本批）。
+- **根因沉淀**：vben v5 的 Modal 显隐是 modalApi.open()/close()/setState() 命令式，v-model:open 与布尔 ref 是错误用法（ModalProps 无 open 字段）。
+- **验证**：各批 typecheck/build/零外链全绿 + lint 0 + 容器重建 + 11 端点冒烟全 200；全部页面 Modal 可弹出，v-model:open 清零。
+
 ## 2026-08-31 · M2-037 批 3：Modal 修复（dualstack/blocklist/users/options）
 
 - **做了**：四页 useVbenModal 命令式改造（dualstack 7 处 + blocklist 6 处 + users 6 处 + options 10 处——双 Modal 实例/闭标签配对/按钮 setState+open）。
