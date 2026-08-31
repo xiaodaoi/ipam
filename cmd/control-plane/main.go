@@ -440,6 +440,18 @@ func newEngine(version string) *gin.Engine {
 	// 组合各域 handler 共同实现 ServerInterface（Go 嵌入提升；新增域在此扩展）
 	// 注：logsAPI 包装让组合字段名不同于 platform.Handler，避免同名冲突。
 	logs := logsAPI{logH}
+	var roleStore platform.RoleStore = platform.NewMemRoleStore()
+	if pool != nil {
+		roleStore = platform.NewPgRoleStore(pool)
+		if rs, err := roleStore.List(context.Background()); err == nil {
+			for _, r := range rs {
+				if !r.Builtin {
+					platform.RegisterRole(r.Name)
+				}
+			}
+		}
+	}
+	rolesH := platform.NewRolesHandler(roleStore)
 	full := struct {
 		*platform.Handler
 		*ipam.OrgHandler
@@ -458,8 +470,9 @@ func newEngine(version string) *gin.Engine {
 		*dnsmodule.ZoneHandler
 		*dnsmodule.BlocklistHandler
 		*dnsmodule.SettingsHandler
+		*platform.RolesHandler
 		*confApplier
-	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore, bl), platform.NewUserHandler(userStore), &dhcpAPI{dhcpH}, dnsH, fwdH, zoneH, blH, settingsH, applier}
+	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore, bl), platform.NewUserHandler(userStore), &dhcpAPI{dhcpH}, dnsH, fwdH, zoneH, blH, settingsH, rolesH, applier}
 	// RBAC 写权限拦截（M5-003）先于审计：被 403 的请求不入账。
 	// 操作审计（M4-003+M5-002）：actor 从 JWT claims 解析（human/bot 区分 §12.3）。
 	permLookup := func(ctx context.Context, role string) ([]string, bool) {

@@ -89,12 +89,21 @@ func EnsureBootstrap(ctx context.Context, s UserStore) error {
 	return err
 }
 
+// extraRoles 自定义角色注册（M2-035：roleStore.Create 时注册；启动时从 roles 表加载）。
+var extraRoles = map[string]bool{}
+
+func RegisterRole(name string) {
+	if name != "" && builtinRolePerms[name] == nil {
+		extraRoles[name] = true
+	}
+}
+
 // normalizeRoles 角色白名单收敛（未知角色丢弃；空则 user 只读兜底）。
 func normalizeRoles(rs []string) []string {
 	out := make([]string, 0, len(rs))
 	for _, r := range rs {
 		r = strings.TrimSpace(r)
-		if r == "admin" || r == "operator" || r == "auditor" || r == "user" {
+		if r == "admin" || r == "operator" || r == "auditor" || r == "user" || extraRoles[r] {
 			out = append(out, r)
 		}
 	}

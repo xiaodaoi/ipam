@@ -1,0 +1,78 @@
+RolesCollection:
+  get:
+    operationId: listRoles
+    tags: [platform]
+    summary: 角色列表（内置+自定义）
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: 角色列表
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/role.yaml#/RoleList'
+  post:
+    operationId: createRole
+    tags: [platform]
+    summary: 创建自定义角色（M2-035）
+    description: 自定义角色权限点集合（域:read|write）。scope 为 system:write。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/role.yaml#/RoleCreate'
+    responses:
+      '201':
+        description: 已创建
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/role.yaml#/Role'
+      '400':
+        description: 名称冲突/权限点非法
+
+RoleItem:
+  patch:
+    operationId: updateRole
+    tags: [platform]
+    summary: 更新自定义角色权限（内置角色 409）
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: roleId
+        in: path
+        required: true
+        schema: { type: string, maxLength: 64 }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/role.yaml#/RoleUpdate'
+    responses:
+      '200':
+        description: 已更新
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/role.yaml#/Role'
+      '404':
+        description: 角色不存在
+      '409':
+        description: 内置角色不可修改
+  delete:
+    operationId: deleteRole
+    tags: [platform]
+    summary: 删除自定义角色（内置角色 409）
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: roleId
+        in: path
+        required: true
+        schema: { type: string, maxLength: 64 }
+    responses:
+      '204':
+        description: 已删除
+      '409':
+        description: 内置角色不可删除

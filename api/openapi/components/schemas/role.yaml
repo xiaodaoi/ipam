@@ -1,0 +1,41 @@
+Role:
+  type: object
+  description: 角色（内置或自定义；permissions 为权限点集合：域:read|write）。
+  required: [name, permissions, builtin]
+  properties:
+    name: { type: string, description: 角色名（主键，创建后不可改） }
+    permissions:
+      type: array
+      items: { type: string }
+      description: 权限点集合（如 ["dhcp:read","dns:write"]）
+    builtin: { type: boolean, description: 内置角色不可改删 }
+
+RoleList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: 'role.yaml#/Role'
+
+RoleCreate:
+  type: object
+  required: [name, permissions]
+  properties:
+    name: { type: string, maxLength: 64, description: 角色名（唯一） }
+    permissions:
+      type: array
+      items:
+        type: string
+        enum: [dash:read, dash:write, logs:read, logs:write, dhcp:read, dhcp:write, dns:read, dns:write, system:read, system:write, assets:read, assets:write]
+
+RoleUpdate:
+  type: object
+  required: [permissions]
+  properties:
+    permissions:
+      type: array
+      items:
+        type: string
+        enum: [dash:read, dash:write, logs:read, logs:write, dhcp:read, dhcp:write, dns:read, dns:write, system:read, system:write, assets:read, assets:write]

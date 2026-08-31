@@ -62,6 +62,10 @@ paths:
     $ref: './paths/auth.yaml#/AuthCodes'
   /auth/logout:
     $ref: './paths/auth.yaml#/AuthLogout'
+  /roles:
+    $ref: "./paths/role.yaml#/RolesCollection"
+  /roles/{roleId}:
+    $ref: "./paths/role.yaml#/RoleItem"
   /users:
     $ref: './paths/user.yaml#/UsersCollection'
   /users/{userId}:

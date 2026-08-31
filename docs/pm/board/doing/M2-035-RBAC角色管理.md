@@ -32,3 +32,9 @@
 - **踩坑留痕**：① `NewRBACMiddleware` 子串替换把 permLookup 插进了 `r.Use(platform.` 与调用之间（r.Use(platform. 前缀在 m.group(0) 外）——**子串替换必须看前缀上下文**；② permLookup 用 json.Unmarshal 需 main 补 encoding/json import；③ rbac_test 调用形态是 `(store, bl)` 局部变量（非 NewMemUserStore() 形态）——**锚点按实际调用点**。
 - **验证结果**：迁移 0016 四内置种子实收；admin 全通（dash/subnets/users 200）；operator 权限集生效（system:read 200/dns:write 201）——权限模型工作正常。
 - **遗留**：域权限 403 决定性验证（本批补）；批 2/3。
+
+### 2026-08-31 · 会话2（批 2a：roles API 后端闭环）
+- **做了**：spec（/roles CRUD 四操作 + Role/RoleList/RoleCreate/RoleUpdate schema）+ gen；role_store.go（RoleStore 接口/Mem/Pg 两实现 + RegisterRole 联动 normalizeRoles 白名单）；roles_handler.go（四方法 + builtin 409 保护 + validatePerms 权限点校验 + gen 枚举类型 string 转换）；main.go 装配（roleStore/rolesH/full 结构字段+值/启动加载自定义角色注册）。
+- **验证结果**：e2e 决定性——GET /roles 内置 4 角色实收（admin 12 权限/operator 9/auditor 6/user 5）；POST /roles 自定义 dhcp-viewer 201；用户绑定自定义角色后 **GET /subnets 200（dhcp:read 生效）/ GET /users 403（system:read 缺——决定性）**；DELETE /roles/admin → 409 BUILTIN_ROLE 保护；全链绿（build/test/lint/typecheck）。
+- **踩坑留痕**：① gen 的 permissions 字段带 enum 时生成独立类型（[]apigen.RoleCreatePermissions）——需 string 转换循环；② Role schema 无 enum 时生成 []string（toGenRole 直接透传）；③ roleId 主键是 name（string）——spec 不能写 format: uuid（gen 生成 rtypes.UUID 签名不匹配）；④ handler_test 在 platform 包内——包内引用不需要 platform. 前缀。
+- **遗留**：批 2b（前端角色管理页）；批 3（前端菜单过滤）。

@@ -272,6 +272,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 角色列表（内置+自定义） */
+        get: operations["listRoles"];
+        put?: never;
+        /**
+         * 创建自定义角色（M2-035）
+         * @description 自定义角色权限点集合（域:read|write）。scope 为 system:write。
+         */
+        post: operations["createRole"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/roles/{roleId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 删除自定义角色（内置角色 409） */
+        delete: operations["deleteRole"];
+        options?: never;
+        head?: never;
+        /** 更新自定义角色权限（内置角色 409） */
+        patch: operations["updateRole"];
+        trace?: never;
+    };
     "/users": {
         parameters: {
             query?: never;
@@ -2036,6 +2075,26 @@ export interface components {
         DhcpLease6List: {
             items: components["schemas"]["DhcpLease6"][];
         };
+        /** @description 角色（内置或自定义；permissions 为权限点集合：域:read|write）。 */
+        Role: {
+            /** @description 角色名（主键，创建后不可改） */
+            name: string;
+            /** @description 权限点集合（如 ["dhcp:read","dns:write"]） */
+            permissions: string[];
+            /** @description 内置角色不可改删 */
+            builtin: boolean;
+        };
+        RoleList: {
+            items: components["schemas"]["Role"][];
+        };
+        RoleCreate: {
+            /** @description 角色名（唯一） */
+            name: string;
+            permissions: ("dash:read" | "dash:write" | "logs:read" | "logs:write" | "dhcp:read" | "dhcp:write" | "dns:read" | "dns:write" | "system:read" | "system:write" | "assets:read" | "assets:write")[];
+        };
+        RoleUpdate: {
+            permissions: ("dash:read" | "dash:write" | "logs:read" | "logs:write" | "dhcp:read" | "dhcp:write" | "dns:read" | "dns:write" | "system:read" | "system:write" | "assets:read" | "assets:write")[];
+        };
         /**
          * @description 服务健康灯（unknown=未配置探测地址或 PoC 模式）
          * @enum {string}
@@ -2648,6 +2707,124 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AuthLogoutDone"];
                 };
+            };
+        };
+    };
+    listRoles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 角色列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleList"];
+                };
+            };
+        };
+    };
+    createRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleCreate"];
+            };
+        };
+        responses: {
+            /** @description 已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Role"];
+                };
+            };
+            /** @description 名称冲突/权限点非法 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已删除 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 内置角色不可删除 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleUpdate"];
+            };
+        };
+        responses: {
+            /** @description 已更新 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Role"];
+                };
+            };
+            /** @description 角色不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 内置角色不可修改 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

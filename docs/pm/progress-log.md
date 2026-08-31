@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-31 · M2-035 批 2a 完成：roles API 后端闭环
+
+- **做了**：spec（/roles CRUD 四操作）+ gen；role_store.go（RoleStore/Mem/Pg + RegisterRole 联动 normalizeRoles 白名单）；roles_handler.go（四方法 + builtin 409 + validatePerms）；main.go 装配（full 结构 + 启动加载自定义角色注册）。
+- **验证**：e2e 决定性——内置 4 角色实收（admin 12 权限）；自定义角色 dhcp-viewer 绑定用户后 GET /subnets 200 / GET /users 403（权限点生效）；builtin 409 保护。
+- **踩坑留痕**：gen 的 enum 字段生成独立类型需 string 转换；roleId 主键是 name（spec 不能写 format: uuid）；handler_test 在包内引用不需要包名前缀。
+
 ## 2026-08-31 · M2-035 批 1 完成：RBAC 域权限模型（权限点/迁移 0016/中间件重构）
 
 - **做了**：迁移 0016（roles 表+四内置角色种子：admin/operator/auditor/user）；rbac.go 重构（domainOf 路径→域映射/builtinRolePerms 内置角色权限集/hasPerm 逐角色解析——内置映射优先+permLookup 查库/NewRBACMiddleware 加 permLookup 参数/域权限拦截替换 admin 硬编码）；main.go permLookup 闭包（roles 表查询）。
