@@ -4,6 +4,11 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-31 · M2-038 完成：日志分页优化（分页移左 + 每页 20/50/100/200）
+
+- **做了**：logs/search Table 分页配置——position bottomLeft（分页移左，返回顶部按钮避让）+ pageSizeOptions 20/50/100/200 + showSizeChanger + showTotal「共 N 条」。
+- **验证**：typecheck 0 + build ✓ 7.60s + sync/offline PASS + 容器重建 + logs API 冒烟 200（from 必填参数修正后复核）。
+
 ## 2026-08-31 · M2-037 完成：Modal 不弹出修复（全站 10 页 13 Modal useVbenModal 化收口）
 
 - **四批收口**：批 1 subnets 试点（a582254）→ 批 2 upstream/forward（e42c1da）→ 批 3 dualstack/options/users/blocklist（04aa5ce）→ 批 4 orgs/records/ledger（本批）。
