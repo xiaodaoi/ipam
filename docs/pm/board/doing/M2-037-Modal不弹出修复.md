@@ -38,6 +38,11 @@
 - **踩坑留痕**：① vben v5 的 Modal 无 v-model:open（ModalProps 无 open 字段）——显示控制唯一途径是 modalApi.open()/close()/setState()；② anchor 缩进先探再改（subnets 的 showForm.value 是 2 空格，4 空格锚点失配致首批 python 全部未落盘）。
 - **遗留**：批 2/3/4 九页改造进行中。
 
+### 2026-08-31 · 会话3（批 3：dhcp/dualstack + dns/blocklist + system/users + dhcp/options）
+- **做了**：四页 useVbenModal 命令式改造（dualstack 7 处 + blocklist 6 处 + users 6 处 + options 10 处——双 Modal 实例（OptModal/ClsModal）/闭标签配对/按钮 setState+open）。
+- **验证结果**：typecheck 0 + build ✓ 6.53s + sync 4.3M + 零外链 PASS（options 的闭标签配对修复后）+ showOptForm/showClsForm 残留清零。
+- **踩坑留痕**：① OptModal/ClsModal 开标签替换后 </VbenModal> 闭标签未配对（Invalid end tag 208 行）——**开闭标签必须成对替换**；② process 批量改造的中途失败不落盘（write 在循环后）——**分文件独立落盘 + 失败精确定位**。
+
 ### 2026-08-31 · 会话2（批 2：dns/upstream + dns/forward）
 - **做了**：两页 useVbenModal 命令式改造（imports/Modal 实例替代 showForm 声明/add 尾 formModalApi.close/edit 内 setState+open/cancelEdit 内 close/模板 FormModal/按钮 setState+open——upstream 8 处 + forward 7 处 + forward 取消按钮内联 showForm → formModalApi.close()）。
 - **验证结果**：typecheck 0 + build ✓ 6.61s + sync 4.3M + 零外链 PASS + Go 全链绿 + 容器重建（Built=1）+ 上游/转发 API 冒烟 200。

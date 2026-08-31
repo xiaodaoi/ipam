@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
-import { VbenModal } from '@vben/common-ui';
+import { useVbenModal } from '@vben/common-ui';
 
 import { Button, Card, Input, Select, Table, Tag, message } from 'ant-design-vue';
 
@@ -67,14 +67,14 @@ async function removeList(id: string) {
   message.success('名单已删除');
   await load();
 }
-const showCreateForm = ref(false);
+const [CreateModal, createModalApi] = useVbenModal({ draggable: true, title: '新建名单' });
 async function createList() {
   if (!cForm.value.name) return;
   await createBlocklist({ name: cForm.value.name, kind: cForm.value.kind, syncUrl: cForm.value.syncUrl || undefined });
   message.success('名单已创建');
   cForm.value = { name: '', kind: 'custom', syncUrl: '' };
   await load();
-  showCreateForm.value = false;
+  createModalApi.close();
 }
 async function loadPolicyGroups() {
   pgLoading.value = true;
@@ -147,16 +147,16 @@ onBeforeUnmount(() => timer && clearInterval(timer));
       <Button size="small" @click="load()">刷新（30s 自动）</Button>
     </template>
       <div class="mb-2">
-        <Button type="primary" size="small" @click="showCreateForm = true">+ 新建名单</Button>
+        <Button type="primary" size="small" @click="createModalApi.open()">+ 新建名单</Button>
       </div>
-      <VbenModal v-model:open="showCreateForm" title="新建名单" draggable>
+      <CreateModal>
       <div class="flex flex-wrap items-end gap-2">
         <Input v-model:value="cForm.name" placeholder="名单名称" style="width: 200px" />
         <Select v-model:value="cForm.kind" style="width: 120px" :options="[{ value: 'custom', label: '自定义' }, { value: 'feed', label: '订阅源' }]" />
         <Input v-if="cForm.kind === 'feed'" v-model:value="cForm.syncUrl" placeholder="订阅 URL" style="width: 260px" />
         <Button type="primary" size="small" @click="createList">新建名单</Button>
       </div>
-      </VbenModal>
+      </CreateModal>
     <Table
       :data-source="rows"
       :columns="[

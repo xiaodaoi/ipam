@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-31 · M2-037 批 3：Modal 修复（dualstack/blocklist/users/options）
+
+- **做了**：四页 useVbenModal 命令式改造（dualstack 7 处 + blocklist 6 处 + users 6 处 + options 10 处——双 Modal 实例/闭标签配对/按钮 setState+open）。
+- **验证**：typecheck 0 + build ✓ 6.53s + sync/offline PASS + showOptForm/showClsForm 残留清零。
+- **踩坑留痕**：开闭标签必须成对替换（OptModal/ClsModal 开后 </VbenModal> 未配对致 Invalid end tag）；process 批量改造中途失败不落盘——分文件独立落盘。
+- **批 4**：orgs/records/ledger 三页后续。
+
 ## 2026-08-31 · M2-037 批 2：Modal 不弹出修复（upstream + forward）
 
 - **做了**：两页 useVbenModal 命令式改造（imports/Modal 实例/add 尾 close/edit 内 setState+open/cancelEdit 内 close/模板 FormModal/按钮 setState+open——upstream 8 处 + forward 7 处 + 取消按钮内联 showForm 修正）。

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
+import { useVbenModal } from '@vben/common-ui';
 
 import { Button, Card, Input, Select, Switch, Table, Tag, message } from 'ant-design-vue';
 
@@ -35,16 +36,17 @@ async function load() {
 }
 function edit(r: DualstackTemplate) {
   editingId.value = r.id;
-  showForm.value = true;
+  formModalApi.setState({ title: '编辑模板' });
+  formModalApi.open();
   form.value = {
     name: r.name, ipv4Cidr: r.ipv4Cidr, ipv6Prefix: r.ipv6Prefix, encoding: r.encoding,
     expr: r.expr, dnsSync: r.dnsSync ?? true, graceHours: r.graceHours ?? 24,
   };
 }
-const showForm = ref(false);
+const [FormModal, formModalApi] = useVbenModal({ draggable: true, title: '双栈绑定模板' });
 function cancelEdit() {
   editingId.value = '';
-  showForm.value = false;
+  formModalApi.close();
   form.value = {
     name: '', ipv4Cidr: '', ipv6Prefix: '',
     encoding: 'B', expr: '{v4.hextet4}', dnsSync: true, graceHours: 24,
@@ -79,9 +81,9 @@ const EXAMPLE = '例：192.168.0.10 → 2407::192:168:0:10';
     </template>
 
     <div class="mb-4">
-      <Button type="primary" size="small" @click="showForm = true; cancelEdit()">+ 新建模板</Button>
+      <Button type="primary" size="small" @click="cancelEdit(); formModalApi.setState({ title: '新建双栈绑定模板' }); formModalApi.open()">+ 新建模板</Button>
     </div>
-    <VbenModal v-model:open="showForm" :title="editingId ? '编辑模板' : '新建双栈绑定模板'" draggable>
+    <FormModal class="w-[860px]">
     <div class="flex flex-wrap items-end gap-2">
       <div>
         <div class="mb-1 text-xs text-gray-400">名称</div>
@@ -112,7 +114,7 @@ const EXAMPLE = '例：192.168.0.10 → 2407::192:168:0:10';
       <Button v-if="editingId" class="ml-1" @click="cancelEdit">取消编辑</Button>
       <div class="w-full text-xs text-gray-400">{{ EXAMPLE }}——daemon 按租约 IPv4 最长前缀自动选模板</div>
     </div>
-    </VbenModal>
+    </FormModal>
 
     <Table
       :data-source="rows"
