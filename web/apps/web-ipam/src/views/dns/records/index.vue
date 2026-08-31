@@ -49,7 +49,7 @@ async function loadRecords() {
   }
 }
 const zoneModal = ref({ name: '' });
-const [ZoneModal, zoneModalApi] = useVbenModal({ draggable: true, title: '新建 DNS 区域' });
+const [ZoneModal, zoneModalApi] = useVbenModal({ draggable: true, title: '新建 DNS 区域', confirmText: '创建', onConfirm: () => addRecord() });
 async function createZoneConfirm() {
   const name = zoneModal.value.name.trim();
   if (!name) return;
@@ -121,7 +121,6 @@ const linkedCols = [
             :options="(['A', 'AAAA', 'CNAME'] as RecType[]).map((v) => ({ value: v, label: v }))" />
           <Input v-model:value="form.rdata" placeholder="值" style="width: 200px" />
           <Input-number v-model:value="form.ttl" :min="30" style="width: 90px" />
-          <Button type="primary" @click="addRecord">添加</Button>
         </div>
         <Table :data-source="records" :columns="recordCols" row-key="id" size="small" :loading="loading" :pagination="false">
           <template #bodyCell="{ column, record }">

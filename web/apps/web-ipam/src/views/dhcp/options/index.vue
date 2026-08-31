@@ -34,8 +34,8 @@ const optForm = ref({ code: 3, name: 'routers', data: '' });
 const clsForm = ref({ name: '', test: "option[61].hex == option[61].hex", rows: [] as DhcpClassOptionIn[] });
 const editingOpt = ref<string>();
 const editingCls = ref<string>();
-const [OptModal, optModalApi] = useVbenModal({ draggable: true, title: '标准选项' });
-const [ClsModal, clsModalApi] = useVbenModal({ draggable: true, title: '类匹配规则' });
+const [OptModal, optModalApi] = useVbenModal({ draggable: true, title: '标准选项', confirmText: '创建选项', onConfirm: () => addOption() });
+const [ClsModal, clsModalApi] = useVbenModal({ draggable: true, title: '类匹配规则', confirmText: '创建类', onConfirm: () => addClass() });
 let timer: ReturnType<typeof setInterval> | undefined;
 
 async function load() {
@@ -85,7 +85,7 @@ async function toggleOption(r: DhcpOptionRow, enabled: boolean) {
 }
 function editOpt(r: DhcpOptionRow) {
   editingOpt.value = r.id;
-  optModalApi.setState({ title: '编辑选项' });
+  optModalApi.setState({ title: '编辑选项', confirmText: '保存修改' });
   optModalApi.open();
   optForm.value = { code: r.optionCode, name: r.name, data: r.data };
 }
@@ -146,7 +146,7 @@ async function toggleClass(r: DhcpClassRow, enabled: boolean) {
 }
 function editCls(r: DhcpClassRow) {
   editingCls.value = r.id;
-  clsModalApi.setState({ title: '编辑类' });
+  clsModalApi.setState({ title: '编辑类', confirmText: '保存修改' });
   clsModalApi.open();
   clsForm.value = { name: r.name, test: r.test, rows: [...(r.options ?? [])] };
 }
@@ -199,7 +199,6 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           <div class="mb-1 text-xs text-gray-400">值</div>
           <Input v-model:value="optForm.data" style="width: 180px" placeholder="192.168.9.1" />
         </div>
-        <Button type="primary" @click="addOption">{{ editingOpt ? '保存修改' : '创建选项' }}</Button>
         <Button v-if="editingOpt" @click="cancelEditOpt">取消编辑</Button>
         <div class="w-full text-xs text-gray-400">
           变更后经 Kea config-set 原子下发；disabled 选项不进配置。
@@ -251,7 +250,6 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             <Input v-model:value="clsForm.test" placeholder="option[61].hex == option[61].hex" />
           </div>
           <Button @click="addClassRow">+ 添加类内选项</Button>
-          <Button type="primary" @click="addClass">{{ editingCls ? '保存修改' : '创建类' }}</Button>
           <Button v-if="editingCls" @click="cancelEditCls">取消编辑</Button>
         </div>
         <div v-for="(r, i) in clsForm.rows" :key="i" class="mt-2 flex flex-wrap items-center gap-2">

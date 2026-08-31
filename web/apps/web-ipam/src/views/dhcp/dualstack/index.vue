@@ -36,14 +36,14 @@ async function load() {
 }
 function edit(r: DualstackTemplate) {
   editingId.value = r.id;
-  formModalApi.setState({ title: '编辑模板' });
+  formModalApi.setState({ title: '编辑模板', confirmText: '保存修改' });
   formModalApi.open();
   form.value = {
     name: r.name, ipv4Cidr: r.ipv4Cidr, ipv6Prefix: r.ipv6Prefix, encoding: r.encoding,
     expr: r.expr, dnsSync: r.dnsSync ?? true, graceHours: r.graceHours ?? 24,
   };
 }
-const [FormModal, formModalApi] = useVbenModal({ draggable: true, title: '双栈绑定模板' });
+const [FormModal, formModalApi] = useVbenModal({ draggable: true, title: '双栈绑定模板', confirmText: '创建模板', onConfirm: () => add() });
 function cancelEdit() {
   editingId.value = '';
   formModalApi.close();

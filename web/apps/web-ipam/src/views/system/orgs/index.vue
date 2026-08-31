@@ -40,7 +40,7 @@ async function load() {
 }
 
 const nameModal = ref({ initial: '', action: null as null | ((name: string) => Promise<void>) });
-const [NameModal, nameModalApi] = useVbenModal({ draggable: true });
+const [NameModal, nameModalApi] = useVbenModal({ draggable: true, confirmText: '确定', onConfirm: () => confirmName() });
 
 function askName(title: string, initial: string, action: (name: string) => Promise<void>) {
   nameModal.value = { initial, action };
@@ -131,10 +131,6 @@ onMounted(load);
   </Card>
   <NameModal>
     <Input v-model:value="nameModal.initial" placeholder="组织名称" @pressEnter="confirmName" />
-    <div class="mt-3 text-right">
-      <Button @click="nameModalApi.close()">取消</Button>
-      <Button type="primary" class="ml-1" @click="confirmName">确定</Button>
-    </div>
   </NameModal>
   </div>
 </template>

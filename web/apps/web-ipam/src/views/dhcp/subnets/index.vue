@@ -24,7 +24,7 @@ const loading = ref(false);
 const filterOrgId = ref<string>();
 
 // 新建表单
-const [FormModal, formModalApi] = useVbenModal({ draggable: true, title: '子网信息' });
+const [FormModal, formModalApi] = useVbenModal({ draggable: true, title: '子网信息', confirmText: '创建（下发 Kea）', onConfirm: () => add() });
 const form = ref({
   orgId: '',
   name: '',
@@ -102,7 +102,7 @@ function edit(r: Subnet) {
     poolKind: (p0?.kind as 'dynamic' | 'pd') ?? 'dynamic',
     poolPrefixLen: p0?.prefixLen ?? 64, poolDelegatedLen: p0?.delegatedLen ?? 80,
   };
-  formModalApi.setState({ title: '编辑子网' });
+  formModalApi.setState({ title: '编辑子网', confirmText: '保存修改' });
   formModalApi.open();
 }
 async function remove(id?: string) {
@@ -238,7 +238,6 @@ const columns = [
             <Input v-model:value="form.poolEnd" style="width: 140px" placeholder="10.61.172.200" />
           </div>
         </template>
-        <Button type="primary" @click="add">{{ editingId ? '保存修改' : '创建（下发 Kea）' }}</Button>
         </div>
       </FormModal>
 

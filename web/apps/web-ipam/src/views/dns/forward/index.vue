@@ -55,10 +55,10 @@ async function add() {
   formModalApi.close();
   await load();
 }
-const [FormModal, formModalApi] = useVbenModal({ draggable: true, title: '转发规则' });
+const [FormModal, formModalApi] = useVbenModal({ draggable: true, title: '转发规则', confirmText: '添加', onConfirm: () => add() });
 function edit(r: ForwardRule) {
   editingId.value = r.id;
-  formModalApi.setState({ title: '编辑转发规则' });
+  formModalApi.setState({ title: '编辑转发规则', confirmText: '保存修改' });
   formModalApi.open();
   form.value = {
     domain: r.domain, upstreamId: (r.upstreamIds ?? [])[0] ?? '', note: r.note ?? '',
@@ -83,7 +83,6 @@ onMounted(load);
       <Select v-model:value="form.upstreamId" placeholder="上游" style="width: 180px"
         :options="upstreams.map((u) => ({ value: u.id, label: u.name }))" />
       <Input v-model:value="form.note" placeholder="备注（可选）" style="width: 160px" />
-      <Button type="primary" @click="add">{{ editingId ? '保存修改' : '添加' }}</Button>
       <Button v-if="editingId" @click="editingId = undefined; form = { domain: '', upstreamId: '', note: '' }; formModalApi.close()">取消编辑</Button>
       </div>
     </FormModal>

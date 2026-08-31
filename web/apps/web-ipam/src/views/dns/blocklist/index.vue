@@ -67,7 +67,7 @@ async function removeList(id: string) {
   message.success('名单已删除');
   await load();
 }
-const [CreateModal, createModalApi] = useVbenModal({ draggable: true, title: '新建名单' });
+const [CreateModal, createModalApi] = useVbenModal({ draggable: true, title: '新建名单', confirmText: '创建名单', onConfirm: () => createList() });
 async function createList() {
   if (!cForm.value.name) return;
   await createBlocklist({ name: cForm.value.name, kind: cForm.value.kind, syncUrl: cForm.value.syncUrl || undefined });

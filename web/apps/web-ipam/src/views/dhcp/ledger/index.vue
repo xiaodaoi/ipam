@@ -86,7 +86,7 @@ const actionReserve = async (row: LedgerRow) => {
 };
 
 const bindModal = ref({ address: '', subnetId: '', mac: '' });
-const [BindModal, bindModalApi] = useVbenModal({ draggable: true });
+const [BindModal, bindModalApi] = useVbenModal({ draggable: true, confirmText: '绑定', onConfirm: () => confirmBind() });
 function askBind(row: LedgerRow) {
   bindModal.value = { address: row.address, subnetId: row.subnetId ?? '', mac: '' };
   bindModalApi.setState({ title: `绑定 ${row.address}` });
@@ -140,7 +140,6 @@ async function confirmBind() {
     <Input v-model:value="bindModal.mac" placeholder="MAC 如 aa:bb:cc:dd:ee:01" @pressEnter="confirmBind" />
     <div class="mt-3 text-right">
       <Button @click="bindModalApi.close()">取消</Button>
-      <Button type="primary" class="ml-1" @click="confirmBind">绑定</Button>
     </div>
   </BindModal>
   </div>

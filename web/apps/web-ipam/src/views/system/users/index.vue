@@ -42,7 +42,7 @@ async function load() {
     loading.value = false;
   }
 }
-const [UserModal, userModalApi] = useVbenModal({ draggable: true, title: '创建用户' });
+const [UserModal, userModalApi] = useVbenModal({ draggable: true, title: '创建用户', confirmText: '创建用户', onConfirm: () => add() });
 async function add() {
   if (!form.value.username || form.value.password.length < 8) {
     message.warning('用户名必填，口令至少 8 位');
@@ -130,7 +130,6 @@ const isSelf = (username?: string) => !!myUsername && username === myUsername;
         <Select v-model:value="form.roles" style="width: 110px"
           :options="[{ value: 'admin', label: '管理员（可写）' }, { value: 'user', label: '只读' }]" />
       </div>
-      <Button type="primary" @click="add">创建用户</Button>
       <div class="w-full text-xs text-gray-400">
         口令 bcrypt 落库；user 角色写操作将被 RBAC 拦截（403）。
       </div>

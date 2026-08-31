@@ -52,11 +52,11 @@ async function add() {
 }
 function edit(r: Upstream) {
   editingId.value = r.id;
-  formModalApi.setState({ title: '编辑上游' });
+  formModalApi.setState({ title: '编辑上游', confirmText: '保存修改' });
   formModalApi.open();
   form.value = { name: r.name, addr: (r.addrs ?? []).join(','), protocol: (r.protocol as Proto) ?? 'udp' };
 }
-const [FormModal, formModalApi] = useVbenModal({ draggable: true, title: '上游 DNS 服务器' });
+const [FormModal, formModalApi] = useVbenModal({ draggable: true, title: '上游 DNS 服务器', confirmText: '添加', onConfirm: () => add() });
 function cancelEdit() {
   editingId.value = undefined;
   formModalApi.close();
@@ -97,7 +97,6 @@ const HEALTH_COLOR: Record<string, string> = { up: 'green', down: 'red', unknown
       <Input v-model:value="form.addr" placeholder="地址 如 223.5.5.5:53" style="width: 200px" />
       <Select v-model:value="form.protocol" style="width: 90px" :options="[
         { value: 'udp', label: 'UDP' }, { value: 'tcp', label: 'TCP' }, { value: 'dot', label: 'DoT' }]" />
-      <Button type="primary" @click="add">{{ editingId ? '保存修改' : '添加' }}</Button>
       <Button v-if="editingId" @click="cancelEdit">取消编辑</Button>
       </div>
     </FormModal>
