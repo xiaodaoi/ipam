@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
+import { VbenModal } from '@vben/common-ui';
 
 import { Button, Card, Input, Select, Switch, Table } from 'ant-design-vue';
 
@@ -51,10 +52,13 @@ async function add() {
   }
   editingId.value = undefined;
   form.value = { domain: '', upstreamId: '', note: '' };
+  showForm.value = false;
   await load();
 }
+const showForm = ref(false);
 function edit(r: ForwardRule) {
   editingId.value = r.id;
+  showForm.value = true;
   form.value = {
     domain: r.domain, upstreamId: (r.upstreamIds ?? [])[0] ?? '', note: r.note ?? '',
   };
@@ -68,15 +72,20 @@ onMounted(load);
 
 <template>
   <Card title="条件转发规则（域名后缀 → 专属上游）">
-    <div class="mb-3 flex flex-wrap items-center gap-2">
+    <div class="mb-3">
+      <Button type="primary" size="small" @click="showForm = true">+ 添加转发规则</Button>
+    </div>
+    <VbenModal v-model:open="showForm" :title="editingId ? '编辑转发规则' : '添加转发规则'" draggable>
+      <div class="flex flex-wrap items-center gap-2">
       <Input v-model:value="form.domain" placeholder="域名后缀 如 corp.local" style="width: 200px" />
       <span class="text-xs">→</span>
       <Select v-model:value="form.upstreamId" placeholder="上游" style="width: 180px"
         :options="upstreams.map((u) => ({ value: u.id, label: u.name }))" />
       <Input v-model:value="form.note" placeholder="备注（可选）" style="width: 160px" />
       <Button type="primary" @click="add">{{ editingId ? '保存修改' : '添加' }}</Button>
-      <Button v-if="editingId" @click="editingId = undefined; form = { domain: '', upstreamId: '', note: '' }">取消编辑</Button>
-    </div>
+      <Button v-if="editingId" @click="editingId = undefined; form = { domain: '', upstreamId: '', note: '' }; showForm = false">取消编辑</Button>
+      </div>
+    </VbenModal>
     <Table
       :data-source="rows"
       :columns="[

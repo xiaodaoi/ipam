@@ -37,3 +37,7 @@
 - **验证结果**：typecheck 0 + build ✓ 6.67s + sync 4.3M + 零外链 PASS + 容器重建（Built=1）+ 冒烟子网 200。
 - **踩坑留痕**：① 表单区块替换时内层 div 的闭合 </div> 被 </VbenModal> 覆盖——**包裹式替换必须数清闭合标签**；② subnets 无独立 cancelEdit（showForm=false 内联在 add() 中）——**Modal 化前先确认页面的状态函数清单**。
 - **遗留**：批 2 九页改造进行中。
+
+### 2026-08-31 · 会话2（批 2a：upstream + forward）
+- **做了**：dns/upstream + dns/forward 两页 VbenModal 化（同批 1 模式：表单区块 → Modal 包裹 + showForm 状态联动 add/edit/cancel + 「+ 添加」按钮替代页面内常驻表单；forward 的内联取消按钮补 showForm=false）。
+- **验证结果**：typecheck 0 + build ✓ 8.44s + sync 4.3M + 零外链 PASS + 容器重建（Built=1）+ 三域冒烟 200。
