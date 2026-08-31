@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 
+import { VbenModal } from '@vben/common-ui';
+
 import { Button, Card, Input, InputNumber, message, Select, Table, Tag, Tree } from 'ant-design-vue';
 
 import {
@@ -86,6 +88,10 @@ async function add() {
   form.value = { orgId: f.orgId, name: '', family: 4, cidr: '', gateway: '', dnsServers: '', poolStart: '', poolEnd: '', poolKind: 'dynamic', poolPrefixLen: 64, poolDelegatedLen: 80 };
   await load();
 }
+function cancelEdit() {
+  editingId.value = undefined;
+  form.value = { orgId: form.value.orgId, name: '', family: 4, cidr: '', gateway: '', dnsServers: '', poolStart: '', poolEnd: '', poolKind: 'dynamic', poolPrefixLen: 64, poolDelegatedLen: 80 };
+}
 function edit(r: Subnet) {
   const p0 = (r.pools ?? [])[0];
   editingId.value = r.id;
@@ -165,11 +171,12 @@ const columns = [
       <template #title>
         <div class="flex items-center gap-3">
           <span>子网与地址池</span>
-          <Button size="small" type="primary" @click="editingId = undefined; showForm = !showForm">{{ showForm ? '收起' : '+ 新建子网' }}</Button>
+          <Button size="small" type="primary" @click="editingId = undefined; cancelEdit(); showForm = true">+ 新建子网</Button>
         </div>
       </template>
 
-      <div v-if="showForm" class="mb-4 flex flex-wrap items-end gap-2 rounded border border-gray-200 p-3">
+      <VbenModal v-model:open="showForm" :title="editingId ? '编辑子网' : '新建子网'" draggable>
+        <div class="flex flex-wrap items-end gap-2">
         <div>
           <div class="mb-1 text-xs text-gray-400">组织</div>
           <Select v-model:value="form.orgId" style="width: 180px" placeholder="选择组织节点"
@@ -231,7 +238,8 @@ const columns = [
           </div>
         </template>
         <Button type="primary" @click="add">{{ editingId ? '保存修改' : '创建（下发 Kea）' }}</Button>
-      </div>
+        </div>
+      </VbenModal>
 
       <Table
         :data-source="rows"

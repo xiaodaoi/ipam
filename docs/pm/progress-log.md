@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-31 · M2-034 批 1：全站表单 VbenModal 化（subnets 试点）
+
+- **做了**：dhcp/subnets 页 VbenModal 化（@vben/common-ui 的 VbenModal——draggable/title/自动高度内置；表单区块 → Modal 包裹；cancelEdit 函数新增；新建按钮 Modal 语义）。
+- **验证结果**：typecheck 0 + build ✓ 6.67s + sync 4.3M + 零外链 PASS + 容器重建（Built=1）+ 冒烟 200。
+- **踩坑留痕**：包裹式替换必须数清闭合标签（内层 </div> 被 </VbenModal> 覆盖致 build 失败）；Modal 化前先确认页面状态函数清单（cancelEdit 不存在需新建）。
+
 ## 2026-08-29 · M2-036 完成：日志中心优化与 P0 修复
 
 - **修复**：tail SSE 重写为 fetch 流（EventSource 无法携带 Authorization 的 401 重连循环根除）；解析记录校验提示（静默 return 根除）；search 页加应答码/应答服务器列；cache 页加性能统计区（1h/24h/峰值，getLogQps 消费）；黑名单封禁闭环（local_zone 方案，45a028f）。
