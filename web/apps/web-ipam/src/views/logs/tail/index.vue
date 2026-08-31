@@ -20,7 +20,7 @@ const rows = ref<TailRow[]>([]);
 const status = ref<'connecting' | 'live' | 'reconnecting'>('connecting');
 const filterType = ref<string>();
 const received = ref(0);
-let es: EventSource | undefined;
+let es: { close(): void } | undefined;
 let timer: ReturnType<typeof setInterval> | undefined;
 
 function start() {

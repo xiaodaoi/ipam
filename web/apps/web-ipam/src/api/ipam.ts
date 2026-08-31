@@ -92,23 +92,56 @@ export const listAudits = (q: AuditQuery) =>
 
 // SSE live-tail（M4-003 /logs/tail）：EventSource 原生断线重连
 // （同源 Cookie/Authorization 由 URL from 参数+无鉴权读端点决定，PoC 免头）
+// SSE live-tail：原生 EventSource 无法携带 Authorization（RBAC 401 → 重连循环），
+// 改 fetch+ReadableStream 流式解析（M2-036 修复）。
 export function openLogTail(
   params: { from?: string; type?: string; domain?: string; action?: string },
   handlers: { onRow: (row: any) => void; onOpen?: () => void; onError?: (e: Event) => void },
-): EventSource {
+): { close: () => void } {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) if (v) qs.set(k, String(v));
-  const es = new EventSource(`${BASE}/logs/tail${qs.size ? `?${qs}` : ''}`);
-  es.onopen = () => handlers.onOpen?.();
-  es.onerror = (e) => handlers.onError?.(e);
-  es.addEventListener('log', (ev) => {
+  const ctrl = new AbortController();
+  void (async () => {
     try {
-      handlers.onRow(JSON.parse((ev as MessageEvent).data));
+      const token = useAccessStore().accessToken;
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const res = await fetch(`${BASE}/logs/tail${qs.size ? `?${qs}` : ''}`, {
+        headers, signal: ctrl.signal,
+      });
+      if (!res.ok || !res.body) {
+        handlers.onError?.(new Event('error'));
+        return;
+      }
+      handlers.onOpen?.();
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const frames = buf.split('\n\n');
+        buf = frames.pop() ?? '';
+        for (const frame of frames) {
+          for (const line of frame.split('\n')) {
+            if (!line.startsWith('data:')) continue;
+            const payload = line.slice(5).trim();
+            if (!payload) continue;
+            try {
+              handlers.onRow(JSON.parse(payload));
+            } catch {
+              /* 忽略非 JSON 心跳帧 */
+            }
+          }
+        }
+      }
+      handlers.onError?.(new Event('end'));
     } catch {
-      /* 忽略非 JSON 心跳帧 */
+      if (!ctrl.signal.aborted) handlers.onError?.(new Event('error'));
     }
-  });
-  return es;
+  })();
+  return { close: () => ctrl.abort() };
 }
 
 // ── DNS 服务（M3 交付 API 消费）──

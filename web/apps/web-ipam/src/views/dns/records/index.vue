@@ -54,7 +54,14 @@ async function addZone() {
   await loadZones();
 }
 async function addRecord() {
-  if (!zoneId.value || !form.value.name || !form.value.rdata) return;
+  if (!zoneId.value) {
+    message.warning('请先选择 DNS 区域（无可选区域时先在上方新建 zone）');
+    return;
+  }
+  if (!form.value.name || !form.value.rdata) {
+    message.warning('请填写记录名称与记录值');
+    return;
+  }
   await createDnsRecord(zoneId.value, { ...form.value, enabled: true });
   form.value = { name: '', recType: 'A', rdata: '', ttl: 300 };
   await loadRecords();
