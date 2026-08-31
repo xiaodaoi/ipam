@@ -29,3 +29,10 @@
 - **踩坑留痕**：lease6-add 传 hwtype/hwaddr-source **不被 Kea 持久化**（add 返回 result 0 但 get-all 无此二字段——source 是 Kea 接收真实 relay 报文时的内部推导）——**模拟验证只覆盖 hw-address；source 投影代码同构，真实 relay 部署时验收**。
 - **交付要求（网络设备侧）**：核心 DHCPv6 relay 启用 RFC 6939（option 79 插入）——配置项随厂商：如华为 `dhcpv6 relay option79 enable` 类指令。
 - **遗留**：dualstack 关联链的 MAC join 整合（需配合 NDP/AC 采集器，后续卡）；hwaddr-source 真实 79 报文场景验收（随 relay 交付）。
+
+### 2026-08-29 · 会话2（黑名单封禁闭环——local_zone 方案）
+- **RPZ 路线废弃**：auth-zone 内 rpz: yes 在容器 unbound 1.26 编译下实测 `unknown keyword 'yes'`（respip module 已配仍 fatal）——zonefile owner name 相对 origin 解析后也无法命中公网域名。
+- **local_zone 方案落地**：UnboundController 加 LocalZone/LocalZoneRemove；Compile 改为下发 `unbound-control local_zone static <pattern>`（精确→仅该名，*.d→域及子域）；ReplayAll 启动重放（unbound 重启后运行时态恢复）；Compile 失败即返回 err（不再静默吞）。
+- **双向 e2e 决定性**：加条目 www.example.com + compile → **dig NXDOMAIN（拦截）**；删条目 + local_zone_remove → **dig 恢复可解析（104.20.23.154）**。
+- **踩坑留痕**：① unbound-control local_zone 语法是 `local_zone <name> <type>`（**name 在前**）——传反报 "not a zone type"；② Compile 静默吞错导致用户视角"未拦截"——**失败必须上报**；③ dns 包测试 fake（fakeCtl）与 platform 包 fakeUnbound 是两个实现，接口加方法两边都要适配。
+- **遗留**：删除对称（DeleteEntry/DeleteList 触发 local_zone_remove）后续卡；compile 部分失败时的部分生效语义已按"失败即返回 err"处理。

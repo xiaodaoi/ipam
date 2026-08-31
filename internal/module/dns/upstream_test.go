@@ -63,7 +63,7 @@ func TestService_创建触发下发与状态合并(t *testing.T) {
 	}
 }
 
-type fakeCtl struct{ synced, ruleSyncs, zoneReloads, reloads int }
+type fakeCtl struct{ synced, ruleSyncs, zoneReloads, reloads, localZones int }
 
 func (f *fakeCtl) SyncForward(context.Context, []Upstream) error {
 	f.synced++
@@ -77,6 +77,11 @@ func (f *fakeCtl) AuthZoneReload(context.Context, string) error {
 	f.zoneReloads++
 	return nil
 }
+func (f *fakeCtl) LocalZone(context.Context, string, string) error {
+	f.localZones++
+	return nil
+}
+func (f *fakeCtl) LocalZoneRemove(context.Context, string) error    { return nil }
 func (f *fakeCtl) CheckConf(context.Context, string, string) error { return nil }
 func (f *fakeCtl) Reload(context.Context) error {
 	f.reloads++

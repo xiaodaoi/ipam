@@ -16,7 +16,7 @@ func TestRenderSettingsBlock_参数映射(t *testing.T) {
 		"serve-expired: yes",
 		"ratelimit: 1000000",
 		"ip-ratelimit: 800",
-		"val-permissive-mode: no", // DNSSEC 校验开 → 非宽松
+		"val-permissive-mode: no",       // DNSSEC 校验开 → 非宽松
 		"trust-anchor: \". IN DS 20326", // 离线根锚（B-10）
 	} {
 		if !strings.Contains(block, want) {

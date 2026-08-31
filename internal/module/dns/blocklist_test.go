@@ -89,14 +89,14 @@ func TestCompile_增量编译返回zone信息(t *testing.T) {
 		Name: "学生", ViewName: "students", Cidrs: []string{"10.61.128.0/17"}, ListIDs: []string{bl.ID},
 	})
 	zone, n, path, cmd, err := svc.Compile(context.Background(), g.ID)
-	if err != nil || zone != "students.rpz" || n != 1 || path != "/tmp/rpz/students.zone" {
+	if err != nil || zone != "students.rpz" || n != 1 || path != "local-zone (runtime)" {
 		t.Fatalf("zone=%s n=%d path=%s err=%v", zone, n, path, err)
 	}
-	if !strings.Contains(cmd, "students.rpz") {
-		t.Fatalf("reload cmd: %s", cmd)
+	if !strings.Contains(cmd, "local_zone bad.edu static") {
+		t.Fatalf("local_zone cmd: %s", cmd)
 	}
-	if fc.zoneReloads == 0 {
-		t.Fatal("reload not triggered")
+	if fc.localZones == 0 {
+		t.Fatal("local_zone not triggered")
 	}
 }
 

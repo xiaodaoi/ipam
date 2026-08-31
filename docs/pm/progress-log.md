@@ -4,6 +4,14 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-29 · 黑名单封禁闭环打通（local_zone 方案，用户调试发现 RPZ 不生效）
+
+- **现象**：封禁条目 www.crphz.org 编译返回成功但域名仍可解析——假阳性（crphz.org 公网本就不存在，NXDOMAIN 是真实递归结果）。
+- **根因三重**：Compile `_ = text` 从未写 zonefile（M2-027 未完成实现）+ unbound.conf 无 auth-zone 段 + reload 对不存在的 zone 无意义；RPZ 修复尝试确认容器 unbound 1.26 编译下 auth-zone 内 rpz: yes 不可用。
+- **方案**：改 local_zone static 拦截（unbound 标准能力）——Compile 下发 local_zone 命令 + ReplayAll 启动重放 + 失败即上报。
+- **双向 e2e 决定性**：加条目+compile → NXDOMAIN；删条目+local_zone_remove → 恢复可解析。
+- **遗留**：删除对称（local_zone_remove 自动触发）后续卡。
+
 ## 2026-08-29 · dnsmasq 配置迁移验证（用户调试）
 
 - **迁移**：上游 7 条（114/v6×2/内网×4）+ 转发规则 12 条（8 泛域 + 3 精确例外 + cpms.szecp）经 API 迁移，前端上游管理/转发规则页可见。

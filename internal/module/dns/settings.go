@@ -132,6 +132,7 @@ func RenderSettingsBlock(s Settings) string {
 		// IANA 根信任锚（KSK-2017 DS 20326，公开常量）——离线环境免 unbound-anchor 联网
 		sb.WriteString(`trust-anchor: ". IN DS 20326 8 2 E06D44B80B8F1D39A95C0B0D7C65D08458E880409BBC683457104237C7F8EC8D"` + "\n")
 	}
+
 	if s.TcpOnly {
 		sb.WriteString("do-udp: no\n")
 	}

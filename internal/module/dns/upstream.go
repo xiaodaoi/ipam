@@ -52,6 +52,10 @@ type UnboundController interface {
 	SyncForwardRules(ctx context.Context, rules []ForwardRule, upstreams []Upstream) error
 	// AuthZoneReload 单区刷新（auth_zone_reload <zone>）。
 	AuthZoneReload(ctx context.Context, zoneID string) error
+	// LocalZone 运行时本地域（M2-033 黑名单：local_zone static <name> → NXDOMAIN 拦截）。
+	LocalZone(ctx context.Context, zoneType, name string) error
+	// LocalZoneRemove 移除本地域。
+	LocalZoneRemove(ctx context.Context, name string) error
 	// CheckConf 校验配置片段。
 	CheckConf(ctx context.Context, confPath, renderedBlock string) error
 	// Reload 全量 reload。

@@ -91,6 +91,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
  && useradd -r -s /usr/sbin/nologin unbound \
  && useradd -r -u 10001 ipam
 COPY --from=build /out/control-plane /usr/local/bin/control-plane
+RUN mkdir -p /var/lib/ipam/rpz && chown ipam:ipam /var/lib/ipam/rpz
 USER ipam
 EXPOSE 8443
 ENTRYPOINT ["/usr/local/bin/control-plane"]

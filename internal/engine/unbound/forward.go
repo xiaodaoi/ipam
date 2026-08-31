@@ -175,3 +175,14 @@ func DialProbe(ctx context.Context, addr string) (time.Duration, error) {
 	_ = conn.Close()
 	return time.Since(start), nil
 }
+
+// LocalZone 运行时本地域（M2-033 黑名单：local_zone static <name> → NXDOMAIN 拦截；
+// RPZ auth-zone 路线在容器 unbound 1.26 编译下不可用——auth-zone 内 rpz: yes 实测 unknown keyword）。
+func (e ExecController) LocalZone(_ context.Context, name, zoneType string) error {
+	return e.run("local_zone", name, zoneType)
+}
+
+// LocalZoneRemove 移除本地域。
+func (e ExecController) LocalZoneRemove(_ context.Context, name string) error {
+	return e.run("local_zone_remove", name)
+}

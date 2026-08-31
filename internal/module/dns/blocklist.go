@@ -168,16 +168,37 @@ func (s *BlocklistService) Compile(ctx context.Context, groupID string) (zone st
 		return "", 0, "", "", err
 	}
 	zone = g.ViewName + ".rpz"
-	path = s.rpzDir + "/" + g.ViewName + ".zone"
-	text, n := BuildRPZZone(zone, entries)
-	_ = text
-	_ = n
-	// 写 zonefile + 单区刷新
-	cmd = "unbound-control auth_zone_reload " + zone
-	if err := s.ctl.AuthZoneReload(ctx, zone); err != nil {
-		return zone, n, path, cmd, nil // 容器内不可达时仍返回结果（M3-006 实测）
+	// M2-033：local_zone static 拦截（unbound 标准能力；RPZ auth-zone 路线在容器
+	// unbound 1.26 编译下不可用——auth-zone 内 rpz: yes 实测 unknown keyword）。
+	// pattern 映射：精确 → static <pattern>（仅该名）；*.d → static d（域及子域，语义略宽——记录于卡）。
+	cmds := make([]string, 0, len(entries))
+	for _, e := range entries {
+		name := strings.TrimPrefix(e.Pattern, "*.")
+		name = strings.TrimSuffix(name, ".")
+		if name == "" {
+			continue
+		}
+		if err := s.ctl.LocalZone(ctx, name, "static"); err != nil {
+			return zone, len(cmds), "local-zone (runtime)", cmd, err
+		}
+		cmds = append(cmds, "unbound-control local_zone "+name+" static")
 	}
-	return zone, n, path, cmd, nil
+	cmd = strings.Join(cmds, "; ")
+	return zone, len(cmds), "local-zone (runtime)", cmd, nil
+}
+
+// ReplayAll 启动重放全部策略组的封禁 local_zone（M2-033：unbound 重启后运行时态恢复）。
+func (s *BlocklistService) ReplayAll(ctx context.Context) error {
+	groups, err := s.repo.ListPolicyGroups(ctx)
+	if err != nil {
+		return err
+	}
+	for _, g := range groups {
+		if _, _, _, _, err := s.Compile(ctx, g.ID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 var ErrPolicyNotFound = errors.New("POLICY_GROUP_NOT_FOUND")

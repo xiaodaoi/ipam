@@ -392,6 +392,12 @@ func newEngine(version string) *gin.Engine {
 		blRepo = dnsmodule.NewPgBlocklistRepo(pool)
 	}
 	blSvc := dnsmodule.NewBlocklistService(blRepo, nil, unboundCtl, "/var/lib/ipam/rpz")
+	// M2-033：启动重放封禁 local_zone（unbound 重启后运行时态恢复）
+	go func() {
+		if err := blSvc.ReplayAll(context.Background()); err != nil {
+			log.Printf("[bl-replay] %v", err)
+		}
+	}()
 	blH := dnsmodule.NewBlocklistHandler(blSvc)
 	var settingsRepo dnsmodule.SettingsRepo = dnsmodule.NewMemSettingsRepo()
 	if pool != nil {
