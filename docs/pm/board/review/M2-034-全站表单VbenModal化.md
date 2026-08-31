@@ -3,7 +3,7 @@
 | 字段 | 内容 |
 |---|---|
 | ID | M2-034 |
-| 状态 | doing |
+| 状态 | review |
 | 来源 | 用户前端调试清单（六-1）：所有弹出对话框采用 modal 模态对话框（可拖拽/自动高度，vben-modal）；二-1/三-1/五-2 各页表单 modal 化；orgs/records/ledger 的 window.prompt 交互根治 |
 | 负责 | opencode(frontend) |
 | 创建 | 2026-08-31 |
@@ -27,6 +27,7 @@
 ## 验收标准（可测）
 
 - [x] 批 1：typecheck/build/零外链/容器冒烟全绿（VbenModal 可拖拽弹出、表单校验保留）
+- [x] 批 2 全部页面改造完成（upstream/forward/dualstack/options/users/blocklist/orgs/records/ledger）+ 验证链绿
 - [ ] 批 2 全部页面改造完成 + 验证链绿
 - [ ] 文档三件套 + commit [M2-034]
 

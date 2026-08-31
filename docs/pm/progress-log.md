@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-31 · M2-034 完成：全站表单 VbenModal 化（六批）
+
+- **做了**：subnets 试点（批 1）→ 举一反三九页（批 2a upstream+forward / 2b dualstack / 2c options 两表单 / 2d-1 users+blocklist 名单创建 / 2d-2 orgs+records+ledger 的 prompt 改造）——全部页面表单/交互统一 VbenModal（可拖拽/自动高度，@vben/common-ui）。
+- **验证结果**：各批 typecheck/build/零外链/容器冒烟全绿。
+- **踩坑沉淀**：包裹式替换数清闭合标签；各页缩进/状态函数形态先探再改；python 中途失败不落盘——重跑前 grep 各页状态。
+
 ## 2026-08-31 · M2-034 批 1：全站表单 VbenModal 化（subnets 试点）
 
 - **做了**：dhcp/subnets 页 VbenModal 化（@vben/common-ui 的 VbenModal——draggable/title/自动高度内置；表单区块 → Modal 包裹；cancelEdit 函数新增；新建按钮 Modal 语义）。
