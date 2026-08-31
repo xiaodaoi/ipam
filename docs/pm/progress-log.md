@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-29 · fix：dashboard poolTop v6 池 panic（用户调试发现）
+
+- **现象**：dashboard 四灯全部「未接入」——GET /dashboard 500 空 body（gin recovery）。
+- **根因**：M2-018 的 v6 池 → poolTop → DistinctClientIP(rng=v6 范围) → mappedV6(纯 v6) 调 As4() panic（netip 约束：As4 仅对 v4/mapped 合法）。
+- **修复**：mappedV6 分支化（v4→::ffff mapped；纯 v6→原样 16 字节，与 CH IPv6 列存储一致）+ cidr_test.go 回归锁（新建）。
+- **验证**：全量 go test 绿 + lint 0；容器重建后 GET /dashboard 200。
+
 ## 2026-08-29 · M2-033 完成：Option 79 消费链路（hwaddr 投影）
 
 - **做了**：spec hwAddress/hwAddrSource + gen；Lease6 投影补 hw 三字段；lease6Fn 条件投影；前端 PD 租约卡 MAC 列。

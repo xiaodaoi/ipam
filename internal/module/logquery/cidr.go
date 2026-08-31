@@ -10,14 +10,19 @@ type ipRange struct {
 	Lo, Hi netip.Addr
 }
 
-// mappedV6 将 v4 地址转为 ::ffff/96 段的 IPv6 形态（与 CH IPv6 列存储一致）。
+// mappedV6 归一为 16 字节 IPv6 形态（与 CH IPv6 列存储一致）：
+// v4 → ::ffff/96 段映射；纯 v6 → 原样（M2-032 回归修复：此前对 v6 调 As4 会 panic，
+// 触发链 v6 池 → dashboard poolTop → DistinctClientIP）。
 func mappedV6(a netip.Addr) netip.Addr {
 	a = a.Unmap()
-	var b [16]byte
-	b[10], b[11] = 0xff, 0xff
-	a4 := a.As4()
-	copy(b[12:], a4[:])
-	return netip.AddrFrom16(b)
+	if a.Is4() {
+		var b [16]byte
+		b[10], b[11] = 0xff, 0xff
+		a4 := a.As4()
+		copy(b[12:], a4[:])
+		return netip.AddrFrom16(b)
+	}
+	return netip.AddrFrom16(a.As16())
 }
 
 // prefixToRange 前缀 → [网络地址, 广播地址]。
