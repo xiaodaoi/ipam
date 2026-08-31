@@ -72,7 +72,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		logq.NewAuditHandler(logq.NewMemAuditStore()),
 		&dashAPI{dashboard.NewHandler(dashboard.NewService(logq.NewMemStore(), nil, nil, dashboard.Lights{}))},
 		&dsAPI{dualstack.NewHandler(dualstack.NewMemStore())},
-		NewAuthHandler(NewMemUserStore(), NewTokenBlacklist()),
+		NewAuthHandler(NewMemUserStore(), NewTokenBlacklist(), nil),
 		NewUserHandler(NewMemUserStore()),
 		&dhcpAPI{dhcpmodule.NewHandler(dhcpmodule.NewMemStore(), nil, nil)},
 		dnsmodule.NewDnsHandler(dnsSvc, nil),

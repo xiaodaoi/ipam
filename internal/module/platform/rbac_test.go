@@ -35,7 +35,7 @@ func rbacRouter(t *testing.T) (*gin.Engine, UserStore, *TokenBlacklist) {
 	r.POST("/api/v1/orgs", func(c *gin.Context) { c.Status(201) })
 	r.DELETE("/api/v1/upstreams/:id", func(c *gin.Context) { c.Status(204) })
 	r.GET("/api/v1/dashboard", func(c *gin.Context) { c.Status(200) })
-	authH := NewAuthHandler(store, bl)
+	authH := NewAuthHandler(store, bl, nil)
 	r.POST("/api/v1/auth/logout", authH.LogoutAuth)
 	return r, store, bl
 }

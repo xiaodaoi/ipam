@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"time"
@@ -12,12 +13,13 @@ import (
 
 // AuthHandler 实现 apigen.ServerInterface 中 auth 域端点（M5-004/M5-011：bcrypt 校验+登出吊销）。
 type AuthHandler struct {
-	users UserStore
-	bl    *TokenBlacklist
+	users      UserStore
+	bl         *TokenBlacklist
+	permLookup func(ctx context.Context, role string) ([]string, bool)
 }
 
-func NewAuthHandler(users UserStore, bl *TokenBlacklist) *AuthHandler {
-	return &AuthHandler{users: users, bl: bl}
+func NewAuthHandler(users UserStore, bl *TokenBlacklist, permLookup func(ctx context.Context, role string) ([]string, bool)) *AuthHandler {
+	return &AuthHandler{users: users, bl: bl, permLookup: permLookup}
 }
 
 // AuthLogin POST /auth/login
@@ -50,13 +52,21 @@ func (h *AuthHandler) GetAuthUserInfo(c *gin.Context) {
 	if rec, ok, lerr := h.users.GetByID(c.Request.Context(), claims.UID); lerr == nil && ok && rec.DisplayName != "" {
 		realName = rec.DisplayName
 	}
+	// M2-035：权限点集合（hasPerm 逐点过滤，含自定义角色 permLookup）
+	perms := make([]string, 0, len(allPermList))
+	for _, p := range allPermList {
+		if hasPerm(claims, p, h.permLookup, c.Request.Context()) {
+			perms = append(perms, p)
+		}
+	}
 	c.JSON(http.StatusOK, apigen.UserInfo{
-		UserId:   claims.UID,
-		Username: claims.Sub,
-		RealName: realName,
-		Roles:    claims.Roles,
-		Desc:     strPtr("IPAM 控制面账号"),
-		HomePath: "/overview",
+		UserId:      claims.UID,
+		Username:    claims.Sub,
+		RealName:    realName,
+		Roles:       claims.Roles,
+		Permissions: &perms,
+		Desc:        strPtr("IPAM 控制面账号"),
+		HomePath:    "/overview",
 	})
 }
 
@@ -67,7 +77,14 @@ func (h *AuthHandler) ListAuthCodes(c *gin.Context) {
 		writeAuthErr(c, http.StatusUnauthorized, "TOKEN_INVALID", err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, claims.Roles)
+	// M2-035：权限点集合（前端 accessCodes → 菜单/按钮过滤）
+	perms := make([]string, 0, len(allPermList))
+	for _, p := range allPermList {
+		if hasPerm(claims, p, h.permLookup, c.Request.Context()) {
+			perms = append(perms, p)
+		}
+	}
+	c.JSON(http.StatusOK, perms)
 }
 
 // LogoutAuth POST /auth/logout（M5-011：登出即吊销——有效令牌入黑名单至自然过期）。

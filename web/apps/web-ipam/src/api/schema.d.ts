@@ -1878,6 +1878,8 @@ export interface components {
             avatar?: string;
             /** @description 角色码（PoC 固定 ['admin']） */
             roles: string[];
+            /** @description 权限点集合（M2-035：域:read|write，前端菜单过滤用） */
+            permissions?: string[];
             desc?: string;
             /** @description 登录后默认跳转（仪表盘总览 /overview） */
             homePath: string;

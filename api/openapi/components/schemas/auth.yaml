@@ -37,6 +37,10 @@ UserInfo:
       type: array
       items: { type: string }
       description: 角色码（PoC 固定 ['admin']）
+    permissions:
+      type: array
+      items: { type: string }
+      description: 权限点集合（M2-035：域:read|write，前端菜单过滤用）
     desc:
       type: string
     homePath:

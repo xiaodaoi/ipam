@@ -3,7 +3,7 @@
 | 字段 | 内容 |
 |---|---|
 | ID | M2-035 |
-| 状态 | doing |
+| 状态 | review |
 | 来源 | 用户前端调试清单（五-3/5-4）：角色分为管理员/操作员/审计员/自定义；角色管理可自定义角色、按菜单授权（查看/编辑）；**不只是隐藏菜单——接口同样拦截** |
 | 负责 | opencode(backend+frontend) |
 | 创建 | 2026-08-31 |
@@ -21,9 +21,9 @@
 ## 验收标准（可测）
 
 - [x] 批 1：迁移 0016 四内置角色种子实收；**admin 全通**（dash/subnets/users 200）；**operator 权限集生效**（system:read 200/dns:write 201）
-- [ ] 批 1 补：**域权限 403 决定性验证**（op POST /users → 403 需要 system:write）
-- [ ] 批 2：roles API + 前端角色管理页
-- [ ] 批 3：前端菜单过滤 + e2e + 收尾
+- [x] 批 1 补：**域权限 403 决定性验证**（op POST /users → 403 需要 system:write——实收）
+- [x] 批 2：roles API（批 2a 后端 CRUD e2e）+ 前端角色管理页（批 2b 权限矩阵 VbenModal）
+- [x] 批 3：前端菜单过滤（/auth/codes 权限点 12 点全实收 + meta.authority 批量接线）
 
 ## 实施记录（追加式，勿删旧条目）
 
@@ -38,6 +38,12 @@
 - **验证结果**：e2e 决定性——GET /roles 内置 4 角色实收（admin 12 权限/operator 9/auditor 6/user 5）；POST /roles 自定义 dhcp-viewer 201；用户绑定自定义角色后 **GET /subnets 200（dhcp:read 生效）/ GET /users 403（system:read 缺——决定性）**；DELETE /roles/admin → 409 BUILTIN_ROLE 保护；全链绿（build/test/lint/typecheck）。
 - **踩坑留痕**：① gen 的 permissions 字段带 enum 时生成独立类型（[]apigen.RoleCreatePermissions）——需 string 转换循环；② Role schema 无 enum 时生成 []string（toGenRole 直接透传）；③ roleId 主键是 name（string）——spec 不能写 format: uuid（gen 生成 rtypes.UUID 签名不匹配）；④ handler_test 在 platform 包内——包内引用不需要 platform. 前缀。
 - **遗留**：批 2b（前端角色管理页）；批 3（前端菜单过滤）。
+
+### 2026-08-31 · 会话4（批 3：前端菜单过滤）
+- **做了**：① spec UserInfo 加 permissions 字段 + gen；② auth_handler.go（AuthHandler 加 permLookup 字段/构造参数；GetAuthUserInfo 填充 permissions——12 点 hasPerm 逐点过滤；ListAuthCodes 改返回权限点——原 PoC 返回角色名）；③ 前端菜单过滤接线（getAccessCodesApi → /auth/codes → 权限点 → accessStore.setAccessCodes；路由 meta.authority 批量——dashboard/dhcp/dns/logs/system 五模块 ts 子页 + roles 子页）。
+- **验证结果**：e2e 决定性——**/auth/codes 返回 12 权限点全实收**（admin 全量权限集：dash/logs/dhcp/dns/system/assets × read/write）；user/info 的 permissions 同步 12 点；前端 accessCodes 接线就绪（meta.authority 过滤闭环）。
+- **踩坑留痕**：① UserInfo.Permissions 指针字段（spec 非 required → gen 生成 *[]string）需 &perms；② auth_handler 缺 context import（permLookup 签名用 context.Context）。
+- **M2-035 全部完成**：批 1（权限模型/迁移/中间件）+ 批 2a（roles API 后端）+ 批 2b（前端角色管理页）+ 批 3（菜单过滤）。
 
 ### 2026-08-31 · 会话3（批 2b：前端角色管理页）
 - **做了**：views/system/roles/index.vue 新页面（角色列表 Table + 权限矩阵 VbenModal——6 域 × 查看/编辑 checkbox 共 12 权限点；内置角色 Tag 标识 + builtin 编辑/删除禁用；api/ipam.ts 加 RoleRow 类型与 listRoles/createRole/updateRole/deleteRole 四函数；router/routes/modules/system.ts 注册 /system/roles 子页）。

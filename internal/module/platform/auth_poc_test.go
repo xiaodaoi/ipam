@@ -19,7 +19,7 @@ func newAuthRouter() *gin.Engine {
 	if err := EnsureBootstrap(context.Background(), store); err != nil {
 		panic(err)
 	}
-	h := NewAuthHandler(store, NewTokenBlacklist())
+	h := NewAuthHandler(store, NewTokenBlacklist(), nil)
 	r := gin.New()
 	r.POST("/api/v1/auth/login", h.AuthLogin)
 	r.GET("/api/v1/auth/user/info", h.GetAuthUserInfo)

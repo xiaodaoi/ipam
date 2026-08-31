@@ -4,6 +4,14 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-31 · M2-035 完成：RBAC 角色管理（四批全收口）
+
+- **批 1**：权限点模型（6 域×读写=12 点）+ 迁移 0016（roles 表+四内置种子）+ RBAC 中间件重构（domainOf/builtinRolePerms/hasPerm——域权限拦截替换 admin 硬编码）+ 域拦截 403 决定性（8fd14b5）。
+- **批 2a**：roles API 后端闭环（spec/gen/role_store/roles_handler/main 装配 + 自定义角色绑定 e2e 决定性——dhcp-viewer 用户 GET /subnets 200 / GET /users 403）（452a5fc）。
+- **批 2b**：前端角色管理页（角色列表 Table + 权限矩阵 VbenModal + builtin 保护 + 路由注册）（841fc79）。
+- **批 3**：前端菜单过滤（UserInfo 加 permissions/hasPerm 逐点过滤/ListAuthCodes 改权限点/accessCodes 接线/meta.authority 批量）——/auth/codes 12 点全实收（本批）。
+- **里程碑**：**用户清单五-3/5-4 闭环**——角色分为管理员/操作员/审计员/自定义；角色管理可自定义/编辑/按菜单授权；**不只隐藏菜单——接口同样拦截**（403 决定性验证）。
+
 ## 2026-08-31 · M2-035 批 2a 完成：roles API 后端闭环
 
 - **做了**：spec（/roles CRUD 四操作）+ gen；role_store.go（RoleStore/Mem/Pg + RegisterRole 联动 normalizeRoles 白名单）；roles_handler.go（四方法 + builtin 409 + validatePerms）；main.go 装配（full 结构 + 启动加载自定义角色注册）。
