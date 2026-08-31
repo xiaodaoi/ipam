@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-29 · dnsmasq 配置迁移验证（用户调试）
+
+- **迁移**：上游 7 条（114/v6×2/内网×4）+ 转发规则 12 条（8 泛域 + 3 精确例外 + cpms.szecp）经 API 迁移，前端上游管理/转发规则页可见。
+- **验证**：`unbound-control list_forwards` 实收 12 条 zone（含根 "." 挂全部 enabled 上游，v6 forward-addr 格式正确）；dig 实测——runwork-h5.crc.com.cn（精确例外→114）NOERROR、test.crc.com.cn（crc.com.cn→10.61.0.136 内网）NXDOMAIN 真实响应。
+- **架构认知修正**：forward 下发是双轨——BuildConf 渲染快照 + `unbound-control forward_add` 运行时增量（svc.Create/Update/Delete 内部各自执行，SyncForwardRules 触发链完整；service.sync() 为死代码但非必需）。
+- **遗留**：运行时增量不回写渲染 conf——**unbound 重启后 conf 快照过期**（需规则回写渲染或 daemon 周期重 sync，后续卡）；bogus-priv/domain-needed/cache-size 为 BuildConf conf 层增强项（P3）。
+
 ## 2026-08-29 · fix：dashboard poolTop v6 池 panic（用户调试发现）
 
 - **现象**：dashboard 四灯全部「未接入」——GET /dashboard 500 空 body（gin recovery）。
