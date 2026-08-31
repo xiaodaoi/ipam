@@ -30,7 +30,7 @@ func rbacRouter(t *testing.T) (*gin.Engine, UserStore, *TokenBlacklist) {
 		}
 	}
 	r := gin.New()
-	r.Use(NewRBACMiddleware(store, bl))
+	r.Use(NewRBACMiddleware(store, bl, nil))
 	r.POST("/api/v1/auth/login", func(c *gin.Context) { c.Status(200) })
 	r.POST("/api/v1/orgs", func(c *gin.Context) { c.Status(201) })
 	r.DELETE("/api/v1/upstreams/:id", func(c *gin.Context) { c.Status(204) })

@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-31 · M2-035 批 1 完成：RBAC 域权限模型（权限点/迁移 0016/中间件重构）
+
+- **做了**：迁移 0016（roles 表+四内置角色种子：admin/operator/auditor/user）；rbac.go 重构（domainOf 路径→域映射/builtinRolePerms 内置角色权限集/hasPerm 逐角色解析——内置映射优先+permLookup 查库/NewRBACMiddleware 加 permLookup 参数/域权限拦截替换 admin 硬编码）；main.go permLookup 闭包（roles 表查询）。
+- **验证**：迁移 0016 四内置种子实收；admin 全通（dash/subnets/users 200）；operator 权限集生效（system:read 200/dns:write 201）；**域权限 403 决定性**（op POST /users → 403 需要 system:write）；全量 go test 绿 + lint 0。
+- **踩坑留痕**：NewRBACMiddleware 子串替换把 permLookup 插进了 r.Use(platform. 与调用之间（前缀在 m.group(0) 外）——子串替换必须看前缀上下文；permLookup 的 json.Unmarshal 需 main 补 encoding/json import。
+- **批 2/3**：roles API + 前端角色管理页/菜单过滤——后续。
+
 ## 2026-08-31 · M2-034 完成：全站表单 VbenModal 化（六批）
 
 - **做了**：subnets 试点（批 1）→ 举一反三九页（批 2a upstream+forward / 2b dualstack / 2c options 两表单 / 2d-1 users+blocklist 名单创建 / 2d-2 orgs+records+ledger 的 prompt 改造）——全部页面表单/交互统一 VbenModal（可拖拽/自动高度，@vben/common-ui）。

@@ -94,7 +94,7 @@ func normalizeRoles(rs []string) []string {
 	out := make([]string, 0, len(rs))
 	for _, r := range rs {
 		r = strings.TrimSpace(r)
-		if r == "admin" || r == "user" {
+		if r == "admin" || r == "operator" || r == "auditor" || r == "user" {
 			out = append(out, r)
 		}
 	}

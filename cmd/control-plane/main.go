@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"log"
@@ -461,7 +462,19 @@ func newEngine(version string) *gin.Engine {
 	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore, bl), platform.NewUserHandler(userStore), &dhcpAPI{dhcpH}, dnsH, fwdH, zoneH, blH, settingsH, applier}
 	// RBAC 写权限拦截（M5-003）先于审计：被 403 的请求不入账。
 	// 操作审计（M4-003+M5-002）：actor 从 JWT claims 解析（human/bot 区分 §12.3）。
-	r.Use(platform.NewRBACMiddleware(userStore, bl)) // M5-010/M5-011：认证+授权+登出吊销
+	permLookup := func(ctx context.Context, role string) ([]string, bool) {
+		if pool == nil {
+			return nil, false
+		}
+		var perms string
+		if err := pool.QueryRow(ctx, `SELECT permissions FROM roles WHERE name = $1`, role).Scan(&perms); err != nil {
+			return nil, false
+		}
+		var out []string
+		_ = json.Unmarshal([]byte(perms), &out)
+		return out, true
+	}
+	r.Use(platform.NewRBACMiddleware(userStore, bl, permLookup)) // M5-003/M5-010/M5-011/M2-035：认证+授权+吊销+域权限
 	r.Use(logq.NewAuditRecorder(auditRepo, platform.JWTActorProvider))
 	// spec servers.url=/api/v1 → 统一前缀注册
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
