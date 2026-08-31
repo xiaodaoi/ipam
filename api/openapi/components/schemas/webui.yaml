@@ -9,11 +9,11 @@ WebuiSettings:
     faviconUrl:
       type: string
       description: 浏览器页签 LOGO URL
-      maxLength: 512
+      maxLength: 200000
     logoUrl:
       type: string
       description: 侧栏 LOGO URL
-      maxLength: 512
+      maxLength: 200000
     serverIp:
       type: string
       description: 服务器监听 IP（只读，取自部署配置）
@@ -25,5 +25,5 @@ WebuiSettingsUpdate:
   type: object
   properties:
     siteName: { type: string, maxLength: 64 }
-    faviconUrl: { type: string, maxLength: 512 }
-    logoUrl: { type: string, maxLength: 512 }
+    faviconUrl: { type: string, maxLength: 200000 }
+    logoUrl: { type: string, maxLength: 200000 }
