@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { VbenModal } from '@vben/common-ui';
 
 import {
   Button,
@@ -33,6 +34,8 @@ const optForm = ref({ code: 3, name: 'routers', data: '' });
 const clsForm = ref({ name: '', test: "option[61].hex == option[61].hex", rows: [] as DhcpClassOptionIn[] });
 const editingOpt = ref<string>();
 const editingCls = ref<string>();
+const showOptForm = ref(false);
+const showClsForm = ref(false);
 let timer: ReturnType<typeof setInterval> | undefined;
 
 async function load() {
@@ -64,6 +67,7 @@ async function addOption() {
       message.success('选项已创建');
     }
     editingOpt.value = undefined;
+    showOptForm.value = false;
     optForm.value = { code: optForm.value.code, name: 'routers', data: '' };
   } catch (e) {
     message.error(e instanceof Error ? e.message : '操作失败');
@@ -81,6 +85,7 @@ async function toggleOption(r: DhcpOptionRow, enabled: boolean) {
 }
 function editOpt(r: DhcpOptionRow) {
   editingOpt.value = r.id;
+  showOptForm.value = true;
   optForm.value = { code: r.optionCode, name: r.name, data: r.data };
 }
 async function removeOption(id?: string) {
@@ -122,6 +127,7 @@ async function addClass() {
       message.success('类已创建');
     }
     editingCls.value = undefined;
+    showClsForm.value = false;
     clsForm.value = { name: '', test: clsForm.value.test, rows: [] };
   } catch (e) {
     message.error(e instanceof Error ? e.message : '操作失败');
@@ -139,6 +145,7 @@ async function toggleClass(r: DhcpClassRow, enabled: boolean) {
 }
 function editCls(r: DhcpClassRow) {
   editingCls.value = r.id;
+  showClsForm.value = true;
   clsForm.value = { name: r.name, test: r.test, rows: [...(r.options ?? [])] };
 }
 async function removeClass(id?: string) {
@@ -153,10 +160,12 @@ async function removeClass(id?: string) {
 }
 function cancelEditOpt() {
   editingOpt.value = undefined;
+  showOptForm.value = false;
   optForm.value = { code: optForm.value.code, name: 'routers', data: '' };
 }
 function cancelEditCls() {
   editingCls.value = undefined;
+  showClsForm.value = false;
   clsForm.value = { name: '', test: clsForm.value.test, rows: [] };
 }
 const optsSummary = (options?: DhcpClassOptionIn[]) =>
@@ -171,7 +180,11 @@ onBeforeUnmount(() => timer && clearInterval(timer));
 <template>
   <div class="grid grid-cols-1 gap-4">
     <Card title="标准选项（C-02，全局 option-data）">
-      <div class="mb-3 flex flex-wrap items-end gap-2 rounded border border-gray-200 p-3">
+      <div class="mb-3">
+        <Button type="primary" size="small" @click="showOptForm = true; cancelEditOpt()">+ 添加选项</Button>
+      </div>
+      <VbenModal v-model:open="showOptForm" :title="editingOpt ? '编辑选项' : '创建选项'" draggable>
+      <div class="flex flex-wrap items-end gap-2">
         <div>
           <div class="mb-1 text-xs text-gray-400">选项码</div>
           <InputNumber v-model:value="optForm.code" :min="1" :max="255" style="width: 90px" />
@@ -190,6 +203,7 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           变更后经 Kea config-set 原子下发；disabled 选项不进配置。
         </div>
       </div>
+      </VbenModal>
       <Table
         :data-source="optRows"
         :columns="[
@@ -221,7 +235,10 @@ onBeforeUnmount(() => timer && clearInterval(timer));
     </Card>
 
     <Card title="类匹配规则（C-03，client-classes）">
-      <div class="mb-3 rounded border border-gray-200 p-3">
+      <div class="mb-3">
+        <Button type="primary" size="small" @click="showClsForm = true; cancelEditCls()">+ 添加类</Button>
+      </div>
+      <VbenModal v-model:open="showClsForm" :title="editingCls ? '编辑类' : '创建类'" draggable>
         <div class="flex flex-wrap items-end gap-2">
           <div>
             <div class="mb-1 text-xs text-gray-400">类名</div>
@@ -244,7 +261,7 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         <div class="mt-2 text-xs text-gray-400">
           命中 test 的客户端将收到该类的 option-data；类名是 Kea 引用键，创建后不可改。
         </div>
-      </div>
+      </VbenModal>
       <Table
         :data-source="clsRows"
         :columns="[

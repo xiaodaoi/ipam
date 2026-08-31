@@ -38,6 +38,11 @@
 - **踩坑留痕**：① 表单区块替换时内层 div 的闭合 </div> 被 </VbenModal> 覆盖——**包裹式替换必须数清闭合标签**；② subnets 无独立 cancelEdit（showForm=false 内联在 add() 中）——**Modal 化前先确认页面的状态函数清单**。
 - **遗留**：批 2 九页改造进行中。
 
+### 2026-08-31 · 会话4（批 2c：dhcp/options 两表单）
+- **做了**：dhcp/options 页两表单 VbenModal 化（选项 Modal showOptForm + 类 Modal showClsForm——12 处改造：imports/状态声明/addOption 尾/editOpt/addClass 尾/editCls/cancelEditOpt/cancelEditCls/选项区块起止/类区块起止）。
+- **验证结果**：typecheck 0 + build ✓ 6.66s + sync 4.3M + 零外链 PASS + 容器重建（Built=1）+ 选项/类 API 冒烟 200。
+- **踩坑留痕**：① 孤立 </div> 删除时把提示 div 的合法闭合也删了（vite 报 missing end tag 261 行）——**删除标签时范围必须精确到行首缩进（6 空格孤立标签 vs 8 空格合法闭合）**；② typecheck 过但 build 失败的场景（vite 模板解析在 vue-tsc 之外）——**build 错误需看 vite 完整输出定位行号**。
+
 ### 2026-08-31 · 会话3（批 2b：dhcp/dualstack）
 - **做了**：dhcp/dualstack 页 VbenModal 化（同款模式：表单区块容器 → 「+ 新建模板」按钮 + VbenModal 包裹 + 内层 flex div 保留；showForm 声明 + cancelEdit/edit 联动）。
 - **验证结果**：typecheck 0 + build ✓ 12.99s + sync 4.3M + 零外链 PASS + 容器重建（Built=1）+ dualstack API 冒烟 200。
