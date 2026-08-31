@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-31 · M2-040 完成：黑名单封禁不生效（编译闭环自动化）
+
+- **根因**：M2-033 的封禁是运行时 local_zone static 注入，编译需手动触发（UI 编译按钮），用户加条目后未点编译 → 运行时态空 → 解析仍通。
+- **修复**：① 条目/策略组/同步变更后自动 ReplayAll（加完即生效）；② 删除链路改 local_zone_remove（ReplayAll 只加不减，残留导致删了还拦）。
+- **验证**：e2e 闭环全过——启动重放 NXDOMAIN / 基线可解析 / 加条目自动拦 / 删条目自动通；用户条目 www.crphb.com.cn 已拦。
+
 ## 2026-08-31 · M2-039 完成：系统设置二级菜单（批 1 后端 + 批 2 前端）
 
 - **批 1**：GET/PUT /system/webui-settings + webui_settings 单行表（迁移 0017）+ WebuiHandler（serverIp/serverPort 从 Host 只读解析）——e2e 四步全过。

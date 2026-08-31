@@ -65,6 +65,8 @@ func (h *BlocklistHandler) SyncBlocklist(c *gin.Context, listId rtypes.UUID) {
 		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "INTERNAL", err.Error())
 		return
 	}
+	// M2-040：同步后自动重编译（闭环）
+	_ = h.svc.ReplayAll(c.Request.Context())
 	c.JSON(http.StatusOK, apigen.BlocklistSyncResult{
 		ListId: listId, Version: 0, Added: added, Total: total,
 	})
@@ -105,6 +107,8 @@ func (h *BlocklistHandler) AddBlocklistEntry(c *gin.Context, listId rtypes.UUID)
 		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
 		return
 	}
+	// M2-040：条目变更后自动重编译（闭环——加完即生效，无需手动点编译）
+	_ = h.svc.ReplayAll(c.Request.Context())
 	c.JSON(http.StatusCreated, toGenEntry(e))
 }
 
@@ -144,6 +148,8 @@ func (h *BlocklistHandler) CreatePolicyGroup(c *gin.Context) {
 		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
 		return
 	}
+	// M2-040：策略组创建后自动编译（闭环）
+	_ = h.svc.ReplayAll(c.Request.Context())
 	c.JSON(http.StatusCreated, toGenPolicy(g))
 }
 
@@ -222,6 +228,12 @@ func (h *BlocklistHandler) DeleteBlocklist(c *gin.Context, listId rtypes.UUID) {
 		problem.Write(c, http.StatusConflict, "https://ipam.local/problems/conflict", "BUILTIN_IMMUTABLE", "内置名单不可删除")
 		return
 	}
+	// M2-040：级联删除时先移除各条目的运行时 local_zone（ReplayAll 只加不减）
+	if entries, eErr := h.svc.repo.EntriesForLists(c.Request.Context(), []string{listId.String()}); eErr == nil {
+		for _, en := range entries {
+			_ = h.svc.RemoveEntryZone(c.Request.Context(), en.Pattern)
+		}
+	}
 	if err := h.svc.repo.DeleteList(c.Request.Context(), listId.String()); err != nil {
 		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
 		return
@@ -240,5 +252,7 @@ func (h *BlocklistHandler) DeleteBlocklistEntry(c *gin.Context, listId rtypes.UU
 		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
 		return
 	}
+	// M2-040：条目删除后移除运行时 local_zone（解除拦截；ReplayAll 只加不减）
+	_ = h.svc.RemoveEntryZone(c.Request.Context(), params.Pattern)
 	c.Status(http.StatusNoContent)
 }

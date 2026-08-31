@@ -187,6 +187,16 @@ func (s *BlocklistService) Compile(ctx context.Context, groupID string) (zone st
 	return zone, len(cmds), "local-zone (runtime)", cmd, nil
 }
 
+// RemoveEntryZone 移除单条封禁的运行时 local_zone（M2-040：删除条目后解除拦截）。
+func (s *BlocklistService) RemoveEntryZone(ctx context.Context, pattern string) error {
+	name := strings.TrimPrefix(pattern, "*.")
+	name = strings.TrimSuffix(name, ".")
+	if name == "" {
+		return nil
+	}
+	return s.ctl.LocalZoneRemove(ctx, name)
+}
+
 // ReplayAll 启动重放全部策略组的封禁 local_zone（M2-033：unbound 重启后运行时态恢复）。
 func (s *BlocklistService) ReplayAll(ctx context.Context) error {
 	groups, err := s.repo.ListPolicyGroups(ctx)
