@@ -37,3 +37,8 @@
 - **验证结果**：typecheck 0 + build ✓ 7.59s + sync 4.3M + 零外链 PASS。
 - **踩坑留痕**：① vben v5 的 Modal 无 v-model:open（ModalProps 无 open 字段）——显示控制唯一途径是 modalApi.open()/close()/setState()；② anchor 缩进先探再改（subnets 的 showForm.value 是 2 空格，4 空格锚点失配致首批 python 全部未落盘）。
 - **遗留**：批 2/3/4 九页改造进行中。
+
+### 2026-08-31 · 会话2（批 2：dns/upstream + dns/forward）
+- **做了**：两页 useVbenModal 命令式改造（imports/Modal 实例替代 showForm 声明/add 尾 formModalApi.close/edit 内 setState+open/cancelEdit 内 close/模板 FormModal/按钮 setState+open——upstream 8 处 + forward 7 处 + forward 取消按钮内联 showForm → formModalApi.close()）。
+- **验证结果**：typecheck 0 + build ✓ 6.61s + sync 4.3M + 零外链 PASS + Go 全链绿 + 容器重建（Built=1）+ 上游/转发 API 冒烟 200。
+- **踩坑留痕**：① 取消编辑按钮的内联 showForm = false（模板内联——script 区改造漏）——**模板内联状态引用需一并排查**；② anchor 缩进按现场（4 空格/6 空格逐处确认）。

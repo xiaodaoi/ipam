@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
-import { VbenModal } from '@vben/common-ui';
+import { useVbenModal } from '@vben/common-ui';
 
 import { Button, Card, Input, Select, Table, Tag, message } from 'ant-design-vue';
 
@@ -44,7 +44,7 @@ async function add() {
     }
     editingId.value = undefined;
     form.value = { name: '', addr: '', protocol: 'udp' };
-    showForm.value = false;
+    formModalApi.close();
   } catch (e) {
     message.error(e instanceof Error ? e.message : '操作失败');
   }
@@ -52,13 +52,14 @@ async function add() {
 }
 function edit(r: Upstream) {
   editingId.value = r.id;
-  showForm.value = true;
+  formModalApi.setState({ title: '编辑上游' });
+  formModalApi.open();
   form.value = { name: r.name, addr: (r.addrs ?? []).join(','), protocol: (r.protocol as Proto) ?? 'udp' };
 }
-const showForm = ref(false);
+const [FormModal, formModalApi] = useVbenModal({ draggable: true, title: '上游 DNS 服务器' });
 function cancelEdit() {
   editingId.value = undefined;
-  showForm.value = false;
+  formModalApi.close();
   form.value = { name: '', addr: '', protocol: 'udp' };
 }
 async function remove(id?: string) {
@@ -88,9 +89,9 @@ const HEALTH_COLOR: Record<string, string> = { up: 'green', down: 'red', unknown
       <Button size="small" @click="load()">刷新（15s 自动）</Button>
     </template>
     <div class="mb-3">
-      <Button type="primary" size="small" @click="showForm = true; cancelEdit()">+ 添加上游</Button>
+      <Button type="primary" size="small" @click="cancelEdit(); formModalApi.setState({ title: '添加上游 DNS' }); formModalApi.open()">+ 添加上游</Button>
     </div>
-    <VbenModal v-model:open="showForm" :title="editingId ? '编辑上游' : '添加上游 DNS'" draggable>
+    <FormModal class="w-[720px]">
       <div class="flex flex-wrap items-center gap-2">
       <Input v-model:value="form.name" placeholder="名称" style="width: 150px" />
       <Input v-model:value="form.addr" placeholder="地址 如 223.5.5.5:53" style="width: 200px" />
@@ -99,7 +100,7 @@ const HEALTH_COLOR: Record<string, string> = { up: 'green', down: 'red', unknown
       <Button type="primary" @click="add">{{ editingId ? '保存修改' : '添加' }}</Button>
       <Button v-if="editingId" @click="cancelEdit">取消编辑</Button>
       </div>
-    </VbenModal>
+    </FormModal>
     <Table
       :data-source="rows"
       :columns="[

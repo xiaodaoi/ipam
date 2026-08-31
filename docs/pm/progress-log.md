@@ -4,6 +4,11 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-31 · M2-037 批 2：Modal 不弹出修复（upstream + forward）
+
+- **做了**：两页 useVbenModal 命令式改造（imports/Modal 实例/add 尾 close/edit 内 setState+open/cancelEdit 内 close/模板 FormModal/按钮 setState+open——upstream 8 处 + forward 7 处 + 取消按钮内联 showForm 修正）。
+- **验证**：typecheck 0 + build ✓ 6.61s + sync/offline PASS + Go 全链绿 + 容器重建 + 上游/转发 API 冒烟 200。
+
 ## 2026-08-31 · M2-037 批 1：Modal 不弹出修复（subnets useVbenModal 试点）
 
 - **现象**（用户调试）：点击新建子网/添加上游等按钮无 Modal 弹出——M2-034 的 v-model:open 全部无效。
