@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { VbenModal } from '@vben/common-ui';
 
 import { useUserStore } from '@vben/stores';
 
@@ -41,6 +42,7 @@ async function load() {
     loading.value = false;
   }
 }
+const showForm = ref(false);
 async function add() {
   if (!form.value.username || form.value.password.length < 8) {
     message.warning('用户名必填，口令至少 8 位');
@@ -55,6 +57,7 @@ async function add() {
     });
     message.success('用户已创建');
     form.value = { displayName: '', password: '', roles: 'user', username: '' };
+    showForm.value = false;
   } catch (e) {
     message.error(e instanceof Error ? e.message : '创建失败');
   }
@@ -105,7 +108,11 @@ const isSelf = (username?: string) => !!myUsername && username === myUsername;
       <Button size="small" @click="load()">刷新（15s 自动）</Button>
     </template>
 
-    <div class="mb-4 flex flex-wrap items-end gap-2 rounded border border-gray-200 p-3">
+    <div class="mb-4">
+      <Button type="primary" size="small" @click="showForm = true">+ 创建用户</Button>
+    </div>
+    <VbenModal v-model:open="showForm" title="创建用户" draggable>
+    <div class="flex flex-wrap items-end gap-2">
       <div>
         <div class="mb-1 text-xs text-gray-400">登录名</div>
         <Input v-model:value="form.username" style="width: 140px" placeholder="字母数字 _.-" />
@@ -128,6 +135,7 @@ const isSelf = (username?: string) => !!myUsername && username === myUsername;
         口令 bcrypt 落库；user 角色写操作将被 RBAC 拦截（403）。
       </div>
     </div>
+    </VbenModal>
 
     <Table
       :data-source="rows"

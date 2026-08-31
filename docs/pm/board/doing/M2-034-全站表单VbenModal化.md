@@ -38,6 +38,10 @@
 - **踩坑留痕**：① 表单区块替换时内层 div 的闭合 </div> 被 </VbenModal> 覆盖——**包裹式替换必须数清闭合标签**；② subnets 无独立 cancelEdit（showForm=false 内联在 add() 中）——**Modal 化前先确认页面的状态函数清单**。
 - **遗留**：批 2 九页改造进行中。
 
+### 2026-08-31 · 会话5（批 2d-1：system/users + dns/blocklist）
+- **做了**：system/users 页 VbenModal 化（创建用户表单 → Modal + 「+ 创建用户」按钮 + add 成功后关闭）；dns/blocklist 页名单创建表单 VbenModal 化（「+ 新建名单」按钮 + Modal；createList 成功后关闭）。
+- **验证结果**：typecheck 0 + build ✓ 7.49s + sync 4.3M + 零外链 PASS + 容器重建（Built=1）+ users/orgs/blocklist API 冒烟 200。
+
 ### 2026-08-31 · 会话4（批 2c：dhcp/options 两表单）
 - **做了**：dhcp/options 页两表单 VbenModal 化（选项 Modal showOptForm + 类 Modal showClsForm——12 处改造：imports/状态声明/addOption 尾/editOpt/addClass 尾/editCls/cancelEditOpt/cancelEditCls/选项区块起止/类区块起止）。
 - **验证结果**：typecheck 0 + build ✓ 6.66s + sync 4.3M + 零外链 PASS + 容器重建（Built=1）+ 选项/类 API 冒烟 200。
