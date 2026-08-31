@@ -26,6 +26,7 @@ let timer: ReturnType<typeof setInterval> | undefined;
 
 const entries = ref<BlocklistEntryRow[]>([]);
 const eLoading = ref(false);
+const collapsed = ref(false);
 const selId = ref('');
 const selName = ref('');
 const eForm = ref<{ pattern: string; triggerType: 'qname' | 'response_ip'; action: 'nxdomain' | 'drop' | 'tcp_only' | 'redirect' }>({ pattern: '', triggerType: 'qname', action: 'nxdomain' });
@@ -144,8 +145,11 @@ onBeforeUnmount(() => timer && clearInterval(timer));
 <template>
   <Card title="封禁名单库">
     <template #extra>
-      <Button size="small" @click="load()">刷新（30s 自动）</Button>
+      <Button size="small" @click="collapsed = !collapsed">{{ collapsed ? '◀ 展开名单' : '收起名单 ▶' }}</Button>
+        <Button size="small" class="ml-1" @click="load()">刷新（30s 自动）</Button>
     </template>
+      <div class="flex gap-3">
+      <div v-show="!collapsed" style="width: 46%; flex-shrink: 0;">
       <div class="mb-2">
         <Button type="primary" size="small" @click="createModalApi.open()">+ 新建名单</Button>
       </div>
@@ -186,7 +190,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         </template>
       </template>
     </Table>
-    <Card v-if="selId" :title="`条目 · ${selName}`" class="mt-3">
+      </div>
+      <div class="min-w-0 flex-1">
+      <Card v-if="selId" :title="`条目 · ${selName}`" class="mt-3">
       <div class="mb-2 flex flex-wrap items-end gap-2">
         <Input v-model:value="eForm.pattern" placeholder="如 *.gamble.com" style="width: 220px" @pressEnter="addEntry" />
         <Select v-model:value="eForm.triggerType" style="width: 150px" :options="[{ value: 'qname', label: 'qname（域名）' }, { value: 'response_ip', label: 'response_ip（应答IP）' }]" />
@@ -202,6 +208,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         </template>
       </Table>
     </Card>
+      <div v-else class="mt-3 text-xs text-gray-400">← 在左侧选择名单查看条目</div>
+      </div>
+    </div>
     <Card title="策略分组（view 级 RPZ 应用）" class="mt-3">
       <div class="mb-2 flex flex-wrap items-end gap-2">
         <Input v-model:value="pgForm.name" placeholder="分组名称" style="width: 160px" />
