@@ -45,6 +45,13 @@
 - **踩坑留痕**：① UserInfo.Permissions 指针字段（spec 非 required → gen 生成 *[]string）需 &perms；② auth_handler 缺 context import（permLookup 签名用 context.Context）。
 - **M2-035 全部完成**：批 1（权限模型/迁移/中间件）+ 批 2a（roles API 后端）+ 批 2b（前端角色管理页）+ 批 3（菜单过滤）。
 
+### 2026-08-31 · 会话5（批 3 修正：二级菜单消失 bug）
+- **现象**：批 3 的 meta.authority（权限点）上线后二级菜单全消失——admin 也看不到。
+- **根因**：vben 底座的菜单过滤（generate-routes-frontend.ts:41 hasAuthority）匹配的是 guard.ts 传入的 access=userInfo.roles（角色名 ['admin']），与 authority=['dhcp:read']（权限点）无交集 → 全过滤。
+- **修复**：guard.ts:96 userRoles 改混合数组——[...roles, ...permissions]（角色名 + 权限点混合匹配；底座 @vben/access 为禁改区不改）。
+- **验证**：typecheck 0 + build ✓ 7.37s + sync/offline PASS + 容器重建——用户刷新浏览器确认二级菜单恢复。
+- **语义沉淀**：meta.authority 数组可配角色名或权限点（混合匹配）——内置角色用角色名、自定义角色经 permissions 权限点均生效。
+
 ### 2026-08-31 · 会话3（批 2b：前端角色管理页）
 - **做了**：views/system/roles/index.vue 新页面（角色列表 Table + 权限矩阵 VbenModal——6 域 × 查看/编辑 checkbox 共 12 权限点；内置角色 Tag 标识 + builtin 编辑/删除禁用；api/ipam.ts 加 RoleRow 类型与 listRoles/createRole/updateRole/deleteRole 四函数；router/routes/modules/system.ts 注册 /system/roles 子页）。
 - **验证结果**：typecheck 0 + build ✓ 7.78s + sync 4.3M + 零外链 PASS + 容器重建（Built=1）+ GET /roles 冒烟 200（页面数据源）。

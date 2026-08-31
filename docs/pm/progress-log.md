@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-31 · 批 3 修正：二级菜单消失 bug（用户调试发现）
+
+- **现象**：M2-035 批 3 的 meta.authority（权限点）上线后二级菜单全消失——admin 也看不到。
+- **根因**：vben 底座的菜单过滤匹配 guard 传入的 access=userInfo.roles（角色名），与 authority=[权限点] 无交集。
+- **修复**：guard.ts:96 userRoles 改混合数组（[...roles, ...permissions]）——角色名与权限点混合匹配。
+- **验证**：typecheck 0 + build ✓ + sync/offline PASS + 容器重建——用户刷新确认恢复。
+
 ## 2026-08-31 · M2-035 完成：RBAC 角色管理（四批全收口）
 
 - **批 1**：权限点模型（6 域×读写=12 点）+ 迁移 0016（roles 表+四内置种子）+ RBAC 中间件重构（domainOf/builtinRolePerms/hasPerm——域权限拦截替换 admin 硬编码）+ 域拦截 403 决定性（8fd14b5）。
