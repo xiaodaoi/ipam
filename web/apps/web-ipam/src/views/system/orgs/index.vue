@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { VbenModal } from '@vben/common-ui';
 
 import { Button, Card, Tree } from 'ant-design-vue';
 
@@ -38,29 +39,40 @@ async function load() {
   }
 }
 
-function promptName(title: string, initial = ''): string | null {
-  return window.prompt(title, initial)?.trim() ?? null;
+const nameModal = ref({ show: false, title: '', initial: '', action: null as null | ((name: string) => Promise<void>) });
+
+function askName(title: string, initial: string, action: (name: string) => Promise<void>) {
+  nameModal.value = { show: true, title, initial, action };
+}
+async function confirmName() {
+  const name = nameModal.value.initial.trim();
+  if (!name) return;
+  nameModal.value.show = false;
+  await nameModal.value.action?.(name);
 }
 
-async function addRoot() {
-  const name = promptName('根组织名称');
-  if (!name) return;
-  await createOrg({ parentId: null, name });
-  await load();
+function addRoot() {
+  askName('根组织名称', '', async (name) => {
+    await createOrg({ parentId: null, name });
+    await load();
+  });
 }
-async function addChild() {
-  if (!selected.value) return;
-  const name = promptName(`在「${selected.value.name}」下新建子组织`);
-  if (!name) return;
-  await createOrg({ parentId: selected.value.id, name });
-  await load();
+function addChild() {
+  const sel = selected.value;
+  if (!sel) return;
+  askName(`在「${sel.name}」下新建子组织`, '', async (name) => {
+    await createOrg({ parentId: sel.id, name });
+    await load();
+  });
 }
-async function rename() {
-  if (!selected.value) return;
-  const name = promptName('改名', selected.value.name);
-  if (!name || name === selected.value.name) return;
-  await updateOrg(selected.value.id, { name });
-  await load();
+function rename() {
+  const sel = selected.value;
+  if (!sel) return;
+  askName('改名', sel.name, async (name) => {
+    if (name === sel.name) return;
+    await updateOrg(sel.id, { name });
+    await load();
+  });
 }
 async function remove() {
   if (!selected.value) return;
@@ -113,4 +125,11 @@ onMounted(load);
       暂无组织——点击右上角「+ 根组织」创建第一个节点
     </div>
   </Card>
+  <VbenModal v-model:open="nameModal.show" :title="nameModal.title" draggable>
+    <Input v-model:value="nameModal.initial" placeholder="组织名称" @pressEnter="confirmName" />
+    <div class="mt-3 text-right">
+      <Button @click="nameModal.show = false">取消</Button>
+      <Button type="primary" class="ml-1" @click="confirmName">确定</Button>
+    </div>
+  </VbenModal>
 </template>

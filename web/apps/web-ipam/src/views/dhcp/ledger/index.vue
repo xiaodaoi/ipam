@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { VbenModal } from '@vben/common-ui';
 
 import { Card, Tag, message, Table, Tree } from 'ant-design-vue';
 
@@ -84,13 +85,18 @@ const actionReserve = async (row: LedgerRow) => {
   load();
 };
 
-const actionBind = async (row: LedgerRow) => {
-  const mac = window.prompt(`输入 MAC（绑定 ${row.address}）：`);
-  if (!mac || !row.subnetId) return;
-  await bindStatic(row.subnetId, row.address, mac);
-  message.success(`${row.address} 已静态绑定 ${mac}`);
+const bindModal = ref({ show: false, address: '', subnetId: '', mac: '' });
+function askBind(row: LedgerRow) {
+  bindModal.value = { show: true, address: row.address, subnetId: row.subnetId ?? '', mac: '' };
+}
+async function confirmBind() {
+  const mac = bindModal.value.mac.trim();
+  if (!mac || !bindModal.value.subnetId) return;
+  await bindStatic(bindModal.value.subnetId, bindModal.value.address, mac);
+  message.success(`${bindModal.value.address} 已静态绑定 ${mac}`);
+  bindModal.value.show = false;
   load();
-};
+}
 </script>
 
 <template>
@@ -119,11 +125,18 @@ const actionBind = async (row: LedgerRow) => {
           </template>
           <template v-else-if="column.key === 'actions'">
             <a style="margin-right:8px" @click="actionReserve(record as LedgerRow)">保留</a>
-            <a style="margin-right:8px" @click="actionBind(record as LedgerRow)">静态绑定</a>
+            <a style="margin-right:8px" @click="askBind(record as LedgerRow)">静态绑定</a>
           </template>
         </template>
       </Table>
       <div style="margin-top:12px;text-align:right">共 {{ total }} 条</div>
     </Card>
   </div>
+  <VbenModal v-model:open="bindModal.show" :title="`绑定 ${bindModal.address}`" draggable>
+    <Input v-model:value="bindModal.mac" placeholder="MAC 如 aa:bb:cc:dd:ee:01" @pressEnter="confirmBind" />
+    <div class="mt-3 text-right">
+      <Button @click="bindModal.show = false">取消</Button>
+      <Button type="primary" class="ml-1" @click="confirmBind">绑定</Button>
+    </div>
+  </VbenModal>
 </template>

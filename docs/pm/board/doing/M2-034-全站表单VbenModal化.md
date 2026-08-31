@@ -38,6 +38,11 @@
 - **踩坑留痕**：① 表单区块替换时内层 div 的闭合 </div> 被 </VbenModal> 覆盖——**包裹式替换必须数清闭合标签**；② subnets 无独立 cancelEdit（showForm=false 内联在 add() 中）——**Modal 化前先确认页面的状态函数清单**。
 - **遗留**：批 2 九页改造进行中。
 
+### 2026-08-31 · 会话6（批 2d-2：orgs/records/ledger 的 prompt 改造）
+- **做了**：三页 window.prompt → VbenModal——orgs 页（askName/confirmName 通用名称 Modal，addRoot/addChild/rename 闭包改造 + sel 捕获修 TS18048）；records 页（zoneModal + createZoneConfirm 替换旧 addZone prompt）；ledger 页（bindModal + askBind/confirmBind 的 MAC 绑定 Modal）。
+- **验证结果**：typecheck 0 + build ✓ 6.37s + sync 4.3M + 零外链 PASS + 容器重建（Built=1）+ orgs/records/ledger API 冒烟 200。
+- **踩坑留痕**：① 异步闭包内的 selected.value 需局部捕获（TS18048）；② python 批次中途 assert 失败时已执行段不落盘——**分页改造后各页状态不一致**（records 的按钮/Modal 已改但状态定义丢失）——**重跑前先 grep 确认各页实际状态**。
+
 ### 2026-08-31 · 会话5（批 2d-1：system/users + dns/blocklist）
 - **做了**：system/users 页 VbenModal 化（创建用户表单 → Modal + 「+ 创建用户」按钮 + add 成功后关闭）；dns/blocklist 页名单创建表单 VbenModal 化（「+ 新建名单」按钮 + Modal；createList 成功后关闭）。
 - **验证结果**：typecheck 0 + build ✓ 7.49s + sync 4.3M + 零外链 PASS + 容器重建（Built=1）+ users/orgs/blocklist API 冒烟 200。
