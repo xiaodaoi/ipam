@@ -2,22 +2,58 @@
 import { computed, onMounted, ref } from 'vue';
 import { useVbenModal } from '@vben/common-ui';
 
-import { Button, Card, Input, Tree, message } from 'ant-design-vue';
+import { IconifyIcon } from '@vben/icons';
+
+import { Button, Card, Input, Tag, Tree, message } from 'ant-design-vue';
 
 import { createOrg, deleteOrg, listOrgTree, updateOrg, type OrgTreeNode } from '#/api/ipam';
 
 const tree = ref<OrgTreeNode[]>([]);
 const selected = ref<OrgTreeNode>();
 const loading = ref(false);
+const expandedKeys = ref<string[]>([]);
 
-function toAntTree(nodes: OrgTreeNode[]): any[] {
+interface AntNode {
+  key: string;
+  title: string;
+  isLeaf?: boolean;
+  children?: AntNode[];
+  org?: OrgTreeNode;
+}
+
+function toAntTree(nodes: OrgTreeNode[]): AntNode[] {
   return nodes.map((n) => ({
     key: n.id,
     title: n.name,
+    org: n,
+    isLeaf: !(n.children?.length),
     children: n.children?.length ? toAntTree(n.children) : undefined,
   }));
 }
 const antTreeData = computed(() => toAntTree(tree.value));
+
+/** 全部节点 key（用于展开全部） */
+function collectKeys(nodes: OrgTreeNode[]): string[] {
+  const out: string[] = [];
+  const walk = (ns: OrgTreeNode[]) => {
+    for (const n of ns) {
+      out.push(n.id);
+      if (n.children?.length) walk(n.children);
+    }
+  };
+  walk(nodes);
+  return out;
+}
+
+/** 组织总数（含子孙） */
+const totalCount = computed(() => collectKeys(tree.value).length);
+
+function expandAll() {
+  expandedKeys.value = collectKeys(tree.value);
+}
+function collapseAll() {
+  expandedKeys.value = [];
+}
 
 async function load() {
   loading.value = true;
@@ -34,9 +70,15 @@ async function load() {
       };
       selected.value = find(tree.value);
     }
+    expandedKeys.value = collectKeys(tree.value);
   } finally {
     loading.value = false;
   }
+}
+
+function onSelect(_keys: unknown[], info: unknown) {
+  const node = (info as { node?: { org?: OrgTreeNode } }).node;
+  if (node?.org) selected.value = node.org;
 }
 
 const nameInput = ref('');
@@ -115,27 +157,44 @@ onMounted(load);
       </div>
     </template>
 
-    <div class="mb-3 text-xs text-gray-400">
-      多级自定义树（公司→部门→…）；被子网/资产引用或含子节点时删除会被 409 拒绝。
-      此处是全部页面「组织下拉/树筛选」的单一数据源（§13.4 主数据原则）。
+    <div class="mb-3 flex items-center justify-between gap-2">
+      <div class="text-xs text-gray-400">
+        多级自定义树（公司→部门→…）；被子网/资产引用或含子节点时删除会被 409 拒绝。
+        此处是全部页面「组织下拉/树筛选」的单一数据源（§13.4 主数据原则）。
+      </div>
+      <div class="flex shrink-0 items-center gap-2">
+        <Tag color="blue" class="m-0">{{ totalCount }} 个组织</Tag>
+        <Button size="small" @click="expandAll">展开全部</Button>
+        <Button size="small" @click="collapseAll">收起全部</Button>
+      </div>
     </div>
 
     <Tree
       v-if="antTreeData.length"
+      class="org-tree"
       :tree-data="antTreeData"
       :selected-keys="selected ? [selected.id] : []"
-      :default-expand-all="true"
-      @select="(_, { node }) => {
-        const find = (ns: OrgTreeNode[]): OrgTreeNode | undefined => {
-          for (const n of ns) {
-            if (n.id === node.key) return n;
-            const hit = find(n.children ?? []);
-            if (hit) return hit;
-          }
-        };
-        selected = find(tree) ?? undefined;
-      }"
-    />
+      :expanded-keys="expandedKeys"
+      show-line
+      block-node
+      :loading="loading"
+      @select="onSelect"
+      @expand="(keys: (string | number)[]) => (expandedKeys = keys as string[])"
+    >
+      <template #titleRender="{ node }">
+        <div class="flex items-center gap-1.5 py-0.5">
+          <IconifyIcon
+            :icon="node.isLeaf ? 'lucide:corner-down-right' : 'lucide:building-2'"
+            class="shrink-0"
+            :class="node.isLeaf ? 'text-gray-400' : 'text-primary'"
+          />
+          <span class="truncate">{{ node.title }}</span>
+          <Tag v-if="!node.isLeaf" color="processing" class="m-0 scale-90">
+            {{ (node.children ?? []).length }}
+          </Tag>
+        </div>
+      </template>
+    </Tree>
     <div v-else class="py-8 text-center text-gray-400">
       暂无组织——点击右上角「+ 根组织」创建第一个节点
     </div>
@@ -154,3 +213,20 @@ onMounted(load);
   </NameModal>
   </div>
 </template>
+
+<style scoped>
+.org-tree :deep(.ant-tree-node-content-wrapper) {
+  border-radius: 6px;
+  padding: 2px 6px;
+  transition: background-color 0.15s ease;
+}
+.org-tree :deep(.ant-tree-node-content-wrapper:hover) {
+  background: rgba(99, 102, 241, 0.08);
+}
+.org-tree :deep(.ant-tree-node-selected) {
+  background: rgba(99, 102, 241, 0.14) !important;
+}
+.org-tree :deep(.ant-tree-treenode) {
+  padding: 1px 0;
+}
+</style>

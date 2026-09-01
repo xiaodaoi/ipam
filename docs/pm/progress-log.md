@@ -4,6 +4,11 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-31 · M2-041 补4：组织树 UI 优化
+
+- **做了**：工具栏（总数 Tag + 展开/收起全部）、节点图标（building-2/叶子箭头）、子节点数徽标、show-line 连接线、圆角 hover/选中态、受控 expandedKeys。
+- **验证**：typecheck 0 + build ✓ + 容器重建 + chunk 标记确认。
+
 ## 2026-08-31 · M2-041 补3：创建成功但报「未知 API 路由」——listOrgTree 调错端点（/orgs/tree 不存在）
 
 - **根因**：spec 树端点 `GET /orgs`，前端 listOrgTree 却调 `/orgs/tree`（404，M2-001 起就错）→ 组织树从未加载，创建后 load() 抛错。
