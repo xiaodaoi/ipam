@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-31 · M2-041 补2：orgs 最终根因——漏 import Input（v-model 断链）+ UI 优化
+
+- **现象**：已输入仍提示「请输入组织名称」→ confirmName 调用但 nameInput 空。
+- **根因**：orgs 页 antd import 漏 `Input`，无全局注册 → 渲染原生 `<input>`（不触发 update:value）→ v-model 断链；ledger 页同类。
+- **修复**：orgs/ledger 补 Input import；orgs 输入框加 label+autofocus+加宽。
+- **验证**：typecheck 0 + build ✓ + 新 chunk 含 onUpdate:value 绑定。
+
 ## 2026-08-31 · M2-041 补：orgs 三次报障真根因——静态资源无缓存头
 
 - **现象**：orgs 新建根组织第三次报障；后端 POST /orgs=201 正常、部署产物代码正确。

@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useVbenModal } from '@vben/common-ui';
 
-import { Card, Tag, message, Table, Tree } from 'ant-design-vue';
+import { Card, Tag, message, Table, Tree, Input} from 'ant-design-vue';
 
 import {
   bindStatic,

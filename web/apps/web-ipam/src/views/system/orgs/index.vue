@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useVbenModal } from '@vben/common-ui';
 
-import { Button, Card, Tree, message } from 'ant-design-vue';
+import { Button, Card, Input, Tree, message } from 'ant-design-vue';
 
 import { createOrg, deleteOrg, listOrgTree, updateOrg, type OrgTreeNode } from '#/api/ipam';
 
@@ -141,7 +141,16 @@ onMounted(load);
     </div>
   </Card>
   <NameModal>
-    <Input v-model:value="nameInput" placeholder="组织名称" @pressEnter="confirmName" />
+    <div class="flex items-center gap-2">
+      <span class="shrink-0 text-sm font-medium text-gray-600">组织名称</span>
+      <Input
+        v-model:value="nameInput"
+        placeholder="请输入组织名称"
+        autofocus
+        class="flex-1"
+        @pressEnter="confirmName"
+      />
+    </div>
   </NameModal>
   </div>
 </template>
