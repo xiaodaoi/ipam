@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-09-01 · 子网管理页布局：子网与地址池 + PD 租约改上下结构
+
+- **做了**：原三栏横排（组织树|子网|PD租约）改为：组织树固定左栏，右侧 `min-w-0 flex-1` 竖排容器——子网与地址池在上、PD 租约在下（mt-3）。
+- **验证**：typecheck 0 + build ✓ + 容器重建 + chunk 含新容器标记；subnets API 200。
+- **遗留（部署侧）**：`/dhcp/leases6` 当前 500——Kea dhcp6 命令通道不可达（lease6-get-all 转发失败，server offline），需核查 kea-dhcp6.conf 的 control-socket/ctrl-agent 转发配置。
+
 ## 2026-08-31 · M2-041 补4：组织树 UI 优化
 
 - **做了**：工具栏（总数 Tag + 展开/收起全部）、节点图标（building-2/叶子箭头）、子节点数徽标、show-line 连接线、圆角 hover/选中态、受控 expandedKeys。

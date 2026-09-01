@@ -168,7 +168,8 @@ const columns = [
       <Button size="small" block class="mt-2" @click="filterOrgId = undefined; load()">全部</Button>
     </Card>
 
-    <Card class="flex-1">
+    <div class="min-w-0 flex-1">
+    <Card>
       <template #title>
         <div class="flex items-center gap-3">
           <span>子网与地址池</span>
@@ -277,5 +278,6 @@ const columns = [
       </template>
       <Table :data-source="lease6Rows" :columns="lease6Cols" :loading="lease6Loading" size="small" row-key="ipAddress" />
     </Card>
+    </div>
   </div>
 </template>
