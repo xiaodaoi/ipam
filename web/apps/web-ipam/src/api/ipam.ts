@@ -30,9 +30,10 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export const listLedger = (params: { orgId?: string; family?: number; state?: string; cursor?: string; pageSize?: number }) => {
+export const listLedger = (params: { orgId?: string; subnetId?: string; family?: number; state?: string; cursor?: string; pageSize?: number }) => {
   const qs = new URLSearchParams();
   if (params.orgId) qs.set('orgId', params.orgId);
+  if (params.subnetId) qs.set('subnetId', params.subnetId);
   if (params.family) qs.set('family', String(params.family));
   if (params.state) qs.set('state', params.state);
   if (params.cursor) qs.set('cursor', params.cursor);

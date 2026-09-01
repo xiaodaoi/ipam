@@ -4,6 +4,14 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-09-01 · 地址台账优化——组织→网段 v4/v6 分栏 + IPv4 地址地图（移植 IpPlanMap）
+
+- **需求**：组织分组下对应各组织的网段，分 IPv4/IPv6；IPv4 使用情况用 tmp/ip-plan-map 组件。
+- **做了**：① 后端 `GET /ledger` 加 `subnetId` 过滤（spec+gen+handler+mem 过滤）——按子网拉逐地址台账；② 移植 `IpPlanMap.jsx`（React+antd5）→ `web/apps/web-ipam/src/components/ip-plan-map.vue`（Vue3+antdv）：地址地图格子/状态着色/叠加角标/图例/统计/点击与 Shift 区间选择/批量操作/编辑弹窗/详情抽屉/网段切换，图标用 lucide；③ 重写 ledger 页：左组织树，右 v4/v6 分栏——IPv4 子网下拉 + 地址地图（台账状态映射：online→dynamic+在线角标、grace→dynamic、conflict→dynamic+冲突角标、available/static/reserved 直通），IPv6 网段表格（PD/地址池摘要）。
+- **操作接线**：转保留→reserveAddress、转静态→BindModal 输 MAC、转动态→提示 Kea 自动管理。
+- **踩坑**：移植时修正 React 原组件 bug（hostToIp 按 host 键却用 ip 查询→selectedIps 恒空，改 ip 键 map）；Vue SFC 不能 export interface / JSX 渲染函数；antdv Space size 需数字；Select change 签名包装。
+- **验证**：typecheck 0 + build ✓ + 容器重建 + 后端 subnetId 过滤实测（子网 91 行，states available/reserved/static）；ledger chunk 含地址地图标记。
+
 ## 2026-09-01 · 日志明细分页修复——offset 分页接通（页码翻页 + 每页条数调整）
 
 - **现象**：日志明细分页条是装饰性——游标式后端未接页码点击，无法翻页/调每页条数。

@@ -2,95 +2,160 @@
 import { computed, onMounted, ref } from 'vue';
 import { useVbenModal } from '@vben/common-ui';
 
-import { Card, Tag, message, Table, Tree, Input} from 'ant-design-vue';
+import { Card, Input, message, Table, Tag, Tree } from 'ant-design-vue';
+
+import IpPlanMap from '#/components/ip-plan-map.vue';
 
 import {
   bindStatic,
   listLedger,
   listOrgTree,
+  listSubnets,
   reserveAddress,
-  type LedgerRow,
   type OrgTreeNode,
+  type Subnet,
 } from '#/api/ipam';
 
-const STATE_COLOR: Record<string, string> = {
-  online: 'green',
-  available: 'default',
-  reserved: 'orange',
-  static: 'blue',
-  grace: 'gold',
-  conflict: 'red',
-};
-const STATE_TEXT: Record<string, string> = {
-  online: '在线',
-  available: '空闲',
-  reserved: '保留',
-  static: '静态绑定',
-  grace: '宽限',
-  conflict: '冲突',
-};
+// ── IP 工具（与 IpPlanMap 同源）──
+function ipToInt(ip: string): number {
+  return ip.split('.').reduce((acc, o) => ((acc << 8) >>> 0) + parseInt(o, 10), 0) >>> 0;
+}
+function intToIp(n: number): string {
+  return [n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.');
+}
+function parseCidr(cidr: string): { network: number; broadcast: number; hostCount: number } {
+  const parts = String(cidr).split('/');
+  const bits = parseInt(parts[1] || '32', 10);
+  const ipInt = ipToInt(parts[0] || '0.0.0.0');
+  const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
+  const network = (ipInt & mask) >>> 0;
+  const broadcast = (network | (~mask >>> 0)) >>> 0;
+  return { network, broadcast, hostCount: broadcast - network + 1 };
+}
 
+// ── 组织树 ──
 const orgTree = ref<OrgTreeNode[]>([]);
-
-// antdv Tree 数据适配（key=节点 id）
 const treeData = computed(() => {
   const walk = (nodes: OrgTreeNode[]): Array<{ key: string; title: string; children: any[] }> =>
     nodes.map((n) => ({ key: n.id, title: n.name, children: walk(n.children ?? []) }));
   return walk(orgTree.value);
 });
 const selectedOrgId = ref<string>('');
-const rows = ref<LedgerRow[]>([]);
-const total = ref(0);
-const loading = ref(false);
-const pageSize = ref(50);
 
-const columns = [
-  { title: '地址', dataIndex: 'address', key: 'address', width: 180 },
-  { title: '状态', dataIndex: 'state', key: 'state', width: 110 },
-  { title: 'MAC', dataIndex: 'mac', key: 'mac', width: 180 },
-  { title: '主机名', dataIndex: 'hostname', key: 'hostname', width: 160 },
-  { title: '使用人', dataIndex: 'owner', key: 'owner', width: 120 },
-  { title: '租约到期', dataIndex: 'leaseExpiry', key: 'leaseExpiry' },
-  { title: '操作', key: 'actions', width: 160 },
-];
+// ── 子网（v4/v6 分栏）──
+const subnets = ref<Subnet[]>([]);
+const v4Subnets = computed(() => subnets.value.filter((s) => s.family === 4));
+const v6Subnets = computed(() => subnets.value.filter((s) => s.family === 6));
+const selectedCidr = ref<string>('');
 
-onMounted(async () => {
-  orgTree.value = await listOrgTree();
-  await load();
-});
-
-const load = async () => {
-  loading.value = true;
-  try {
-    const page = await listLedger({ orgId: selectedOrgId.value || undefined, pageSize: pageSize.value });
-    rows.value = page.items;
-    total.value = page.total ?? 0;
-  } finally {
-    loading.value = false;
+async function loadSubnets() {
+  subnets.value = (await listSubnets(selectedOrgId.value || undefined)).items ?? [];
+  if (v4Subnets.value.length) {
+    const cur = v4Subnets.value.find((s) => s.cidr === selectedCidr.value);
+    selectedCidr.value = (cur ?? v4Subnets.value[0]!).cidr;
+    await loadMap();
+  } else {
+    cells.value = [];
+    selectedCidr.value = '';
   }
-};
+}
 
-const onSelectOrg = (_keys: Array<string | number>, info: { selected: boolean }) => {
-  selectedOrgId.value = info.selected ? String(_keys[0] ?? '') : '';
-  load();
-};
+// ── 地址地图数据（IPv4 逐地址）──
+interface MapCell {
+  ip: string;
+  host: number;
+  status: string;
+  overlays?: string[];
+  hostname?: string;
+  user?: string;
+  leaseEnd?: string;
+  purpose?: string;
+  remark?: string;
+  leaseStatus?: string;
+}
+const cells = ref<MapCell[]>([]);
+const mapLoading = ref(false);
+const currentSubnet = computed(() => v4Subnets.value.find((s) => s.cidr === selectedCidr.value));
 
-const stateColor = (state: string) => STATE_COLOR[state] ?? 'default';
-const stateText = (state: string) => STATE_TEXT[state] ?? state;
+/** ledger 状态 → 地图状态/叠加 */
+function mapState(state: string): { status: string; overlays: string[] } {
+  switch (state) {
+    case 'online': return { status: 'dynamic', overlays: ['online'] };
+    case 'grace': return { status: 'dynamic', overlays: [] };
+    case 'conflict': return { status: 'dynamic', overlays: ['conflict'] };
+    default: return { status: state, overlays: [] }; // available/static/reserved 直通
+  }
+}
 
-const actionReserve = async (row: LedgerRow) => {
-  if (!row.subnetId) return;
-  await reserveAddress(row.subnetId, row.address);
-  message.success(`${row.address} 已保留`);
-  load();
-};
+async function loadMap() {
+  const sub = currentSubnet.value;
+  if (!sub) {
+    cells.value = [];
+    return;
+  }
+  mapLoading.value = true;
+  try {
+    const { network, hostCount } = parseCidr(sub.cidr);
+    // 1) 生成全量格子（网络/广播/未规划）
+    const grid: MapCell[] = [];
+    for (let n = 0; n < hostCount; n++) {
+      const ip = intToIp(network + n);
+      grid.push({
+        ip,
+        host: n,
+        status: n === 0 ? 'network' : n === hostCount - 1 ? 'broadcast' : 'available',
+        overlays: [],
+      });
+    }
+    // 2) 覆盖台账状态（按 host 定位）
+    const page = await listLedger({ subnetId: sub.id, family: 4, pageSize: 500 });
+    for (const row of page.items ?? []) {
+      const host = ipToInt(row.address) - network;
+      if (host < 0 || host >= hostCount) continue;
+      const { status, overlays } = mapState(row.state);
+      grid[host] = {
+        ip: row.address,
+        host,
+        status,
+        overlays,
+        hostname: row.hostname || '',
+        user: row.owner || '',
+        leaseEnd: row.leaseExpiry ? new Date(row.leaseExpiry).toLocaleString() : '',
+        leaseStatus: row.state === 'online' ? '已分配' : '',
+        purpose: row.state === 'reserved' ? '保留' : '',
+        remark: row.state === 'conflict' ? 'IP 冲突' : row.state === 'grace' ? '租约宽限' : '',
+      };
+    }
+    cells.value = grid;
+  } finally {
+    mapLoading.value = false;
+  }
+}
 
+function onSubnetChange(cidr: string) {
+  selectedCidr.value = cidr;
+  void loadMap();
+}
+
+// ── 地图操作 → 台账 API ──
 const bindModal = ref({ address: '', subnetId: '', mac: '' });
 const [BindModal, bindModalApi] = useVbenModal({ draggable: true, confirmText: '绑定', onConfirm: () => confirmBind() });
-function askBind(row: LedgerRow) {
-  bindModal.value = { address: row.address, subnetId: row.subnetId ?? '', mac: '' };
-  bindModalApi.setState({ title: `绑定 ${row.address}` });
-  bindModalApi.open();
+
+async function onMapAction(action: string, ips: MapCell[]) {
+  const sub = currentSubnet.value;
+  const first = ips[0];
+  if (!sub || !first) return;
+  if (action === 'toReserve') {
+    await reserveAddress(sub.id, first.ip);
+    message.success(`${first.ip} 已保留`);
+    void loadMap();
+  } else if (action === 'toStatic') {
+    bindModal.value = { address: first.ip, subnetId: sub.id, mac: '' };
+    bindModalApi.setState({ title: `静态绑定 ${first.ip}` });
+    bindModalApi.open();
+  } else if (action === 'toDynamic') {
+    message.info('DHCP 动态地址由 Kea 自动分配，无需手动转换');
+  }
 }
 async function confirmBind() {
   const mac = bindModal.value.mac.trim();
@@ -98,44 +163,90 @@ async function confirmBind() {
   await bindStatic(bindModal.value.subnetId, bindModal.value.address, mac);
   message.success(`${bindModal.value.address} 已静态绑定 ${mac}`);
   bindModalApi.close();
-  load();
+  void loadMap();
 }
+
+// ── IPv6 网段表格 ──
+const v6Cols = [
+  { title: '网段', dataIndex: 'cidr' },
+  { title: '名称', dataIndex: 'name' },
+  { title: '池', dataIndex: 'pools' },
+];
+function poolText(p: Subnet): string {
+  return (p.pools ?? [])
+    .map((x: any) => (x.kind === 'pd' ? `PD:${x.startAddr}/${x.prefixLen}→${x.delegatedLen}` : `${x.startAddr}-${x.endAddr ?? ''}`))
+    .join('；') || '—';
+}
+
+function onSelectOrg(_keys: Array<string | number>, info: { selected: boolean }) {
+  selectedOrgId.value = info.selected ? String(_keys[0] ?? '') : '';
+  selectedCidr.value = '';
+  void loadSubnets();
+}
+
+onMounted(async () => {
+  orgTree.value = await listOrgTree();
+  await loadSubnets();
+});
 </script>
 
 <template>
   <div>
   <div class="flex h-full gap-4">
-    <Card style="width:280px;flex-shrink:0" title="组织分组">
-      <Tree
-        :tree-data="treeData"
-        selectable
-        block-node
-        @select="onSelectOrg"
-      />
+    <Card style="width: 280px; flex-shrink: 0" title="组织分组">
+      <Tree :tree-data="treeData" selectable block-node @select="onSelectOrg" />
+      <div class="mt-2 text-xs text-gray-400">选择组织后展示其下 IPv4/IPv6 网段</div>
     </Card>
-    <Card style="flex:1" title="地址台账（六态矩阵）">
-      <Table
-        :columns="columns"
-        :data-source="rows"
-        :loading="loading"
-        :pagination="false"
-        row-key="poolIndex"
-        size="middle"
-      >
-        <template #bodyCell="{ column, record }">
-          <!-- record 为通用记录类型，此处按台账行处理 -->
-          <template v-if="column.key === 'state'">
-            <Tag :color="stateColor((record as LedgerRow).state)">{{ stateText((record as LedgerRow).state) }}</Tag>
-          </template>
-          <template v-else-if="column.key === 'actions'">
-            <a style="margin-right:8px" @click="actionReserve(record as LedgerRow)">保留</a>
-            <a style="margin-right:8px" @click="askBind(record as LedgerRow)">静态绑定</a>
-          </template>
+
+    <div class="min-w-0 flex-1">
+      <Card title="地址台账">
+        <template #extra>
+          <span v-if="selectedOrgId" class="text-xs text-gray-400">IPv4 {{ v4Subnets.length }} 段 · IPv6 {{ v6Subnets.length }} 段</span>
         </template>
-      </Table>
-      <div style="margin-top:12px;text-align:right">共 {{ total }} 条</div>
-    </Card>
+
+        <div v-if="!v4Subnets.length && !v6Subnets.length" class="py-10 text-center text-gray-400">
+          请先在左侧选择组织；或该组织暂无网段
+        </div>
+
+        <!-- IPv4：地址地图 -->
+        <div v-if="v4Subnets.length" class="mb-4">
+          <div class="mb-2 flex items-center gap-2">
+            <span class="text-sm font-medium">IPv4 地址使用情况</span>
+            <Tag color="blue">{{ selectedCidr }}</Tag>
+            <span v-if="mapLoading" class="text-xs text-gray-400">加载中…</span>
+          </div>
+          <IpPlanMap
+            :cidr="selectedCidr"
+            :ips="cells"
+            :subnets="v4Subnets.map((s) => ({ cidr: s.cidr, name: s.name }))"
+            @subnet-change="onSubnetChange"
+            @action="onMapAction"
+            @save="(_t: unknown, _v: unknown) => message.info('台账信息由 DHCP 租约 / 资产登记驱动，此处仅展示')"
+          />
+        </div>
+
+        <!-- IPv6：网段表格 -->
+        <div v-if="v6Subnets.length">
+          <div class="mb-2 flex items-center gap-2">
+            <span class="text-sm font-medium">IPv6 网段</span>
+            <span class="text-xs text-gray-400">IPv6 为子网级汇总，暂无逐地址地图</span>
+          </div>
+          <Table
+            :data-source="v6Subnets"
+            :columns="v6Cols"
+            row-key="id"
+            size="small"
+            :pagination="false"
+          >
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.dataIndex === 'pools'">{{ poolText(record as Subnet) }}</template>
+            </template>
+          </Table>
+        </div>
+      </Card>
+    </div>
   </div>
+
   <BindModal>
     <Input v-model:value="bindModal.mac" placeholder="MAC 如 aa:bb:cc:dd:ee:01" @pressEnter="confirmBind" />
   </BindModal>

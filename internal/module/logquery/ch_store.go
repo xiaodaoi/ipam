@@ -187,22 +187,25 @@ func (s *ChStore) Query(ctx context.Context, f LogFilter, scope OrgScope) (Page,
 	if pageSize <= 0 {
 		pageSize = DefaultPage
 	}
-	qargs := args
+	// 参数严格按 SQL 占位符顺序装配：where… → LIMIT ? → OFFSET ?
+	// （教训：此前 LIMIT 误接 offset 值、OFFSET 误接 pageSize，page≥3 越取越多且偏移恒 50）
+	qargs := append([]any{}, args...)
 	cursorCond := ""
-	offset := ""
+	offsetClause := ""
+	limit := pageSize
 	if f.Cursor != "" {
 		cts, cmac, cdomain := ParseCursor(f.Cursor)
 		cursorCond = " AND (ts, client_mac, domain) < (?, ?, ?)"
-		qargs = append(append([]any{}, args...), cts.UTC(), cmac, cdomain)
+		qargs = append(qargs, cts.UTC(), cmac, cdomain)
+		limit = pageSize + 1 // 游标模式多取一条算 nextCursor
 	} else if f.Page > 1 {
-		// offset 分页：OFFSET (page-1)*pageSize
-		offset = " OFFSET ?"
-		qargs = append(append([]any{}, args...), (f.Page-1)*pageSize)
+		offsetClause = " OFFSET ?"
+		qargs = append(qargs, (f.Page-1)*pageSize)
 	}
 	sql := "SELECT " + logCols + " FROM " + s.table() +
 		" WHERE " + where + cursorCond +
-		" ORDER BY ts DESC, client_mac DESC, domain DESC LIMIT ?" + offset
-	qargs = append(qargs, pageSize)
+		" ORDER BY ts DESC, client_mac DESC, domain DESC LIMIT ?" + offsetClause
+	qargs = append(qargs, limit)
 
 	rows, err := s.conn.Query(ctx, sql, qargs...)
 	if err != nil {

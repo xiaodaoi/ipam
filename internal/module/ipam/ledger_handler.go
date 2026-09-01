@@ -117,8 +117,12 @@ func (h *LedgerHandler) ListLedger(c *gin.Context, params apigen.ListLedgerParam
 	if params.PageSize != nil {
 		pageSize = *params.PageSize
 	}
+	subnetID := ""
+	if params.SubnetId != nil {
+		subnetID = params.SubnetId.String()
+	}
 	rows, next, total := h.svc.Query(c.Request.Context(), LedgerQuery{
-		OrgID: orgID, Family: family, State: LedgerState(state), Cursor: cursor, PageSize: pageSize,
+		OrgID: orgID, SubnetID: subnetID, Family: family, State: LedgerState(state), Cursor: cursor, PageSize: pageSize,
 	})
 	items := make([]apigen.LedgerRow, 0, len(rows))
 	for _, r := range rows {

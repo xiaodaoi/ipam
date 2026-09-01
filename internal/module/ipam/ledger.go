@@ -35,6 +35,7 @@ type LedgerRow struct {
 // LedgerQuery 过滤条件。
 type LedgerQuery struct {
 	OrgID    string
+	SubnetID string
 	Family   int
 	State    LedgerState
 	Cursor   string
@@ -100,6 +101,9 @@ func QueryLedger(src LedgerSource, q LedgerQuery) ([]LedgerRow, string, int) {
 			continue
 		}
 		if q.OrgID != "" && s.OrgID != q.OrgID {
+			continue
+		}
+		if q.SubnetID != "" && s.ID != q.SubnetID {
 			continue
 		}
 		byAddr := map[string]*LedgerBinding{}

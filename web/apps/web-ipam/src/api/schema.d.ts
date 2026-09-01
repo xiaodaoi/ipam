@@ -4273,6 +4273,8 @@ export interface operations {
         parameters: {
             query?: {
                 orgId?: string;
+                /** @description 按子网过滤（地址地图逐地址视图用；orgId 子集） */
+                subnetId?: string;
                 family?: 4 | 6;
                 state?: components["schemas"]["LedgerState"];
                 cursor?: string;

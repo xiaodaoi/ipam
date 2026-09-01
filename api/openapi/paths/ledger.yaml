@@ -11,6 +11,10 @@ LedgerCollection:
       - name: orgId
         in: query
         schema: { type: string, format: uuid }
+      - name: subnetId
+        in: query
+        schema: { type: string, format: uuid }
+        description: 按子网过滤（地址地图逐地址视图用；orgId 子集）
       - name: family
         in: query
         schema: { type: integer, enum: [4, 6] }
