@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-31 · M2-041 补3：创建成功但报「未知 API 路由」——listOrgTree 调错端点（/orgs/tree 不存在）
+
+- **根因**：spec 树端点 `GET /orgs`，前端 listOrgTree 却调 `/orgs/tree`（404，M2-001 起就错）→ 组织树从未加载，创建后 load() 抛错。
+- **修复**：listOrgTree → `/orgs`；Go 注释同步。
+- **验证**：create 201 + GET /orgs 树含新根；部署 chunk 无 /orgs/tree。
+
 ## 2026-08-31 · M2-041 补2：orgs 最终根因——漏 import Input（v-model 断链）+ UI 优化
 
 - **现象**：已输入仍提示「请输入组织名称」→ confirmName 调用但 nameInput 空。

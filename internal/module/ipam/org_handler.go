@@ -37,7 +37,7 @@ func toGenTree(nodes []TreeNode) []apigen.OrgTreeNode {
 	return out
 }
 
-// ListOrgTree GET /orgs/tree
+// ListOrgTree GET /orgs（spec operationId listOrgTree；前端统一走 /orgs）
 func (h *OrgHandler) ListOrgTree(c *gin.Context) {
 	tree := h.svc.Tree(c.Request.Context())
 	c.JSON(http.StatusOK, toGenTree(tree))
