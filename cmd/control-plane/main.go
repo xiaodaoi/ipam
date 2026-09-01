@@ -12,7 +12,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
+	"strconv"
+"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -552,10 +553,34 @@ func webuiFS() (fs.FS, error) {
 func main() {
 	addr := os.Getenv("IPAM_HTTP_ADDR")
 	if addr == "" {
-		addr = ":8443"
+		addr = dbListenAddr()
 	}
 	log.Printf("control-plane %s listening on %s", version, addr)
 	if err := newEngine(version).Run(addr); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// dbListenAddr 从 webui_settings.server_port 读取监听端口（M2-046，UI 可编辑，重启生效）。
+// IPAM_DB_DSN 未设置（内存 PoC）或读取失败时回退 :8443。
+func dbListenAddr() string {
+	dsn := os.Getenv("IPAM_DB_DSN")
+	if dsn == "" {
+		return ":8443"
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		return ":8443"
+	}
+	defer pool.Close()
+	var port int
+	if err := pool.QueryRow(ctx, `SELECT coalesce(server_port, 8443) FROM webui_settings WHERE id`).Scan(&port); err != nil {
+		return ":8443"
+	}
+	if port < 1 || port > 65535 {
+		return ":8443"
+	}
+	return ":" + strconv.Itoa(port)
 }

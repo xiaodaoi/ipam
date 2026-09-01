@@ -31,3 +31,14 @@ WebuiSettingsCollection:
           application/json:
             schema:
               $ref: '../components/schemas/webui.yaml#/WebuiSettings'
+
+RestartControlPlane:
+  post:
+    operationId: restartControlPlane
+    tags: [platform]
+    summary: 重启控制面服务（M2-046）
+    description: 优雅退出进程（容器 restart 策略自动拉起）；端口/设置修改在重启后生效。scope 为 system:write。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '204':
+        description: 已接受重启

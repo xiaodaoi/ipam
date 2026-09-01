@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-31 · M2-041 全站 UI 批修（8 项清单 + 举一反三）
+
+- **修**：①orgs 新建根组织（Modal 流程重写）②角色管理跳系统设置（路由缺 name → finalRoutesMap[undefined] 键碰撞，补 name）③设置页同步侧栏（updatePreferences）④端口可编辑+重启接口（迁移 0018 + POST /system/restart + listen 读 DB）⑤上游 Modal 不弹（async close 竞态 → openAdd）⑥转发编辑重复取消/缺字段（清理+label）⑦转发启用/删除（Switch toggle + 错误处理）⑧封禁条目迁 VbenDrawer + 客户端分页。
+- **举一反三**：dualstack 同型竞态修复；ledger/records/options/roles body 按钮残留清理；roles VbenModal v-model:open 转命令式；无 name 路由全站审计。
+- **验证**：typecheck 0 + build ✓ + 零外链 PASS + go build ./... + 单测 OK + 冒烟全 200 + restart 204 容器恢复。
+
 ## 2026-08-31 · M2-045 完成：站点图标共用 + 本地上传
 
 - **做了**：设置页 favicon/侧栏 logo 两输入框合并为本地图片上传（dataURL 双写 + 预览/清除 + 200KB 限制）；spec maxLength 放宽至 200000 支持 base64 存储。

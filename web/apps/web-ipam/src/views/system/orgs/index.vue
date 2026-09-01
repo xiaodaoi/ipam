@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useVbenModal } from '@vben/common-ui';
 
-import { Button, Card, Tree } from 'ant-design-vue';
+import { Button, Card, Tree, message } from 'ant-design-vue';
 
 import { createOrg, deleteOrg, listOrgTree, updateOrg, type OrgTreeNode } from '#/api/ipam';
 
@@ -39,19 +39,27 @@ async function load() {
   }
 }
 
-const nameModal = ref({ initial: '', action: null as null | ((name: string) => Promise<void>) });
+const nameInput = ref('');
+const nameAction = ref<((name: string) => Promise<void>) | null>(null);
 const [NameModal, nameModalApi] = useVbenModal({ draggable: true, confirmText: '确定', onConfirm: () => confirmName() });
 
 function askName(title: string, initial: string, action: (name: string) => Promise<void>) {
-  nameModal.value = { initial, action };
+  nameInput.value = initial;
+  nameAction.value = action;
   nameModalApi.setState({ title });
   nameModalApi.open();
 }
 async function confirmName() {
-  const name = nameModal.value.initial.trim();
+  const name = nameInput.value.trim();
   if (!name) return;
   nameModalApi.close();
-  await nameModal.value.action?.(name);
+  const action = nameAction.value;
+  if (!action) return;
+  try {
+    await action(name);
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '操作失败');
+  }
 }
 
 function addRoot() {
@@ -130,7 +138,7 @@ onMounted(load);
     </div>
   </Card>
   <NameModal>
-    <Input v-model:value="nameModal.initial" placeholder="组织名称" @pressEnter="confirmName" />
+    <Input v-model:value="nameInput" placeholder="组织名称" @pressEnter="confirmName" />
   </NameModal>
   </div>
 </template>

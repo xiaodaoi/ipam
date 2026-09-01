@@ -141,10 +141,6 @@ const linkedCols = [
   </Card>
   <ZoneModal>
     <Input v-model:value="zoneModal.name" placeholder="如 office.local" @pressEnter="createZoneConfirm" />
-    <div class="mt-3 text-right">
-      <Button @click="zoneModalApi.close()">取消</Button>
-      <Button type="primary" class="ml-1" @click="createZoneConfirm">创建</Button>
-    </div>
   </ZoneModal>
   </div>
 </template>

@@ -57,10 +57,12 @@ function edit(r: Upstream) {
   form.value = { name: r.name, addr: (r.addrs ?? []).join(','), protocol: (r.protocol as Proto) ?? 'udp' };
 }
 const [FormModal, formModalApi] = useVbenModal({ draggable: true, title: '上游 DNS 服务器', confirmText: '添加', onConfirm: () => add() });
-function cancelEdit() {
+function openAdd() {
+  // 注意：不能先调 cancelEdit()（其 close() 是异步的，会在 open() 之后把 isOpen 置回 false）
   editingId.value = undefined;
-  formModalApi.close();
   form.value = { name: '', addr: '', protocol: 'udp' };
+  formModalApi.setState({ title: '添加上游 DNS', confirmText: '添加' });
+  formModalApi.open();
 }
 async function remove(id?: string) {
   if (!id) return;
@@ -89,7 +91,7 @@ const HEALTH_COLOR: Record<string, string> = { up: 'green', down: 'red', unknown
       <Button size="small" @click="load()">刷新（15s 自动）</Button>
     </template>
     <div class="mb-3">
-      <Button type="primary" size="small" @click="cancelEdit(); formModalApi.setState({ title: '添加上游 DNS' }); formModalApi.open()">+ 添加上游</Button>
+      <Button type="primary" size="small" @click="openAdd()">+ 添加上游</Button>
     </div>
     <FormModal class="w-[720px]">
       <div class="flex flex-wrap items-center gap-2">
@@ -97,7 +99,6 @@ const HEALTH_COLOR: Record<string, string> = { up: 'green', down: 'red', unknown
       <Input v-model:value="form.addr" placeholder="地址 如 223.5.5.5:53" style="width: 200px" />
       <Select v-model:value="form.protocol" style="width: 90px" :options="[
         { value: 'udp', label: 'UDP' }, { value: 'tcp', label: 'TCP' }, { value: 'dot', label: 'DoT' }]" />
-      <Button v-if="editingId" @click="cancelEdit">取消编辑</Button>
       </div>
     </FormModal>
     <Table

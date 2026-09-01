@@ -2,9 +2,14 @@ package platform
 
 import (
 	"context"
+	"log"
 	"net"
 	"net/http"
+	"os"
+	"strconv"
 	"sync"
+	"syscall"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,6 +23,7 @@ type WebuiSettings struct {
 	SiteName   string
 	FaviconUrl string
 	LogoUrl    string
+	ServerPort int
 }
 
 // WebuiRepo 设置存储抽象（单行表 webui_settings）。
@@ -57,8 +63,8 @@ func NewPgWebuiRepo(pool *pgxpool.Pool) *PgWebuiRepo { return &PgWebuiRepo{pool:
 func (s *PgWebuiRepo) Get(ctx context.Context) (WebuiSettings, error) {
 	var v WebuiSettings
 	err := s.pool.QueryRow(ctx,
-		`SELECT coalesce(site_name,''), coalesce(favicon_url,''), coalesce(logo_url,'') FROM webui_settings WHERE id`).
-		Scan(&v.SiteName, &v.FaviconUrl, &v.LogoUrl)
+		`SELECT coalesce(site_name,''), coalesce(favicon_url,''), coalesce(logo_url,''), coalesce(server_port, 8443) FROM webui_settings WHERE id`).
+		Scan(&v.SiteName, &v.FaviconUrl, &v.LogoUrl, &v.ServerPort)
 	if err != nil {
 		return WebuiSettings{}, err
 	}
@@ -67,9 +73,9 @@ func (s *PgWebuiRepo) Get(ctx context.Context) (WebuiSettings, error) {
 
 func (s *PgWebuiRepo) Save(ctx context.Context, v WebuiSettings) error {
 	_, err := s.pool.Exec(ctx,
-		`INSERT INTO webui_settings (id, site_name, favicon_url, logo_url) VALUES (true, $1, $2, $3)
-		 ON CONFLICT (id) DO UPDATE SET site_name = EXCLUDED.site_name, favicon_url = EXCLUDED.favicon_url, logo_url = EXCLUDED.logo_url, updated_at = now()`,
-		v.SiteName, v.FaviconUrl, v.LogoUrl)
+		`INSERT INTO webui_settings (id, site_name, favicon_url, logo_url, server_port) VALUES (true, $1, $2, $3, $4)
+		 ON CONFLICT (id) DO UPDATE SET site_name = EXCLUDED.site_name, favicon_url = EXCLUDED.favicon_url, logo_url = EXCLUDED.logo_url, server_port = EXCLUDED.server_port, updated_at = now()`,
+		v.SiteName, v.FaviconUrl, v.LogoUrl, v.ServerPort)
 	return err
 }
 
@@ -97,12 +103,18 @@ func hostPortOf(c *gin.Context) (ip, port string) {
 
 func (h *WebuiHandler) respond(c *gin.Context, v WebuiSettings) {
 	ip, port := hostPortOf(c)
+	portInt := 0
+	if v.ServerPort > 0 {
+		portInt = v.ServerPort
+	} else if p, err := strconv.Atoi(port); err == nil {
+		portInt = p
+	}
 	c.JSON(http.StatusOK, rtypes.WebuiSettings{
 		SiteName:   v.SiteName,
 		FaviconUrl: &v.FaviconUrl,
 		LogoUrl:    &v.LogoUrl,
 		ServerIp:   &ip,
-		ServerPort: &port,
+		ServerPort: &portInt,
 	})
 }
 
@@ -127,10 +139,24 @@ func (h *WebuiHandler) UpdateWebuiSettings(c *gin.Context) {
 		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "BAD_REQUEST", "siteName is required")
 		return
 	}
-	v := WebuiSettings{SiteName: *body.SiteName, FaviconUrl: derefPtr(body.FaviconUrl), LogoUrl: derefPtr(body.LogoUrl)}
+	port := 8443
+	if body.ServerPort != nil && *body.ServerPort >= 1 && *body.ServerPort <= 65535 {
+		port = *body.ServerPort
+	}
+	v := WebuiSettings{SiteName: *body.SiteName, FaviconUrl: derefPtr(body.FaviconUrl), LogoUrl: derefPtr(body.LogoUrl), ServerPort: port}
 	if err := h.repo.Save(c.Request.Context(), v); err != nil {
 		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
 		return
 	}
 	h.respond(c, v)
+}
+
+// RestartControlPlane POST /system/restart——优雅退出（容器 restart 策略自动拉起）。
+func (h *WebuiHandler) RestartControlPlane(c *gin.Context) {
+	c.Status(http.StatusNoContent)
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		log.Printf("control-plane restart requested via /system/restart, exiting")
+		_ = syscall.Kill(os.Getpid(), syscall.SIGTERM)
+	}()
 }

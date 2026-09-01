@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 
-import { Button, Card, Input, message } from 'ant-design-vue';
+import { updatePreferences } from '@vben/preferences';
+
+import { Button, Card, Input, InputNumber, Popconfirm, message } from 'ant-design-vue';
 
 import { requestClient } from '#/api/request';
 
-const form = reactive({ siteName: '', faviconUrl: '', logoUrl: '' });
-const server = reactive({ ip: '', port: '' });
+const form = reactive({ siteName: '', faviconUrl: '', logoUrl: '', serverPort: 8443 });
+const restarting = ref(false);
 const saving = ref(false);
 
+// 侧栏 logo 渲染：preferences.logo 支持 URL（以 http/data 开头按图片渲染）
 function apply() {
   if (form.siteName) document.title = form.siteName;
   if (form.faviconUrl) {
@@ -20,6 +23,11 @@ function apply() {
     }
     link.href = form.faviconUrl;
   }
+  // 同步侧栏：站点名称 + logo（页签/侧栏共用）
+  updatePreferences({
+    app: { name: form.siteName },
+    logo: { source: form.logoUrl },
+  });
 }
 
 async function load() {
@@ -27,8 +35,7 @@ async function load() {
   form.siteName = v.siteName ?? '';
   form.faviconUrl = v.faviconUrl ?? '';
   form.logoUrl = v.logoUrl ?? '';
-  server.ip = v.serverIp ?? '';
-  server.port = v.serverPort ?? '';
+  form.serverPort = Number(v.serverPort) || 8443;
   apply();
 }
 
@@ -56,17 +63,34 @@ async function save() {
     message.warning('站点名称必填');
     return;
   }
+  if (form.serverPort < 1 || form.serverPort > 65535) {
+    message.warning('端口需在 1-65535 之间');
+    return;
+  }
   saving.value = true;
   try {
     await requestClient.put('/system/webui-settings', {
       siteName: form.siteName,
       faviconUrl: form.faviconUrl,
       logoUrl: form.logoUrl,
+      serverPort: form.serverPort,
     });
     apply();
-    message.success('已保存并应用');
+    message.success('已保存并应用（端口修改需重启后生效）');
   } finally {
     saving.value = false;
+  }
+}
+
+async function restart() {
+  restarting.value = true;
+  try {
+    await requestClient.post('/system/restart');
+    message.success('已发起重启，页面将短暂不可用，请稍后刷新');
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '重启请求失败');
+  } finally {
+    restarting.value = false;
   }
 }
 
@@ -88,10 +112,23 @@ onMounted(load);
           <Button v-if="form.faviconUrl" size="small" @click="form.faviconUrl = ''; form.logoUrl = ''">清除</Button>
         </div>
       </div>
-      <div class="rounded border border-gray-200 p-3 text-xs text-gray-400">
-        服务器：{{ server.ip || '—' }} : {{ server.port || '—' }}（只读——修改 IP/端口请改部署配置后重建容器）
+      <div class="flex items-center gap-2">
+        <div class="mb-1 text-xs text-gray-400">服务端口</div>
+        <InputNumber v-model:value="form.serverPort" :min="1" :max="65535" style="width: 160px" />
+        <span class="text-xs text-gray-400">修改后需重启生效（容器部署请同步 .env 的 IPAM_PORT 并重建容器）</span>
       </div>
-      <Button type="primary" :loading="saving" @click="save">保存并应用</Button>
+      <div class="flex items-center gap-2">
+        <Button type="primary" :loading="saving" @click="save">保存并应用</Button>
+        <Popconfirm
+          title="确认重启服务？"
+          description="重启后页面将短暂不可用；端口/设置修改在重启后生效。"
+          ok-text="重启"
+          cancel-text="取消"
+          @confirm="restart"
+        >
+          <Button danger :loading="restarting">重启服务</Button>
+        </Popconfirm>
+      </div>
     </div>
   </Card>
 </template>

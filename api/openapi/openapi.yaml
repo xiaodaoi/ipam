@@ -64,6 +64,8 @@ paths:
     $ref: './paths/auth.yaml#/AuthLogout'
   /system/webui-settings:
     $ref: "./paths/webui.yaml#/WebuiSettingsCollection"
+  /system/restart:
+    $ref: "./paths/webui.yaml#/RestartControlPlane"
   /roles:
     $ref: "./paths/role.yaml#/RolesCollection"
   /roles/{roleId}:

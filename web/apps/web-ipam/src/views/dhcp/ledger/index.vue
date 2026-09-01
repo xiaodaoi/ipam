@@ -138,9 +138,6 @@ async function confirmBind() {
   </div>
   <BindModal>
     <Input v-model:value="bindModal.mac" placeholder="MAC 如 aa:bb:cc:dd:ee:01" @pressEnter="confirmBind" />
-    <div class="mt-3 text-right">
-      <Button @click="bindModalApi.close()">取消</Button>
-    </div>
   </BindModal>
   </div>
 </template>

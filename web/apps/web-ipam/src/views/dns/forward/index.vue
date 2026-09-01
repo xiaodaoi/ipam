@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue';
 import { useVbenModal } from '@vben/common-ui';
 
-import { Button, Card, Input, Select, Switch, Table } from 'ant-design-vue';
+import { Button, Card, Input, Select, Switch, Table, message } from 'ant-design-vue';
 
 import {
   createForwardRule,
@@ -64,8 +64,23 @@ function edit(r: ForwardRule) {
     domain: r.domain, upstreamId: (r.upstreamIds ?? [])[0] ?? '', note: r.note ?? '',
   };
 }
+async function toggleEnabled(r: ForwardRule, checked: boolean) {
+  try {
+    await updateForwardRule(r.id, { enabled: checked });
+    message.success(checked ? '已启用' : '已停用');
+    await load();
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '操作失败');
+  }
+}
 async function remove(id?: string) {
-  if (id) await deleteForwardRule(id);
+  if (!id) return;
+  try {
+    await deleteForwardRule(id);
+    message.success('转发规则已删除');
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '删除失败');
+  }
   await load();
 }
 onMounted(load);
@@ -77,13 +92,20 @@ onMounted(load);
       <Button type="primary" size="small" @click="formModalApi.setState({ title: '添加转发规则' }); formModalApi.open()">+ 添加转发规则</Button>
     </div>
     <FormModal class="w-[720px]">
-      <div class="flex flex-wrap items-center gap-2">
-      <Input v-model:value="form.domain" placeholder="域名后缀 如 corp.local" style="width: 200px" />
-      <span class="text-xs">→</span>
-      <Select v-model:value="form.upstreamId" placeholder="上游" style="width: 180px"
-        :options="upstreams.map((u) => ({ value: u.id, label: u.name }))" />
-      <Input v-model:value="form.note" placeholder="备注（可选）" style="width: 160px" />
-      <Button v-if="editingId" @click="editingId = undefined; form = { domain: '', upstreamId: '', note: '' }; formModalApi.close()">取消编辑</Button>
+      <div class="space-y-2">
+      <div class="flex items-center gap-2">
+        <span class="w-16 shrink-0 text-right text-xs text-gray-400">域名后缀</span>
+        <Input v-model:value="form.domain" placeholder="如 corp.local（最长后缀优先匹配）" style="width: 260px" />
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="w-16 shrink-0 text-right text-xs text-gray-400">转发上游</span>
+        <Select v-model:value="form.upstreamId" placeholder="选择上游 DNS" style="width: 260px"
+          :options="upstreams.map((u) => ({ value: u.id, label: u.name }))" />
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="w-16 shrink-0 text-right text-xs text-gray-400">备注</span>
+        <Input v-model:value="form.note" placeholder="备注（可选）" style="width: 260px" />
+      </div>
       </div>
     </FormModal>
     <Table
@@ -105,7 +127,7 @@ onMounted(load);
           {{ (record.upstreamIds ?? []).map(upstreamName).join(', ') }}
         </template>
         <template v-else-if="column.dataIndex === 'enabled'">
-          <Switch :checked="record.enabled" size="small" disabled />
+          <Switch :checked="record.enabled" size="small" @change="(checked) => toggleEnabled(record as ForwardRule, Boolean(checked))" />
         </template>
         <template v-else-if="column.key === 'op'">
           <Button size="small" class="mr-1" @click="edit(record as ForwardRule)">编辑</Button>

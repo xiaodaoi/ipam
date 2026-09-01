@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
-import { useVbenModal } from '@vben/common-ui';
+import { useVbenDrawer, useVbenModal } from '@vben/common-ui';
 
 import { Button, Card, Input, Select, Table, Tag, message } from 'ant-design-vue';
 
@@ -26,7 +26,6 @@ let timer: ReturnType<typeof setInterval> | undefined;
 
 const entries = ref<BlocklistEntryRow[]>([]);
 const eLoading = ref(false);
-const collapsed = ref(false);
 const selId = ref('');
 const selName = ref('');
 const eForm = ref<{ pattern: string; triggerType: 'qname' | 'response_ip'; action: 'nxdomain' | 'drop' | 'tcp_only' | 'redirect' }>({ pattern: '', triggerType: 'qname', action: 'nxdomain' });
@@ -102,9 +101,18 @@ async function compilePg(id: string) {
   pgResult.value = await compilePolicyGroup(id);
   message.success('RPZ 编译完成');
 }
+
+// ── 条目 VbenDrawer（M2-046：条目在抽屉中展示 + 客户端分页）──
+const [EntriesDrawer, entriesDrawerApi] = useVbenDrawer({
+  class: 'w-[780px]',
+  footer: false,
+  title: '名单条目',
+});
 async function openEntries(r: Blocklist) {
   selId.value = r.id;
   selName.value = r.name;
+  entriesDrawerApi.setState({ title: `名单条目 · ${r.name}` });
+  entriesDrawerApi.open();
   await loadEntries();
 }
 async function loadEntries() {
@@ -125,8 +133,12 @@ async function addEntry() {
   await loadEntries();
 }
 async function removeEntry(listId: string, pattern: string) {
-  await deleteBlocklistEntry(listId, pattern);
-  message.success('条目已删除');
+  try {
+    await deleteBlocklistEntry(listId, pattern);
+    message.success('条目已删除');
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '删除失败');
+  }
   await loadEntries();
 }
 const KIND_TEXT: Record<string, string> = { builtin: '内置', custom: '自定义', feed: '订阅' };
@@ -145,11 +157,8 @@ onBeforeUnmount(() => timer && clearInterval(timer));
 <template>
   <Card title="封禁名单库">
     <template #extra>
-      <Button size="small" @click="collapsed = !collapsed">{{ collapsed ? '◀ 展开名单' : '收起名单 ▶' }}</Button>
-        <Button size="small" class="ml-1" @click="load()">刷新（30s 自动）</Button>
+      <Button size="small" @click="load()">刷新（30s 自动）</Button>
     </template>
-      <div class="flex gap-3">
-      <div v-show="!collapsed" style="width: 46%; flex-shrink: 0;">
       <div class="mb-2">
         <Button type="primary" size="small" @click="createModalApi.open()">+ 新建名单</Button>
       </div>
@@ -158,7 +167,6 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         <Input v-model:value="cForm.name" placeholder="名单名称" style="width: 200px" />
         <Select v-model:value="cForm.kind" style="width: 120px" :options="[{ value: 'custom', label: '自定义' }, { value: 'feed', label: '订阅源' }]" />
         <Input v-if="cForm.kind === 'feed'" v-model:value="cForm.syncUrl" placeholder="订阅 URL" style="width: 260px" />
-        <Button type="primary" size="small" @click="createList">新建名单</Button>
       </div>
       </CreateModal>
     <Table
@@ -190,27 +198,6 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         </template>
       </template>
     </Table>
-      </div>
-      <div class="min-w-0 flex-1">
-      <Card v-if="selId" :title="`条目 · ${selName}`" class="mt-3">
-      <div class="mb-2 flex flex-wrap items-end gap-2">
-        <Input v-model:value="eForm.pattern" placeholder="如 *.gamble.com" style="width: 220px" @pressEnter="addEntry" />
-        <Select v-model:value="eForm.triggerType" style="width: 150px" :options="[{ value: 'qname', label: 'qname（域名）' }, { value: 'response_ip', label: 'response_ip（应答IP）' }]" />
-        <Select v-model:value="eForm.action" style="width: 130px" :options="[{ value: 'nxdomain', label: 'nxdomain' }, { value: 'drop', label: 'drop' }, { value: 'tcp_only', label: 'tcp_only' }, { value: 'redirect', label: 'redirect' }]" />
-        <Button type="primary" size="small" @click="addEntry">添加条目</Button>
-        <Button size="small" @click="selId = ''">关闭</Button>
-      </div>
-      <Table :data-source="entries" :columns="entryCols" :loading="eLoading" size="small" row-key="pattern">
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'op'">
-            <Button size="small" danger @click="removeEntry(record.listId, record.pattern)">删除</Button>
-          </template>
-        </template>
-      </Table>
-    </Card>
-      <div v-else class="mt-3 text-xs text-gray-400">← 在左侧选择名单查看条目</div>
-      </div>
-    </div>
     <Card title="策略分组（view 级 RPZ 应用）" class="mt-3">
       <div class="mb-2 flex flex-wrap items-end gap-2">
         <Input v-model:value="pgForm.name" placeholder="分组名称" style="width: 160px" />
@@ -233,4 +220,32 @@ onBeforeUnmount(() => timer && clearInterval(timer));
       订阅源按计划自动同步（失败保旧版）；提示页定制属后续批次。
     </div>
   </Card>
+
+  <EntriesDrawer>
+    <div class="mb-2 flex flex-wrap items-end gap-2">
+      <Input v-model:value="eForm.pattern" placeholder="如 *.gamble.com" style="width: 220px" @pressEnter="addEntry" />
+      <Select v-model:value="eForm.triggerType" style="width: 150px" :options="[{ value: 'qname', label: 'qname（域名）' }, { value: 'response_ip', label: 'response_ip（应答IP）' }]" />
+      <Select v-model:value="eForm.action" style="width: 130px" :options="[{ value: 'nxdomain', label: 'nxdomain' }, { value: 'drop', label: 'drop' }, { value: 'tcp_only', label: 'tcp_only' }, { value: 'redirect', label: 'redirect' }]" />
+      <Button type="primary" size="small" @click="addEntry">添加条目</Button>
+    </div>
+    <Table
+      :data-source="entries"
+      :columns="entryCols"
+      :loading="eLoading"
+      size="small"
+      row-key="pattern"
+      :pagination="{
+        pageSize: 20,
+        showSizeChanger: true,
+        pageSizeOptions: ['20', '50', '100'],
+        showTotal: (t: number) => `共 ${t} 条`,
+      }"
+    >
+      <template #bodyCell="{ column, record }">
+        <template v-if="column.key === 'op'">
+          <Button size="small" danger @click="removeEntry(record.listId, record.pattern)">删除</Button>
+        </template>
+      </template>
+    </Table>
+  </EntriesDrawer>
 </template>

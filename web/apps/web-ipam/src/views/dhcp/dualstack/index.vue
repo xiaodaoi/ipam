@@ -44,6 +44,13 @@ function edit(r: DualstackTemplate) {
   };
 }
 const [FormModal, formModalApi] = useVbenModal({ draggable: true, title: '双栈绑定模板', confirmText: '创建模板', onConfirm: () => add() });
+function openAdd() {
+  // 不能先 cancelEdit()（其 close() 异步，会在 open() 后把 isOpen 置回 false）
+  editingId.value = '';
+  form.value = { name: '', ipv4Cidr: '', ipv6Prefix: '', encoding: 'B', expr: '', dnsSync: true, graceHours: 24 };
+  formModalApi.setState({ title: '新建双栈绑定模板', confirmText: '创建模板' });
+  formModalApi.open();
+}
 function cancelEdit() {
   editingId.value = '';
   formModalApi.close();
@@ -81,7 +88,7 @@ const EXAMPLE = '例：192.168.0.10 → 2407::192:168:0:10';
     </template>
 
     <div class="mb-4">
-      <Button type="primary" size="small" @click="cancelEdit(); formModalApi.setState({ title: '新建双栈绑定模板' }); formModalApi.open()">+ 新建模板</Button>
+      <Button type="primary" size="small" @click="openAdd()">+ 新建模板</Button>
     </div>
     <FormModal class="w-[860px]">
     <div class="flex flex-wrap items-end gap-2">
@@ -110,8 +117,6 @@ const EXAMPLE = '例：192.168.0.10 → 2407::192:168:0:10';
         <span class="text-xs">DNS 同步</span>
         <Switch v-model:checked="form.dnsSync" size="small" />
       </div>
-      <Button type="primary" @click="add">{{ editingId ? '保存修改' : '创建模板' }}</Button>
-      <Button v-if="editingId" class="ml-1" @click="cancelEdit">取消编辑</Button>
       <div class="w-full text-xs text-gray-400">{{ EXAMPLE }}——daemon 按租约 IPv4 最长前缀自动选模板</div>
     </div>
     </FormModal>

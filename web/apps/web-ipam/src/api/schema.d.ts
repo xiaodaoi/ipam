@@ -296,6 +296,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/system/restart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 重启控制面服务（M2-046）
+         * @description 优雅退出进程（容器 restart 策略自动拉起）；端口/设置修改在重启后生效。scope 为 system:write。
+         */
+        post: operations["restartControlPlane"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/roles": {
         parameters: {
             query?: never;
@@ -2110,13 +2130,15 @@ export interface components {
             logoUrl?: string;
             /** @description 服务器监听 IP（只读，取自部署配置） */
             serverIp?: string;
-            /** @description 访问端口（只读，取自部署配置） */
-            serverPort?: string;
+            /** @description 访问端口（可编辑，重启后生效；容器部署需同步 .env IPAM_PORT） */
+            serverPort?: number;
         };
         WebuiSettingsUpdate: {
             siteName?: string;
             faviconUrl?: string;
             logoUrl?: string;
+            /** @description 监听端口（1-65535），重启后生效 */
+            serverPort?: number;
         };
         /** @description 角色（内置或自定义；permissions 为权限点集合：域:read|write）。 */
         Role: {
@@ -2794,6 +2816,24 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["WebuiSettings"];
                 };
+            };
+        };
+    };
+    restartControlPlane: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已接受重启 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

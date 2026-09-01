@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onMounted, reactive, ref } from 'vue';
 
 import { Button, Card, Checkbox, Input, Table, Tag, message } from 'ant-design-vue';
 
-import { VbenModal } from '@vben/common-ui';
+import { useVbenModal } from '@vben/common-ui';
 
 import {
   createRole,
@@ -25,11 +25,16 @@ const PERM_DOMAINS = [
 
 const rows = ref<RoleRow[]>([]);
 const loading = ref(false);
-const modal = ref({
-  show: false,
+const modal = reactive({
   editing: '',
   name: '',
   perms: [] as string[],
+});
+const [RoleModal, roleModalApi] = useVbenModal({
+  draggable: true,
+  title: '新建角色',
+  confirmText: '保存',
+  onConfirm: () => save(),
 });
 
 const cols = [
@@ -50,31 +55,34 @@ async function load() {
 }
 
 function openCreate() {
-  modal.value = { show: true, editing: '', name: '', perms: [] };
+  modal.editing = '';
+  modal.name = '';
+  modal.perms = [];
+  roleModalApi.setState({ title: '新建角色', confirmText: '创建' });
+  roleModalApi.open();
 }
 
 function openEdit(r: RoleRow) {
-  modal.value = {
-    show: true,
-    editing: r.name,
-    name: r.name,
-    perms: [...(r.permissions ?? [])],
-  };
+  modal.editing = r.name;
+  modal.name = r.name;
+  modal.perms = [...(r.permissions ?? [])];
+  roleModalApi.setState({ title: `编辑角色：${r.name}`, confirmText: '保存修改' });
+  roleModalApi.open();
 }
 
 function togglePerm(p: string, checked: boolean) {
-  const arr = modal.value.perms;
+  const arr = modal.perms;
   if (checked && !arr.includes(p)) arr.push(p);
-  if (!checked) modal.value.perms = arr.filter((x) => x !== p);
+  if (!checked) modal.perms = arr.filter((x) => x !== p);
 }
 
 async function save() {
-  const perms = modal.value.perms;
-  if (modal.value.editing) {
-    await updateRole(modal.value.editing, { permissions: perms });
+  const perms = modal.perms;
+  if (modal.editing) {
+    await updateRole(modal.editing, { permissions: perms });
     message.success('角色权限已更新');
   } else {
-    if (!modal.value.name) {
+    if (!modal.name) {
       message.warning('请填写角色名');
       return;
     }
@@ -82,10 +90,10 @@ async function save() {
       message.warning('请至少勾选一个权限点');
       return;
     }
-    await createRole({ name: modal.value.name, permissions: perms });
+    await createRole({ name: modal.name, permissions: perms });
     message.success('角色已创建');
   }
-  modal.value.show = false;
+  roleModalApi.close();
   await load();
 }
 
@@ -131,11 +139,7 @@ onMounted(load);
       </template>
     </Table>
 
-    <VbenModal
-      v-model:open="modal.show"
-      :title="modal.editing ? `编辑角色：${modal.editing}` : '新建角色'"
-      draggable
-    >
+    <RoleModal>
       <div v-if="!modal.editing" class="mb-3">
         <div class="mb-1 text-xs text-gray-400">角色名（唯一，创建后不可改）</div>
         <Input v-model:value="modal.name" placeholder="如 network-ops" />
@@ -161,10 +165,6 @@ onMounted(load);
           </Checkbox>
         </div>
       </div>
-      <div class="mt-3 text-right">
-        <Button @click="modal.show = false">取消</Button>
-        <Button type="primary" class="ml-1" @click="save">保存</Button>
-      </div>
-    </VbenModal>
+    </RoleModal>
   </Card>
 </template>

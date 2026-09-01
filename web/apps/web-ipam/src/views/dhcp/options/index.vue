@@ -160,16 +160,6 @@ async function removeClass(id?: string) {
   }
   await load();
 }
-function cancelEditOpt() {
-  editingOpt.value = undefined;
-  optModalApi.close();
-  optForm.value = { code: optForm.value.code, name: 'routers', data: '' };
-}
-function cancelEditCls() {
-  editingCls.value = undefined;
-  clsModalApi.close();
-  clsForm.value = { name: '', test: clsForm.value.test, rows: [] };
-}
 const optsSummary = (options?: DhcpClassOptionIn[]) =>
   (options ?? []).map((o) => `${o.name}=${o.data}`).join(', ') || '-';
 onMounted(() => {
@@ -199,7 +189,6 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           <div class="mb-1 text-xs text-gray-400">值</div>
           <Input v-model:value="optForm.data" style="width: 180px" placeholder="192.168.9.1" />
         </div>
-        <Button v-if="editingOpt" @click="cancelEditOpt">取消编辑</Button>
         <div class="w-full text-xs text-gray-400">
           变更后经 Kea config-set 原子下发；disabled 选项不进配置。
         </div>
@@ -250,7 +239,6 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             <Input v-model:value="clsForm.test" placeholder="option[61].hex == option[61].hex" />
           </div>
           <Button @click="addClassRow">+ 添加类内选项</Button>
-          <Button v-if="editingCls" @click="cancelEditCls">取消编辑</Button>
         </div>
         <div v-for="(r, i) in clsForm.rows" :key="i" class="mt-2 flex flex-wrap items-center gap-2">
           <InputNumber v-model:value="r.optionCode" :min="1" :max="255" style="width: 90px" />
