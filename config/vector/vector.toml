@@ -103,6 +103,15 @@ source = '''
   ip_v = if .address == "" { null } else { .address }
   mac_v = if .client_mac == "" { "" } else { downcase!(.client_mac) }
   sip_v = if .sip == "" || .sip == null { null } else { .sip }
+  # DHCP 行无 rcode（undefined→null），CH rcode 为非空列必须落空串
+  rcode_v = ""
+  if .rcode != null {
+    rcode_v = .rcode
+  }
+  answer_v = null
+  if .answer_ip != null {
+    answer_v = .answer_ip
+  }
   . = {
     "ts": format_timestamp!(.timestamp, "%F %T%.3f"),
     "type": .rtype,
@@ -111,10 +120,10 @@ source = '''
     "client_ip": ip_v,
     "sip": sip_v,
     "domain": .domain,
-    "rcode": .rcode,
+    "rcode": rcode_v,
     "action": .event,
     "category": "",
-    "answer_ip": .answer_ip,
+    "answer_ip": answer_v,
     "detail": .message
   }
 '''

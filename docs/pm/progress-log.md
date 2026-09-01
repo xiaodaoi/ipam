@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-09-01 · 修复：QPS 曲线数据骤减——normalize VRL 语法错误致摄入停摆
+
+- **现象**：查询检索 QPS 曲线数据大幅减少。
+- **根因**：① normalize 里 `"rcode": if .rcode == null {""} else {.rcode}`——**VRL 的 if 是语句不是表达式**，对象字面量里用 if 表达式=语法错误 → vector 拓扑编译失败 → **全部摄入停摆**；② 早前宽松正则把 verbosity≥2 的 `resolving` 模块行误计为查询，基线被抬高。
+- **修复**：normalize 改为**语句先行**（rcode_v/answer_v 变量赋值后再进对象字面量）；DHCP 行 rcode 强制落空串（CH 非空列）。
+- **验证**：vector 0 语法错误；新查询成对入库（dns_query + resolve/NOERROR）；QPS 接口正常返回近期分钟级真实流量。
+
 ## 2026-09-01 · DNS 日志应答解析（方案 A 落地 + unbound 限制实证）
 
 - **做了**：① unbound `log-replies: yes`；② vector 应答行正则 → **rcode 激活**（NOERROR/NXDOMAIN 入库，前端「应答码」列不再是空）+ answer_ip 字段；③ CH `logs` 加 `answer_ip Nullable(IPv6)`（logs.sql + 运行实例 ALTER）；④ spec/gen/后端（LogRow.answerIp、answerIp 过滤参数、ch_store 读写、MemStore 匹配、handler 接线）；⑤ 前端「应答IP」列 + 按应答 IP 过滤输入框（反查域名）。
