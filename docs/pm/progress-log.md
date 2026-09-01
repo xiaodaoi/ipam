@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-08-31 · M2-041 补：orgs 三次报障真根因——静态资源无缓存头
+
+- **现象**：orgs 新建根组织第三次报障；后端 POST /orgs=201 正常、部署产物代码正确。
+- **真根因**：serveStatic 无任何缓存头 → 浏览器启发式缓存旧 index.html → 持续加载旧 chunk，部署修复不生效。
+- **修复**：index.html no-cache + 哈希资产 immutable 长缓存；orgs 空名警告。
+- **验证**：缓存头 curl 实测正确；新 chunk 含修复标记；POST 201。用户需强刷一次后永久生效。
+
 ## 2026-08-31 · M2-041 全站 UI 批修（8 项清单 + 举一反三）
 
 - **修**：①orgs 新建根组织（Modal 流程重写）②角色管理跳系统设置（路由缺 name → finalRoutesMap[undefined] 键碰撞，补 name）③设置页同步侧栏（updatePreferences）④端口可编辑+重启接口（迁移 0018 + POST /system/restart + listen 读 DB）⑤上游 Modal 不弹（async close 竞态 → openAdd）⑥转发编辑重复取消/缺字段（清理+label）⑦转发启用/删除（Switch toggle + 错误处理）⑧封禁条目迁 VbenDrawer + 客户端分页。

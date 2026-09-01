@@ -51,7 +51,10 @@ function askName(title: string, initial: string, action: (name: string) => Promi
 }
 async function confirmName() {
   const name = nameInput.value.trim();
-  if (!name) return;
+  if (!name) {
+    message.warning('请输入组织名称');
+    return;
+  }
   nameModalApi.close();
   const action = nameAction.value;
   if (!action) return;

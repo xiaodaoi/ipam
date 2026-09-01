@@ -514,6 +514,13 @@ func newEngine(version string) *gin.Engine {
 		if ct == "" {
 			ct = "application/octet-stream"
 		}
+		// 缓存策略（M2-041 修复：无缓存头致浏览器启发式缓存旧 bundle，「改了不生效」）
+		// index.html 一律 no-cache（哈希资产 URL 随内容变化，天然可长缓存）
+		if strings.HasSuffix(name, "index.html") {
+			c.Header("Cache-Control", "no-cache")
+		} else {
+			c.Header("Cache-Control", "public, max-age=31536000, immutable")
+		}
 		c.Data(http.StatusOK, ct, data)
 	}
 	r.NoRoute(func(c *gin.Context) {
