@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-09-01 · 三项优化：图标裁剪上传 / ant-card 基础外边距变量 / 日志自定义时间区间
+
+- **① 系统设置站点图标**：原生 input 换 adapter 增强 Upload（`crop="true"` + `aspect-ratio="1:1"` + `max-size=2MB` + `picture-card`）——选图自动弹 VCropper 1:1 裁剪，`custom-request` 收 1:1 Blob → base64 双写 faviconUrl/logoUrl。
+- **② ant-card 外边距**：改为 `:root{--card-margin-base:12px}` 基础变量，`.ant-card{margin-bottom:var(--card-margin-base)}`（flex/grid 直子排除）——全站可统一微调。
+- **③ 日志检索时间区间**：预设 Select 旁加 `DatePicker.RangePicker`（showTime HH:mm:ss，格式 YYYY-MM-DD HH:mm:ss）——自定义起止日期时间查询，优先于预设；loadLogs/loadAgg/导出统一走 `timeWindow()`。
+- **验证**：typecheck 0 + build ✓ + 容器重建 + settings chunk 含 aspect-ratio/picture-card、logs chunk 含 RangePicker、bootstrap css 含 --card-margin-base；settings/logs API 200。
+
 ## 2026-09-01 · 全局 ant-card 外边距
 
 - **做了**：`@vben/styles/antd/index.css` 全局规则——`.ant-card{margin-bottom:12px}`，`.flex>/.grid>` 直子排除（横向布局由 gap 承担不叠加）；ledger 内联 display:flex 容器改 `flex h-full gap-4` class 纳入排除。

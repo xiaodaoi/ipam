@@ -3,7 +3,7 @@ import { onMounted, reactive, ref } from 'vue';
 
 import { updatePreferences } from '@vben/preferences';
 
-import { Button, Card, Input, InputNumber, Popconfirm, message } from 'ant-design-vue';
+import { Button, Card, Input, InputNumber, Popconfirm, Upload, message } from 'ant-design-vue';
 
 import { requestClient } from '#/api/request';
 
@@ -39,23 +39,18 @@ async function load() {
   apply();
 }
 
-function onLogoFile(e: Event) {
-  const input = e.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (!file) return;
-  if (file.size > 200 * 1024) {
-    message.warning('图标请小于 200KB');
-    input.value = '';
-    return;
-  }
+// 裁剪上传（adapter 增强 Upload：crop="true" + aspect-ratio="1:1" + max-size=2MB，
+// 选中图片后自动弹 VCropper 裁剪，此处拿到 1:1 裁剪后的 Blob）
+function onCropUpload(options: { file: Blob | File | string; onSuccess?: (body?: unknown) => void; onError?: (err: Error) => void }) {
   const reader = new FileReader();
   reader.onload = () => {
-    const dataUrl = String(reader.result ?? '');
-    form.faviconUrl = dataUrl;
-    form.logoUrl = dataUrl;
+    form.faviconUrl = String(reader.result);
+    form.logoUrl = form.faviconUrl;
     apply();
+    options.onSuccess?.(options.file);
   };
-  reader.readAsDataURL(file);
+  reader.onerror = () => options.onError?.(new Error('读取图片失败'));
+  reader.readAsDataURL(options.file as Blob);
 }
 
 async function save() {
@@ -105,11 +100,30 @@ onMounted(load);
         <Input v-model:value="form.siteName" placeholder="如 IPAM 管理平台" />
       </div>
       <div>
-        <div class="mb-1 text-xs text-gray-400">站点图标（浏览器页签 + 侧栏共用，本地图片上传）</div>
-        <div class="flex items-center gap-2">
-          <img v-if="form.faviconUrl" :src="form.faviconUrl" alt="icon" class="h-8 w-8 rounded border border-gray-200 object-contain" />
-          <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/x-icon" @change="onLogoFile" />
-          <Button v-if="form.faviconUrl" size="small" @click="form.faviconUrl = ''; form.logoUrl = ''">清除</Button>
+        <div class="mb-1 text-xs text-gray-400">站点图标（浏览器页签 + 侧栏共用，1:1 裁剪上传）</div>
+        <div class="flex items-center gap-3">
+          <Upload
+            :show-upload-list="false"
+            accept=".png,.jpg,.jpeg"
+            :max-size="2"
+            crop="true"
+            aspect-ratio="1:1"
+            list-type="picture-card"
+            :custom-request="onCropUpload"
+          >
+            <div
+              class="flex h-24 w-24 flex-col items-center justify-center overflow-hidden rounded border border-dashed border-gray-300 text-gray-400 transition-colors hover:border-primary hover:text-primary"
+            >
+              <img v-if="form.faviconUrl" :src="form.faviconUrl" alt="icon" class="h-full w-full object-contain" />
+              <span v-else class="text-2xl leading-none">+</span>
+            </div>
+          </Upload>
+          <div class="text-xs text-gray-400">
+            支持 png / jpg / jpeg，≤2MB，按 1:1 裁剪后保存
+            <Button v-if="form.faviconUrl" size="small" class="ml-2" @click="form.faviconUrl = ''; form.logoUrl = ''">
+              清除
+            </Button>
+          </div>
         </div>
       </div>
       <div class="flex items-center gap-2">

@@ -77,9 +77,14 @@
   box-shadow: 0 0 0 2px rgb(255 38 5 / 6%);
 }
 
+:root {
+  /** 站点级基础外边距（可全局微调） */
+  --card-margin-base: 12px;
+}
+
 /** 卡片外边距：纵向堆叠的 Card 保持呼吸间距（flex/grid 横向布局由 gap 承担，不叠加） */
 .ant-card {
-  margin-bottom: 12px;
+  margin-bottom: var(--card-margin-base);
 }
 .flex > .ant-card,
 .grid > .ant-card {

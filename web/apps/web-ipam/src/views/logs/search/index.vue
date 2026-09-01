@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
-import { Button, Card, Input, Select, Table, TabPane, Tabs, Tag, message } from 'ant-design-vue';
+import type { Dayjs } from 'dayjs';
+
+import { Button, Card, DatePicker, Input, Select, Table, TabPane, Tabs, Tag, message } from 'ant-design-vue';
 
 import { exportLogsCsv, getLogQps, listLogTop, listLogs, type LogQuery } from '#/api/ipam';
 
@@ -11,12 +13,24 @@ const RANGE_PRESETS = [
   { label: '近24小时', hours: 24 },
 ];
 const hours = ref(6);
+const customRange = ref<[Dayjs, Dayjs] | undefined>(undefined);
 
 function isoAgo(h: number): string {
   return new Date(Date.now() - h * 3600_000).toISOString();
 }
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+/** 时间窗：自定义区间优先，否则用预设小时数 */
+function timeWindow(): { from: string; to: string } {
+  if (customRange.value) {
+    return {
+      from: customRange.value[0].toISOString(),
+      to: customRange.value[1].toISOString(),
+    };
+  }
+  return { from: isoAgo(hours.value), to: nowIso() };
 }
 
 // ── 检索 ──
@@ -31,7 +45,7 @@ let cur: LogQuery = { from: isoAgo(6) };
 async function loadLogs(cursor?: string) {
   loading.value = true;
   try {
-    cur = { from: isoAgo(hours.value), to: nowIso() };
+    cur = { ...timeWindow() };
     if (filterType.value) cur.type = filterType.value;
     if (filterDomain.value) cur.domain = filterDomain.value;
     cur.pageSize = 50;
@@ -46,7 +60,7 @@ async function loadLogs(cursor?: string) {
 }
 
 async function onExport() {
-  const params: Record<string, string> = { from: isoAgo(hours.value), to: nowIso() };
+  const params: Record<string, string> = timeWindow();
   if (filterType.value) params.type = filterType.value;
   if (filterDomain.value) params.domain = filterDomain.value;
   try {
@@ -86,7 +100,7 @@ const bars = computed(() => {
 });
 
 async function loadAgg() {
-  const base = { from: isoAgo(hours.value), to: nowIso() };
+  const base = timeWindow();
   const [top, qps] = await Promise.all([
     listLogTop({ ...base, by: 'domain', limit: 8 }),
     getLogQps({ ...base, intervalSec: Math.max(60, Math.round((hours.value * 3600) / 60)) }),
@@ -112,7 +126,20 @@ onBeforeUnmount(() => timer && clearInterval(timer));
     <Card class="mb-4">
       <div class="flex flex-wrap items-center gap-3">
         <span>时间窗</span>
-        <Select v-model:value="hours" style="width: 110px" :options="RANGE_PRESETS.map((p) => ({ value: p.hours, label: p.label }))" />
+        <Select
+          v-model:value="hours"
+          style="width: 110px"
+          :disabled="!!customRange"
+          :options="RANGE_PRESETS.map((p) => ({ value: p.hours, label: p.label }))"
+        />
+        <DatePicker.RangePicker
+          v-model:value="customRange"
+          :show-time="{ format: 'HH:mm:ss' }"
+          format="YYYY-MM-DD HH:mm:ss"
+          style="width: 360px"
+          :placeholder="['开始日期时间', '结束日期时间']"
+          @change="reload()"
+        />
         <Select v-model:value="filterType" allow-clear placeholder="类型" style="width: 100px" :options="[{ value: 'dhcp', label: 'DHCP' }, { value: 'dns', label: 'DNS' }]" />
         <Input v-model:value="filterDomain" allow-clear placeholder="域名子串" style="width: 220px" @press-enter="reload()" />
         <Button type="primary" @click="reload()">查询</Button>
