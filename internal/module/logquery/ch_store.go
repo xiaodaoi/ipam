@@ -189,15 +189,20 @@ func (s *ChStore) Query(ctx context.Context, f LogFilter, scope OrgScope) (Page,
 	}
 	qargs := args
 	cursorCond := ""
+	offset := ""
 	if f.Cursor != "" {
 		cts, cmac, cdomain := ParseCursor(f.Cursor)
 		cursorCond = " AND (ts, client_mac, domain) < (?, ?, ?)"
 		qargs = append(append([]any{}, args...), cts.UTC(), cmac, cdomain)
+	} else if f.Page > 1 {
+		// offset 分页：OFFSET (page-1)*pageSize
+		offset = " OFFSET ?"
+		qargs = append(append([]any{}, args...), (f.Page-1)*pageSize)
 	}
 	sql := "SELECT " + logCols + " FROM " + s.table() +
 		" WHERE " + where + cursorCond +
-		" ORDER BY ts DESC, client_mac DESC, domain DESC LIMIT ?"
-	qargs = append(qargs, pageSize+1)
+		" ORDER BY ts DESC, client_mac DESC, domain DESC LIMIT ?" + offset
+	qargs = append(qargs, pageSize)
 
 	rows, err := s.conn.Query(ctx, sql, qargs...)
 	if err != nil {
@@ -217,8 +222,9 @@ func (s *ChStore) Query(ctx context.Context, f LogFilter, scope OrgScope) (Page,
 		return Page{}, err
 	}
 
+	// offset 模式无需游标（页码翻页）；游标模式保留 nextCursor
 	next := ""
-	if len(items) > pageSize {
+	if f.Cursor != "" && len(items) > pageSize {
 		last := items[pageSize-1]
 		next = EncodeCursor(last.TS, last.ClientMAC, last.Domain)
 		items = items[:pageSize]

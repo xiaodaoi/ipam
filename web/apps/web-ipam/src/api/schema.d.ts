@@ -2338,6 +2338,8 @@ export interface components {
         LogOrgId: string;
         /** @description 分页游标（取自上一页 nextCursor） */
         LogCursor: string;
+        /** @description 页码（1 起，offset=(page-1)*pageSize）；与 cursor 二选一，页面翻页用 page */
+        LogPageNo: number;
         /** @description 每页条数 */
         LogPageSize: number;
         /** @description TopN 维度：domain=域名 / client=客户端 MAC */
@@ -3099,6 +3101,8 @@ export interface operations {
                 orgId?: components["parameters"]["LogOrgId"];
                 /** @description 分页游标（取自上一页 nextCursor） */
                 cursor?: components["parameters"]["LogCursor"];
+                /** @description 页码（1 起，offset=(page-1)*pageSize）；与 cursor 二选一，页面翻页用 page */
+                page?: components["parameters"]["LogPageNo"];
                 /** @description 每页条数 */
                 pageSize?: components["parameters"]["LogPageSize"];
             };
@@ -3302,6 +3306,8 @@ export interface operations {
                 answerIp?: components["parameters"]["LogAnswerIp"];
                 /** @description 组织过滤：展开该节点子树全部 CIDR ∪ 组内资产 MAC 后查询（§13.4 关联链） */
                 orgId?: components["parameters"]["LogOrgId"];
+                /** @description 页码（1 起，offset=(page-1)*pageSize）；与 cursor 二选一，页面翻页用 page */
+                page?: components["parameters"]["LogPageNo"];
                 /** @description 导出行数上限（CSV 单次转储，超限截断） */
                 exportLimit?: components["parameters"]["LogExportLimit"];
             };

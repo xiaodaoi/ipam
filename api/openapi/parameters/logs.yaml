@@ -125,3 +125,12 @@ LogAnswerIp:
   schema:
     type: string
   description: 应答 IP 过滤（DNS 事件；反查「某 IP 解析过哪些域名」，威胁排查）
+
+LogPageNo:
+  name: page
+  in: query
+  schema:
+    type: integer
+    minimum: 1
+    default: 1
+  description: 页码（1 起，offset=(page-1)*pageSize）；与 cursor 二选一，页面翻页用 page

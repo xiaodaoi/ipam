@@ -46,6 +46,9 @@ func (s *Service) Query(ctx context.Context, f LogFilter) (Page, error) {
 	if f.MAC != "" {
 		f.MAC = NormalizeMAC(f.MAC)
 	}
+	if f.Page < 0 {
+		f.Page = 0
+	}
 	if f.Cursor != "" {
 		cts, _, _ := ParseCursor(f.Cursor)
 		if cts.IsZero() {

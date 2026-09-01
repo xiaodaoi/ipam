@@ -58,10 +58,21 @@ func (m *MemStore) Query(_ context.Context, f LogFilter, scope OrgScope) (Page, 
 	}
 	page := filtered
 	next := ""
-	if len(filtered) > pageSize {
+	if f.Cursor != "" && len(filtered) > pageSize {
 		page = filtered[:pageSize]
 		last := filtered[pageSize-1]
 		next = EncodeCursor(last.TS, last.ClientMAC, last.Domain)
+	} else if f.Cursor == "" && f.Page > 1 {
+		off := (f.Page - 1) * pageSize
+		if off >= len(filtered) {
+			page = []LogRow{}
+		} else {
+			end := off + pageSize
+			if end > len(filtered) {
+				end = len(filtered)
+			}
+			page = filtered[off:end]
+		}
 	}
 	return Page{Items: page, NextCursor: next, Total: total}, nil
 }

@@ -54,6 +54,9 @@ func (h *Handler) ListLogs(c *gin.Context, params apigen.ListLogsParams) {
 	if params.AnswerIp != nil {
 		f.AnswerIP = string(*params.AnswerIp)
 	}
+	if params.Page != nil {
+		f.Page = int(*params.Page)
+	}
 	if params.OrgId != nil {
 		f.OrgID = params.OrgId.String()
 	}
@@ -162,6 +165,9 @@ func (h *Handler) ExportLogs(c *gin.Context, params apigen.ExportLogsParams) {
 	}
 	if params.AnswerIp != nil {
 		f.AnswerIP = string(*params.AnswerIp)
+	}
+	if params.Page != nil {
+		f.Page = int(*params.Page)
 	}
 	if params.OrgId != nil {
 		f.OrgID = params.OrgId.String()

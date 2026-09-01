@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-09-01 · 日志明细分页修复——offset 分页接通（页码翻页 + 每页条数调整）
+
+- **现象**：日志明细分页条是装饰性——游标式后端未接页码点击，无法翻页/调每页条数。
+- **修复**：后端加 `page` 参数（offset=(page-1)*pageSize；LogPageNo 参数避免与响应 schema 撞名），ch_store/mem_store/service/handler 全链路；前端 page/pageSize 状态 + antd 分页条 `current/total/onChange` 接通。
+- **验证**：后端 page1/page2（pageSize=5）各返回 5 条、total 一致；typecheck 0 + build ✓ + 容器重建。
+
 ## 2026-09-01 · 修复：QPS 曲线数据骤减——normalize VRL 语法错误致摄入停摆
 
 - **现象**：查询检索 QPS 曲线数据大幅减少。

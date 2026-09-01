@@ -38,27 +38,34 @@ const filterType = ref<string>();
 const filterDomain = ref<string>();
 const filterAnswerIp = ref<string>();
 const rows = ref<any[]>([]);
-const nextCursor = ref('');
 const total = ref(0);
 const loading = ref(false);
+const page = ref(1);
+const pageSize = ref(50);
 let cur: LogQuery = { from: isoAgo(6) };
 
-async function loadLogs(cursor?: string) {
+async function loadLogs() {
   loading.value = true;
   try {
     cur = { ...timeWindow() };
     if (filterType.value) cur.type = filterType.value;
     if (filterDomain.value) cur.domain = filterDomain.value;
     if (filterAnswerIp.value) cur.answerIp = filterAnswerIp.value;
-    cur.pageSize = 50;
-    if (cursor) cur.cursor = cursor;
-    const page = await listLogs(cur);
-    rows.value = cursor ? [...rows.value, ...page.items] : page.items;
-    nextCursor.value = page.nextCursor ?? '';
-    total.value = page.total ?? 0;
+    cur.pageSize = pageSize.value;
+    cur.page = page.value;
+    const p = await listLogs(cur);
+    rows.value = p.items;
+    total.value = p.total ?? 0;
   } finally {
     loading.value = false;
   }
+}
+
+/** 分页条变化（页码/每页条数）→ 重新查询 */
+function onPageChange(p: number, size: number) {
+  page.value = p;
+  pageSize.value = size;
+  void loadLogs();
 }
 
 async function onExport() {
@@ -162,20 +169,20 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           row-key="(_, i) => String(i)"
           size="small"
           :pagination="{
+            current: page,
+            pageSize,
+            total,
             position: ['bottomLeft'],
-            pageSize: 50,
-            pageSizeOptions: ['20', '50', '100', '200'],
             showSizeChanger: true,
+            pageSizeOptions: ['20', '50', '100', '200'],
             showTotal: (t: number) => `共 ${t} 条`,
+            onChange: onPageChange,
           }"
         >
-          <template #bodyCell="{ column, record, index }">
+          <template #bodyCell="{ column, record }">
             <template v-if="column.dataIndex === 'ts'">{{ fmtTs(record.ts) }}</template>
             <template v-else-if="column.dataIndex === 'action'">
               <Tag :color="TAG_COLOR[record.action] || 'default'">{{ record.action }}</Tag>
-            </template>
-            <template v-else-if="column.dataIndex === 'loadMore'">
-              <Button v-if="nextCursor && index === rows.length - 1" size="small" @click="loadLogs(nextCursor)">加载更多</Button>
             </template>
           </template>
         </Table>

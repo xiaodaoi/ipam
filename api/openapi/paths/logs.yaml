@@ -23,6 +23,7 @@ LogsCollection:
       - $ref: '../parameters/logs.yaml#/LogAnswerIp'
       - $ref: '../parameters/logs.yaml#/LogOrgId'
       - $ref: '../parameters/logs.yaml#/LogCursor'
+      - $ref: '../parameters/logs.yaml#/LogPageNo'
       - $ref: '../parameters/logs.yaml#/LogPageSize'
     responses:
       '200':
@@ -151,6 +152,7 @@ LogsExport:
       - $ref: '../parameters/logs.yaml#/LogAction'
       - $ref: '../parameters/logs.yaml#/LogAnswerIp'
       - $ref: '../parameters/logs.yaml#/LogOrgId'
+      - $ref: '../parameters/logs.yaml#/LogPageNo'
       - $ref: '../parameters/logs.yaml#/LogExportLimit'
     responses:
       '200':

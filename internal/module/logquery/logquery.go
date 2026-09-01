@@ -37,6 +37,7 @@ type LogFilter struct {
 	AnswerIP string // 应答 IP 过滤（toString(answer_ip) 子串）
 	OrgID    string // 组织过滤（service 展开为 OrgScope 后传给 Store）
 	Cursor   string
+	Page     int // 页码（1 起，offset 分页；与 Cursor 二选一）
 	PageSize int
 }
 
