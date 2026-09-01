@@ -104,7 +104,7 @@ async function confirmBind() {
 
 <template>
   <div>
-  <div style="display:flex;gap:16px;height:100%">
+  <div class="flex h-full gap-4">
     <Card style="width:280px;flex-shrink:0" title="组织分组">
       <Tree
         :tree-data="treeData"

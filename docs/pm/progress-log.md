@@ -4,6 +4,11 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-09-01 · 全局 ant-card 外边距
+
+- **做了**：`@vben/styles/antd/index.css` 全局规则——`.ant-card{margin-bottom:12px}`，`.flex>/.grid>` 直子排除（横向布局由 gap 承担不叠加）；ledger 内联 display:flex 容器改 `flex h-full gap-4` class 纳入排除。
+- **验证**：typecheck 0 + build ✓ + 容器重建 + 服务端 bootstrap css 实测含 `ant-card{margin-bottom:12px}` 与 `.flex>.ant-card,.grid>.ant-card{margin-bottom:0}`。
+
 ## 2026-09-01 · 子网管理页布局：子网与地址池 + PD 租约改上下结构
 
 - **做了**：原三栏横排（组织树|子网|PD租约）改为：组织树固定左栏，右侧 `min-w-0 flex-1` 竖排容器——子网与地址池在上、PD 租约在下（mt-3）。
