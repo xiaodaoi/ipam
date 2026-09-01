@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS ipam.logs
     action      LowCardinality(String),   -- resolve / blocked / lease_commit ...
     category    LowCardinality(String),   -- 命中封禁时的分类（FR-B-18）
     detail      String,
+    answer_ip   Nullable(IPv6),            -- DNS 应答 IP（log-replies 解析；A/AAAA 最终地址）
     INDEX idx_domain domain TYPE tokenbf_v1(10240, 3, 0) GRANULARITY 4
 )
 ENGINE = MergeTree

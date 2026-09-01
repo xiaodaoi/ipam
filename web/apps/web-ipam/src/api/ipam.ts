@@ -73,7 +73,7 @@ const qsOf = (o: Record<string, string | number | undefined>) => {
 };
 
 export interface LogQuery {
-  from: string; to?: string; type?: string; mac?: string; ip?: string;
+  from: string; to?: string; type?: string; mac?: string; ip?: string; answerIp?: string;
   domain?: string; action?: string; cursor?: string; pageSize?: number;
 }
 export const listLogs = (q: LogQuery) =>

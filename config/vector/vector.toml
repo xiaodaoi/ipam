@@ -56,13 +56,32 @@ source = '''
 type = "remap"
 inputs = ["unbound_log"]
 source = '''
-  m, merr = parse_regex(.message, r'\[(?P<ts>\d+)\] unbound\[\d+:\d+\] info: (?P<srcip>\S+) (?P<qname>\S+) (?P<qtype>\S+) IN$')
-  if merr != null {
-    abort
+  # 查询行：`info: srcip qname qtype IN`（log-queries）
+  m, merr = parse_regex(.message, r'\[(?P<ts>\d+)\] unbound\[\d+:\d+\] info: (?P<srcip>(?:\d{1,3}\.){3}\d{1,3}|[0-9a-fA-F:]+) (?P<qname>\S+) (?P<qtype>\S+) IN$')
+  if merr == null {
+    .event = "dns_query"
+    .rcode = ""
+    .answer_ip = null
+  } else {
+    # 应答行：`info: srcip qname qtype IN RCODE ttl rtt qtime ttime answer...`（log-replies）
+    m, merr = parse_regex(.message, r'\[(?P<ts>\d+)\] unbound\[\d+:\d+\] info: (?P<srcip>(?:\d{1,3}\.){3}\d{1,3}|[0-9a-fA-F:]+) (?P<qname>\S+) (?P<qtype>\S+) IN (?P<rcode>[A-Z0-9_]+)(?P<rest>.*)$')
+    if merr != null {
+      abort
+    }
+    .event = "resolve"
+    .rcode = m.rcode
+    # 应答 IP：尾部锚定取应答区最后一个 IP。注意 unbound log-replies 行在 verbosity≤4 均不含应答区
+    # （实测 1.26.0：`... IN RCODE time rtt qtime` 即止），故正常情况无匹配→null；待 python 模块等数据源接入后生效。
+    # IPv4 需四点分、IPv6 需 ≥2 段冒号——避免把 qtime/ttl 等纯数字误判为 IP。
+    am, aerr = parse_regex(m.rest, r'(?P<ip>(?:\d{1,3}\.){3}\d{1,3}|(?:[0-9a-fA-F]{1,4}:){2,}[0-9a-fA-F]{0,4})\s*$')
+    if aerr == null {
+      .answer_ip = am.ip
+    } else {
+      .answer_ip = null
+    }
   }
   .timestamp = now()
   .severity = "INFO"
-  .event = "dns_query"
   .client_mac = ""
   .address = ""
   .sip = m.srcip
@@ -92,9 +111,10 @@ source = '''
     "client_ip": ip_v,
     "sip": sip_v,
     "domain": .domain,
-    "rcode": "",
+    "rcode": .rcode,
     "action": .event,
     "category": "",
+    "answer_ip": .answer_ip,
     "detail": .message
   }
 '''

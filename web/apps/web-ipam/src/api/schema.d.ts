@@ -1770,8 +1770,10 @@ export interface components {
             sip?: string;
             /** @description 查询域名（DNS 事件） */
             domain?: string;
-            /** @description DNS 应答码（NOERROR/NXDOMAIN…） */
+            /** @description DNS 应答码（NOERROR/NXDOMAIN…；log-replies 解析，命中即激活） */
             rcode?: string;
+            /** @description DNS 应答 IP（A/AAAA 最终地址，CNAME 链取末段；未命中为空） */
+            answerIp?: string;
             /** @description 动作（lease_commit / resolve / blocked…；封禁拦截见 §5） */
             action?: string;
             /** @description 命中封禁时的策略分类（FR-B-18） */
@@ -2330,6 +2332,8 @@ export interface components {
         LogDomain: string;
         /** @description 动作过滤（lease_commit / resolve / blocked…） */
         LogAction: string;
+        /** @description 应答 IP 过滤（DNS 事件；反查「某 IP 解析过哪些域名」，威胁排查） */
+        LogAnswerIp: string;
         /** @description 组织过滤：展开该节点子树全部 CIDR ∪ 组内资产 MAC 后查询（§13.4 关联链） */
         LogOrgId: string;
         /** @description 分页游标（取自上一页 nextCursor） */
@@ -3089,6 +3093,8 @@ export interface operations {
                 domain?: components["parameters"]["LogDomain"];
                 /** @description 动作过滤（lease_commit / resolve / blocked…） */
                 action?: components["parameters"]["LogAction"];
+                /** @description 应答 IP 过滤（DNS 事件；反查「某 IP 解析过哪些域名」，威胁排查） */
+                answerIp?: components["parameters"]["LogAnswerIp"];
                 /** @description 组织过滤：展开该节点子树全部 CIDR ∪ 组内资产 MAC 后查询（§13.4 关联链） */
                 orgId?: components["parameters"]["LogOrgId"];
                 /** @description 分页游标（取自上一页 nextCursor） */
@@ -3292,6 +3298,8 @@ export interface operations {
                 domain?: components["parameters"]["LogDomain"];
                 /** @description 动作过滤（lease_commit / resolve / blocked…） */
                 action?: components["parameters"]["LogAction"];
+                /** @description 应答 IP 过滤（DNS 事件；反查「某 IP 解析过哪些域名」，威胁排查） */
+                answerIp?: components["parameters"]["LogAnswerIp"];
                 /** @description 组织过滤：展开该节点子树全部 CIDR ∪ 组内资产 MAC 后查询（§13.4 关联链） */
                 orgId?: components["parameters"]["LogOrgId"];
                 /** @description 导出行数上限（CSV 单次转储，超限截断） */

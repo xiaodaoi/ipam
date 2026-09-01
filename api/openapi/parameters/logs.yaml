@@ -119,3 +119,9 @@ LogExportLimit:
     maximum: 10000
     default: 10000
   description: 导出行数上限（CSV 单次转储，超限截断）
+LogAnswerIp:
+  name: answerIp
+  in: query
+  schema:
+    type: string
+  description: 应答 IP 过滤（DNS 事件；反查「某 IP 解析过哪些域名」，威胁排查）

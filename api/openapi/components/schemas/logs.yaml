@@ -30,7 +30,10 @@ LogRow:
       description: 查询域名（DNS 事件）
     rcode:
       type: string
-      description: DNS 应答码（NOERROR/NXDOMAIN…）
+      description: DNS 应答码（NOERROR/NXDOMAIN…；log-replies 解析，命中即激活）
+    answerIp:
+      type: string
+      description: DNS 应答 IP（A/AAAA 最终地址，CNAME 链取末段；未命中为空）
     action:
       type: string
       description: 动作（lease_commit / resolve / blocked…；封禁拦截见 §5）

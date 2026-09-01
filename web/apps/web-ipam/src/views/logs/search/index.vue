@@ -36,6 +36,7 @@ function timeWindow(): { from: string; to: string } {
 // ── 检索 ──
 const filterType = ref<string>();
 const filterDomain = ref<string>();
+const filterAnswerIp = ref<string>();
 const rows = ref<any[]>([]);
 const nextCursor = ref('');
 const total = ref(0);
@@ -48,6 +49,7 @@ async function loadLogs(cursor?: string) {
     cur = { ...timeWindow() };
     if (filterType.value) cur.type = filterType.value;
     if (filterDomain.value) cur.domain = filterDomain.value;
+    if (filterAnswerIp.value) cur.answerIp = filterAnswerIp.value;
     cur.pageSize = 50;
     if (cursor) cur.cursor = cursor;
     const page = await listLogs(cur);
@@ -63,6 +65,7 @@ async function onExport() {
   const params: Record<string, string> = timeWindow();
   if (filterType.value) params.type = filterType.value;
   if (filterDomain.value) params.domain = filterDomain.value;
+  if (filterAnswerIp.value) params.answerIp = filterAnswerIp.value;
   try {
     await exportLogsCsv(params);
     message.success('导出已开始下载');
@@ -77,6 +80,7 @@ const columns = [
   { title: '客户端', dataIndex: 'clientMac', width: 130 },
   { title: 'IP', dataIndex: 'clientIp', width: 140 },
   { title: '应答码', dataIndex: 'rcode', width: 100 },
+  { title: '应答IP', dataIndex: 'answerIp', width: 140 },
   { title: '应答服务器', dataIndex: 'sip', width: 140 },
   { title: '动作', dataIndex: 'action', width: 120 },
 ];
@@ -141,7 +145,8 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           @change="reload()"
         />
         <Select v-model:value="filterType" allow-clear placeholder="类型" style="width: 100px" :options="[{ value: 'dhcp', label: 'DHCP' }, { value: 'dns', label: 'DNS' }]" />
-        <Input v-model:value="filterDomain" allow-clear placeholder="域名子串" style="width: 220px" @press-enter="reload()" />
+        <Input v-model:value="filterDomain" allow-clear placeholder="域名子串" style="width: 200px" @press-enter="reload()" />
+        <Input v-model:value="filterAnswerIp" allow-clear placeholder="应答IP（反查域名）" style="width: 170px" @press-enter="reload()" />
         <Button type="primary" @click="reload()">查询</Button>
         <Button class="ml-1" @click="onExport">导出 CSV</Button>
         <span class="text-xs text-gray-400">满足条件 {{ total }} 条</span>

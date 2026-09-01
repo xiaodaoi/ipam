@@ -21,6 +21,7 @@ type LogRow struct {
 	Rcode     string
 	Action    string
 	Category  string
+	AnswerIP  string
 	Detail    string
 }
 
@@ -33,6 +34,7 @@ type LogFilter struct {
 	IP       string    // 精确地址或 CIDR（client_ip/sip 任一命中）
 	Domain   string    // 子串（不区分大小写）
 	Action   string
+	AnswerIP string // 应答 IP 过滤（toString(answer_ip) 子串）
 	OrgID    string // 组织过滤（service 展开为 OrgScope 后传给 Store）
 	Cursor   string
 	PageSize int

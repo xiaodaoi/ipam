@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-09-01 · DNS 日志应答解析（方案 A 落地 + unbound 限制实证）
+
+- **做了**：① unbound `log-replies: yes`；② vector 应答行正则 → **rcode 激活**（NOERROR/NXDOMAIN 入库，前端「应答码」列不再是空）+ answer_ip 字段；③ CH `logs` 加 `answer_ip Nullable(IPv6)`（logs.sql + 运行实例 ALTER）；④ spec/gen/后端（LogRow.answerIp、answerIp 过滤参数、ch_store 读写、MemStore 匹配、handler 接线）；⑤ 前端「应答IP」列 + 按应答 IP 过滤输入框（反查域名）。
+- **实证结论（重要）**：unbound 1.26.0 的 `log-replies` 应答行在 **verbosity 1-4 均不含应答区**（实测 `... IN RCODE time rtt qtime` 即止）——`answer_ip` 目前诚实置 null，待 **unbound python 模块**（`--with-pythonmodule` + operate 钩子取 return_msg 应答）等数据源接入后填充；rcode 解析已完整可用。
+- **踩坑**：① VRL 数组下标仅允许字面量（`matches[n-1]` 语法错→改尾部锚定正则）；② 宽松 IPv6 正则把 qtime 纯数字误判为 IP、且 verbosity≥2 的 `info: resolving X A IN` 模块行被 query 正则误匹配（srcip="resolving" 塞进 sip 致 CH 400）→ 收紧 srcip 必须为 IP、IPv6 需含冒号；③ vector 磁盘缓冲残留旧配置脏事件→清 data_dir。
+- **验证**：vector 0 报错；CH resolve 行 rcode 分布 NOERROR/NXDOMAIN 正常、sip 为合法 IP、answer_ip 为 null；API `answerIp` 参数 200；前端 chunk 含「应答IP」列。
+
 ## 2026-09-01 · 三项优化：图标裁剪上传 / ant-card 基础外边距变量 / 日志自定义时间区间
 
 - **① 系统设置站点图标**：原生 input 换 adapter 增强 Upload（`crop="true"` + `aspect-ratio="1:1"` + `max-size=2MB` + `picture-card`）——选图自动弹 VCropper 1:1 裁剪，`custom-request` 收 1:1 Blob → base64 双写 faviconUrl/logoUrl。

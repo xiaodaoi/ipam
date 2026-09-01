@@ -164,6 +164,9 @@ func matchLog(r LogRow, f LogFilter, scope OrgScope) bool {
 	if f.Action != "" && r.Action != f.Action {
 		return false
 	}
+	if f.AnswerIP != "" && r.AnswerIP != f.AnswerIP && !strings.Contains(strings.ToLower(r.AnswerIP), strings.ToLower(f.AnswerIP)) {
+		return false
+	}
 	return true
 }
 

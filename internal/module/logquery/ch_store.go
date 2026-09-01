@@ -51,7 +51,7 @@ func (s *ChStore) table() string { return s.db + ".logs" }
 
 const logCols = `ts, type, severity, client_mac,
   coalesce(toString(client_ip),''), coalesce(toString(sip),''),
-  domain, rcode, action, category, detail`
+  domain, rcode, action, category, coalesce(toString(answer_ip),''), detail`
 
 // cond 三端点共享的过滤核心（Query/Top/Qps 字段交集）。
 type cond struct {
@@ -61,6 +61,7 @@ type cond struct {
 	IP       string
 	Domain   string
 	Action   string
+	AnswerIP string
 	Scope    OrgScope
 }
 
@@ -94,6 +95,11 @@ func buildWhere(c cond) (string, []any) {
 	if c.Action != "" {
 		w = append(w, "action = ?")
 		args = append(args, c.Action)
+	}
+	if c.AnswerIP != "" {
+		// toString(answer_ip) 为 IPv6 文本（IPv4 落成 ::ffff:a.b.c.d），子串匹配兼容两种形态
+		w = append(w, "positionCaseInsensitive(toString(answer_ip), ?) > 0")
+		args = append(args, c.AnswerIP)
 	}
 	scopeSQL, scopeArgs := buildScopeWhere(c.Scope)
 	if scopeSQL != "" {
@@ -168,7 +174,7 @@ func dedupNonEmpty(in []string) []string {
 func (s *ChStore) Query(ctx context.Context, f LogFilter, scope OrgScope) (Page, error) {
 	where, args := buildWhere(cond{
 		From: f.From, To: f.To, Type: f.Type, MAC: f.MAC, IP: f.IP,
-		Domain: f.Domain, Action: f.Action, Scope: scope,
+		Domain: f.Domain, Action: f.Action, AnswerIP: f.AnswerIP, Scope: scope,
 	})
 
 	countSQL := "SELECT count() FROM " + s.table() + " WHERE " + where
@@ -301,14 +307,14 @@ func (s *ChStore) Qps(ctx context.Context, q QpsQuery, scope OrgScope) ([]QpsPoi
 func scanLogRow(rows chdriver.Rows) (LogRow, error) {
 	var (
 		r                                             LogRow
-		sev, mac, clientIP, sip, dom, rc, act, cg, dt string
+		sev, mac, clientIP, sip, dom, rc, act, cg, ai, dt string
 	)
-	if err := rows.Scan(&r.TS, &r.Type, &sev, &mac, &clientIP, &sip, &dom, &rc, &act, &cg, &dt); err != nil {
+	if err := rows.Scan(&r.TS, &r.Type, &sev, &mac, &clientIP, &sip, &dom, &rc, &act, &cg, &ai, &dt); err != nil {
 		return LogRow{}, err
 	}
 	r.Severity, r.ClientMAC = sev, mac
 	r.ClientIP, r.SIP = formatAddr(clientIP), formatAddr(sip)
-	r.Domain, r.Rcode, r.Action, r.Category, r.Detail = dom, rc, act, cg, dt
+	r.Domain, r.Rcode, r.Action, r.Category, r.AnswerIP, r.Detail = dom, rc, act, cg, ai, dt
 	return r, nil
 }
 
