@@ -41,7 +41,7 @@ const pgResult = ref<Record<string, unknown> | null>(null);
 const pgGridOptions = reactive<VxeGridProps>({
   columns: [
     { field: 'name', title: '名称', minWidth: 120 },
-    { field: 'viewName', title: 'view', width: 110 },
+    { field: 'viewName', title: 'view', minWidth: 100 },
     { field: 'cidrs', title: 'CIDRs', minWidth: 160 },
     { field: 'lists', title: '名单数', width: 90, slots: { default: 'lists' } },
     { field: 'op', title: '操作', width: 100, fixed: 'right', slots: { default: 'op' } },
@@ -53,7 +53,7 @@ const [PgGrid] = useVbenVxeGrid({ gridOptions: pgGridOptions });
 
 const entryGridOptions = reactive<VxeGridProps>({
   columns: [
-    { field: 'pattern', title: 'pattern', width: 220 },
+    { field: 'pattern', title: 'pattern', minWidth: 100 },
     { field: 'triggerType', title: '触发', width: 120 },
     { field: 'action', title: '动作', width: 120 },
     { field: 'category', title: '分类', width: 90 },
@@ -66,10 +66,10 @@ const [EntryGrid] = useVbenVxeGrid({ gridOptions: entryGridOptions });
 
 const listGridOptions = reactive<VxeGridProps>({
   columns: [
-    { field: 'name', title: '名称', width: 200 },
+    { field: 'name', title: '名称', minWidth: 100 },
     { field: 'kind', title: '类型', width: 100, slots: { default: 'kind' } },
-    { field: 'syncUrl', title: '订阅地址', width: 280 },
-    { field: 'lastSync', title: '上次同步', width: 170, slots: { default: 'lastSync' } },
+    { field: 'syncUrl', title: '订阅地址', minWidth: 100 },
+    { field: 'lastSync', title: '上次同步', minWidth: 100, slots: { default: 'lastSync' } },
     { field: 'version', title: '版本', width: 80 },
     { field: 'op', title: '操作', width: 190, fixed: 'right', slots: { default: 'op' } },
   ],

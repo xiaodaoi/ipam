@@ -43,7 +43,7 @@ const [RoleModal, roleModalApi] = useVbenModal({
 
 const gridOptions = reactive<VxeGridProps>({
   columns: [
-    { field: 'name', title: '角色名', width: 220 },
+    { field: 'name', title: '角色名', minWidth: 100 },
     { field: 'builtin', title: '类型', width: 90, slots: { default: 'builtin' } },
     { field: 'permCount', title: '权限点数', width: 100, slots: { default: 'permCount' } },
     { field: 'op', title: '操作', width: 150, fixed: 'right', slots: { default: 'op' } },

@@ -106,7 +106,7 @@ function fmtNum(v?: number | null): string {
       </div>
     </Card>
 
-    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 mb-4">
       <!-- 服务健康灯 -->
       <Card title="服务健康" class="mb-4">
         <div class="flex flex-wrap gap-x-10 gap-y-3">

@@ -89,10 +89,10 @@ async function remove(id?: string) {
 }
 const gridOptions = reactive<VxeGridProps>({
   columns: [
-    { field: 'domain', title: '域名后缀', width: 320 },
-    { field: 'upstreamIds', title: '上游', width: 280, slots: { default: 'upstreamIds' } },
-    { field: 'enabled', title: '启用', width: 80, slots: { default: 'enabled' } },
-    { field: 'note', title: '备注', width: 220 },
+    { field: 'domain', title: '域名后缀', minWidth: 100 },
+    { field: 'upstreamIds', title: '上游', minWidth: 100, slots: { default: 'upstreamIds' } },
+    { field: 'enabled', title: '启用', width: 90, slots: { default: 'enabled' } },
+    { field: 'note', title: '备注', minWidth: 100 },
     { field: 'op', title: '操作', width: 150, fixed: 'right', slots: { default: 'op' } },
   ],
   loading: loading.value,

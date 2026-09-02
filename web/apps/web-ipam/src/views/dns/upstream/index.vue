@@ -88,10 +88,10 @@ const PROTO_COLOR: Record<string, string> = { udp: 'blue', tcp: 'cyan', 'dot': '
 
 const gridOptions = reactive<VxeGridProps>({
   columns: [
-    { field: 'name', title: '名称', width: 180 },
-    { field: 'addrs', title: '地址', width: 380, slots: { default: 'addrs' } },
+    { field: 'name', title: '名称', minWidth: 100 },
+    { field: 'addrs', title: '地址', minWidth: 100, slots: { default: 'addrs' } },
     { field: 'protocol', title: '协议', width: 90, slots: { default: 'protocol' } },
-    { field: 'health', title: '探活', width: 240, slots: { default: 'health' } },
+    { field: 'health', title: '探活', minWidth: 100, slots: { default: 'health' } },
     { field: 'op', title: '操作', width: 150, fixed: 'right', slots: { default: 'op' } },
   ],
   loading: loading.value,

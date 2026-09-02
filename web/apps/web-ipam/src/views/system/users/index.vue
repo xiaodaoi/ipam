@@ -101,11 +101,11 @@ onMounted(() => {
 
 const gridOptions = reactive<VxeGridProps>({
   columns: [
-    { field: 'username', title: '登录名', width: 200 },
-    { field: 'displayName', title: '显示名', width: 200, slots: { default: 'displayName' } },
-    { field: 'roles', title: '角色', width: 200, slots: { default: 'roles' } },
+    { field: 'username', title: '登录名', minWidth: 100 },
+    { field: 'displayName', title: '显示名', minWidth: 100, slots: { default: 'displayName' } },
+    { field: 'roles', title: '角色', minWidth: 100, slots: { default: 'roles' } },
     { field: 'enabled', title: '状态', width: 90, slots: { default: 'enabled' } },
-    { field: 'createdAt', title: '创建时间', width: 170, slots: { default: 'createdAt' } },
+    { field: 'createdAt', title: '创建时间', minWidth: 100, slots: { default: 'createdAt' } },
     { field: 'op', title: '操作', width: 170, fixed: 'right', slots: { default: 'op' } },
   ],
   loading: loading.value,
@@ -121,7 +121,8 @@ const isSelf = (username?: string) => !!myUsername && username === myUsername;
 </script>
 
 <template>
-  <Card title="用户与角色">
+  <div class="p-4">
+<Card title="用户与角色">
     <template #extra>
       <Button size="small" @click="load()">刷新（15s 自动）</Button>
     </template>
@@ -190,4 +191,5 @@ const isSelf = (username?: string) => !!myUsername && username === myUsername;
       />
     </Modal>
   </Card>
+  </div>
 </template>

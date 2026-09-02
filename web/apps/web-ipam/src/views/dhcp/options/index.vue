@@ -168,9 +168,9 @@ const optsSummary = (options?: DhcpClassOptionIn[]) =>
 
 const optGridOptions = reactive<VxeGridProps>({
   columns: [
-    { field: 'optionCode', title: '码', width: 70 },
-    { field: 'name', title: '选项名', width: 200 },
-    { field: 'data', title: '值', width: 240 },
+    { field: 'optionCode', title: '码', minWidth: 100 },
+    { field: 'name', title: '选项名', minWidth: 100 },
+    { field: 'data', title: '值', minWidth: 100 },
     { field: 'enabled', title: '状态', width: 90, slots: { default: 'enabled' } },
     { field: 'op', title: '操作', width: 150, fixed: 'right', slots: { default: 'op' } },
   ],
@@ -181,9 +181,9 @@ const [OptGrid] = useVbenVxeGrid({ gridOptions: optGridOptions });
 
 const clsGridOptions = reactive<VxeGridProps>({
   columns: [
-    { field: 'name', title: '类名', width: 180 },
-    { field: 'test', title: 'test 表达式', width: 280, slots: { default: 'test' } },
-    { field: 'opts', title: '下发选项', width: 260, slots: { default: 'opts' } },
+    { field: 'name', title: '类名', minWidth: 100 },
+    { field: 'test', title: 'test 表达式', minWidth: 100, slots: { default: 'test' } },
+    { field: 'opts', title: '下发选项', minWidth: 100, slots: { default: 'opts' } },
     { field: 'enabled', title: '状态', width: 90, slots: { default: 'enabled' } },
     { field: 'op', title: '操作', width: 150, fixed: 'right', slots: { default: 'op' } },
   ],

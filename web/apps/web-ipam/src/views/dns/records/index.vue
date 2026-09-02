@@ -92,10 +92,10 @@ onMounted(loadZones);
 
 const recGridOptions = reactive<VxeGridProps>({
   columns: [
-    { field: 'name', title: '名称', width: 200 },
+    { field: 'name', title: '名称', minWidth: 100 },
     { field: 'recType', title: '类型', width: 80 },
     { field: 'ttl', title: 'TTL', width: 80 },
-    { field: 'rdata', title: '值', width: 360 },
+    { field: 'rdata', title: '值', minWidth: 100 },
     { field: 'op', title: '操作', width: 100, fixed: 'right', slots: { default: 'op' } },
   ],
   loading: loading.value,
@@ -105,10 +105,10 @@ const [RecGrid] = useVbenVxeGrid({ gridOptions: recGridOptions });
 
 const linkedGridOptions = reactive<VxeGridProps>({
   columns: [
-    { field: 'name', title: '名称', width: 200 },
+    { field: 'name', title: '名称', minWidth: 100 },
     { field: 'recType', title: '类型', width: 80 },
-    { field: 'rdata', title: '值', width: 360 },
-    { field: 'mac', title: '来源 MAC', width: 160 },
+    { field: 'rdata', title: '值', minWidth: 100 },
+    { field: 'mac', title: '来源 MAC', minWidth: 100 },
   ],
   rowConfig: { keyField: 'name' },
 });

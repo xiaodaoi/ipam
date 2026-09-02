@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-09-01 · vxe 列自适应优化 + users/roles/仪表盘间距
+
+- **vxe 列**：非操作列 width→minWidth（内容列自适应填满容器），状态类列保持固定宽（协议/族/状态等），操作列 `fixed: 'right'` 贴右缘——实测无右侧空列，列宽均衡铺满。
+- **间距**：users 页补 p-4（roles 已有）；仪表盘 grid 容器加 mb-4（服务健康/DNS 服务 与 DNS QPS 卡间距 35px）。
+- **验证**：Playwright 视觉确认——upstream 操作列贴右无空隙、各列填满；dashboard 卡间距正常；users p-4 生效。
+
+
 ## 2026-09-01 · vxe 表格高度修复——全部行可见不滚动 + pager 总数同步
 
 - **问题**：vxe 表格只显示 ~2 行，需上下滚动（adapter 全局 minHeight:180 把 grid 锁高，配合 height:'auto' 只渲染两行高度）。
