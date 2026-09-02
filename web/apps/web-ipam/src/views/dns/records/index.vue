@@ -99,7 +99,6 @@ const recGridOptions = reactive<VxeGridProps>({
     { field: 'op', title: '操作', width: 100, fixed: 'right', slots: { default: 'op' } },
   ],
   loading: loading.value,
-  height: 'auto',
   rowConfig: { keyField: 'id' },
 });
 const [RecGrid] = useVbenVxeGrid({ gridOptions: recGridOptions });
@@ -111,7 +110,6 @@ const linkedGridOptions = reactive<VxeGridProps>({
     { field: 'rdata', title: '值', width: 360 },
     { field: 'mac', title: '来源 MAC', width: 160 },
   ],
-  height: 'auto',
   rowConfig: { keyField: 'name' },
 });
 const [LinkGrid] = useVbenVxeGrid({ gridOptions: linkedGridOptions });

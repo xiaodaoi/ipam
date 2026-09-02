@@ -119,7 +119,6 @@ const resGridOptions = reactive<VxeGridProps>({
     { field: 'hostname', title: '主机名', minWidth: 120, slots: { default: 'hostname' } },
   ],
   loading: listLoading.value,
-  height: 'auto',
   rowConfig: { keyField: 'address' },
 });
 const [ResGrid] = useVbenVxeGrid({ gridOptions: resGridOptions });
@@ -132,7 +131,6 @@ const bindGridOptions = reactive<VxeGridProps>({
     { field: 'hostname', title: '主机名', minWidth: 120, slots: { default: 'hostname' } },
   ],
   loading: listLoading.value,
-  height: 'auto',
   rowConfig: { keyField: 'address' },
 });
 const [BindGrid] = useVbenVxeGrid({ gridOptions: bindGridOptions });

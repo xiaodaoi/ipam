@@ -254,6 +254,10 @@ const options = computed(() => {
   }
   if (tableData.value && tableData.value.length > 0) {
     mergedOptions.data = tableData.value;
+    // 客户端数据：pager 总数随 tableData 同步（行数随分页展示）
+    if (mergedOptions.pagerConfig) {
+      mergedOptions.pagerConfig.total = tableData.value.length;
+    }
   }
 
   // 注入已读行功能（rowClassName、rowStyle、columns 拦截）

@@ -4,6 +4,14 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-09-01 · vxe 表格高度修复——全部行可见不滚动 + pager 总数同步
+
+- **问题**：vxe 表格只显示 ~2 行，需上下滚动（adapter 全局 minHeight:180 把 grid 锁高，配合 height:'auto' 只渲染两行高度）。
+- **修复**：① 移除所有 grid 的 `height: 'auto'`（vxe 默认内容高度）；② adapter `minHeight: 180→0`；③ 共享 use-vxe-grid.vue：tableData（客户端数据）时同步 `pagerConfig.total`（分页"共 N 条"正确显示）。
+- **效果**：表格按当前页行数撑开——默认 10 行、不足按实际（7/11/13 行全展示）、选 20 条/页显示 20 行，无内部滚动。
+- **验证**：Playwright 实测 upstream 11 行 innerH 440（11×40）、pager 共 11 条；forward 13 行、共 13 条。
+
+
 ## 2026-09-01 · 仪表盘 QPS 折线 + 全站间距 + vxe 默认10行 + 日志分页真修复
 
 - **仪表盘**：新增「DNS QPS 折线」卡片（SVG polyline 零依赖，60s 分桶近 1 小时）；地址池利用率 TopN 加 mt-4 与上方间距。

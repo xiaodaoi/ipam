@@ -152,7 +152,6 @@ const gridOptions = reactive<VxeGridProps>({
     { field: 'op', title: '操作', width: 150, fixed: 'right', slots: { default: 'op' } },
   ],
   loading: loading.value,
-  height: 'auto',
   rowConfig: { keyField: 'id' },
 });
 const [SubnetGrid] = useVbenVxeGrid({ gridOptions });
@@ -168,7 +167,6 @@ const lease6GridOptions = reactive<VxeGridProps>({
     { field: 'validLifetime', title: '有效期(s)', width: 110 },
   ],
   loading: lease6Loading.value,
-  height: 'auto',
   rowConfig: { keyField: 'ipAddress' },
 });
 const [Lease6Grid] = useVbenVxeGrid({ gridOptions: lease6GridOptions });

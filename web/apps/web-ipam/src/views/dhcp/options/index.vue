@@ -175,7 +175,6 @@ const optGridOptions = reactive<VxeGridProps>({
     { field: 'op', title: '操作', width: 150, fixed: 'right', slots: { default: 'op' } },
   ],
   loading: loading.value,
-  height: 'auto',
   rowConfig: { keyField: 'id' },
 });
 const [OptGrid] = useVbenVxeGrid({ gridOptions: optGridOptions });
@@ -189,7 +188,6 @@ const clsGridOptions = reactive<VxeGridProps>({
     { field: 'op', title: '操作', width: 150, fixed: 'right', slots: { default: 'op' } },
   ],
   loading: loading.value,
-  height: 'auto',
   rowConfig: { keyField: 'id' },
 });
 const [ClsGrid] = useVbenVxeGrid({ gridOptions: clsGridOptions });

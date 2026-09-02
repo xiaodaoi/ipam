@@ -47,7 +47,6 @@ const pgGridOptions = reactive<VxeGridProps>({
     { field: 'op', title: '操作', width: 100, fixed: 'right', slots: { default: 'op' } },
   ],
   loading: pgLoading.value,
-  height: 'auto',
   rowConfig: { keyField: 'id' },
 });
 const [PgGrid] = useVbenVxeGrid({ gridOptions: pgGridOptions });
@@ -61,7 +60,6 @@ const entryGridOptions = reactive<VxeGridProps>({
     { field: 'op', title: '操作', width: 100, fixed: 'right', slots: { default: 'op' } },
   ],
   loading: eLoading.value,
-  height: 'auto',
   rowConfig: { keyField: 'pattern' },
 });
 const [EntryGrid] = useVbenVxeGrid({ gridOptions: entryGridOptions });
@@ -76,7 +74,6 @@ const listGridOptions = reactive<VxeGridProps>({
     { field: 'op', title: '操作', width: 190, fixed: 'right', slots: { default: 'op' } },
   ],
   loading: loading.value,
-  height: 'auto',
   rowConfig: { keyField: 'id' },
 });
 const [ListGrid] = useVbenVxeGrid({ gridOptions: listGridOptions });
