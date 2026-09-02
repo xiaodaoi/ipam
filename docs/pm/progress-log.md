@@ -4,6 +4,14 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-09-01 · vxe 客户端分页修复——13 条记录正确分 2 页
+
+- **问题**：转发规则 13 条记录 10/页却全在第 1 页、第 2 页空——vxe 仅代理模式自动切片，tableData（客户端数据）不切片。
+- **修复**（共享 use-vxe-grid.vue 全局生效）：① 客户端数据手动切片（slice((page-1)*size, page*size)）；② 同步 pagerConfig.total/currentPage/pageSize；③ 绑定 `page-change` 事件（注意：vxe 事件名是 page-change 非 pager-change）更新页码状态。
+- **部署教训**：docker 构建的 web 阶段曾用缓存层导致旧 bundle 一直运行——本次确认 web 阶段重跑（COPY web/packages 失效）+ 验证服务端 chunk 含 pageChange。
+- **验证**：forward 第1页 10 行/第2页 3 行/active 2；upstream 10+1 两页；subnets 7 行单页；pager 总数全部正确。
+
+
 ## 2026-09-01 · vxe 列自适应优化 + users/roles/仪表盘间距
 
 - **vxe 列**：非操作列 width→minWidth（内容列自适应填满容器），状态类列保持固定宽（协议/族/状态等），操作列 `fixed: 'right'` 贴右缘——实测无右侧空列，列宽均衡铺满。

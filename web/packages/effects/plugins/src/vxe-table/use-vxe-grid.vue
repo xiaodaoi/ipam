@@ -19,6 +19,7 @@ import {
   nextTick,
   onMounted,
   onUnmounted,
+  ref,
   toRaw,
   useSlots,
   useTemplateRef,
@@ -151,6 +152,10 @@ const [Form, formApi] = useTableForm({
   wrapperClass: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
 });
 
+// 客户端数据分页状态（tableData 模式下手动切片）
+const clientPage = ref(1);
+const clientPageSize = ref(10);
+
 const showTableTitle = computed(() => {
   return !!slots[TABLE_TITLE]?.() || tableTitle.value;
 });
@@ -253,10 +258,17 @@ const options = computed(() => {
     mergedOptions.formConfig.enabled = false;
   }
   if (tableData.value && tableData.value.length > 0) {
-    mergedOptions.data = tableData.value;
-    // 客户端数据：pager 总数随 tableData 同步（行数随分页展示）
+    // 客户端数据：手动分页切片（vxe 仅代理模式自动切片，tableData 需自行处理）
+    const total = tableData.value.length;
+    const size = mergedOptions.pagerConfig?.pageSize || clientPageSize.value || 10;
+    clientPageSize.value = size;
+    const pageCount = Math.max(1, Math.ceil(total / size));
+    const current = Math.min(clientPage.value, pageCount);
+    mergedOptions.data = tableData.value.slice((current - 1) * size, current * size);
     if (mergedOptions.pagerConfig) {
-      mergedOptions.pagerConfig.total = tableData.value.length;
+      mergedOptions.pagerConfig.total = total;
+      mergedOptions.pagerConfig.currentPage = current;
+      mergedOptions.pagerConfig.pageSize = size;
     }
   }
 
@@ -285,10 +297,16 @@ function onSearchBtnClick() {
   props.api?.toggleSearchForm?.();
 }
 
+function onPageChange(params: { currentPage?: number; pageSize?: number }) {
+  if (params.currentPage) clientPage.value = params.currentPage;
+  if (params.pageSize) clientPageSize.value = params.pageSize;
+}
+
 const events = computed(() => {
   return {
     ...gridEvents.value,
     toolbarToolClick: onToolbarToolClick,
+    pageChange: onPageChange,
   };
 });
 
