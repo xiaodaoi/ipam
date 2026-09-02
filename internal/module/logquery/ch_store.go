@@ -188,7 +188,7 @@ func (s *ChStore) Query(ctx context.Context, f LogFilter, scope OrgScope) (Page,
 		pageSize = DefaultPage
 	}
 	// 参数严格按 SQL 占位符顺序装配：where… → LIMIT ? → OFFSET ?
-	// （教训：此前 LIMIT 误接 offset 值、OFFSET 误接 pageSize，page≥3 越取越多且偏移恒 50）
+	// SQL 是 `... LIMIT ? OFFSET ?`，故 args 必须 [where…, limit, offset]——limit 在前、offset 在后！
 	qargs := append([]any{}, args...)
 	cursorCond := ""
 	offsetClause := ""
@@ -198,14 +198,16 @@ func (s *ChStore) Query(ctx context.Context, f LogFilter, scope OrgScope) (Page,
 		cursorCond = " AND (ts, client_mac, domain) < (?, ?, ?)"
 		qargs = append(qargs, cts.UTC(), cmac, cdomain)
 		limit = pageSize + 1 // 游标模式多取一条算 nextCursor
+		qargs = append(qargs, limit)
 	} else if f.Page > 1 {
 		offsetClause = " OFFSET ?"
-		qargs = append(qargs, (f.Page-1)*pageSize)
+		qargs = append(qargs, limit, (f.Page-1)*pageSize)
+	} else {
+		qargs = append(qargs, limit)
 	}
 	sql := "SELECT " + logCols + " FROM " + s.table() +
 		" WHERE " + where + cursorCond +
 		" ORDER BY ts DESC, client_mac DESC, domain DESC LIMIT ?" + offsetClause
-	qargs = append(qargs, limit)
 
 	rows, err := s.conn.Query(ctx, sql, qargs...)
 	if err != nil {

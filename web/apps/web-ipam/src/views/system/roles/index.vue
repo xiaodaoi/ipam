@@ -117,7 +117,8 @@ onMounted(load);
 </script>
 
 <template>
-  <Card title="角色管理（RBAC 权限点：域:read | 域:write）">
+  <div class="p-4">
+<Card title="角色管理（RBAC 权限点：域:read | 域:write）">
     <template #extra>
       <Button type="primary" size="small" @click="openCreate">+ 新建角色</Button>
     </template>
@@ -164,4 +165,5 @@ onMounted(load);
       </div>
     </RoleModal>
   </Card>
+  </div>
 </template>

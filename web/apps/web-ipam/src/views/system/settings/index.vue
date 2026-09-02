@@ -93,7 +93,8 @@ onMounted(load);
 </script>
 
 <template>
-  <Card title="Web 页面设置">
+  <div class="p-4">
+<Card title="Web 页面设置">
     <div class="space-y-3">
       <div>
         <div class="mb-1 text-xs text-gray-400">站点名称（浏览器页签名称/侧栏显示）</div>
@@ -145,4 +146,5 @@ onMounted(load);
       </div>
     </div>
   </Card>
+  </div>
 </template>

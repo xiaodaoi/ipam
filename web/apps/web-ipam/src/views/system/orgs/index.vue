@@ -146,7 +146,7 @@ onMounted(load);
 </script>
 
 <template>
-  <div>
+  <div class="p-4">
   <Card title="组织管理（全局主数据 ★）">
     <template #extra>
       <div class="flex gap-2">

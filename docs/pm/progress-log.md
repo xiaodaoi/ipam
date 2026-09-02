@@ -4,6 +4,14 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-09-01 · 仪表盘 QPS 折线 + 全站间距 + vxe 默认10行 + 日志分页真修复
+
+- **仪表盘**：新增「DNS QPS 折线」卡片（SVG polyline 零依赖，60s 分桶近 1 小时）；地址池利用率 TopN 加 mt-4 与上方间距。
+- **间距**：orgs/roles/settings/tail 单 Card 页加 p-4 包装（对齐 ledger）。
+- **vxe 表格**：adapter 默认 pageSize 20→10（每页最少 10 行，选 20 显示 20 行，height auto 全展示无内滚动）。
+- **日志分页（真修复）**：此前「修复」注释错误——SQL `LIMIT ? OFFSET ?` 但 args 顺序仍是 [offset, limit]（LIMIT 拿 offset 值）→ page≥3 越取越多。真正确认：limit 在前、offset 在后。实测 page 1/2/3/5 全 50 条、page 77 空（正确越界）；UI 点击第 3 页显示 50 行、total 3392。
+
+
 ## 2026-09-01 · 全站表格 VbenVxeGrid 化（9 页 15 表）——固定操作列 + 水平按钮
 
 - **转换**：upstream / forward / options(2) / dualstack / reservations(2) / users / roles / records(2) / blocklist(3) 全部 antd Table 换 VbenVxeGrid（useVbenVxeGrid + :table-data 响应式 + rowConfig.keyField）。

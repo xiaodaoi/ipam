@@ -5,7 +5,7 @@ import { computed, h, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import { Badge, Card, Table, Tag } from 'ant-design-vue';
 
-import { getDashboard, type DashboardOverview } from '#/api/ipam';
+import { getDashboard, getLogQps, type DashboardOverview } from '#/api/ipam';
 
 type Light = 'up' | 'down' | 'unknown';
 const LIGHT_TEXT: Record<Light, string> = { up: '正常', down: '异常', unknown: '未接入' };
@@ -21,6 +21,7 @@ let timer: ReturnType<typeof setInterval> | undefined;
 
 async function load() {
   data.value = await getDashboard(5);
+  void loadQps();
 }
 onMounted(() => {
   void load();
@@ -36,6 +37,26 @@ const trendMax = computed(() =>
 function barStyle(count: number): CSSProperties {
   return { height: `${Math.round((count / trendMax.value) * 100)}%` };
 }
+
+// ── DNS QPS 折线（近 1 小时，60s 分桶）──
+const qpsPoints = ref<{ ts: string; count: number }[]>([]);
+async function loadQps() {
+  const from = new Date(Date.now() - 3600_000).toISOString();
+  const to = new Date().toISOString();
+  qpsPoints.value = (await getLogQps({ from, to, intervalSec: 60 })).points ?? [];
+}
+const qpsMax = computed(() => Math.max(1, ...qpsPoints.value.map((p) => p.count)));
+const qpsLine = computed(() => {
+  const n = qpsPoints.value.length;
+  if (!n) return '';
+  return qpsPoints.value
+    .map((p, i) => {
+      const x = (i / (n - 1)) * 600;
+      const y = 110 - (p.count / qpsMax.value) * 100;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+});
 
 function fmtPct(v?: number): string {
   if (v === undefined || v === null) return '—';
@@ -132,8 +153,33 @@ function fmtNum(v?: number | null): string {
       </Card>
     </div>
 
+    <!-- DNS QPS 折线（近 1 小时） -->
+    <Card title="DNS QPS（近 1 小时 · 折线）" class="mt-4">
+      <template #extra>
+        <span class="text-xs text-gray-400">60s 分桶 · 30s 自动刷新</span>
+      </template>
+      <div v-if="qpsPoints.length">
+        <svg viewBox="0 0 600 120" class="h-32 w-full" preserveAspectRatio="none">
+          <polyline
+            :points="qpsLine"
+            fill="none"
+            stroke="#3b82f6"
+            stroke-width="2"
+            stroke-linejoin="round"
+            stroke-linecap="round"
+          />
+        </svg>
+        <div class="mt-1 flex justify-between text-xs text-gray-400">
+          <span>{{ qpsPoints[0] ? new Date(qpsPoints[0]!.ts).toLocaleTimeString() : '' }}</span>
+          <span>峰值 {{ qpsMax }} QPS</span>
+          <span>now</span>
+        </div>
+      </div>
+      <div v-else class="py-8 text-center text-gray-400">暂无 QPS 数据</div>
+    </Card>
+
     <!-- 池利用率 TopN -->
-    <Card title="地址池利用率 TopN">
+    <Card title="地址池利用率 TopN" class="mt-4">
       <Table
         :data-source="data?.poolUtilTop ?? []"
         row-key="subnetId"

@@ -68,7 +68,8 @@ const filtered = computed(() =>
 </script>
 
 <template>
-  <Card>
+  <div class="p-4">
+<Card>
     <template #title>
       <div class="flex items-center gap-3">
         <span>实时日志流</span>
@@ -99,4 +100,5 @@ const filtered = computed(() =>
       </div>
     </div>
   </Card>
+  </div>
 </template>
