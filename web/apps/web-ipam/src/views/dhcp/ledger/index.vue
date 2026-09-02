@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useVbenModal } from '@vben/common-ui';
 
-import { Card, Input, message, Table, Tag, Tree } from 'ant-design-vue';
+import { Card, Input, message, Table, Tree } from 'ant-design-vue';
 
 import IpPlanMap from '#/components/ip-plan-map.vue';
 
@@ -191,58 +191,45 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div>
-  <div class="flex h-full gap-4">
-    <Card style="width: 280px; flex-shrink: 0" title="组织分组">
+  <div class="p-4">
+  <div class="flex gap-4">
+    <Card style="width: 260px; flex-shrink: 0" title="组织分组">
       <Tree :tree-data="treeData" selectable block-node @select="onSelectOrg" />
       <div class="mt-2 text-xs text-gray-400">选择组织后展示其下 IPv4/IPv6 网段</div>
     </Card>
 
     <div class="min-w-0 flex-1">
-      <Card title="地址台账">
+      <div v-if="!v4Subnets.length && !v6Subnets.length" class="rounded border border-dashed py-16 text-center text-gray-400">
+        请先在左侧选择组织；或该组织暂无网段
+      </div>
+
+      <!-- IPv4：地址地图（独立 Card，还原 ip-plan-map 原始布局） -->
+      <IpPlanMap
+        v-if="v4Subnets.length"
+        :cidr="selectedCidr"
+        :ips="cells"
+        :subnets="v4Subnets.map((s) => ({ cidr: s.cidr, name: s.name }))"
+        @subnet-change="onSubnetChange"
+        @action="onMapAction"
+        @save="(_t: unknown, _v: unknown) => message.info('台账信息由 DHCP 租约 / 资产登记驱动，此处仅展示')"
+      />
+
+      <!-- IPv6：网段表格 -->
+      <Card v-if="v6Subnets.length" title="IPv6 网段" size="small" class="mt-4">
         <template #extra>
-          <span v-if="selectedOrgId" class="text-xs text-gray-400">IPv4 {{ v4Subnets.length }} 段 · IPv6 {{ v6Subnets.length }} 段</span>
+          <span class="text-xs text-gray-400">IPv6 为子网级汇总，暂无逐地址地图</span>
         </template>
-
-        <div v-if="!v4Subnets.length && !v6Subnets.length" class="py-10 text-center text-gray-400">
-          请先在左侧选择组织；或该组织暂无网段
-        </div>
-
-        <!-- IPv4：地址地图 -->
-        <div v-if="v4Subnets.length" class="mb-4">
-          <div class="mb-2 flex items-center gap-2">
-            <span class="text-sm font-medium">IPv4 地址使用情况</span>
-            <Tag color="blue">{{ selectedCidr }}</Tag>
-            <span v-if="mapLoading" class="text-xs text-gray-400">加载中…</span>
-          </div>
-          <IpPlanMap
-            :cidr="selectedCidr"
-            :ips="cells"
-            :subnets="v4Subnets.map((s) => ({ cidr: s.cidr, name: s.name }))"
-            @subnet-change="onSubnetChange"
-            @action="onMapAction"
-            @save="(_t: unknown, _v: unknown) => message.info('台账信息由 DHCP 租约 / 资产登记驱动，此处仅展示')"
-          />
-        </div>
-
-        <!-- IPv6：网段表格 -->
-        <div v-if="v6Subnets.length">
-          <div class="mb-2 flex items-center gap-2">
-            <span class="text-sm font-medium">IPv6 网段</span>
-            <span class="text-xs text-gray-400">IPv6 为子网级汇总，暂无逐地址地图</span>
-          </div>
-          <Table
-            :data-source="v6Subnets"
-            :columns="v6Cols"
-            row-key="id"
-            size="small"
-            :pagination="false"
-          >
-            <template #bodyCell="{ column, record }">
-              <template v-if="column.dataIndex === 'pools'">{{ poolText(record as Subnet) }}</template>
-            </template>
-          </Table>
-        </div>
+        <Table
+          :data-source="v6Subnets"
+          :columns="v6Cols"
+          row-key="id"
+          size="small"
+          :pagination="false"
+        >
+          <template #bodyCell="{ column, record }">
+            <template v-if="column.dataIndex === 'pools'">{{ poolText(record as Subnet) }}</template>
+          </template>
+        </Table>
       </Card>
     </div>
   </div>
