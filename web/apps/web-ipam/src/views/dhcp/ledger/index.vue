@@ -206,6 +206,7 @@ onMounted(async () => {
       <!-- IPv4：地址地图（独立 Card，还原 ip-plan-map 原始布局） -->
       <IpPlanMap
         v-if="v4Subnets.length"
+        style="max-width: 980px"
         :cidr="selectedCidr"
         :ips="cells"
         :subnets="v4Subnets.map((s) => ({ cidr: s.cidr, name: s.name }))"

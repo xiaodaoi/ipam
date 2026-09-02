@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-09-01 · 地址地图样式修复——还原 ip-plan-map/index.html 视觉效果（格子/间距/颜色/图例/标题）
+
+- **问题**：格子挤在一起无空隙、尺寸缩小（18×16px）、颜色不突出、图例色块消失。
+- **根因（实证）**：Vue `:style` 对象里的**数值型长度属性**（width/height/fontSize/borderRadius/gap/maxHeight/paddingBottom）在运行时被 style helper 丢弃（`c()` 序列化怪癖）——格子只剩文字大小、无 gap、图例色块 0px。
+- **修复**：静态样式（尺寸/间距/圆角/字体）改 **scoped CSS 类**（`.ip-grid`/`.ip-cell`），动态颜色/边框/透明度留内联；图例色块与叠加圆点的数值改**字符串 px**；地图卡片 `max-width: 980px` 还原参考容器；标题去掉 `:title` prop 只留 slot（cidr 蓝色 Tag 正常显示）。
+- **验证（Playwright 实测）**：格子 32×32px + gap 4px + max-height 420px；图例色块 12px；卡片 980px（每行 26 格，与参考 25 接近）；标题含「地址规划」+ 蓝色 cidr Tag；广播/网络格 #637196 灰色正确。
+
 ## 2026-09-01 · 地址地图布局还原——还原 ip-plan-map 原始样式（去拥挤）
 
 - **问题**：移植后地图被嵌套 Card + 挤在组织树旁，拥挤不美观。

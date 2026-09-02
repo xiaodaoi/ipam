@@ -91,7 +91,6 @@ const OVERLAY_STATUS: Record<string, { label: string; color: string }> = {
   online: { label: '在线', color: '#21BF86' },
 };
 const STATUS_DISABLED = ['network', 'broadcast'];
-const CELL_SIZE = 32;
 const MAX_CELLS = 2048;
 
 function makeDefaultIps(cidr: string): IpCell[] {
@@ -253,16 +252,11 @@ onMounted(() => {
 </script>
 
 <template>
-  <Card
-    size="small"
-    :title="`地址规划`"
-  >
+  <Card size="small">
     <template #title>
-      <Space :size="8">
-        <span>地址规划</span>
-        <Tag color="blue">{{ currentCidr }}</Tag>
-        <Tag v-if="readOnly">只读</Tag>
-      </Space>
+      <span class="font-medium">地址规划</span>
+      <Tag color="blue" class="ml-2">{{ currentCidr }}</Tag>
+      <Tag v-if="readOnly" class="ml-1">只读</Tag>
     </template>
     <template #extra>
       <Space :size="4" v-if="(subnets?.length || 0) > 0">
@@ -328,7 +322,7 @@ onMounted(() => {
         <span v-for="k in Object.keys(IP_STATUS)" :key="k" style="display: inline-flex; align-items: center; gap: 5px">
           <span
             :style="{
-              width: 12, height: 12, borderRadius: 3, backgroundColor: IP_STATUS[k]?.color || '#ccc',
+              width: '12px', height: '12px', borderRadius: '3px', backgroundColor: IP_STATUS[k]?.color || '#ccc',
               display: 'inline-block', opacity: STATUS_DISABLED.includes(k) ? 0.75 : 1,
             }"
           />
@@ -339,7 +333,7 @@ onMounted(() => {
         <span v-for="k in Object.keys(OVERLAY_STATUS)" :key="k" style="display: inline-flex; align-items: center; gap: 5px">
           <span
             :style="{
-              width: 12, height: 12, borderRadius: '50%', backgroundColor: OVERLAY_STATUS[k]?.color || '#ccc',
+              width: '12px', height: '12px', borderRadius: '50%', backgroundColor: OVERLAY_STATUS[k]?.color || '#ccc',
               display: 'inline-block',
             }"
           />
@@ -350,12 +344,7 @@ onMounted(() => {
       <Divider style="margin: 0 0 12px" />
 
       <!-- 地址地图 -->
-      <div
-        :style="{
-          display: 'flex', flexWrap: 'wrap', gap: 4,
-          maxHeight: 420, overflow: 'auto', paddingBottom: 4,
-        }"
-      >
+      <div class="ip-grid">
         <Tooltip
           v-for="ipObj in ipList"
           :key="ipObj.ip"
@@ -371,15 +360,11 @@ onMounted(() => {
             </div>
           </template>
           <div
+            class="ip-cell"
             @click="handleCellClick(ipObj, $event)"
             :style="{
-              width: CELL_SIZE, height: CELL_SIZE, fontSize: 11, borderRadius: 4,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              backgroundColor: IP_STATUS[ipObj.status]?.color ?? '#9DBEFF', color: '#fff',
-              userSelect: 'none', position: 'relative',
-              fontVariantNumeric: 'tabular-nums', lineHeight: 1, boxSizing: 'border-box',
+              backgroundColor: IP_STATUS[ipObj.status]?.color ?? '#9DBEFF',
               border: selectedSet.has(ipObj.ip) ? '2px dashed #000' : '1px solid #e6e9f4',
-              cursor: readOnly || STATUS_DISABLED.includes(ipObj.status) ? 'not-allowed' : 'pointer',
               opacity: readOnly || STATUS_DISABLED.includes(ipObj.status) ? 0.8 : 1,
             }"
           >
@@ -388,8 +373,8 @@ onMounted(() => {
               v-for="(ov, i) in (ipObj.overlays || []).slice(0, 2)"
               :key="ov"
               :style="{
-                position: 'absolute', right: 2 + i * 9, bottom: 2,
-                width: 7, height: 7, borderRadius: '50%',
+                position: 'absolute', right: `${2 + i * 9}px`, bottom: '2px',
+                width: '7px', height: '7px', borderRadius: '50%',
                 backgroundColor: OVERLAY_STATUS[ov]?.color || '#999', border: '1px solid #fff',
               }"
             />
@@ -490,3 +475,30 @@ onMounted(() => {
     </template>
   </Card>
 </template>
+<style scoped>
+.ip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 420px;
+  overflow: auto;
+  padding-bottom: 4px;
+}
+.ip-cell {
+  width: 32px;
+  height: 32px;
+  font-size: 11px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  user-select: none;
+  position: relative;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  box-sizing: border-box;
+  border: 1px solid #e6e9f4;
+  cursor: pointer;
+}
+</style>
