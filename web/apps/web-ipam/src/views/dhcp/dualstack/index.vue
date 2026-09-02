@@ -82,7 +82,8 @@ const EXAMPLE = '例：192.168.0.10 → 2407::192:168:0:10';
 </script>
 
 <template>
-  <Card title="双栈绑定模板（v4 池 ↔ v6 前缀映射）">
+  <div class="p-4">
+<Card title="双栈绑定模板（v4 池 ↔ v6 前缀映射）">
     <template #extra>
       <Button size="small" @click="load()">刷新</Button>
     </template>
@@ -151,4 +152,5 @@ const EXAMPLE = '例：192.168.0.10 → 2407::192:168:0:10';
       </template>
     </Table>
   </Card>
+  </div>
 </template>

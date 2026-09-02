@@ -73,7 +73,7 @@ const ttlCols = [
 </script>
 
 <template>
-  <div class="grid grid-cols-1 gap-4">
+  <div class="grid grid-cols-1 gap-4 p-4">
     <Card title="缓存参数">
       <div v-if="settings" class="flex flex-wrap items-center gap-6">
         <div>

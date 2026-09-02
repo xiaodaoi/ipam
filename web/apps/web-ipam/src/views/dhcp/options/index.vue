@@ -170,7 +170,7 @@ onBeforeUnmount(() => timer && clearInterval(timer));
 </script>
 
 <template>
-  <div class="grid grid-cols-1 gap-4">
+  <div class="grid grid-cols-1 gap-4 p-4">
     <Card title="标准选项（C-02，全局 option-data）">
       <div class="mb-3">
         <Button type="primary" size="small" @click="optModalApi.open()">+ 添加选项</Button>

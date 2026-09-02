@@ -53,7 +53,7 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="grid grid-cols-1 gap-4">
+  <div class="grid grid-cols-1 gap-4 p-4">
     <Card title="应答限速 RRL（防放大 B-08）">
       <div v-if="settings" class="flex flex-wrap items-center gap-6">
         <div class="flex items-center gap-2">

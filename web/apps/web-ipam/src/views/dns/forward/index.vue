@@ -87,7 +87,8 @@ onMounted(load);
 </script>
 
 <template>
-  <Card title="条件转发规则（域名后缀 → 专属上游）">
+  <div class="p-4">
+<Card title="条件转发规则（域名后缀 → 专属上游）">
     <div class="mb-3">
       <Button type="primary" size="small" @click="formModalApi.setState({ title: '添加转发规则' }); formModalApi.open()">+ 添加转发规则</Button>
     </div>
@@ -137,4 +138,5 @@ onMounted(load);
     </Table>
     <div class="mt-2 text-xs text-gray-400">最长后缀优先匹配；未命中走默认上游。</div>
   </Card>
+  </div>
 </template>

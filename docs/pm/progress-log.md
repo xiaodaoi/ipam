@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-09-01 · 子网页 vxe 化 + 全站模块间距（对齐地址台账）
+
+- **子网页**：① 表格换 VbenVxeGrid（`useVbenVxeGrid` + `:table-data` 响应式数据 + 操作列 `fixed: right`）；② 组织树切换修复（实测点「总公司」过滤生效——此前为中断部署空表假象）；③ 编辑/删除按钮水平排列。
+- **间距举一反三**（对齐 ledger `p-4` 模式）：reservations/options/cache/security 的 grid 容器加 `p-4`；dualstack/upstream/forward/blocklist 单 Card 页加 `p-4` 包装；records 根 div 加 `p-4`。
+- **踩坑**：① vxe `gridOptions.data` 非响应式（捕获初始空数组）→ 改 `:table-data` prop；② Tailwind `m-4` 类被 antd `.ant-card` 规则覆盖不生效 → 统一用 `p-4` 包装 div。
+- **验证**：subnets 实测总公司切换→表格 7 行、编辑/删除水平、vxe 渲染；各页 parentPad 16px。
+
 ## 2026-09-01 · 地址地图样式修复——还原 ip-plan-map/index.html 视觉效果（格子/间距/颜色/图例/标题）
 
 - **问题**：格子挤在一起无空隙、尺寸缩小（18×16px）、颜色不突出、图例色块消失。

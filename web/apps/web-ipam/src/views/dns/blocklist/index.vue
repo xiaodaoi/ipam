@@ -155,7 +155,8 @@ onBeforeUnmount(() => timer && clearInterval(timer));
 </script>
 
 <template>
-  <Card title="封禁名单库">
+  <div class="p-4">
+<Card title="封禁名单库">
     <template #extra>
       <Button size="small" @click="load()">刷新（30s 自动）</Button>
     </template>
@@ -248,4 +249,5 @@ onBeforeUnmount(() => timer && clearInterval(timer));
       </template>
     </Table>
   </EntriesDrawer>
+  </div>
 </template>

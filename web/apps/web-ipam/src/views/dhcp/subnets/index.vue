@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 
-import { Button, Card, Input, InputNumber, message, Select, Table, Tag, Tree } from 'ant-design-vue';
+import type { VxeGridProps } from '@vben/plugins/vxe-table';
+
+import { useVbenVxeGrid } from '#/adapter/vxe-table';
+
+import { Button, Card, Input, InputNumber, message, Select, Tag, Tree } from 'ant-design-vue';
 
 import {
   createSubnet,
@@ -116,15 +120,6 @@ async function remove(id?: string) {
 }
 const lease6Rows = ref<DhcpLease6Row[]>([]);
 const lease6Loading = ref(false);
-const lease6Cols = [
-  { title: '地址/前缀', dataIndex: 'ipAddress' },
-  { title: '类型', dataIndex: 'leaseType', width: 90 },
-  { title: '前缀长', dataIndex: 'prefixLen', width: 80 },
-  { title: 'DUID', dataIndex: 'duid' },
-  { title: 'MAC', dataIndex: 'hwAddress' },
-  { title: '有效期(s)', dataIndex: 'validLifetime', width: 100 },
-];
-
 async function loadLeases6() {
   lease6Loading.value = true;
   try {
@@ -143,19 +138,44 @@ const orgName = (id?: string) => {
   const hit = orgOptions.value.find((o) => o.id === id);
   return hit?.label.trim() ?? id ?? '—';
 };
-const columns = [
-  { title: '名称', dataIndex: 'name' },
-  { title: 'CIDR', dataIndex: 'cidr' },
-  { title: '族', dataIndex: 'family', width: 60 },
-  { title: '组织', dataIndex: 'orgId', width: 160 },
-  { title: '网关', key: 'gateway', width: 120 },
-  { title: '池数', key: 'pools', width: 70 },
-  { title: 'Kea ID', dataIndex: 'keaSubnetId', width: 90 },
-  { title: '操作', key: 'op', width: 80 },
-];
+
+// ── Vben Vxe Table：子网与地址池（操作列固定右侧）──
+const gridOptions = reactive<VxeGridProps>({
+  columns: [
+    { field: 'name', title: '名称', minWidth: 120 },
+    { field: 'cidr', title: 'CIDR', minWidth: 140 },
+    { field: 'family', title: '族', width: 70, slots: { default: 'family' } },
+    { field: 'orgId', title: '组织', width: 150, slots: { default: 'orgId' } },
+    { field: 'gateway', title: '网关', width: 130, slots: { default: 'gateway' } },
+    { field: 'pools', title: '池数', width: 80, slots: { default: 'pools' } },
+    { field: 'keaSubnetId', title: 'Kea ID', width: 100, slots: { default: 'keaSubnetId' } },
+    { field: 'op', title: '操作', width: 150, fixed: 'right', slots: { default: 'op' } },
+  ],
+  loading: loading.value,
+  height: 'auto',
+  rowConfig: { keyField: 'id' },
+});
+const [SubnetGrid] = useVbenVxeGrid({ gridOptions });
+
+// ── Vben Vxe Table：PD 租约（IPv6 实时查询）──
+const lease6GridOptions = reactive<VxeGridProps>({
+  columns: [
+    { field: 'ipAddress', title: '地址/前缀', minWidth: 160 },
+    { field: 'leaseType', title: '类型', width: 100 },
+    { field: 'prefixLen', title: '前缀长', width: 90 },
+    { field: 'duid', title: 'DUID', minWidth: 180 },
+    { field: 'hwAddress', title: 'MAC', minWidth: 140 },
+    { field: 'validLifetime', title: '有效期(s)', width: 110 },
+  ],
+  loading: lease6Loading.value,
+  height: 'auto',
+  rowConfig: { keyField: 'ipAddress' },
+});
+const [Lease6Grid] = useVbenVxeGrid({ gridOptions: lease6GridOptions });
 </script>
 
 <template>
+  <div class="p-4">
   <div class="flex gap-4">
     <!-- 左侧组织树 -->
     <Card title="组织" class="w-64 shrink-0">
@@ -242,42 +262,38 @@ const columns = [
         </div>
       </FormModal>
 
-      <Table
-        :data-source="rows"
-        :columns="columns"
-        row-key="id"
-        size="small"
-        :loading="loading"
-        :pagination="false"
-      >
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'gateway'">{{ record.gateway || '-' }}</template>
-          <template v-if="column.dataIndex === 'family'">
-            <Tag :color="record.family === 4 ? 'blue' : 'purple'">v{{ record.family }}</Tag>
-          </template>
-          <template v-else-if="column.dataIndex === 'orgId'">
-            {{ orgName(record.orgId) }}
-          </template>
-          <template v-else-if="column.key === 'pools'">
-            {{ (record.pools ?? []).length }}
-          </template>
-          <template v-else-if="column.dataIndex === 'keaSubnetId'">
-            <Tag v-if="record.keaSubnetId" color="green">{{ record.keaSubnetId }}</Tag>
-            <Tag v-else color="orange">未下发</Tag>
-          </template>
-          <template v-else-if="column.key === 'op'">
-            <Button size="small" class="mr-1" @click="edit(record as Subnet)">编辑</Button>
-            <Button size="small" danger @click="remove(record.id)">删除</Button>
-          </template>
+      <SubnetGrid :table-data="rows">
+        <template #family="{ row }">
+          <Tag :color="row.family === 4 ? 'blue' : 'purple'">v{{ row.family }}</Tag>
         </template>
-      </Table>
+        <template #orgId="{ row }">
+          {{ orgName(row.orgId) }}
+        </template>
+        <template #gateway="{ row }">
+          {{ row.gateway || '-' }}
+        </template>
+        <template #pools="{ row }">
+          {{ (row.pools ?? []).length }}
+        </template>
+        <template #keaSubnetId="{ row }">
+          <Tag v-if="row.keaSubnetId" color="green">{{ row.keaSubnetId }}</Tag>
+          <Tag v-else color="orange">未下发</Tag>
+        </template>
+        <template #op="{ row }">
+          <div class="flex items-center gap-1">
+            <Button size="small" @click="edit(row as Subnet)">编辑</Button>
+            <Button size="small" danger @click="remove(row.id)">删除</Button>
+          </div>
+        </template>
+      </SubnetGrid>
     </Card>
     <Card title="PD 租约（DHCPv6 · Kea 实时查询）" class="mt-3">
       <template #extra>
         <Button size="small" :loading="lease6Loading" @click="loadLeases6">刷新</Button>
       </template>
-      <Table :data-source="lease6Rows" :columns="lease6Cols" :loading="lease6Loading" size="small" row-key="ipAddress" />
+      <Lease6Grid :table-data="lease6Rows" />
     </Card>
     </div>
+  </div>
   </div>
 </template>

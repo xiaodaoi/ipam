@@ -102,7 +102,7 @@ const linkedCols = [
 </script>
 
 <template>
-  <div>
+  <div class="p-4">
   <Card>
     <template #title>
       <div class="flex items-center gap-3">

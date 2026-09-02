@@ -86,7 +86,8 @@ const HEALTH_COLOR: Record<string, string> = { up: 'green', down: 'red', unknown
 </script>
 
 <template>
-  <Card title="上游 DNS 服务器">
+  <div class="p-4">
+<Card title="上游 DNS 服务器">
     <template #extra>
       <Button size="small" @click="load()">刷新（15s 自动）</Button>
     </template>
@@ -133,4 +134,5 @@ const HEALTH_COLOR: Record<string, string> = { up: 'green', down: 'red', unknown
       </template>
     </Table>
   </Card>
+  </div>
 </template>

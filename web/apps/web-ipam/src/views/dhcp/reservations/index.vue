@@ -110,7 +110,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="grid grid-cols-1 gap-4">
+  <div class="grid grid-cols-1 gap-4 p-4">
     <Card title="批量创建（CSV 语义，事务性：任一失败整体回滚）">
       <div class="mb-3 flex flex-wrap items-center gap-2">
         <span class="text-xs text-gray-400">目标子网</span>
