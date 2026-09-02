@@ -4,6 +4,15 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-09-01 · 全站表格 VbenVxeGrid 化（9 页 15 表）——固定操作列 + 水平按钮
+
+- **转换**：upstream / forward / options(2) / dualstack / reservations(2) / users / roles / records(2) / blocklist(3) 全部 antd Table 换 VbenVxeGrid（useVbenVxeGrid + :table-data 响应式 + rowConfig.keyField）。
+- **固定操作列**：op 列 fixed:'right'（subnets/forward 实测激活 pinned；溢出时自动固定）。
+- **水平按钮**：编辑/删除/条目/同步/编译 按钮包 flex 行。
+- **踩坑**：onMounted 正则插入破坏语法（两次修复）；pagerConfig:false 类型不合法→不设置；列宽调大激活 fixed。
+- **验证**：typecheck 0 + build ✓ + Playwright 各页 vxe 渲染/数据行正常。
+
+
 ## 2026-09-01 · 子网页 vxe 化 + 全站模块间距（对齐地址台账）
 
 - **子网页**：① 表格换 VbenVxeGrid（`useVbenVxeGrid` + `:table-data` 响应式数据 + 操作列 `fixed: right`）；② 组织树切换修复（实测点「总公司」过滤生效——此前为中断部署空表假象）；③ 编辑/删除按钮水平排列。
