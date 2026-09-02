@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onMounted, reactive, ref } from 'vue';
 import { useVbenModal } from '@vben/common-ui';
 
-import { Button, Card, Input, Select, Switch, Table, message } from 'ant-design-vue';
+import type { VxeGridProps } from '@vben/plugins/vxe-table';
+
+import { useVbenVxeGrid } from '#/adapter/vxe-table';
+
+import { Button, Card, Input, Select, Switch, message } from 'ant-design-vue';
 
 import {
   createForwardRule,
@@ -83,6 +87,20 @@ async function remove(id?: string) {
   }
   await load();
 }
+const gridOptions = reactive<VxeGridProps>({
+  columns: [
+    { field: 'domain', title: '域名后缀', width: 320 },
+    { field: 'upstreamIds', title: '上游', width: 280, slots: { default: 'upstreamIds' } },
+    { field: 'enabled', title: '启用', width: 80, slots: { default: 'enabled' } },
+    { field: 'note', title: '备注', width: 220 },
+    { field: 'op', title: '操作', width: 150, fixed: 'right', slots: { default: 'op' } },
+  ],
+  loading: loading.value,
+  height: 'auto',
+  rowConfig: { keyField: 'id' },
+});
+const [FwdGrid] = useVbenVxeGrid({ gridOptions });
+
 onMounted(load);
 </script>
 
@@ -109,33 +127,20 @@ onMounted(load);
       </div>
       </div>
     </FormModal>
-    <Table
-      :data-source="rows"
-      :columns="[
-        { title: '域名后缀', dataIndex: 'domain' },
-        { title: '上游', dataIndex: 'upstreamIds' },
-        { title: '启用', dataIndex: 'enabled', width: 80 },
-        { title: '备注', dataIndex: 'note' },
-        { title: '操作', key: 'op', width: 80 },
-      ]"
-      row-key="id"
-      size="small"
-      :loading="loading"
-      :pagination="false"
-    >
-      <template #bodyCell="{ column, record }">
-        <template v-if="column.dataIndex === 'upstreamIds'">
-          {{ (record.upstreamIds ?? []).map(upstreamName).join(', ') }}
-        </template>
-        <template v-else-if="column.dataIndex === 'enabled'">
-          <Switch :checked="record.enabled" size="small" @change="(checked) => toggleEnabled(record as ForwardRule, Boolean(checked))" />
-        </template>
-        <template v-else-if="column.key === 'op'">
-          <Button size="small" class="mr-1" @click="edit(record as ForwardRule)">编辑</Button>
-          <Button size="small" danger @click="remove(record.id)">删除</Button>
-        </template>
+    <FwdGrid :table-data="rows">
+      <template #upstreamIds="{ row }">
+        {{ (row.upstreamIds ?? []).map(upstreamName).join(', ') }}
       </template>
-    </Table>
+      <template #enabled="{ row }">
+        <Switch :checked="row.enabled" size="small" @change="(checked) => toggleEnabled(row as ForwardRule, Boolean(checked))" />
+      </template>
+      <template #op="{ row }">
+        <div class="flex items-center gap-1">
+          <Button size="small" @click="edit(row as ForwardRule)">编辑</Button>
+          <Button size="small" danger @click="remove(row.id)">删除</Button>
+        </div>
+      </template>
+    </FwdGrid>
     <div class="mt-2 text-xs text-gray-400">最长后缀优先匹配；未命中走默认上游。</div>
   </Card>
   </div>

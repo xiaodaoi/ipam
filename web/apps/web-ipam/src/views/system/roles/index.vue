@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 
-import { Button, Card, Checkbox, Input, Table, Tag, message } from 'ant-design-vue';
+import { Button, Card, Checkbox, Input,  Tag, message } from 'ant-design-vue';
 
 import { useVbenModal } from '@vben/common-ui';
+
+import type { VxeGridProps } from '@vben/plugins/vxe-table';
+
+import { useVbenVxeGrid } from '#/adapter/vxe-table';
 
 import {
   createRole,
@@ -37,12 +41,18 @@ const [RoleModal, roleModalApi] = useVbenModal({
   onConfirm: () => save(),
 });
 
-const cols = [
-  { title: '角色名', dataIndex: 'name' },
-  { title: '类型', key: 'builtin', width: 90 },
-  { title: '权限点数', key: 'permCount', width: 100 },
-  { title: '操作', key: 'op', width: 150 },
-];
+const gridOptions = reactive<VxeGridProps>({
+  columns: [
+    { field: 'name', title: '角色名', width: 220 },
+    { field: 'builtin', title: '类型', width: 90, slots: { default: 'builtin' } },
+    { field: 'permCount', title: '权限点数', width: 100, slots: { default: 'permCount' } },
+    { field: 'op', title: '操作', width: 150, fixed: 'right', slots: { default: 'op' } },
+  ],
+  loading: loading.value,
+  height: 'auto',
+  rowConfig: { keyField: 'name' },
+});
+const [RoleGrid] = useVbenVxeGrid({ gridOptions });
 
 async function load() {
   loading.value = true;
@@ -111,33 +121,20 @@ onMounted(load);
     <template #extra>
       <Button type="primary" size="small" @click="openCreate">+ 新建角色</Button>
     </template>
-    <Table
-      :data-source="rows"
-      :columns="cols"
-      row-key="name"
-      size="small"
-      :loading="loading"
-      :pagination="false"
-    >
-      <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'builtin'">
-          <Tag :color="record.builtin ? 'blue' : 'green'">
-            {{ record.builtin ? '内置' : '自定义' }}
-          </Tag>
-        </template>
-        <template v-else-if="column.key === 'permCount'">
-          {{ (record.permissions ?? []).length }} / 12
-        </template>
-        <template v-else-if="column.key === 'op'">
-          <Button size="small" class="mr-1" @click="openEdit(record as RoleRow)">
-            编辑
-          </Button>
-          <Button v-if="!record.builtin" size="small" danger @click="remove(record as RoleRow)">
-            删除
-          </Button>
-        </template>
+    <RoleGrid :table-data="rows">
+      <template #builtin="{ row }">
+        <Tag :color="row.builtin ? 'blue' : 'green'">{{ row.builtin ? '内置' : '自定义' }}</Tag>
       </template>
-    </Table>
+      <template #permCount="{ row }">
+        {{ (row.permissions ?? []).length }} / 12
+      </template>
+      <template #op="{ row }">
+        <div class="flex items-center gap-1">
+          <Button size="small" @click="openEdit(row as RoleRow)">编辑</Button>
+          <Button v-if="!row.builtin" size="small" danger @click="remove(row as RoleRow)">删除</Button>
+        </div>
+      </template>
+    </RoleGrid>
 
     <RoleModal>
       <div v-if="!modal.editing" class="mb-3">

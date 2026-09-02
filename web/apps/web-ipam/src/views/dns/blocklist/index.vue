@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { onBeforeUnmount, reactive, onMounted, ref } from 'vue';
 import { useVbenDrawer, useVbenModal } from '@vben/common-ui';
 
-import { Button, Card, Input, Select, Table, Tag, message } from 'ant-design-vue';
+import type { VxeGridProps } from '@vben/plugins/vxe-table';
+
+import { useVbenVxeGrid } from '#/adapter/vxe-table';
+
+import { Button, Card, Input, Select,  Tag, message } from 'ant-design-vue';
 
 import {
   addBlocklistEntry,
@@ -34,20 +38,48 @@ const pgRows = ref<PolicyGroupRow[]>([]);
 const pgLoading = ref(false);
 const pgForm = ref<{ name: string; viewName: string; cidrs: string; listIds: string[] }>({ name: '', viewName: 'recursor', cidrs: '', listIds: [] });
 const pgResult = ref<Record<string, unknown> | null>(null);
-const pgCols = [
-  { title: '名称', dataIndex: 'name' },
-  { title: 'view', dataIndex: 'viewName', width: 110 },
-  { title: 'CIDRs', dataIndex: 'cidrs' },
-  { title: '名单数', key: 'lists', width: 90 },
-  { title: '操作', key: 'op', width: 90 },
-];
-const entryCols = [
-  { title: 'pattern', dataIndex: 'pattern' },
-  { title: '触发', dataIndex: 'triggerType', width: 110 },
-  { title: '动作', dataIndex: 'action', width: 110 },
-  { title: '分类', dataIndex: 'category', width: 90 },
-  { title: '操作', key: 'op', width: 80 },
-];
+const pgGridOptions = reactive<VxeGridProps>({
+  columns: [
+    { field: 'name', title: '名称', minWidth: 120 },
+    { field: 'viewName', title: 'view', width: 110 },
+    { field: 'cidrs', title: 'CIDRs', minWidth: 160 },
+    { field: 'lists', title: '名单数', width: 90, slots: { default: 'lists' } },
+    { field: 'op', title: '操作', width: 100, fixed: 'right', slots: { default: 'op' } },
+  ],
+  loading: pgLoading.value,
+  height: 'auto',
+  rowConfig: { keyField: 'id' },
+});
+const [PgGrid] = useVbenVxeGrid({ gridOptions: pgGridOptions });
+
+const entryGridOptions = reactive<VxeGridProps>({
+  columns: [
+    { field: 'pattern', title: 'pattern', width: 220 },
+    { field: 'triggerType', title: '触发', width: 120 },
+    { field: 'action', title: '动作', width: 120 },
+    { field: 'category', title: '分类', width: 90 },
+    { field: 'op', title: '操作', width: 100, fixed: 'right', slots: { default: 'op' } },
+  ],
+  loading: eLoading.value,
+  height: 'auto',
+  rowConfig: { keyField: 'pattern' },
+});
+const [EntryGrid] = useVbenVxeGrid({ gridOptions: entryGridOptions });
+
+const listGridOptions = reactive<VxeGridProps>({
+  columns: [
+    { field: 'name', title: '名称', width: 200 },
+    { field: 'kind', title: '类型', width: 100, slots: { default: 'kind' } },
+    { field: 'syncUrl', title: '订阅地址', width: 280 },
+    { field: 'lastSync', title: '上次同步', width: 170, slots: { default: 'lastSync' } },
+    { field: 'version', title: '版本', width: 80 },
+    { field: 'op', title: '操作', width: 190, fixed: 'right', slots: { default: 'op' } },
+  ],
+  loading: loading.value,
+  height: 'auto',
+  rowConfig: { keyField: 'id' },
+});
+const [ListGrid] = useVbenVxeGrid({ gridOptions: listGridOptions });
 
 async function load() {
   loading.value = true;
@@ -170,35 +202,21 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         <Input v-if="cForm.kind === 'feed'" v-model:value="cForm.syncUrl" placeholder="订阅 URL" style="width: 260px" />
       </div>
       </CreateModal>
-    <Table
-      :data-source="rows"
-      :columns="[
-        { title: '名称', dataIndex: 'name' },
-        { title: '类型', dataIndex: 'kind', width: 100 },
-        { title: '订阅地址', dataIndex: 'syncUrl' },
-        { title: '上次同步', dataIndex: 'lastSync', width: 170 },
-        { title: '版本', dataIndex: 'version', width: 80 },
-        { title: '操作', key: 'op', width: 160 },
-      ]"
-      row-key="id"
-      size="small"
-      :loading="loading"
-      :pagination="false"
-    >
-      <template #bodyCell="{ column, record }">
-        <template v-if="column.dataIndex === 'kind'">
-          <Tag :color="KIND_COLOR[record.kind]">{{ KIND_TEXT[record.kind] ?? record.kind }}</Tag>
-        </template>
-        <template v-else-if="column.dataIndex === 'lastSync'">
-          {{ fmtSync(record.lastSync) }}
-        </template>
-        <template v-else-if="column.key === 'op'">
-          <Button size="small" class="mr-1" @click="openEntries(record as Blocklist)">条目</Button>
-          <Button v-if="record.kind === 'feed'" size="small" @click="sync(record.id)">立即同步</Button>
-          <Button v-if="record.kind !== 'builtin'" class="ml-1" size="small" danger @click="removeList(record.id)">删除</Button>
-        </template>
+    <ListGrid :table-data="rows">
+      <template #kind="{ row }">
+        <Tag :color="KIND_COLOR[row.kind]">{{ KIND_TEXT[row.kind] ?? row.kind }}</Tag>
       </template>
-    </Table>
+      <template #lastSync="{ row }">
+        {{ fmtSync(row.lastSync) }}
+      </template>
+      <template #op="{ row }">
+        <div class="flex items-center gap-1">
+          <Button size="small" @click="openEntries(row as Blocklist)">条目</Button>
+          <Button v-if="row.kind === 'feed'" size="small" @click="sync(row.id)">立即同步</Button>
+          <Button v-if="row.kind !== 'builtin'" size="small" danger @click="removeList(row.id)">删除</Button>
+        </div>
+      </template>
+    </ListGrid>
     <Card title="策略分组（view 级 RPZ 应用）" class="mt-3">
       <div class="mb-2 flex flex-wrap items-end gap-2">
         <Input v-model:value="pgForm.name" placeholder="分组名称" style="width: 160px" />
@@ -207,14 +225,14 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         <Select v-model:value="pgForm.listIds" mode="multiple" placeholder="关联名单" style="min-width: 200px" :options="rows.map((r) => ({ value: r.id, label: r.name }))" />
         <Button type="primary" size="small" @click="createPg">创建分组</Button>
       </div>
-      <Table :data-source="pgRows" :columns="pgCols" :loading="pgLoading" size="small" row-key="id">
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'lists'">{{ (record.listIds ?? []).length }}</template>
-          <template v-else-if="column.key === 'op'">
-            <Button size="small" @click="compilePg(record.id)">编译</Button>
-          </template>
+      <PgGrid :table-data="pgRows">
+        <template #lists="{ row }">{{ (row.listIds ?? []).length }}</template>
+        <template #op="{ row }">
+          <div class="flex items-center gap-1">
+            <Button size="small" @click="compilePg(row.id)">编译</Button>
+          </div>
         </template>
-      </Table>
+      </PgGrid>
       <pre v-if="pgResult" class="mt-2 rounded bg-gray-50 p-2 text-xs">{{ pgResult }}</pre>
     </Card>
     <div class="mt-2 text-xs text-gray-400">
@@ -229,25 +247,13 @@ onBeforeUnmount(() => timer && clearInterval(timer));
       <Select v-model:value="eForm.action" style="width: 130px" :options="[{ value: 'nxdomain', label: 'nxdomain' }, { value: 'drop', label: 'drop' }, { value: 'tcp_only', label: 'tcp_only' }, { value: 'redirect', label: 'redirect' }]" />
       <Button type="primary" size="small" @click="addEntry">添加条目</Button>
     </div>
-    <Table
-      :data-source="entries"
-      :columns="entryCols"
-      :loading="eLoading"
-      size="small"
-      row-key="pattern"
-      :pagination="{
-        pageSize: 20,
-        showSizeChanger: true,
-        pageSizeOptions: ['20', '50', '100'],
-        showTotal: (t: number) => `共 ${t} 条`,
-      }"
-    >
-      <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'op'">
-          <Button size="small" danger @click="removeEntry(record.listId, record.pattern)">删除</Button>
-        </template>
+    <EntryGrid :table-data="entries">
+      <template #op="{ row }">
+        <div class="flex items-center gap-1">
+          <Button size="small" danger @click="removeEntry(row.listId, row.pattern)">删除</Button>
+        </div>
       </template>
-    </Table>
+    </EntryGrid>
   </EntriesDrawer>
   </div>
 </template>

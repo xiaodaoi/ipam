@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue';
 import { useVbenModal } from '@vben/common-ui';
 
-import { Button, Card, Input, Select, Switch, Table, Tag, message } from 'ant-design-vue';
+import { Button, Card, Input, Select, Switch, Tag, message } from 'ant-design-vue';
 
 import {
   createDualstackTemplate,
@@ -122,35 +122,20 @@ const EXAMPLE = '例：192.168.0.10 → 2407::192:168:0:10';
     </div>
     </FormModal>
 
-    <Table
-      :data-source="rows"
-      :columns="[
-        { title: '名称', dataIndex: 'name' },
-        { title: 'IPv4 网段', dataIndex: 'ipv4Cidr' },
-        { title: 'IPv6 前缀', dataIndex: 'ipv6Prefix' },
-        { title: '编码', dataIndex: 'encoding', width: 100 },
-        { title: 'DNS 同步', dataIndex: 'dnsSync', width: 100 },
-        { title: 'grace(h)', dataIndex: 'graceHours', width: 90 },
-        { title: '操作', key: 'op', width: 80 },
-      ]"
-      row-key="id"
-      size="small"
-      :loading="loading"
-      :pagination="false"
-    >
-      <template #bodyCell="{ column, record }">
-        <template v-if="column.dataIndex === 'encoding'">
-          <Tag>{{ ENC_TEXT[record.encoding] ?? record.encoding }}</Tag>
-        </template>
-        <template v-else-if="column.dataIndex === 'dnsSync'">
-          <Tag :color="record.dnsSync ? 'green' : 'default'">{{ record.dnsSync ? '开' : '关' }}</Tag>
-        </template>
-        <template v-else-if="column.key === 'op'">
-          <Button size="small" class="mr-1" @click="edit(record as DualstackTemplate)">编辑</Button>
-          <Button size="small" danger @click="remove(record.id)">删除</Button>
-        </template>
+        <DsGrid :table-data="rows">
+      <template #encoding="{ row }">
+        <Tag>{{ ENC_TEXT[row.encoding] ?? row.encoding }}</Tag>
       </template>
-    </Table>
+      <template #dnsSync="{ row }">
+        <Tag :color="row.dnsSync ? 'green' : 'default'">{{ row.dnsSync ? '开' : '关' }}</Tag>
+      </template>
+      <template #op="{ row }">
+        <div class="flex items-center gap-1">
+          <Button size="small" @click="edit(row as DualstackTemplate)">编辑</Button>
+          <Button size="small" danger @click="remove(row.id)">删除</Button>
+        </div>
+      </template>
+    </DsGrid>
   </Card>
   </div>
 </template>

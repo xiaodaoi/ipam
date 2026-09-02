@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useVbenModal } from '@vben/common-ui';
+
+import type { VxeGridProps } from '@vben/plugins/vxe-table';
+
+import { useVbenVxeGrid } from '#/adapter/vxe-table';
 
 import { useUserStore } from '@vben/stores';
 
@@ -11,7 +15,6 @@ import {
   Modal,
   Select,
   Switch,
-  Table,
   Tag,
   message,
 } from 'ant-design-vue';
@@ -95,6 +98,22 @@ onMounted(() => {
   void load();
   timer = setInterval(load, 15_000);
 });
+
+const gridOptions = reactive<VxeGridProps>({
+  columns: [
+    { field: 'username', title: '登录名', width: 200 },
+    { field: 'displayName', title: '显示名', width: 200, slots: { default: 'displayName' } },
+    { field: 'roles', title: '角色', width: 200, slots: { default: 'roles' } },
+    { field: 'enabled', title: '状态', width: 90, slots: { default: 'enabled' } },
+    { field: 'createdAt', title: '创建时间', width: 170, slots: { default: 'createdAt' } },
+    { field: 'op', title: '操作', width: 170, fixed: 'right', slots: { default: 'op' } },
+  ],
+  loading: loading.value,
+  height: 'auto',
+  rowConfig: { keyField: 'id' },
+});
+const [UsrGrid] = useVbenVxeGrid({ gridOptions });
+
 onBeforeUnmount(() => timer && clearInterval(timer));
 
 const ROLE_COLOR: Record<string, string> = { admin: 'gold', user: 'default' };
@@ -136,51 +155,28 @@ const isSelf = (username?: string) => !!myUsername && username === myUsername;
     </div>
     </UserModal>
 
-    <Table
-      :data-source="rows"
-      :columns="[
-        { title: '登录名', dataIndex: 'username' },
-        { title: '显示名', dataIndex: 'displayName' },
-        { title: '角色', dataIndex: 'roles', width: 130 },
-        { title: '状态', dataIndex: 'enabled', width: 90 },
-        { title: '创建时间', dataIndex: 'createdAt', width: 170 },
-        { title: '操作', key: 'op', width: 170 },
-      ]"
-      row-key="id"
-      size="small"
-      :loading="loading"
-      :pagination="false"
-    >
-      <template #bodyCell="{ column, record }">
-        <template v-if="column.dataIndex === 'displayName'">
-          {{ record.displayName || '-' }}
-        </template>
-        <template v-else-if="column.dataIndex === 'roles'">
-          <Tag v-for="r in record.roles" :key="r" :color="ROLE_COLOR[r]">
-            {{ ROLE_TEXT[r] ?? r }}
-          </Tag>
-        </template>
-        <template v-else-if="column.dataIndex === 'enabled'">
-          <Switch
-            :checked="record.enabled"
-            :disabled="isSelf(record.username)"
-            size="small"
-            @change="(v: any) => toggle(record.id, !!v)"
-          />
-        </template>
-        <template v-else-if="column.dataIndex === 'createdAt'">
-          <span class="text-xs text-gray-400">{{ String(record.createdAt).slice(0, 19).replace('T', ' ') }}</span>
-        </template>
-        <template v-else-if="column.key === 'op'">
-          <Button size="small" class="mr-1" @click="reset = { id: record.id, open: true, password: '' }">
-            重置密码
-          </Button>
-          <Button size="small" danger :disabled="isSelf(record.username)" @click="remove(record.id)">
-            删除
-          </Button>
-        </template>
+        <UsrGrid :table-data="rows">
+      <template #displayName="{ row }">
+        {{ row.displayName || '-' }}
       </template>
-    </Table>
+      <template #roles="{ row }">
+        <Tag v-for="r in row.roles" :key="r" :color="ROLE_COLOR[r]">
+          {{ ROLE_TEXT[r] ?? r }}
+        </Tag>
+      </template>
+      <template #enabled="{ row }">
+        <Switch :checked="row.enabled" :disabled="isSelf(row.username)" size="small" @change="(v: any) => toggle(row.id, !!v)" />
+      </template>
+      <template #createdAt="{ row }">
+        <span class="text-xs text-gray-400">{{ String(row.createdAt).slice(0, 19).replace('T', ' ') }}</span>
+      </template>
+      <template #op="{ row }">
+        <div class="flex items-center gap-1">
+          <Button size="small" @click="reset = { id: row.id, open: true, password: '' }">重置口令</Button>
+          <Button size="small" danger :disabled="isSelf(row.username)" @click="remove(row.id)">删除</Button>
+        </div>
+      </template>
+    </UsrGrid>
 
     <Modal
       v-model:open="reset.open"

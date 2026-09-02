@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useVbenModal } from '@vben/common-ui';
+
+import type { VxeGridProps } from '@vben/plugins/vxe-table';
+
+import { useVbenVxeGrid } from '#/adapter/vxe-table';
 
 import {
   Button,
@@ -9,7 +13,6 @@ import {
   InputNumber,
   message,
   Switch,
-  Table,
   Tag,
 } from 'ant-design-vue';
 
@@ -162,6 +165,34 @@ async function removeClass(id?: string) {
 }
 const optsSummary = (options?: DhcpClassOptionIn[]) =>
   (options ?? []).map((o) => `${o.name}=${o.data}`).join(', ') || '-';
+
+const optGridOptions = reactive<VxeGridProps>({
+  columns: [
+    { field: 'optionCode', title: '码', width: 70 },
+    { field: 'name', title: '选项名', width: 200 },
+    { field: 'data', title: '值', width: 240 },
+    { field: 'enabled', title: '状态', width: 90, slots: { default: 'enabled' } },
+    { field: 'op', title: '操作', width: 150, fixed: 'right', slots: { default: 'op' } },
+  ],
+  loading: loading.value,
+  height: 'auto',
+  rowConfig: { keyField: 'id' },
+});
+const [OptGrid] = useVbenVxeGrid({ gridOptions: optGridOptions });
+
+const clsGridOptions = reactive<VxeGridProps>({
+  columns: [
+    { field: 'name', title: '类名', width: 180 },
+    { field: 'test', title: 'test 表达式', width: 280, slots: { default: 'test' } },
+    { field: 'opts', title: '下发选项', width: 260, slots: { default: 'opts' } },
+    { field: 'enabled', title: '状态', width: 90, slots: { default: 'enabled' } },
+    { field: 'op', title: '操作', width: 150, fixed: 'right', slots: { default: 'op' } },
+  ],
+  loading: loading.value,
+  height: 'auto',
+  rowConfig: { keyField: 'id' },
+});
+const [ClsGrid] = useVbenVxeGrid({ gridOptions: clsGridOptions });
 onMounted(() => {
   void load();
   timer = setInterval(load, 15_000);
@@ -194,34 +225,17 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         </div>
       </div>
       </OptModal>
-      <Table
-        :data-source="optRows"
-        :columns="[
-          { title: '码', dataIndex: 'optionCode', width: 70 },
-          { title: '选项名', dataIndex: 'name' },
-          { title: '值', dataIndex: 'data' },
-          { title: '状态', dataIndex: 'enabled', width: 90 },
-          { title: '操作', key: 'op', width: 80 },
-        ]"
-        row-key="id"
-        size="small"
-        :loading="loading"
-        :pagination="false"
-      >
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.dataIndex === 'enabled'">
-            <Switch
-              :checked="record.enabled"
-              size="small"
-              @change="(v: any) => toggleOption(record.id, !!v)"
-            />
-          </template>
-          <template v-else-if="column.key === 'op'">
-            <Button size="small" class="mr-1" @click="editOpt(record as DhcpOptionRow)">编辑</Button>
-            <Button size="small" danger @click="removeOption(record.id)">删除</Button>
-          </template>
+      <OptGrid :table-data="optRows">
+        <template #enabled="{ row }">
+          <Switch :checked="row.enabled" size="small" @change="(v: any) => toggleOption(row.id, !!v)" />
         </template>
-      </Table>
+        <template #op="{ row }">
+          <div class="flex items-center gap-1">
+            <Button size="small" @click="editOpt(row as DhcpOptionRow)">编辑</Button>
+            <Button size="small" danger @click="removeOption(row.id)">删除</Button>
+          </div>
+        </template>
+      </OptGrid>
     </Card>
 
     <Card title="类匹配规则（C-03，client-classes）">
@@ -250,40 +264,23 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           命中 test 的客户端将收到该类的 option-data；类名是 Kea 引用键，创建后不可改。
         </div>
       </ClsModal>
-      <Table
-        :data-source="clsRows"
-        :columns="[
-          { title: '类名', dataIndex: 'name', width: 140 },
-          { title: 'test 表达式', dataIndex: 'test' },
-          { title: '下发选项', key: 'opts' },
-          { title: '状态', dataIndex: 'enabled', width: 90 },
-          { title: '操作', key: 'op', width: 80 },
-        ]"
-        row-key="id"
-        size="small"
-        :loading="loading"
-        :pagination="false"
-      >
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'opts'">
-            <span class="font-mono text-xs">{{ optsSummary(record.options) }}</span>
-          </template>
-          <template v-else-if="column.dataIndex === 'enabled'">
-            <Switch
-              :checked="record.enabled"
-              size="small"
-              @change="(v: any) => toggleClass(record.id, !!v)"
-            />
-          </template>
-          <template v-else-if="column.dataIndex === 'test'">
-            <Tag class="font-mono">{{ record.test || '-' }}</Tag>
-          </template>
-          <template v-else-if="column.key === 'op'">
-            <Button size="small" class="mr-1" @click="editCls(record as DhcpClassRow)">编辑</Button>
-            <Button size="small" danger @click="removeClass(record.id)">删除</Button>
-          </template>
+      <ClsGrid :table-data="clsRows">
+        <template #opts="{ row }">
+          <span class="font-mono text-xs">{{ optsSummary(row.options) }}</span>
         </template>
-      </Table>
+        <template #test="{ row }">
+          <Tag class="font-mono">{{ row.test || '-' }}</Tag>
+        </template>
+        <template #enabled="{ row }">
+          <Switch :checked="row.enabled" size="small" @change="(v: any) => toggleClass(row.id, !!v)" />
+        </template>
+        <template #op="{ row }">
+          <div class="flex items-center gap-1">
+            <Button size="small" @click="editCls(row as DhcpClassRow)">编辑</Button>
+            <Button size="small" danger @click="removeClass(row.id)">删除</Button>
+          </div>
+        </template>
+      </ClsGrid>
     </Card>
   </div>
 </template>

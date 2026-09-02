@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useVbenModal } from '@vben/common-ui';
 
-import { Button, Card, Input, Select, Table, TabPane, Tabs, message } from 'ant-design-vue';
+import type { VxeGridProps } from '@vben/plugins/vxe-table';
+
+import { useVbenVxeGrid } from '#/adapter/vxe-table';
+
+import { Button, Card, Input, Select,  TabPane, Tabs, message } from 'ant-design-vue';
 
 import {
   createDnsRecord,
@@ -86,19 +90,33 @@ async function removeZone() {
 }
 onMounted(loadZones);
 
-const recordCols = [
-  { title: '名称', dataIndex: 'name' },
-  { title: '类型', dataIndex: 'recType', width: 80 },
-  { title: 'TTL', dataIndex: 'ttl', width: 80 },
-  { title: '值', dataIndex: 'rdata' },
-  { title: '操作', key: 'op', width: 80 },
-];
-const linkedCols = [
-  { title: '名称', dataIndex: 'name' },
-  { title: '类型', dataIndex: 'recType', width: 80 },
-  { title: '值', dataIndex: 'rdata' },
-  { title: '来源 MAC', dataIndex: 'mac', width: 160 },
-];
+const recGridOptions = reactive<VxeGridProps>({
+  columns: [
+    { field: 'name', title: '名称', width: 200 },
+    { field: 'recType', title: '类型', width: 80 },
+    { field: 'ttl', title: 'TTL', width: 80 },
+    { field: 'rdata', title: '值', width: 360 },
+    { field: 'op', title: '操作', width: 100, fixed: 'right', slots: { default: 'op' } },
+  ],
+  loading: loading.value,
+  height: 'auto',
+  rowConfig: { keyField: 'id' },
+});
+const [RecGrid] = useVbenVxeGrid({ gridOptions: recGridOptions });
+
+const linkedGridOptions = reactive<VxeGridProps>({
+  columns: [
+    { field: 'name', title: '名称', width: 200 },
+    { field: 'recType', title: '类型', width: 80 },
+    { field: 'rdata', title: '值', width: 360 },
+    { field: 'mac', title: '来源 MAC', width: 160 },
+  ],
+  height: 'auto',
+  rowConfig: { keyField: 'name' },
+});
+const [LinkGrid] = useVbenVxeGrid({ gridOptions: linkedGridOptions });
+
+
 </script>
 
 <template>
@@ -122,20 +140,20 @@ const linkedCols = [
           <Input v-model:value="form.rdata" placeholder="值" style="width: 200px" />
           <Input-number v-model:value="form.ttl" :min="30" style="width: 90px" />
         </div>
-        <Table :data-source="records" :columns="recordCols" row-key="id" size="small" :loading="loading" :pagination="false">
-          <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'op'">
-              <Button size="small" danger @click="removeRecord(record.id)">删除</Button>
-            </template>
+        <RecGrid :table-data="records">
+          <template #op="{ row }">
+            <div class="flex items-center gap-1">
+              <Button size="small" danger @click="removeRecord(row.id)">删除</Button>
+            </div>
           </template>
-        </Table>
+        </RecGrid>
       </TabPane>
       <TabPane key="linked" :tab="`联动记录（只读）(${linked.length})`">
         <div class="mb-2 text-xs text-gray-400">
           来自 DHCP 双栈联动自动生成（§4.4），随租约/绑定变化自动更新，不可编辑。
           当前 zone：{{ activeZone?.name ?? '—' }}
         </div>
-        <Table :data-source="linked" :columns="linkedCols" size="small" :pagination="false" row-key="name" />
+        <LinkGrid :table-data="linked" />
       </TabPane>
     </Tabs>
   </Card>

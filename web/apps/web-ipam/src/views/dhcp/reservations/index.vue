@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
+
+import type { VxeGridProps } from '@vben/plugins/vxe-table';
+
+import { useVbenVxeGrid } from '#/adapter/vxe-table';
 
 import {
   Button,
   Card,
   Input,
   Select,
-  Table,
   Tag,
   message,
 } from 'ant-design-vue';
@@ -107,6 +110,33 @@ onMounted(() => {
   void loadLists();
   void loadSubnets();
 });
+
+const resGridOptions = reactive<VxeGridProps>({
+  columns: [
+    { field: 'address', title: '地址', minWidth: 160 },
+    { field: 'family', title: '族', width: 70 },
+    { field: 'mac', title: 'MAC', minWidth: 160, slots: { default: 'mac' } },
+    { field: 'hostname', title: '主机名', minWidth: 120, slots: { default: 'hostname' } },
+  ],
+  loading: listLoading.value,
+  height: 'auto',
+  rowConfig: { keyField: 'address' },
+});
+const [ResGrid] = useVbenVxeGrid({ gridOptions: resGridOptions });
+
+const bindGridOptions = reactive<VxeGridProps>({
+  columns: [
+    { field: 'address', title: '地址', minWidth: 160 },
+    { field: 'family', title: '族', width: 70 },
+    { field: 'mac', title: 'MAC', minWidth: 160, slots: { default: 'mac' } },
+    { field: 'hostname', title: '主机名', minWidth: 120, slots: { default: 'hostname' } },
+  ],
+  loading: listLoading.value,
+  height: 'auto',
+  rowConfig: { keyField: 'address' },
+});
+const [BindGrid] = useVbenVxeGrid({ gridOptions: bindGridOptions });
+
 </script>
 
 <template>
@@ -149,47 +179,19 @@ onMounted(() => {
     </Card>
 
     <Card title="保留列表（冻结不下发）">
-      <Table
-        :data-source="resRows"
-        :columns="[
-          { title: '地址', dataIndex: 'address' },
-          { title: '族', dataIndex: 'family', width: 60 },
-          { title: 'MAC', dataIndex: 'mac' },
-          { title: '主机名', dataIndex: 'hostname' },
-        ]"
-        row-key="address"
-        size="small"
-        :loading="listLoading"
-        :pagination="{ pageSize: 10 }"
-      >
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.dataIndex === 'mac'">{{ record.mac || '-' }}</template>
-          <template v-else-if="column.dataIndex === 'hostname'">{{ record.hostname || '-' }}</template>
-        </template>
-      </Table>
+      <ResGrid :table-data="resRows">
+        <template #mac="{ row }">{{ row.mac || '-' }}</template>
+        <template #hostname="{ row }">{{ row.hostname || '-' }}</template>
+      </ResGrid>
     </Card>
 
     <Card title="静态绑定列表（MAC↔IP）">
-      <Table
-        :data-source="bindRows"
-        :columns="[
-          { title: '地址', dataIndex: 'address' },
-          { title: '族', dataIndex: 'family', width: 60 },
-          { title: 'MAC', dataIndex: 'mac' },
-          { title: '主机名', dataIndex: 'hostname' },
-        ]"
-        row-key="address"
-        size="small"
-        :loading="listLoading"
-        :pagination="{ pageSize: 10 }"
-      >
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.dataIndex === 'mac'">
-            <Tag class="font-mono">{{ record.mac || '-' }}</Tag>
-          </template>
-          <template v-else-if="column.dataIndex === 'hostname'">{{ record.hostname || '-' }}</template>
+      <BindGrid :table-data="bindRows">
+        <template #mac="{ row }">
+          <Tag class="font-mono">{{ row.mac || '-' }}</Tag>
         </template>
-      </Table>
+        <template #hostname="{ row }">{{ row.hostname || '-' }}</template>
+      </BindGrid>
     </Card>
   </div>
 </template>

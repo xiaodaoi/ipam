@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useVbenModal } from '@vben/common-ui';
 
-import { Button, Card, Input, Select, Table, Tag, message } from 'ant-design-vue';
+import type { VxeGridProps } from '@vben/plugins/vxe-table';
+
+import { useVbenVxeGrid } from '#/adapter/vxe-table';
+
+import { Button, Card, Input, Select, Tag, message } from 'ant-design-vue';
 
 import {
   createUpstream,
@@ -81,6 +85,20 @@ onMounted(() => {
 onBeforeUnmount(() => timer && clearInterval(timer));
 
 const PROTO_COLOR: Record<string, string> = { udp: 'blue', tcp: 'cyan', 'dot': 'purple' };
+
+const gridOptions = reactive<VxeGridProps>({
+  columns: [
+    { field: 'name', title: '名称', width: 180 },
+    { field: 'addrs', title: '地址', width: 380, slots: { default: 'addrs' } },
+    { field: 'protocol', title: '协议', width: 90, slots: { default: 'protocol' } },
+    { field: 'health', title: '探活', width: 240, slots: { default: 'health' } },
+    { field: 'op', title: '操作', width: 150, fixed: 'right', slots: { default: 'op' } },
+  ],
+  loading: loading.value,
+  height: 'auto',
+  rowConfig: { keyField: 'id' },
+});
+const [UpGrid] = useVbenVxeGrid({ gridOptions });
 const HEALTH_TEXT: Record<string, string> = { up: '在线', down: '摘除', unknown: '探测中' };
 const HEALTH_COLOR: Record<string, string> = { up: 'green', down: 'red', unknown: 'default' };
 </script>
@@ -102,37 +120,24 @@ const HEALTH_COLOR: Record<string, string> = { up: 'green', down: 'red', unknown
         { value: 'udp', label: 'UDP' }, { value: 'tcp', label: 'TCP' }, { value: 'dot', label: 'DoT' }]" />
       </div>
     </FormModal>
-    <Table
-      :data-source="rows"
-      :columns="[
-        { title: '名称', dataIndex: 'name' },
-        { title: '地址', dataIndex: 'addrs' },
-        { title: '协议', dataIndex: 'protocol', width: 90 },
-        { title: '探活', dataIndex: 'health', width: 100 },
-        { title: '操作', key: 'op', width: 120 },
-      ]"
-      row-key="id"
-      size="small"
-      :loading="loading"
-      :pagination="false"
-    >
-      <template #bodyCell="{ column, record }">
-        <template v-if="column.dataIndex === 'addrs'">{{ (record.addrs ?? []).join(', ') }}</template>
-        <template v-else-if="column.dataIndex === 'protocol'">
-          <Tag :color="PROTO_COLOR[record.protocol]">{{ record.protocol }}</Tag>
-        </template>
-        <template v-else-if="column.dataIndex === 'health'">
-          <Tag :color="HEALTH_COLOR[record.health?.up ? 'up' : record.health?.down === null ? 'unknown' : 'down']">
-            {{ HEALTH_TEXT[record.health?.up ? 'up' : 'down'] }}
-          </Tag>
-          <span v-if="record.health?.rttMs !== undefined && record.health?.rttMs !== null" class="text-xs text-gray-400">{{ record.health.rttMs }}ms</span>
-        </template>
-        <template v-else-if="column.key === 'op'">
-          <Button size="small" class="mr-1" @click="edit(record as Upstream)">编辑</Button>
-          <Button size="small" danger @click="remove(record.id)">删除</Button>
-        </template>
+    <UpGrid :table-data="rows">
+      <template #addrs="{ row }">{{ (row.addrs ?? []).join(', ') }}</template>
+      <template #protocol="{ row }">
+        <Tag :color="PROTO_COLOR[row.protocol]">{{ row.protocol }}</Tag>
       </template>
-    </Table>
+      <template #health="{ row }">
+        <Tag :color="HEALTH_COLOR[row.health?.up ? 'up' : row.health?.down === null ? 'unknown' : 'down']">
+          {{ HEALTH_TEXT[row.health?.up ? 'up' : 'down'] }}
+        </Tag>
+        <span v-if="row.health?.rttMs !== undefined && row.health?.rttMs !== null" class="ml-1 text-xs text-gray-400">{{ row.health.rttMs }}ms</span>
+      </template>
+      <template #op="{ row }">
+        <div class="flex items-center gap-1">
+          <Button size="small" @click="edit(row as Upstream)">编辑</Button>
+          <Button size="small" danger @click="remove(row.id)">删除</Button>
+        </div>
+      </template>
+    </UpGrid>
   </Card>
   </div>
 </template>
