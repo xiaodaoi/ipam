@@ -4,6 +4,15 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-09-03 · M3-010 unbound python 模块——DNS 解析 IP（answer_ip）落地
+
+- **根因**：unbound 1.26.0 log-replies 行不含应答区（verbosity≤4 实测均无），answer_ip 永远为空。
+- **方案**：编译 `--with-pythonmodule`，dns_log.py 在 MODDONE 提取应答区（A/AAAA/CNAME 链），输出 DNS_LOG JSON 顶层含 answer_ip；vector 新增 parse_dns_log 消费；log-replies 关闭去重；SERVFAIL 补记。
+- **坑位**：jammy 需 PYTHON_VERSION=3.10；pythonmod 必须 inform_super 函数 + init(id,cfg) 双参；选项名 python-script；VRL 0.46 无 for 循环/to_timestamp（选择逻辑放 Python 侧）；vector/unbound 配置均打入镜像，改配置须重建而非 restart。
+- **验证**：递归/缓存命中/NXDOMAIN/local-data 四类行为符合设计，CH 无重复事件，answer_ip 正确入库（IPv4 以 ::ffff: 映射存储）。
+- **文档**：架构文档 §6 已同步决策与已知取舍；任务卡 M3-010 归档 done。
+
+
 ## 2026-09-01 · vxe 客户端分页修复——13 条记录正确分 2 页
 
 - **问题**：转发规则 13 条记录 10/页却全在第 1 页、第 2 页空——vxe 仅代理模式自动切片，tableData（客户端数据）不切片。

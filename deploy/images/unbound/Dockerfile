@@ -7,18 +7,21 @@ ARG UNBOUND_VERSION=1.26.0
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl bind9-dnsutils file build-essential libssl-dev libexpat1-dev libevent-dev flex bison \
+      python3-dev python3 swig \
     && curl -fsSL "https://github.com/NLnetLabs/unbound/archive/refs/tags/release-${UNBOUND_VERSION}.tar.gz" \
         -o /tmp/unbound.tgz \
     && tar -xzf /tmp/unbound.tgz -C /tmp \
     && cd "/tmp/unbound-release-${UNBOUND_VERSION}" \
-    && ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var \
+    && PYTHON_VERSION=3.10 ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var \
         --with-pidfile=/run/unbound.pid --with-rootkey-file=/var/lib/unbound/root.key \
+        --with-pythonmodule \
     && make -j"$(nproc)" \
     && make install \
     && ldconfig \
     && rm -rf /tmp/unbound* /var/lib/apt/lists/*
 
 COPY config/unbound/unbound.conf /etc/unbound/unbound.conf
+COPY config/unbound/dns_log.py /etc/unbound/dns_log.py
 COPY config/unbound/auth-corp.zone /etc/unbound/auth-corp.zone
 RUN useradd -r unbound && mkdir -p /run/ipam /var/lib/unbound /var/log/unbound \
     && unbound -V | head -2
