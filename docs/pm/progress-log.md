@@ -4,6 +4,14 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-09-03 · M3-011 补遗——204 空 body 解析崩溃修复（用户三项反馈）
+
+- **现象**：转保留/释放报 "Unexpected end of JSON input"；转静态确认后弹窗卡住不关（用户感知"无法绑定确认"）。
+- **根因**：api/ipam.ts `req()` 成功分支无条件 `res.json()`——reserve/bind/release/updateBinding 四个端点均返回 204 空 body，解析必抛。绑定流程里 confirmBind 抛错致 vben 模态不关闭且 409 无提示（无 try/catch）。
+- **修复**：req() 先 text 后按需 parse（空 body → undefined）；confirmBind 加 try/catch + message.error（409 冲突可见、模态保持可改 MAC 重试）+ 空 MAC warning。
+- **验证**：Playwright——转保留/释放成功 toast 无报错；干净绑定 10.99.0.72 模态关闭+变蓝+成功 toast；重复绑定 409 显示"地址已被绑定或在线占用"。
+
+
 ## 2026-09-03 · M3-011 DHCP保留/绑定释放与编辑 + 台账地图优化（用户五项反馈）
 
 - **API**：新增 `POST /ledger/release` + `PUT /ledger/bind`（spec先行+make gen）；`ReservationRepo.UpdateMAC`（PG Upsert 是 ON CONFLICT DO NOTHING 不能复用，改专用 UPDATE）；Service.Release/UpdateBinding + 单测覆盖（释放回归/改绑互转/BAD_MAC/404）。

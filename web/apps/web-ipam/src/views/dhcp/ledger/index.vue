@@ -171,11 +171,18 @@ async function onMapAction(action: string, ips: MapCell[]) {
 }
 async function confirmBind() {
   const mac = bindModal.value.mac.trim();
-  if (!mac || !bindModal.value.subnetId) return;
-  await bindStatic(bindModal.value.subnetId, bindModal.value.address, mac);
-  message.success(`${bindModal.value.address} 已静态绑定 ${mac}`);
-  bindModalApi.close();
-  void loadMap();
+  if (!mac || !bindModal.value.subnetId) {
+    message.warning('请填写 MAC');
+    return;
+  }
+  try {
+    await bindStatic(bindModal.value.subnetId, bindModal.value.address, mac);
+    message.success(`${bindModal.value.address} 已静态绑定 ${mac}`);
+    bindModalApi.close();
+    void loadMap();
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '绑定失败');
+  }
 }
 
 // ── IPv6 网段表格 ──

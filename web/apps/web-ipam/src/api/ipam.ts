@@ -27,7 +27,9 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
       (body as { code?: string; detail?: string }).detail || `HTTP ${res.status}`,
     );
   }
-  return res.json() as Promise<T>;
+  // 204 等空 body 响应（reserve/bind/release/updateBinding）直接返回 undefined
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 export const listLedger = (params: { orgId?: string; subnetId?: string; family?: number; state?: string; cursor?: string; pageSize?: number }) => {
