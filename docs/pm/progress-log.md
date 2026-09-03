@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-09-03 · M3-010 补遗——answer_ip 前端断链修复（toGenLogRow + CSV 导出）
+
+- **现象**：CH 有 answer_ip 但日志页「应答IP」列全空——API 层 `toGenLogRow` 漏映射 AnswerIp；CSV 导出亦缺该列（表头 11 列与 SELECT 12 列错位）。
+- **修复**：handler.go 两处补齐（JSON 映射 + CSV 表头/行）；go build/vet/test 绿。
+- **验证**：Playwright 实测 resolve 事件 21/22 展示应答IP（NXDOMAIN 无 IP 符合预期）。
+
+
 ## 2026-09-03 · M3-010 unbound python 模块——DNS 解析 IP（answer_ip）落地
 
 - **根因**：unbound 1.26.0 log-replies 行不含应答区（verbosity≤4 实测均无），answer_ip 永远为空。

@@ -180,11 +180,11 @@ func (h *Handler) ExportLogs(c *gin.Context, params apigen.ExportLogsParams) {
 	var buf bytes.Buffer
 	buf.WriteString("\xEF\xBB\xBF") // UTF-8 BOM（Excel 兼容）
 	w := csv.NewWriter(&buf)
-	_ = w.Write([]string{"ts", "type", "severity", "client_mac", "client_ip", "sip", "domain", "rcode", "action", "category", "detail"})
+	_ = w.Write([]string{"ts", "type", "severity", "client_mac", "client_ip", "sip", "domain", "rcode", "action", "category", "answer_ip", "detail"})
 	for _, r := range page.Items {
 		_ = w.Write([]string{
 			r.TS.UTC().Format(time.RFC3339Nano), r.Type, r.Severity, r.ClientMAC,
-			r.ClientIP, r.SIP, r.Domain, r.Rcode, r.Action, r.Category, r.Detail,
+			r.ClientIP, r.SIP, r.Domain, r.Rcode, r.Action, r.Category, r.AnswerIP, r.Detail,
 		})
 	}
 	w.Flush()
@@ -204,6 +204,7 @@ func toGenLogRow(r LogRow) apigen.LogRow {
 		Rcode:     optStr(r.Rcode),
 		Action:    optStr(r.Action),
 		Category:  optStr(r.Category),
+		AnswerIp:  optStr(r.AnswerIP),
 		Detail:    optStr(r.Detail),
 	}
 }

@@ -23,3 +23,9 @@ DNS 日志拿不到解析结果 IP（`answer_ip` 全空）：unbound 1.26.0 的 
 
 - `unbound-checkconf` 无错；dig 递归（baidu：CNAME 链 → answer_ip=153.3.238.28）、NXDOMAIN（resolve+rcode）、local-data（仅 dns_query）三类均符合设计
 - CH 无重复 resolve 事件；answer_ip 正确入库；后端 `ch_store.go` 既有 `coalesce(toString(answer_ip))` 直通前端
+
+### 追加：API 层映射修复（UI 验证发现）
+
+Playwright 验证发现 CH 有 answer_ip 但 UI「应答IP」列为空——`toGenLogRow`（handler.go）漏映射 `AnswerIp` 字段（apigen.LogRow 已有 `json:"answerIp"`），CSV 导出表头/行同样缺 `answer_ip`（表头 11 列、SELECT 12 列错位）。两处已补齐。
+
+- 验证：go build/vet/test 绿；Playwright 实测日志页 22 条 resolve 中 21 条展示应答IP（1 条 NXDOMAIN 无 IP 符合设计），样例 `mcs.rwork.crc.com.cn => ::ffff:58.250.180.232 / 2408:8656:3aff::1:c9`。
