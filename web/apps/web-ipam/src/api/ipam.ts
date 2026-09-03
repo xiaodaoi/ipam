@@ -50,6 +50,12 @@ export const reserveAddress = (subnetId: string, address: string) =>
 export const bindStatic = (subnetId: string, address: string, mac: string) =>
   req<void>('/ledger/bind', { method: 'POST', body: JSON.stringify({ subnetId, address, mac }) });
 
+export const updateBinding = (address: string, mac: string) =>
+  req<void>('/ledger/bind', { method: 'PUT', body: JSON.stringify({ address, mac }) });
+
+export const releaseAddress = (address: string) =>
+  req<void>('/ledger/release', { method: 'POST', body: JSON.stringify({ address }) });
+
 export const listSubnets = (orgId?: string) =>
   req<{ items: Subnet[] }>(`/subnets${orgId ? `?orgId=${orgId}` : ''}`);
 

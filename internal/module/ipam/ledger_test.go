@@ -78,6 +78,65 @@ func TestLedgerService_BindStatic_成功后占位(t *testing.T) {
 	}
 }
 
+func TestLedgerService_Release_释放回归可下发(t *testing.T) {
+	repo := NewMemReservationRepo()
+	svc := NewLedgerService(func(context.Context) LedgerSource { return LedgerSource{} },
+		repo, NewMemSubnetRepo(), nil)
+	ctx := context.Background()
+	if err := svc.Reserve(ctx, "s1", "10.1.0.9"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Release(ctx, "10.1.0.9"); err != nil {
+		t.Fatal(err)
+	}
+	rows, _ := repo.List(ctx)
+	if len(rows) != 0 {
+		t.Fatalf("释放后应无预留: %+v", rows)
+	}
+	// 释放不存在的地址 → 404 语义
+	if err := svc.Release(ctx, "10.1.0.9"); !errors.Is(err, ErrAddrNotReserved) {
+		t.Fatalf("err=%v want ADDR_NOT_RESERVED", err)
+	}
+}
+
+func TestLedgerService_UpdateBinding_改绑与保留互转(t *testing.T) {
+	repo := NewMemReservationRepo()
+	svc := NewLedgerService(func(context.Context) LedgerSource { return LedgerSource{} },
+		repo, NewMemSubnetRepo(), nil)
+	ctx := context.Background()
+	if err := svc.BindStatic(ctx, "s1", "10.1.0.9", "aa:bb:cc:dd:ee:09"); err != nil {
+		t.Fatal(err)
+	}
+	// 改绑：MAC 更新且规范化为大写输入→小写冒号
+	if err := svc.UpdateBinding(ctx, "10.1.0.9", "AA-BB-CC-DD-EE-0A"); err != nil {
+		t.Fatal(err)
+	}
+	rows, _ := repo.List(ctx)
+	if len(rows) != 1 || rows[0].MAC != "aa:bb:cc:dd:ee:0a" {
+		t.Fatalf("改绑后: %+v", rows)
+	}
+	// 保留→绑定互转：无 MAC 预留写入 MAC
+	if err := svc.Reserve(ctx, "s1", "10.1.0.10"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.UpdateBinding(ctx, "10.1.0.10", "aa:bb:cc:dd:ee:0b"); err != nil {
+		t.Fatal(err)
+	}
+	rows, _ = repo.List(ctx)
+	for _, r := range rows {
+		if r.IPv4 == "10.1.0.10" && r.MAC == "" {
+			t.Fatal("保留写入 MAC 后应成为静态绑定")
+		}
+	}
+	// 非法 MAC / 不存在的地址
+	if err := svc.UpdateBinding(ctx, "10.1.0.9", "xy:zz"); !errors.Is(err, ErrBadMAC) {
+		t.Fatalf("err=%v want BAD_MAC", err)
+	}
+	if err := svc.UpdateBinding(ctx, "10.9.9.9", "aa:bb:cc:dd:ee:0c"); !errors.Is(err, ErrAddrNotReserved) {
+		t.Fatalf("err=%v want ADDR_NOT_RESERVED", err)
+	}
+}
+
 func TestBulkReservations_apply失败整体回滚(t *testing.T) {
 	// M3-007 核心回归：apply（kea config-set）失败时整体回滚，含 bind 行 Upsert
 	// （修复 M2-017 发现的残留缺口：原实现回滚范围不含失败行自身）

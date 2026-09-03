@@ -10,6 +10,7 @@ import (
 	rtypes "github.com/oapi-codegen/runtime/types"
 
 	apigen "github.com/xiaodaoi/ipam/api/gen/go"
+	"github.com/xiaodaoi/ipam/internal/module/coherence"
 	"github.com/xiaodaoi/ipam/internal/pkg/problem"
 )
 
@@ -18,6 +19,8 @@ type ReservationRepo interface {
 	Upsert(ctx context.Context, r Reservation) error
 	List(ctx context.Context) ([]Reservation, error)
 	Delete(ctx context.Context, ipv4 string) error
+	// UpdateMAC 更新既有预留记录的 MAC（保留↔静态绑定互转语义）。记录不存在返回 ErrAddrNotReserved。
+	UpdateMAC(ctx context.Context, ipv4, mac string) error
 }
 
 // LedgerService 台账查询与操作。
@@ -86,6 +89,47 @@ func (s *LedgerService) assertFree(ctx context.Context, addr string) error {
 		}
 	}
 	return nil
+}
+
+// findReserved 定位地址的预留记录；不存在返回 ErrAddrNotReserved。
+func (s *LedgerService) findReserved(ctx context.Context, addr string) (*Reservation, error) {
+	existing, err := s.repo.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range existing {
+		if existing[i].IPv4 == addr {
+			return &existing[i], nil
+		}
+	}
+	return nil, ErrAddrNotReserved
+}
+
+// Release 释放保留/静态绑定地址：删除预留记录→Kea 重新下发后回归动态池。
+// 在线租约不受影响（到期/续租由 DHCP 自然收敛）。
+func (s *LedgerService) Release(ctx context.Context, addr string) error {
+	if _, err := s.findReserved(ctx, addr); err != nil {
+		return err
+	}
+	if err := s.repo.Delete(ctx, addr); err != nil {
+		return err
+	}
+	return s.notifyApply(ctx)
+}
+
+// UpdateBinding 修改既有预留的 MAC；保留地址写入 MAC 即成为静态绑定。
+func (s *LedgerService) UpdateBinding(ctx context.Context, addr, mac string) error {
+	norm := coherence.NormalizeMAC(mac)
+	if len(norm) != 17 {
+		return ErrBadMAC
+	}
+	if _, err := s.findReserved(ctx, addr); err != nil {
+		return err
+	}
+	if err := s.repo.UpdateMAC(ctx, addr, norm); err != nil {
+		return err
+	}
+	return s.notifyApply(ctx)
 }
 
 // LedgerHandler 实现 apigen.ServerInterface 中 ledger 域端点（§13.4 地址台账）。
@@ -163,12 +207,51 @@ func (h *LedgerHandler) BindStatic(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// UpdateBinding PUT /ledger/bind
+func (h *LedgerHandler) UpdateBinding(c *gin.Context) {
+	var body apigen.UpdateBindingRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "BAD_REQUEST", err.Error())
+		return
+	}
+	if err := h.svc.UpdateBinding(c.Request.Context(), body.Address, body.Mac); err != nil {
+		notReserved(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// ReleaseAddress POST /ledger/release
+func (h *LedgerHandler) ReleaseAddress(c *gin.Context) {
+	var body apigen.ReleaseRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "BAD_REQUEST", err.Error())
+		return
+	}
+	if err := h.svc.Release(c.Request.Context(), body.Address); err != nil {
+		notReserved(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 func occupied(c *gin.Context, err error) {
 	if errors.Is(err, ErrAddrOccupied) {
 		problem.Write(c, http.StatusConflict, "https://ipam.local/problems/addr-occupied", "ADDR_OCCUPIED", "地址已被绑定或在线占用")
 		return
 	}
 	problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "INTERNAL", err.Error())
+}
+
+func notReserved(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, ErrAddrNotReserved):
+		problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/addr-not-reserved", "ADDR_NOT_RESERVED", "地址不存在预留/绑定记录")
+	case errors.Is(err, ErrBadMAC):
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-mac", "BAD_MAC", "MAC 格式非法")
+	default:
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "INTERNAL", err.Error())
+	}
 }
 
 func toGenLedger(r LedgerRow) apigen.LedgerRow {

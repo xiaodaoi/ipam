@@ -69,3 +69,26 @@ BindRequest:
     mac: { type: string, description: 归一化小写冒号格式 }
     hostname:
       type: string
+
+ReleaseRequest:
+  type: object
+  required: [address]
+  properties:
+    address:
+      type: string
+      description: 待释放的保留/静态绑定地址
+    reason:
+      type: string
+      maxLength: 128
+      description: 释放原因（审计）
+
+UpdateBindingRequest:
+  type: object
+  required: [address, mac]
+  properties:
+    address:
+      type: string
+      description: 已存在静态绑定的地址
+    mac:
+      type: string
+      description: 新 MAC（归一化小写冒号格式）

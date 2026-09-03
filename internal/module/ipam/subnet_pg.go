@@ -280,6 +280,14 @@ func (r *MemReservationRepo) Delete(_ context.Context, ipv4 string) error {
 	return nil
 }
 
+func (r *MemReservationRepo) UpdateMAC(_ context.Context, ipv4, mac string) error {
+	if _, ok := r.items[ipv4]; !ok {
+		return ErrAddrNotReserved
+	}
+	r.items[ipv4] = Reservation{MAC: mac, IPv4: ipv4}
+	return nil
+}
+
 // PgReservationRepo PG 实现。
 type PgReservationRepo struct{ pool *pgxpool.Pool }
 
@@ -298,6 +306,17 @@ func (r *PgReservationRepo) Upsert(ctx context.Context, res Reservation) error {
 func (r *PgReservationRepo) Delete(ctx context.Context, ipv4 string) error {
 	_, err := r.pool.Exec(ctx, `DELETE FROM reservation WHERE ipv4=$1`, ipv4)
 	return err
+}
+
+func (r *PgReservationRepo) UpdateMAC(ctx context.Context, ipv4, mac string) error {
+	tag, err := r.pool.Exec(ctx, `UPDATE reservation SET mac=$1 WHERE ipv4=$2`, nullStr(mac), ipv4)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrAddrNotReserved
+	}
+	return nil
 }
 
 func (r *PgReservationRepo) List(ctx context.Context) ([]Reservation, error) {

@@ -68,6 +68,12 @@ type Reservation struct {
 // ErrAddrOccupied 地址已被绑定/在线占用。
 var ErrAddrOccupied = errors.New("ADDR_OCCUPIED")
 
+// ErrAddrNotReserved 地址不存在预留/绑定记录（释放/改绑目标缺失）。
+var ErrAddrNotReserved = errors.New("ADDR_NOT_RESERVED")
+
+// ErrBadMAC MAC 格式非法（规范化后非完整 48 位）。
+var ErrBadMAC = errors.New("BAD_MAC")
+
 // Classify 六态判定（§13.4）：租约活跃近似=在线（绿）。
 func Classify(r Reservation, b *LedgerBinding, inPool bool) LedgerState {
 	switch {

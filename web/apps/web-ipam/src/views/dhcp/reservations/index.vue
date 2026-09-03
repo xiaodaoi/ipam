@@ -3,25 +3,31 @@ import { computed, onMounted, reactive, ref } from 'vue';
 
 import type { VxeGridProps } from '@vben/plugins/vxe-table';
 
+import { useVbenModal } from '@vben/common-ui';
+
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 
 import {
   Button,
   Card,
   Input,
+  Modal,
   Select,
   Tag,
   message,
 } from 'ant-design-vue';
 
 import {
+  bindStatic,
   bulkReservations,
   listLedger,
   type LedgerRow,
   listSubnets,
+  releaseAddress,
   type ReservationBulkEntryIn,
   type ReservationBulkResult,
   type Subnet,
+  updateBinding,
 } from '#/api/ipam';
 
 const subnets = ref<Subnet[]>([]);
@@ -117,6 +123,7 @@ const resGridOptions = reactive<VxeGridProps>({
     { field: 'family', title: '族', width: 70 },
     { field: 'mac', title: 'MAC', minWidth: 160, slots: { default: 'mac' } },
     { field: 'hostname', title: '主机名', minWidth: 120, slots: { default: 'hostname' } },
+    { field: 'actions', title: '操作', width: 90, fixed: 'right', slots: { default: 'resActions' } },
   ],
   loading: listLoading.value,
   rowConfig: { keyField: 'address' },
@@ -129,11 +136,82 @@ const bindGridOptions = reactive<VxeGridProps>({
     { field: 'family', title: '族', width: 70 },
     { field: 'mac', title: 'MAC', minWidth: 160, slots: { default: 'mac' } },
     { field: 'hostname', title: '主机名', minWidth: 120, slots: { default: 'hostname' } },
+    { field: 'actions', title: '操作', width: 140, fixed: 'right', slots: { default: 'bindActions' } },
   ],
   loading: listLoading.value,
   rowConfig: { keyField: 'address' },
 });
 const [BindGrid] = useVbenVxeGrid({ gridOptions: bindGridOptions });
+
+// ── 释放 ──
+async function releaseRow(row: LedgerRow) {
+  Modal.confirm({
+    title: `释放 ${row.address}`,
+    content: row.mac
+      ? `静态绑定（MAC ${row.mac}）将被删除，该地址回归动态池可正常下发。在线租约不受影响。`
+      : '保留（冻结）将被取消，该地址回归动态池可正常下发。',
+    okText: '释放',
+    okType: 'danger',
+    onOk: async () => {
+      try {
+        await releaseAddress(row.address);
+        message.success(`${row.address} 已释放`);
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : '释放失败');
+      } finally {
+        await loadLists();
+      }
+    },
+  });
+}
+
+// ── 编辑静态绑定 ──
+const editTarget = ref<LedgerRow>();
+const editForm = reactive({ address: '', mac: '' });
+const [EditModal, editModalApi] = useVbenModal({
+  draggable: true,
+  confirmText: '保存',
+  onConfirm: () => confirmEdit(),
+});
+
+function openEdit(row: LedgerRow) {
+  editTarget.value = row;
+  editForm.address = row.address;
+  editForm.mac = row.mac || '';
+  editModalApi.setState({
+    title: row.subnetId ? `编辑绑定 · ${row.address}` : `编辑 MAC · ${row.address}（无子网信息仅可改 MAC）`,
+  });
+  editModalApi.open();
+}
+
+async function confirmEdit() {
+  const row = editTarget.value;
+  if (!row) return;
+  const mac = editForm.mac.trim();
+  const addr = editForm.address.trim();
+  if (!mac) {
+    message.warning('MAC 必填');
+    return;
+  }
+  try {
+    if (addr === row.address) {
+      await updateBinding(row.address, mac);
+    } else {
+      if (!row.subnetId) {
+        message.warning('该记录缺少子网信息，仅可修改 MAC');
+        return;
+      }
+      await releaseAddress(row.address);
+      await bindStatic(row.subnetId, addr, mac);
+    }
+    message.success(`${addr} 绑定已更新（${mac}）`);
+    editModalApi.close();
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '更新失败');
+  } finally {
+    await loadLists();
+  }
+}
 
 </script>
 
@@ -180,6 +258,9 @@ const [BindGrid] = useVbenVxeGrid({ gridOptions: bindGridOptions });
       <ResGrid :table-data="resRows">
         <template #mac="{ row }">{{ row.mac || '-' }}</template>
         <template #hostname="{ row }">{{ row.hostname || '-' }}</template>
+        <template #resActions="{ row }">
+          <Button size="small" danger @click="releaseRow(row)">释放</Button>
+        </template>
       </ResGrid>
     </Card>
 
@@ -189,7 +270,31 @@ const [BindGrid] = useVbenVxeGrid({ gridOptions: bindGridOptions });
           <Tag class="font-mono">{{ row.mac || '-' }}</Tag>
         </template>
         <template #hostname="{ row }">{{ row.hostname || '-' }}</template>
+        <template #bindActions="{ row }">
+          <Button size="small" class="mr-2" @click="openEdit(row)">编辑</Button>
+          <Button size="small" danger @click="releaseRow(row)">释放</Button>
+        </template>
       </BindGrid>
     </Card>
+
+    <EditModal>
+      <div class="flex flex-col gap-3">
+        <div class="flex items-center gap-2">
+          <span class="w-16 text-right text-xs text-gray-400">地址</span>
+          <Input
+            v-model:value="editForm.address"
+            :disabled="!editTarget?.subnetId"
+            style="width: 220px"
+            placeholder="如 10.61.172.12"
+          />
+          <span v-if="!editTarget?.subnetId" class="text-xs text-gray-400">无子网信息，仅可改 MAC</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="w-16 text-right text-xs text-gray-400">MAC</span>
+          <Input v-model:value="editForm.mac" style="width: 220px" placeholder="如 aa:bb:cc:dd:ee:02" />
+        </div>
+        <div class="text-xs text-gray-400">修改地址 = 释放旧地址并在新地址重新绑定；释放后原地址回归动态池。</div>
+      </div>
+    </EditModal>
   </div>
 </template>

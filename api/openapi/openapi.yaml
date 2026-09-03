@@ -134,6 +134,8 @@ paths:
     $ref: './paths/ledger.yaml#/LedgerCollection'
   /ledger/bind:
     $ref: './paths/ledger.yaml#/BindStatic'
+  /ledger/release:
+    $ref: './paths/ledger.yaml#/ReleaseAddress'
   /subnets:
     $ref: './paths/subnets.yaml#/SubnetsCollection'
   /subnets/{subnetId}:

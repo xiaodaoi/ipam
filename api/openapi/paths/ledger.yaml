@@ -106,3 +106,75 @@ BindStatic:
                 title: { type: string }
                 status: { type: integer }
                 code: { type: string }
+  put:
+    operationId: updateBinding
+    tags: [ledger]
+    summary: 修改静态绑定 MAC
+    description: |
+      更新既有预留记录的 MAC（保留↔绑定互转亦走此语义：保留地址写入 MAC 即成为静态绑定）。
+      地址不存在预留时返回 404。scope: ledger.write。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/ledger.yaml#/UpdateBindingRequest'
+    responses:
+      '204':
+        description: 已更新
+      '404':
+        description: 地址不存在预留/绑定记录
+        content:
+          application/problem+json:
+            schema:
+              type: object
+              required: [type, title, status]
+              properties:
+                type: { type: string }
+                title: { type: string }
+                status: { type: integer }
+                code: { type: string }
+      '400':
+        description: MAC 格式非法
+        content:
+          application/problem+json:
+            schema:
+              type: object
+              required: [type, title, status]
+              properties:
+                type: { type: string }
+                title: { type: string }
+                status: { type: integer }
+                code: { type: string }
+
+ReleaseAddress:
+  post:
+    operationId: releaseAddress
+    tags: [ledger]
+    summary: 释放保留/静态绑定地址（回归可下发池）
+    description: |
+      删除该地址的 reservation 记录（保留与静态绑定一体），经 Kea 重新下发后地址回到动态池。
+      在线租约不受影响（到期/续租行为由 DHCP 自然收敛）。地址无记录时返回 404。scope: ledger.write。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/ledger.yaml#/ReleaseRequest'
+    responses:
+      '204':
+        description: 已释放
+      '404':
+        description: 地址不存在预留/绑定记录
+        content:
+          application/problem+json:
+            schema:
+              type: object
+              required: [type, title, status]
+              properties:
+                type: { type: string }
+                title: { type: string }
+                status: { type: integer }
+                code: { type: string }

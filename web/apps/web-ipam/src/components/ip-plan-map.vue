@@ -193,7 +193,7 @@ const editOpen = ref(false);
 const editing = ref<IpCell[]>([]);
 const editForm = reactive({
   hostname: '', status: 'static', purpose: '', user: '', phone: '',
-  leaseStart: '', leaseEnd: '', customAttrText: '', remark: '',
+  customAttrText: '', remark: '',
 });
 function openEdit() {
   if (props.readOnly || !selectedIps.value.length) return;
@@ -206,8 +206,6 @@ function openEdit() {
     purpose: first.purpose || '',
     user: first.user || '',
     phone: first.phone || '',
-    leaseStart: first.leaseStart || '',
-    leaseEnd: first.leaseEnd || '',
     customAttrText: Object.entries(first.customAttrs || {}).map(([k, v]) => `${k}=${v}`).join('\n'),
     remark: first.remark || '',
   });
@@ -220,7 +218,6 @@ function handleEditOk() {
     if (i > 0) customAttrs[line.slice(0, i).trim()] = line.slice(i + 1).trim();
   });
   emit('save', editing.value, { ...editForm, customAttrs });
-  message.success(`已保存 ${editing.value.length} 个 IP 的信息`);
   editOpen.value = false;
 }
 
@@ -232,16 +229,15 @@ function openDetail() {
   else message.info('请先只选中 1 个 IP 后再查看详情');
 }
 
-// ── 批量操作 ──
+// ── 批量操作（消息与刷新由父层在 API 结果后处理，组件仅发事件）──
 function applyStatus(status: string) {
   if (props.readOnly || !selectedIps.value.length) return;
   const ids = new Set(selectedIps.value.map((p) => p.ip));
   if (!props.ips) {
     internalIps.value = internalIps.value.map((p) => (ids.has(p.ip) ? { ...p, status } : p));
   }
-  const actionName = { static: 'toStatic', dynamic: 'toDynamic', reserved: 'toReserve' }[status] || status;
+  const actionName = { static: 'toStatic', reserved: 'toReserve', available: 'toRelease' }[status] || status;
   emit('action', actionName, selectedIps.value);
-  message.success(`已将 ${selectedIps.value.length} 个 IP 转为「${IP_STATUS[status]?.label || status}」`);
 }
 
 // ── 渲染辅助 ──
@@ -297,11 +293,11 @@ onMounted(() => {
 
       <!-- 操作栏 -->
       <Space wrap style="margin-bottom: 12px">
-        <Button size="small" type="primary" :disabled="readOnly || !stats.selected" @click="applyStatus('static')">
+        <Button size="small" :disabled="readOnly || !stats.selected" @click="applyStatus('static')">
           <IconifyIcon icon="lucide:refresh-cw" class="mr-1" />转静态
         </Button>
-        <Button size="small" :disabled="readOnly || !stats.selected" @click="applyStatus('dynamic')">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1" />转动态
+        <Button size="small" danger :disabled="readOnly || !stats.selected" @click="applyStatus('available')">
+          <IconifyIcon icon="lucide:unlock" class="mr-1" />释放
         </Button>
         <Button size="small" :disabled="readOnly || !stats.selected" @click="applyStatus('reserved')">
           <IconifyIcon icon="lucide:lock" class="mr-1" />转保留
@@ -392,7 +388,7 @@ onMounted(() => {
         :open="editOpen"
         :title="editing.length > 1 ? `编辑 ${editing.length} 个 IP` : `编辑 IP · ${editing[0]?.ip || ''}`"
         ok-text="保存"
-        width="540"
+        :width="520"
         @ok="handleEditOk"
         @cancel="editOpen = false"
       >
@@ -403,7 +399,7 @@ onMounted(() => {
               :options="Object.entries(IP_STATUS).filter(([k]) => !STATUS_DISABLED.includes(k)).map(([k, v]) => ({ label: v.label, value: k }))"
             />
           </Form.Item>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-2 gap-x-3 gap-y-0">
             <Form.Item label="主机名">
               <Input v-model:value="editForm.hostname" placeholder="如 PC-001" />
             </Form.Item>
@@ -416,24 +412,18 @@ onMounted(() => {
             <Form.Item label="电话">
               <Input v-model:value="editForm.phone" />
             </Form.Item>
-            <Form.Item label="租约开始">
-              <Input v-model:value="editForm.leaseStart" placeholder="2026-08-01 09:00" />
-            </Form.Item>
-            <Form.Item label="租约到期">
-              <Input v-model:value="editForm.leaseEnd" placeholder="2026-09-01 09:00" />
-            </Form.Item>
           </div>
           <Form.Item label="自定义属性" extra="每行一条，格式：键=值">
             <Input.TextArea v-model:value="editForm.customAttrText" :rows="2" placeholder="资产编号=ZC-001&#10;位置=三楼机房" />
           </Form.Item>
-          <Form.Item label="备注">
+          <Form.Item label="备注" class="mb-0">
             <Input.TextArea v-model:value="editForm.remark" :rows="2" />
           </Form.Item>
         </Form>
       </Modal>
 
       <!-- 详情抽屉 -->
-      <Drawer :open="!!detail" :title="`IP 详情 · ${detail?.ip || ''}`" width="440" @close="detail = null">
+      <Drawer :open="!!detail" :title="`IP 详情 · ${detail?.ip || ''}`" :width="420" @close="detail = null">
         <template v-if="detail">
           <Space wrap style="margin-bottom: 12px">
             <Tag :color="IP_STATUS[detail.status]?.color">{{ IP_STATUS[detail.status]?.label || detail.status }}</Tag>

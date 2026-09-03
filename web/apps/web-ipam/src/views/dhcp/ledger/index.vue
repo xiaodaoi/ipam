@@ -11,6 +11,7 @@ import {
   listLedger,
   listOrgTree,
   listSubnets,
+  releaseAddress,
   reserveAddress,
   type OrgTreeNode,
   type Subnet,
@@ -145,17 +146,28 @@ async function onMapAction(action: string, ips: MapCell[]) {
   const sub = currentSubnet.value;
   const first = ips[0];
   if (!sub || !first) return;
-  if (action === 'toReserve') {
-    await reserveAddress(sub.id, first.ip);
-    message.success(`${first.ip} 已保留`);
-    void loadMap();
-  } else if (action === 'toStatic') {
+  if (action === 'toStatic') {
     bindModal.value = { address: first.ip, subnetId: sub.id, mac: '' };
     bindModalApi.setState({ title: `静态绑定 ${first.ip}` });
     bindModalApi.open();
-  } else if (action === 'toDynamic') {
-    message.info('DHCP 动态地址由 Kea 自动分配，无需手动转换');
+    return;
   }
+  try {
+    if (action === 'toReserve') {
+      for (const c of ips) {
+        await reserveAddress(sub.id, c.ip);
+      }
+      message.success(`已保留 ${ips.length} 个地址`);
+    } else if (action === 'toRelease') {
+      for (const c of ips) {
+        await releaseAddress(c.ip);
+      }
+      message.success(`已释放 ${ips.length} 个地址，回归可下发池`);
+    }
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '操作失败（部分地址可能未处理）');
+  }
+  void loadMap();
 }
 async function confirmBind() {
   const mac = bindModal.value.mac.trim();

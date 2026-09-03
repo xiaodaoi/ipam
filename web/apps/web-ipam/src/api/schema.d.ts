@@ -1080,13 +1080,39 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
+        /**
+         * 修改静态绑定 MAC
+         * @description 更新既有预留记录的 MAC（保留↔绑定互转亦走此语义：保留地址写入 MAC 即成为静态绑定）。
+         *     地址不存在预留时返回 404。scope: ledger.write。
+         */
+        put: operations["updateBinding"];
         /**
          * 地址转静态绑定（MAC 锚定）
          * @description 写 reservation(origin=manual, mac) 并经 Kea host reservation 下发；资产备注以 MAC 为键（§13.4）。
          *     scope: ledger.write。支持 Idempotency-Key。
          */
         post: operations["bindStatic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ledger/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 释放保留/静态绑定地址（回归可下发池）
+         * @description 删除该地址的 reservation 记录（保留与静态绑定一体），经 Kea 重新下发后地址回到动态池。
+         *     在线租约不受影响（到期/续租行为由 DHCP 自然收敛）。地址无记录时返回 404。scope: ledger.write。
+         */
+        post: operations["releaseAddress"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2167,6 +2193,18 @@ export interface components {
          * @enum {string}
          */
         HealthLight: "up" | "down" | "unknown";
+        UpdateBindingRequest: {
+            /** @description 已存在静态绑定的地址 */
+            address: string;
+            /** @description 新 MAC（归一化小写冒号格式） */
+            mac: string;
+        };
+        ReleaseRequest: {
+            /** @description 待释放的保留/静态绑定地址 */
+            address: string;
+            /** @description 释放原因（审计） */
+            reason?: string;
+        };
     };
     responses: {
         /** @description 错误响应（RFC 9457 Problem Details） */
@@ -4333,6 +4371,56 @@ export interface operations {
             };
         };
     };
+    updateBinding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateBindingRequest"];
+            };
+        };
+        responses: {
+            /** @description 已更新 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description MAC 格式非法 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        code?: string;
+                    };
+                };
+            };
+            /** @description 地址不存在预留/绑定记录 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        code?: string;
+                    };
+                };
+            };
+        };
+    };
     bindStatic: {
         parameters: {
             query?: never;
@@ -4355,6 +4443,42 @@ export interface operations {
             };
             /** @description 地址已被占用 */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        code?: string;
+                    };
+                };
+            };
+        };
+    };
+    releaseAddress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReleaseRequest"];
+            };
+        };
+        responses: {
+            /** @description 已释放 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 地址不存在预留/绑定记录 */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

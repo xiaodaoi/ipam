@@ -4,6 +4,14 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-09-03 · M3-011 DHCP保留/绑定释放与编辑 + 台账地图优化（用户五项反馈）
+
+- **API**：新增 `POST /ledger/release` + `PUT /ledger/bind`（spec先行+make gen）；`ReservationRepo.UpdateMAC`（PG Upsert 是 ON CONFLICT DO NOTHING 不能复用，改专用 UPDATE）；Service.Release/UpdateBinding + 单测覆盖（释放回归/改绑互转/BAD_MAC/404）。
+- **前端**：菜单台账移至子网管理后第二位；保留与绑定两列表加释放/编辑操作列；台账地图「转动态」改「释放」（逐地址调 API 后刷新，颜色实时回归）；修弹窗铺满全屏根因——`width="540"` 字符串是无效 CSS，改数字绑定并瘦身表单（删假编辑的租约字段）。
+- **坑位**：PG Upsert ON CONFLICT DO NOTHING 会静默吞掉改绑；antd 中文按钮自动插空格（"编 辑"），Playwright hasText 须用 `\s*` 正则；vxe 操作列按钮在行内但 Playwright 对主行副本点击超时需注意。
+- **验证**：Playwright 全流程——菜单顺序/转保留与释放颜色实时变化(#FF9C6E↔#9DBEFF)/绑定409占用检查/编辑MAC(PUT 204→ee:99)/释放(POST 204→行消失→地图回归灰蓝)/编辑弹窗520×626；go build+vet+test 绿、web typecheck 绿。
+
+
 ## 2026-09-03 · M3-010 补遗——answer_ip 前端断链修复（toGenLogRow + CSV 导出）
 
 - **现象**：CH 有 answer_ip 但日志页「应答IP」列全空——API 层 `toGenLogRow` 漏映射 AnswerIp；CSV 导出亦缺该列（表头 11 列与 SELECT 12 列错位）。

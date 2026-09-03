@@ -19,6 +19,15 @@ const routes: RouteRecordRaw[] = [
         meta: { icon: 'lucide:network', title: $t('page.dhcp.subnets'), authority: ['dhcp:read'] },
       },
       {
+        name: 'Ledger',
+        path: '/dhcp/ledger',
+        component: () => import('#/views/dhcp/ledger/index.vue'),
+        meta: {
+          icon: 'lucide:table',
+          title: $t('page.dhcp.ledger'),
+        },
+      },
+      {
         name: 'Reservations',
         path: '/dhcp/reservations',
         component: () => import('#/views/dhcp/reservations/index.vue'),
@@ -35,15 +44,6 @@ const routes: RouteRecordRaw[] = [
         path: '/dhcp/dualstack',
         component: () => import('#/views/dhcp/dualstack/index.vue'),
         meta: { icon: 'lucide:layers', title: $t('page.dhcp.dualstack'), authority: ['dhcp:read'] },
-      },
-      {
-        name: 'Ledger',
-        path: '/dhcp/ledger',
-        component: () => import('#/views/dhcp/ledger/index.vue'),
-        meta: {
-          icon: 'lucide:table',
-          title: $t('page.dhcp.ledger'),
-        },
       },
     ],
   },
