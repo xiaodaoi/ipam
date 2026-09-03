@@ -48,7 +48,7 @@ func (s *LedgerService) Query(ctx context.Context, q LedgerQuery) ([]LedgerRow, 
 	return QueryLedger(s.source(ctx), q)
 }
 
-// Reserve 转保留：占用检查→写预留→Kea 下发。
+// Reserve 转保留：占用检查→写预留→Kea 下发（下发失败回滚预留，保持 DB↔Kea 一致）。
 func (s *LedgerService) Reserve(ctx context.Context, subnetID, addr string) error {
 	if err := s.assertFree(ctx, addr); err != nil {
 		return err
@@ -56,18 +56,29 @@ func (s *LedgerService) Reserve(ctx context.Context, subnetID, addr string) erro
 	if err := s.repo.Upsert(ctx, Reservation{IPv4: addr}); err != nil {
 		return err
 	}
-	return s.notifyApply(ctx)
+	if err := s.notifyApply(ctx); err != nil {
+		_ = s.repo.Delete(ctx, addr)
+		return err
+	}
+	return nil
 }
 
-// BindStatic 转静态绑定：占用检查→写 MAC 预留→Kea host reservation。
+// BindStatic 转静态绑定：占用检查→写 MAC 预留→Kea host reservation（下发失败回滚）。
 func (s *LedgerService) BindStatic(ctx context.Context, subnetID, addr, mac string) error {
+	if len(coherence.NormalizeMAC(mac)) != 17 {
+		return ErrBadMAC
+	}
 	if err := s.assertFree(ctx, addr); err != nil {
 		return err
 	}
 	if err := s.repo.Upsert(ctx, Reservation{MAC: mac, IPv4: addr}); err != nil {
 		return err
 	}
-	return s.notifyApply(ctx)
+	if err := s.notifyApply(ctx); err != nil {
+		_ = s.repo.Delete(ctx, addr)
+		return err
+	}
+	return nil
 }
 
 // assertFree 地址已被绑定或在线占用则拒绝（409 ADDR_OCCUPIED）。
@@ -106,30 +117,40 @@ func (s *LedgerService) findReserved(ctx context.Context, addr string) (*Reserva
 }
 
 // Release 释放保留/静态绑定地址：删除预留记录→Kea 重新下发后回归动态池。
-// 在线租约不受影响（到期/续租由 DHCP 自然收敛）。
+// 在线租约不受影响（到期/续租由 DHCP 自然收敛）。下发失败回滚删除。
 func (s *LedgerService) Release(ctx context.Context, addr string) error {
-	if _, err := s.findReserved(ctx, addr); err != nil {
+	prev, err := s.findReserved(ctx, addr)
+	if err != nil {
 		return err
 	}
 	if err := s.repo.Delete(ctx, addr); err != nil {
 		return err
 	}
-	return s.notifyApply(ctx)
+	if err := s.notifyApply(ctx); err != nil {
+		_ = s.repo.Upsert(ctx, *prev)
+		return err
+	}
+	return nil
 }
 
-// UpdateBinding 修改既有预留的 MAC；保留地址写入 MAC 即成为静态绑定。
+// UpdateBinding 修改既有预留的 MAC；保留地址写入 MAC 即成为静态绑定。下发失败回滚。
 func (s *LedgerService) UpdateBinding(ctx context.Context, addr, mac string) error {
 	norm := coherence.NormalizeMAC(mac)
 	if len(norm) != 17 {
 		return ErrBadMAC
 	}
-	if _, err := s.findReserved(ctx, addr); err != nil {
+	prev, err := s.findReserved(ctx, addr)
+	if err != nil {
 		return err
 	}
 	if err := s.repo.UpdateMAC(ctx, addr, norm); err != nil {
 		return err
 	}
-	return s.notifyApply(ctx)
+	if err := s.notifyApply(ctx); err != nil {
+		_ = s.repo.UpdateMAC(ctx, addr, prev.MAC)
+		return err
+	}
+	return nil
 }
 
 // LedgerHandler 实现 apigen.ServerInterface 中 ledger 域端点（§13.4 地址台账）。

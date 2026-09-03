@@ -55,6 +55,42 @@ func TestQueryLedger_游标分页与状态过滤(t *testing.T) {
 	}
 }
 
+func TestQueryLedger_池外预留绑定补行(t *testing.T) {
+	// 用户回归：绑定/保留落在动态池之外时，台账必须仍有行（否则静态列表缺失、地图回落未规划）
+	src := LedgerSource{
+		Subnets: []Subnet{{
+			ID: "s1", Family: 4, CIDR: "10.1.0.0/24",
+			Pools: []Pool{{StartAddr: "10.1.0.10", EndAddr: "10.1.0.20", Kind: "dynamic"}},
+		}},
+		Reservations: []Reservation{
+			{MAC: "aa:bb:cc:dd:ee:61", IPv4: "10.1.0.150"},
+			{IPv4: "10.1.0.200"},
+		},
+		Bindings: []LedgerBinding{{MAC: "aa:bb:cc:dd:ee:02", IPv4: "10.1.0.240", State: "active"}},
+	}
+	rows, _, total := QueryLedger(src, LedgerQuery{})
+	if total != 11+3 {
+		t.Fatalf("total=%d want 11(池)+3(池外)", total)
+	}
+	byAddr := map[string]LedgerRow{}
+	for _, r := range rows {
+		byAddr[r.Address] = r
+	}
+	if r := byAddr["10.1.0.150"]; r.State != StateStatic || r.MAC != "aa:bb:cc:dd:ee:61" {
+		t.Fatalf("池外静态绑定: %+v", r)
+	}
+	if r := byAddr["10.1.0.200"]; r.State != StateReserved {
+		t.Fatalf("池外保留: %+v", r)
+	}
+	if r := byAddr["10.1.0.240"]; r.State != StateOnline || r.MAC != "aa:bb:cc:dd:ee:02" {
+		t.Fatalf("池外在线绑定: %+v", r)
+	}
+	// 跨网段地址不得混入
+	if _, ok := byAddr["10.2.0.1"]; ok {
+		t.Fatal("跨网段地址不应出现")
+	}
+}
+
 func TestLedgerService_Reserve占用拒绝(t *testing.T) {
 	src := func(context.Context) LedgerSource {
 		return LedgerSource{Bindings: []LedgerBinding{{IPv4: "10.1.0.1", State: "active"}}}
@@ -134,6 +170,28 @@ func TestLedgerService_UpdateBinding_改绑与保留互转(t *testing.T) {
 	}
 	if err := svc.UpdateBinding(ctx, "10.9.9.9", "aa:bb:cc:dd:ee:0c"); !errors.Is(err, ErrAddrNotReserved) {
 		t.Fatalf("err=%v want ADDR_NOT_RESERVED", err)
+	}
+}
+
+func TestLedgerService_Reserve下发失败回滚(t *testing.T) {
+	// M3-011 回归：kea config-set 失败时预留不得残留（否则毒数据使后续 config-set 整体失败）
+	repo := NewMemReservationRepo()
+	svc := NewLedgerService(func(context.Context) LedgerSource { return LedgerSource{} },
+		repo, NewMemSubnetRepo(), func(context.Context) error { return errors.New("kea unavailable") })
+	ctx := context.Background()
+	if err := svc.Reserve(ctx, "s1", "10.1.0.9"); err == nil {
+		t.Fatal("apply 失败应返回错误")
+	}
+	rows, _ := repo.List(ctx)
+	if len(rows) != 0 {
+		t.Fatalf("apply 失败应回滚预留: %+v", rows)
+	}
+	if err := svc.BindStatic(ctx, "s1", "10.1.0.9", "aa:bb:cc:dd:ee:09"); err == nil {
+		t.Fatal("apply 失败应返回错误")
+	}
+	rows, _ = repo.List(ctx)
+	if len(rows) != 0 {
+		t.Fatalf("bind apply 失败应回滚: %+v", rows)
 	}
 }
 

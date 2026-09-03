@@ -8,6 +8,7 @@ import IpPlanMap from '#/components/ip-plan-map.vue';
 
 import {
   bindStatic,
+  bulkReservations,
   listLedger,
   listOrgTree,
   listSubnets,
@@ -154,18 +155,36 @@ async function onMapAction(action: string, ips: MapCell[]) {
   }
   try {
     if (action === 'toReserve') {
-      for (const c of ips) {
-        await reserveAddress(sub.id, c.ip);
+      if (ips.length === 1) {
+        await reserveAddress(sub.id, ips[0]!.ip);
+      } else {
+        const res = await bulkReservations({
+          subnetId: sub.id,
+          entries: ips.map((c) => ({ address: c.ip, kind: 'reserve' })),
+        });
+        if (!res.ok) {
+          const reasons = (res.failures ?? []).map((f) => f.reason).join('；');
+          throw new Error(reasons || '存在失败行，整体已回滚');
+        }
       }
       message.success(`已保留 ${ips.length} 个地址`);
     } else if (action === 'toRelease') {
+      const failed: string[] = [];
       for (const c of ips) {
-        await releaseAddress(c.ip);
+        try {
+          await releaseAddress(c.ip);
+        } catch {
+          failed.push(c.ip);
+        }
       }
-      message.success(`已释放 ${ips.length} 个地址，回归可下发池`);
+      if (failed.length) {
+        message.warning(`已释放 ${ips.length - failed.length} 个，失败（无预留记录）：${failed.join('、')}`);
+      } else {
+        message.success(`已释放 ${ips.length} 个地址，回归可下发池`);
+      }
     }
   } catch (e) {
-    message.error(e instanceof Error ? e.message : '操作失败（部分地址可能未处理）');
+    message.error(e instanceof Error ? e.message : '操作失败');
   }
   void loadMap();
 }

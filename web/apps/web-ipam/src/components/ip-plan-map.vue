@@ -81,7 +81,7 @@ const IP_STATUS: Record<string, { label: string; color: string }> = {
   broadcast: { label: '广播', color: '#637196' },
   available: { label: '未规划', color: '#9DBEFF' },
   planned: { label: '已规划', color: '#BE86E4' },
-  static: { label: '静态', color: '#69C0FF' },
+  static: { label: '静态', color: '#2F54EB' },
   dynamic: { label: '动态', color: '#FFD666' },
   reserved: { label: '保留', color: '#FF9C6E' },
 };

@@ -298,7 +298,8 @@ func NewPgReservationRepo(pool *pgxpool.Pool) *PgReservationRepo {
 func (r *PgReservationRepo) Upsert(ctx context.Context, res Reservation) error {
 	_, err := r.pool.Exec(ctx,
 		`INSERT INTO reservation(mac, ipv4, origin) VALUES($1,$2,'manual')
-		 ON CONFLICT DO NOTHING`,
+		 ON CONFLICT (ipv4) WHERE ipv4 IS NOT NULL
+		 DO UPDATE SET mac = EXCLUDED.mac`,
 		nullStr(res.MAC), res.IPv4)
 	return err
 }

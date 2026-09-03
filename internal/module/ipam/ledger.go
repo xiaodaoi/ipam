@@ -121,6 +121,7 @@ func QueryLedger(src LedgerSource, q LedgerQuery) ([]LedgerRow, string, int) {
 			resByAddr[r.IPv4] = r
 		}
 		if s.Family == 4 {
+			seen := map[string]bool{}
 			for _, p := range s.Pools {
 				from := netip.MustParseAddr(p.StartAddr)
 				to := netip.MustParseAddr(p.EndAddr)
@@ -129,6 +130,7 @@ func QueryLedger(src LedgerSource, q LedgerQuery) ([]LedgerRow, string, int) {
 				for cur.Compare(to) <= 0 && guard < 100000 {
 					guard++
 					addr := cur.String()
+					seen[addr] = true
 					row := LedgerRow{
 						Address:   addr,
 						Family:    4,
@@ -149,6 +151,46 @@ func QueryLedger(src LedgerSource, q LedgerQuery) ([]LedgerRow, string, int) {
 					}
 					rows = append(rows, row)
 					cur = cur.Next()
+				}
+			}
+			// 池外预留/绑定补行：手工保留与静态绑定允许落在池外（如网段两端保留段），
+			// 不补行则台账/静态列表缺失且地图回落"未规划"。
+			prefix, perr := netip.ParsePrefix(s.CIDR)
+			if perr == nil {
+				emitExtra := func(addr string) {
+					if addr == "" || seen[addr] {
+						return
+					}
+					a, aerr := netip.ParseAddr(addr)
+					if aerr != nil || !prefix.Contains(a) {
+						return
+					}
+					seen[addr] = true
+					row := LedgerRow{
+						Address:   addr,
+						Family:    4,
+						State:     Classify(resByAddr[addr], byAddr[addr], false),
+						SubnetID:  s.ID,
+						PoolIndex: "4:" + addr,
+					}
+					if b := byAddr[addr]; b != nil {
+						row.MAC = b.MAC
+						row.Hostname = b.Hostname
+						row.LeaseExpiry = time.Now().Add(30 * time.Minute)
+					}
+					if r := resByAddr[addr]; r.MAC != "" {
+						row.MAC = r.MAC
+					}
+					if a := src.Assets[row.MAC]; a.MAC != "" {
+						row.Owner = a.Owner
+					}
+					rows = append(rows, row)
+				}
+				for _, r := range src.Reservations {
+					emitExtra(r.IPv4)
+				}
+				for i := range src.Bindings {
+					emitExtra(src.Bindings[i].IPv4)
 				}
 			}
 		} else {
