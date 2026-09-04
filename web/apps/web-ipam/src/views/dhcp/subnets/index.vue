@@ -79,6 +79,14 @@ function onSelectMenu(key: string) {
   void load();
 }
 
+// ── 分族新建（族由所在页签决定，表单不再选族）──
+function openAdd(family: 4 | 6) {
+  cancelEdit();
+  form.value.family = family;
+  formModalApi.setState({ title: `新建 IPv${family} 子网`, confirmText: '创建（下发 Kea）' });
+  formModalApi.open();
+}
+
 async function load() {
   loading.value = true;
   try {
@@ -205,26 +213,25 @@ const [Lease6Grid] = useVbenVxeGrid({ gridOptions: lease6GridOptions });
 <template>
   <div class="p-4">
   <div class="flex gap-4">
-    <!-- 左侧组织垂直菜单（子菜单弹出） -->
-    <Card title="组织" class="w-64 shrink-0">
+    <!-- 左侧组织垂直菜单（紧凑窄栏） -->
+    <Card title="组织" class="w-52 shrink-0" :body-style="{ padding: '2px 0' }">
       <Menu
+        class="org-menu max-h-[460px] overflow-auto"
         mode="vertical"
         :items="orgMenuItems"
         :selected-keys="filterOrgId ? [filterOrgId] : []"
-        :inline-indent="12"
-        class="max-h-[460px] overflow-auto"
+        :inline-indent="10"
         @click="({ key }: any) => onSelectMenu(String(key))"
       />
-      <Button size="small" block class="mt-2" @click="filterOrgId = undefined; load()">全部</Button>
+      <div class="px-2 pb-1 pt-2">
+        <Button size="small" block @click="filterOrgId = undefined; load()">全部</Button>
+      </div>
     </Card>
 
     <div class="min-w-0 flex-1">
     <Card>
       <template #title>
-        <div class="flex items-center gap-3">
-          <span>子网与地址池</span>
-          <Button size="small" type="primary" @click="editingId = undefined; cancelEdit(); formModalApi.setState({ title: '新建子网' }); formModalApi.open()">+ 新建子网</Button>
-        </div>
+        <span>子网与地址池</span>
       </template>
 
       <FormModal class="w-[860px]">
@@ -237,14 +244,6 @@ const [Lease6Grid] = useVbenVxeGrid({ gridOptions: lease6GridOptions });
         <div>
           <div class="mb-1 text-xs text-gray-400">名称</div>
           <Input v-model:value="form.name" style="width: 150px" placeholder="研发-办公" />
-        </div>
-        <div>
-          <div class="mb-1 text-xs text-gray-400">族</div>
-          <Select v-model:value="form.family" :disabled="!!editingId" style="width: 80px" :options="[{ value: 4, label: 'IPv4' }, { value: 6, label: 'IPv6' }]" />
-        </div>
-        <div>
-          <div class="mb-1 text-xs text-gray-400">CIDR</div>
-          <Input v-model:value="form.cidr" style="width: 180px" placeholder="10.61.172.0/24" />
         </div>
         <div>
           <div class="mb-1 text-xs text-gray-400">{{ form.family === 6 ? 'DNS 服务器' : '网关' }}</div>
@@ -292,8 +291,11 @@ const [Lease6Grid] = useVbenVxeGrid({ gridOptions: lease6GridOptions });
         </div>
       </FormModal>
 
-      <Tabs v-model:active-key="familyTab">
+      <Tabs v-model:active-key="familyTab" destroy-inactive-tab-pane>
         <TabPane key="v4" tab="IPv4 子网与地址池">
+          <div class="mb-2 flex justify-end">
+            <Button size="small" type="primary" @click="openAdd(4)">+ 新建 IPv4 子网</Button>
+          </div>
           <SubnetGrid :table-data="v4Rows">
             <template #orgId="{ row }">
               {{ orgName(row.orgId) }}
@@ -317,6 +319,9 @@ const [Lease6Grid] = useVbenVxeGrid({ gridOptions: lease6GridOptions });
           </SubnetGrid>
         </TabPane>
         <TabPane key="v6" tab="IPv6 子网与地址池">
+          <div class="mb-2 flex justify-end">
+            <Button size="small" type="primary" @click="openAdd(6)">+ 新建 IPv6 子网</Button>
+          </div>
           <SubnetGrid :table-data="v6Rows">
             <template #orgId="{ row }">
               {{ orgName(row.orgId) }}
@@ -351,3 +356,14 @@ const [Lease6Grid] = useVbenVxeGrid({ gridOptions: lease6GridOptions });
   </div>
   </div>
 </template>
+<style scoped>
+.org-menu :deep(.ant-menu-item),
+.org-menu :deep(.ant-menu-submenu-title) {
+  height: 32px;
+  line-height: 32px;
+  font-size: 13px;
+}
+.org-menu :deep(.ant-menu) {
+  border-inline-end: none;
+}
+</style>

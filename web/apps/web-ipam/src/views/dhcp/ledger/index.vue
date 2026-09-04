@@ -244,16 +244,16 @@ onMounted(async () => {
 <template>
   <div class="p-4">
   <div class="flex gap-4">
-    <Card style="width: 260px; flex-shrink: 0" title="组织分组">
+    <Card title="组织" class="w-52 shrink-0" :body-style="{ padding: '2px 0' }">
       <Menu
+        class="org-menu max-h-[460px] overflow-auto"
         mode="vertical"
         :items="orgMenuItems"
         :selected-keys="selectedOrgId ? [selectedOrgId] : []"
-        :inline-indent="12"
-        class="max-h-[440px] overflow-auto"
+        :inline-indent="10"
         @click="({ key }: any) => onSelectMenu(String(key))"
       />
-      <div class="mt-2 text-xs text-gray-400">点击选择组织（再点取消）；子菜单悬停弹出</div>
+      <div class="px-2 pb-1 pt-2 text-xs text-gray-400">点击选择组织（再点取消）</div>
     </Card>
 
     <div class="min-w-0 flex-1">
@@ -298,3 +298,14 @@ onMounted(async () => {
   </BindModal>
   </div>
 </template>
+<style scoped>
+.org-menu :deep(.ant-menu-item),
+.org-menu :deep(.ant-menu-submenu-title) {
+  height: 32px;
+  line-height: 32px;
+  font-size: 13px;
+}
+.org-menu :deep(.ant-menu) {
+  border-inline-end: none;
+}
+</style>

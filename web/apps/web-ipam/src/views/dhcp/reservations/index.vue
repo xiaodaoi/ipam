@@ -294,7 +294,7 @@ async function confirmEdit() {
     </div>
 
     <Card title="保留列表（冻结不下发）">
-      <Tabs v-model:active-key="resTab" size="small">
+      <Tabs v-model:active-key="resTab" size="small" destroy-inactive-tab-pane>
         <TabPane key="v4" tab="IPv4">
           <ResGrid :table-data="resV4">
             <template #mac="{ row }">{{ row.mac || '-' }}</template>
@@ -317,7 +317,7 @@ async function confirmEdit() {
     </Card>
 
     <Card title="静态绑定列表（MAC↔IP）">
-      <Tabs v-model:active-key="bindTab" size="small">
+      <Tabs v-model:active-key="bindTab" size="small" destroy-inactive-tab-pane>
         <TabPane key="v4" tab="IPv4">
           <BindGrid :table-data="bindV4">
             <template #mac="{ row }">
