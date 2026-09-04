@@ -62,6 +62,7 @@ func (a *confApplier) apply(ctx context.Context) (unboundengine.ConfInput, error
 		for _, addr := range u.Addrs {
 			in.DefaultFwd = append(in.DefaultFwd, unboundengine.NormalizeAddr(addr))
 		}
+		break // 默认转发取第一个 enabled 上游（公网回落，不含内网 DNS，M3-011）
 	}
 
 	rules, err := a.frRepo.List(ctx)

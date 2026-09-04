@@ -3,6 +3,15 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-04 · M3-011 补遗⑩——规则禁用无效根因：默认"."混入内网DNS
+
+- **现象**：条件转发规则界面禁用 crpower.com.cn 后仍能解析，疑似开关无效。
+- **排查**：开关实际生效（DB enabled=f、unbound 专用区已移除），但查询回落到默认 "." 转发——而 "." 里混入了内网 DNS（10.61.0.137/136、控股 10.59.1.142/143），它们照样解析 crpower.com.cn。
+- **根因**：默认 "." 语义被"全量 enabled 上游"污染（上一轮把 confApplier 与 SyncForward 都改成全量）——默认 "." 本应只承载公网回落，不含内网 DNS。
+- **修复**：SyncForward + confApplier 均改回"第一个 enabled 上游"（部署时即公网上游 114.114.114.114）。禁用规则后该域回落到公网 DNS → 内网名 NXDOMAIN → 解析停止（符合"禁用=不再走该转发"预期）。
+- **验证**：禁用 crpower → flush 后 oam/ldap.crpower 均空（真失效）；公网 baidu 正常；启用态 crc.com.cn 正常；重新启用 crpower 后恢复 10.59.3.65。
+- **后续建议**：上游表无"公共/默认"标记，"."取"第一个 enabled"属顺序耦合——建议立卡给上游加"作为默认公网上游"标记，支持多公网上游冗余。
+
 ## 2026-09-04 · M3-011 补遗⑨——分页每页条数失效修复 + 规则禁用确认已修
 
 - **分页 bug**：pagerConfig 合并覆盖中 pageSize:10 硬编码（merge 末位优先），用户选择 20/30/50 被强制回 10——size 计算又以被污染的 mergedOptions.pagerConfig.pageSize 优先。修复：pageSize 用 clientPageSize.value、size 计算以 clientPageSize 优先。验证：14 条选 20条/页 → 单页全显、pager 无第 2 页。
