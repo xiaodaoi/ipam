@@ -137,11 +137,15 @@ type Service struct {
 	repo   UpstreamRepo
 	prober *Prober
 	ctl    UnboundController
+	// RulesSync 规则区联动刷新钩子（上游 addrs/enabled 变更影响引用它的规则区）
+	RulesSync func(ctx context.Context) error
 }
 
 func NewService(repo UpstreamRepo, prober *Prober, ctl UnboundController) *Service {
 	return &Service{repo: repo, prober: prober, ctl: ctl}
 }
+
+
 
 // Create 落库→重新下发 forward-zone。
 func (s *Service) Create(ctx context.Context, u Upstream) (Upstream, error) {
@@ -162,6 +166,11 @@ func (s *Service) resync(ctx context.Context) error {
 	}
 	if err := s.ctl.SyncForward(ctx, list); err != nil {
 		return ErrUnboundDown
+	}
+	if s.RulesSync != nil {
+		if err := s.RulesSync(ctx); err != nil {
+			return ErrUnboundDown
+		}
 	}
 	return nil
 }

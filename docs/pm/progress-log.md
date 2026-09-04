@@ -3,6 +3,15 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-04 · M3-011 补遗⑧——内网域名转发断裂根因链修复（用户现场故障）
+
+- **现象**：内网域名（crc.com.cn/crpower.com.cn/crnewenergy.com.cn 子域）经 10.61.40.50 解析失败/NODATA/超时，公网域名正常；公司 DNS 10.61.172.46 正常。
+- **根因链（三层）**：① dnsmasq 迁移的 12 条转发规则从未下发到 unbound 运行时（渲染文件为陈旧内容）；② 启动时无收敛调用——unbound 容器重建后运行态=陈旧渲染文件，规则区全丢；③ checkconf 将候选块**追加到旧渲染文件内容后**校验，新旧 forward-zone 成对重复触发 "duplicate forward zone" 拒绝 → apply 永远失败（死循环根）。
+- **修复**：CheckConf 改为候选块独立校验（自包含，M3-009 后静态身份段已归主 conf）；main.go 启动收敛 goroutine（重试 6×5s，把渲染文件与运行态都收敛到 DB 现状）；confApplier 默认转发改全量 enabled 上游（与 SyncForward 语义对齐）；RPZ 组 zonefile 缺失时跳过渲染；上游 RulesSync/FileApply 双向联动钩子（上游变更联动规则区+渲染文件）；buildForwardCommands 悬空/禁用上游警告日志。
+- **数据修复**：dnsmasq 规则引用的"内网 DNS"上游（intranet-10-61-0-136/137）一直存在且可达——crc.com.cn/crpower.com.cn 规则此前被我误指向 10.61.172.46（该服务器从本机不可达：网络 ACL），已修正为公司内网 DNS 10.61.0.137/136；crnewenergy.com.cn 等域走控股 10.59.1.142/143（一直正常渲染）。
+- **遗留**：crnewenergy.com.cn 裸域 A（218.13.60.99 公网记录）控股 DNS 无外网递归返回 NODATA——已用 unbound-control local_data 运行时补（重启会丢）；持久方案：网络组开通 10.61.40.50→10.61.172.46:53 或 控股 DNS 加裸域记录 或 控制面立卡"自定义 local-data"。oam/oem.crnewenergy.com.cn NXDOMAIN 为控股 DNS 真实数据。
+- **验证**：双容器重启后 12 条规则全部在 list_forwards（startup converge ok attempt 2）；oam/ldap/crc/crnewenergy 子域+公网域名解析全部正常。
+
 ## 2026-09-04 · M3-011 补遗⑦——地址规划宽度自适应
 
 - **根因**：台账页 IpPlanMap 使用处写死 `style="max-width: 980px"`，而 IPv6 网段卡全宽自适应——宽视口下地址规划被压在 980px。移除该限制（组件内部 ip-grid 为 flex-wrap，宽度自适应无副作用）。

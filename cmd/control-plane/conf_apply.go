@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -61,7 +62,6 @@ func (a *confApplier) apply(ctx context.Context) (unboundengine.ConfInput, error
 		for _, addr := range u.Addrs {
 			in.DefaultFwd = append(in.DefaultFwd, unboundengine.NormalizeAddr(addr))
 		}
-		break // 默认转发取第一个 enabled 上游
 	}
 
 	rules, err := a.frRepo.List(ctx)
@@ -117,9 +117,15 @@ func (a *confApplier) apply(ctx context.Context) (unboundengine.ConfInput, error
 		return in, err
 	}
 	for _, g := range groups {
+		zf := "/var/lib/ipam/rpz/" + g.ViewName + ".zone"
+		// zonefile 未编译（组无条目或尚未 Replay）时跳过——缺文件会使 checkconf 整体失败（M3-011）
+		if _, err := os.Stat(zf); err != nil {
+			log.Printf("[conf-apply] rpz zonefile %s 不存在，跳过该 RPZ 组", zf)
+			continue
+		}
 		in.RpzZones = append(in.RpzZones, unboundengine.RpzZoneConf{
 			Name:         g.ViewName + ".rpz",
-			ZonefilePath: "/var/lib/ipam/rpz/" + g.ViewName + ".zone",
+			ZonefilePath: zf,
 		})
 	}
 

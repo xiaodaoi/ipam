@@ -417,7 +417,28 @@ func newEngine(version string) *gin.Engine {
 		}
 		return err
 	})
+	dnsSvc.RulesSync = fwdSvc.SyncRules
+	fwdSvc.FileApply = func(ctx context.Context) error {
+		_, err := applier.apply(ctx)
+		return err
+	}
 	settingsH := dnsmodule.NewSettingsHandler(settingsSvc, settingsRepo)
+
+	// 启动收敛（M3-011 事故教训：unbound 容器重建后运行态转发区丢失）——
+	// 全量渲染+checkconf+reload 把文件与运行态都收敛到 DB 现状；unbound 未就绪则重试。
+	go func() {
+		for attempt := 1; attempt <= 6; attempt++ {
+			if _, err := applier.apply(context.Background()); err == nil {
+				log.Printf("[conf-apply] startup converge ok (attempt %d)", attempt)
+				return
+			} else if attempt < 6 {
+				log.Printf("[conf-apply] startup attempt %d failed: %v", attempt, err)
+				time.Sleep(5 * time.Second)
+			} else {
+				log.Printf("[conf-apply] startup converge failed after retries: %v", err)
+			}
+		}
+	}()
 	zoneH := dnsmodule.NewZoneHandler(zoneSvc, func(ctx context.Context, zoneName string) []dnsmodule.LinkedRecord {
 		if pool == nil {
 			return nil

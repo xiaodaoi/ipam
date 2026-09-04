@@ -72,25 +72,21 @@ func (e ExecController) SyncForward(_ context.Context, upstreams []dns.Upstream)
 	return e.run(args...)
 }
 
-// CheckConf 校验候选配置：将 block 追加到 confPath 现有内容后写临时文件，
-// 执行 unbound-checkconf 校验语法（§2.3 三步走第二段）。
+// CheckConf 校验候选配置：候选块自包含（interface 等静态身份段归主 conf，M3-009），
+// 独立写临时文件执行 unbound-checkconf 校验语法。
+// 不得拼接 confPath 旧内容——旧区与候选区重复会触发
+// "duplicate forward zone" 误报使 apply 整体拒绝（M3-011 事故：渲染文件从未更新成功）。
 func (e ExecController) CheckConf(_ context.Context, confPath, renderedBlock string) error {
 	check := "unbound-checkconf"
 	if _, err := exec.LookPath(check); err != nil {
 		return ErrUnavailable
-	}
-	base := ""
-	if data, err := os.ReadFile(confPath); err == nil {
-		base = string(data)
-	} else {
-		base = "server:\n"
 	}
 	tmp, err := os.CreateTemp("", "ipam-checkconf-*.conf")
 	if err != nil {
 		return err
 	}
 	defer func() { _ = os.Remove(tmp.Name()) }()
-	if _, err := tmp.WriteString(base + "\nserver:\n# candidate\n" + renderedBlock); err != nil {
+	if _, err := tmp.WriteString("server:\n# candidate\n" + renderedBlock); err != nil {
 		_ = tmp.Close()
 		return err
 	}

@@ -3,6 +3,7 @@ package dns
 import (
 	"context"
 	"errors"
+	"log"
 	"strconv"
 	"strings"
 	"sync"
@@ -59,6 +60,8 @@ type ForwardService struct {
 	repo ForwardRuleRepo
 	ups  UpstreamRepo
 	ctl  UnboundController
+	// FileApply 渲染文件联动刷新钩子（使 unbound 重启时读到的渲染文件保持最新；main.go 装配注入）
+	FileApply func(ctx context.Context) error
 }
 
 func NewForwardService(repo ForwardRuleRepo, ups UpstreamRepo, ctl UnboundController) *ForwardService {
@@ -100,6 +103,11 @@ func (s *ForwardService) previewWith(ctx context.Context, candidate ForwardRule)
 	return buildForwardCommands(rules, ups), nil
 }
 
+// SyncRules 供上游服务联动刷新规则区（上游 addrs/enabled 变更影响引用它的规则）。
+func (s *ForwardService) SyncRules(ctx context.Context) error {
+	return s.sync(ctx)
+}
+
 func (s *ForwardService) sync(ctx context.Context) error {
 	rules, err := s.repo.List(ctx)
 	if err != nil {
@@ -109,7 +117,13 @@ func (s *ForwardService) sync(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return s.ctl.SyncForwardRules(ctx, rules, ups)
+	if err := s.ctl.SyncForwardRules(ctx, rules, ups); err != nil {
+		return err
+	}
+	if s.FileApply != nil {
+		return s.FileApply(ctx)
+	}
+	return nil
 }
 
 func (s *ForwardService) validateUpstreams(ctx context.Context, ids []string) error {
@@ -144,12 +158,15 @@ func buildForwardCommands(rules []ForwardRule, ups []Upstream) []string {
 		for _, id := range r.UpstreamIDs {
 			u, ok := byID[id]
 			if !ok || !u.Enabled {
+				log.Printf("[forward] 规则 %s 引用的上游 %s 不存在或已禁用，已跳过（M3-011 事故教训：静默跳过导致排障困难）", r.Domain, id)
 				continue
 			}
 			args = append(args, u.Addrs...)
 		}
 		if len(args) > 2 {
 			cmds = append(cmds, strings.Join(args, " "))
+		} else {
+			log.Printf("[forward] 规则 %s 无可用上游，未下发", r.Domain)
 		}
 	}
 	return cmds
