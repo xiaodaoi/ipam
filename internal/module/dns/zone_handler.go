@@ -59,7 +59,7 @@ func (h *ZoneHandler) CreateDnsZone(c *gin.Context) {
 	if body.Kind != nil {
 		kind = string(*body.Kind)
 	}
-	z, err := h.svc.CreateZone(c.Request.Context(), Zone{Name: body.Name, Kind: kind})
+	z, err := h.svc.CreateZone(c.Request.Context(), Zone{Name: body.Name, Kind: kind, Enabled: true})
 	if err != nil {
 		problem.Write(c, http.StatusConflict, "https://ipam.local/problems/zone-name-dup", "ZONE_NAME_DUP", "区域已存在")
 		return

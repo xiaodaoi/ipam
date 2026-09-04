@@ -3,6 +3,16 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-04 · M3-011 补遗⑪——解析记录(auth区)渲染语法修复 + 新建区域默认启用
+
+- **需求**：企业私有域名 www.crphbz.com → 内网 10.61.40.50（解析记录/权威区功能）。
+- **首触发暴露两个潜藏 bug**（该功能自实现以来 DB 无 zone、从未跑过）：
+  ① 渲染器把 local-data 放进 auth-zone 子句——auth-zone 只接受 zonefile/master，local-data 非法 → syntax error；
+  ② 修复后仍错：local-zone/local-data 是 server 段选项，被渲染在 forward-zone 顶层子句之后 → 顶层非法关键字。最终改为独立 server: 段承载（unbound 允许多 server 段累积）。
+  ③ 新建区域 enabled 零值 false 覆盖 DB 默认 true（CreateDnsZone 未传 Enabled）→ 新建区域默认启用。
+- **修复**：config.go 权威区渲染改独立 server 段 + local-zone static + local-data；zone_handler 新建默认 Enabled:true；CheckConf 失败时转储候选配置到 /tmp 便于排障；单测断言同步。
+- **验证**：www.crphbz.com → 10.61.40.50 ✓；公网/其它内网域不受影响；startup converge attempt 1 通过。
+
 ## 2026-09-04 · M3-011 补遗⑩——规则禁用无效根因：默认"."混入内网DNS
 
 - **现象**：条件转发规则界面禁用 crpower.com.cn 后仍能解析，疑似开关无效。

@@ -64,9 +64,15 @@ func BuildConf(in ConfInput) string {
 		writeForward(&sb, r.Domain, r.Addrs)
 	}
 
-	// 本地权威区（auth-zone + zonefile 由调用方落盘）
+	// 本地权威区：local-zone static + local-data 逐条声明（未声明名 NXDOMAIN）。
+	// local-zone/local-data 属 server 段选项，须置于独立 server 段（unbound 允许多 server 段累积），
+	// 不得放在 forward-zone 等顶层子句之后（会判为顶层非法关键字 syntax error，M3-011）。
 	for _, z := range in.AuthZones {
-		fmt.Fprintf(&sb, "auth-zone:\n  name: %s\n", quoteName(z.Name))
+		if len(z.Records) == 0 {
+			continue
+		}
+		fmt.Fprintf(&sb, "server:\n")
+		fmt.Fprintf(&sb, "  local-zone: %s static\n", quoteName(z.Name))
 		for _, rec := range z.Records {
 			fmt.Fprintf(&sb, "  local-data: %s\n", quoteRec(rec))
 		}

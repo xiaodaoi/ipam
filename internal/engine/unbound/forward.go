@@ -4,6 +4,7 @@ package unbound
 import (
 	"context"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"os/exec"
@@ -91,6 +92,8 @@ func (e ExecController) CheckConf(_ context.Context, confPath, renderedBlock str
 	_ = tmp.Close()
 	out, err := exec.Command(check, tmp.Name()).CombinedOutput()
 	if err != nil {
+		_ = os.WriteFile("/tmp/ipam-checkconf-fail.conf", []byte(renderedBlock), 0o644)
+		log.Printf("[checkconf] 候选配置校验失败，已写 /tmp/ipam-checkconf-fail.conf：%s", out)
 		return fmt.Errorf("checkconf: %v: %s", err, out)
 	}
 	return nil
