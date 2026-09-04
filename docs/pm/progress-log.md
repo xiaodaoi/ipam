@@ -3,6 +3,11 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-04 · M3-011 补遗⑨——分页每页条数失效修复 + 规则禁用确认已修
+
+- **分页 bug**：pagerConfig 合并覆盖中 pageSize:10 硬编码（merge 末位优先），用户选择 20/30/50 被强制回 10——size 计算又以被污染的 mergedOptions.pagerConfig.pageSize 优先。修复：pageSize 用 clientPageSize.value、size 计算以 clientPageSize 优先。验证：14 条选 20条/页 → 单页全显、pager 无第 2 页。
+- **规则禁用**：服务端链路（PATCH enabled:false → DB → FileApply 渲染 reload → unbound zone 移除）在补遗⑧的 FileApply 钩子中已修复；用户测的是旧构建。本次 UI 切换完整闭环复测：禁用后 DB=f 且转发表 zone 消失（真实失效）、再启用恢复。
+
 ## 2026-09-04 · M3-011 补遗⑧——内网域名转发断裂根因链修复（用户现场故障）
 
 - **现象**：内网域名（crc.com.cn/crpower.com.cn/crnewenergy.com.cn 子域）经 10.61.40.50 解析失败/NODATA/超时，公网域名正常；公司 DNS 10.61.172.46 正常。

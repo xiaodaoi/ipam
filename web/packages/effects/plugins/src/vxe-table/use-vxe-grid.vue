@@ -245,7 +245,7 @@ const options = computed(() => {
       {},
       mergedOptions.pagerConfig,
       {
-        pageSize: 10,
+        pageSize: clientPageSize.value,
         background: true,
         pageSizes: [10, 20, 30, 50, 100, 200],
         className: 'mt-2 w-full',
@@ -260,7 +260,7 @@ const options = computed(() => {
   if (tableData.value && tableData.value.length > 0) {
     // 客户端数据：手动分页切片（vxe 仅代理模式自动切片，tableData 需自行处理）
     const total = tableData.value.length;
-    const size = mergedOptions.pagerConfig?.pageSize || clientPageSize.value || 10;
+    const size = clientPageSize.value || 10;
     clientPageSize.value = size;
     const pageCount = Math.max(1, Math.ceil(total / size));
     const current = Math.min(clientPage.value, pageCount);
