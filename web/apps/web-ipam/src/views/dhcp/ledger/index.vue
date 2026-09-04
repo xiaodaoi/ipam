@@ -244,7 +244,7 @@ onMounted(async () => {
 <template>
   <div class="p-4">
   <div class="flex gap-4">
-    <Card title="组织" class="w-52 shrink-0" :body-style="{ padding: '2px 0' }">
+    <Card title="组织" class="w-36 shrink-0 self-start" :body-style="{ padding: '2px 0' }">
       <Menu
         class="org-menu max-h-[460px] overflow-auto"
         mode="vertical"
@@ -304,6 +304,9 @@ onMounted(async () => {
   height: 32px;
   line-height: 32px;
   font-size: 13px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .org-menu :deep(.ant-menu) {
   border-inline-end: none;

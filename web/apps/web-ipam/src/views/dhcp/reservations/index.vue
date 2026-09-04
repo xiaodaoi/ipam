@@ -12,9 +12,8 @@ import {
   Card,
   Input,
   Modal,
+  RadioGroup,
   Select,
-  TabPane,
-  Tabs,
   Tag,
   message,
 } from 'ant-design-vue';
@@ -294,55 +293,57 @@ async function confirmEdit() {
     </div>
 
     <Card title="保留列表（冻结不下发）">
-      <Tabs v-model:active-key="resTab" size="small" destroy-inactive-tab-pane>
-        <TabPane key="v4" tab="IPv4">
-          <ResGrid :table-data="resV4">
-            <template #mac="{ row }">{{ row.mac || '-' }}</template>
-            <template #hostname="{ row }">{{ row.hostname || '-' }}</template>
-            <template #resActions="{ row }">
-              <Button size="small" danger @click="releaseRow(row)">释放</Button>
-            </template>
-          </ResGrid>
-        </TabPane>
-        <TabPane key="v6" tab="IPv6">
-          <ResGrid :table-data="resV6">
-            <template #mac="{ row }">{{ row.mac || '-' }}</template>
-            <template #hostname="{ row }">{{ row.hostname || '-' }}</template>
-            <template #resActions="{ row }">
-              <Button size="small" danger @click="releaseRow(row)">释放</Button>
-            </template>
-          </ResGrid>
-        </TabPane>
-      </Tabs>
+      <RadioGroup
+        v-model:value="resTab"
+        option-type="button"
+        size="small"
+        class="mb-2"
+        :options="[{ label: 'IPv4', value: 'v4' }, { label: 'IPv6', value: 'v6' }]"
+      />
+      <ResGrid v-if="resTab === 'v4'" :table-data="resV4">
+        <template #mac="{ row }">{{ row.mac || '-' }}</template>
+        <template #hostname="{ row }">{{ row.hostname || '-' }}</template>
+        <template #resActions="{ row }">
+          <Button size="small" danger @click="releaseRow(row)">释放</Button>
+        </template>
+      </ResGrid>
+      <ResGrid v-else :table-data="resV6">
+        <template #mac="{ row }">{{ row.mac || '-' }}</template>
+        <template #hostname="{ row }">{{ row.hostname || '-' }}</template>
+        <template #resActions="{ row }">
+          <Button size="small" danger @click="releaseRow(row)">释放</Button>
+        </template>
+      </ResGrid>
     </Card>
 
     <Card title="静态绑定列表（MAC↔IP）">
-      <Tabs v-model:active-key="bindTab" size="small" destroy-inactive-tab-pane>
-        <TabPane key="v4" tab="IPv4">
-          <BindGrid :table-data="bindV4">
-            <template #mac="{ row }">
-              <Tag class="font-mono">{{ row.mac || '-' }}</Tag>
-            </template>
-            <template #hostname="{ row }">{{ row.hostname || '-' }}</template>
-            <template #bindActions="{ row }">
-              <Button size="small" class="mr-2" @click="openEdit(row)">编辑</Button>
-              <Button size="small" danger @click="releaseRow(row)">释放</Button>
-            </template>
-          </BindGrid>
-        </TabPane>
-        <TabPane key="v6" tab="IPv6">
-          <BindGrid :table-data="bindV6">
-            <template #mac="{ row }">
-              <Tag class="font-mono">{{ row.mac || '-' }}</Tag>
-            </template>
-            <template #hostname="{ row }">{{ row.hostname || '-' }}</template>
-            <template #bindActions="{ row }">
-              <Button size="small" class="mr-2" @click="openEdit(row)">编辑</Button>
-              <Button size="small" danger @click="releaseRow(row)">释放</Button>
-            </template>
-          </BindGrid>
-        </TabPane>
-      </Tabs>
+      <RadioGroup
+        v-model:value="bindTab"
+        option-type="button"
+        size="small"
+        class="mb-2"
+        :options="[{ label: 'IPv4', value: 'v4' }, { label: 'IPv6', value: 'v6' }]"
+      />
+      <BindGrid v-if="bindTab === 'v4'" :table-data="bindV4">
+        <template #mac="{ row }">
+          <Tag class="font-mono">{{ row.mac || '-' }}</Tag>
+        </template>
+        <template #hostname="{ row }">{{ row.hostname || '-' }}</template>
+        <template #bindActions="{ row }">
+          <Button size="small" class="mr-2" @click="openEdit(row)">编辑</Button>
+          <Button size="small" danger @click="releaseRow(row)">释放</Button>
+        </template>
+      </BindGrid>
+      <BindGrid v-else :table-data="bindV6">
+        <template #mac="{ row }">
+          <Tag class="font-mono">{{ row.mac || '-' }}</Tag>
+        </template>
+        <template #hostname="{ row }">{{ row.hostname || '-' }}</template>
+        <template #bindActions="{ row }">
+          <Button size="small" class="mr-2" @click="openEdit(row)">编辑</Button>
+          <Button size="small" danger @click="releaseRow(row)">释放</Button>
+        </template>
+      </BindGrid>
     </Card>
 
     <EditModal>

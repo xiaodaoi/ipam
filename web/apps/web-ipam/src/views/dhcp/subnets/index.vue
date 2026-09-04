@@ -14,9 +14,8 @@ import {
   InputNumber,
   Menu,
   message,
+  RadioGroup,
   Select,
-  TabPane,
-  Tabs,
   Tag,
 } from 'ant-design-vue';
 
@@ -214,7 +213,7 @@ const [Lease6Grid] = useVbenVxeGrid({ gridOptions: lease6GridOptions });
   <div class="p-4">
   <div class="flex gap-4">
     <!-- 左侧组织垂直菜单（紧凑窄栏） -->
-    <Card title="组织" class="w-52 shrink-0" :body-style="{ padding: '2px 0' }">
+    <Card title="组织" class="w-36 shrink-0 self-start" :body-style="{ padding: '2px 0' }">
       <Menu
         class="org-menu max-h-[460px] overflow-auto"
         mode="vertical"
@@ -291,68 +290,71 @@ const [Lease6Grid] = useVbenVxeGrid({ gridOptions: lease6GridOptions });
         </div>
       </FormModal>
 
-      <Tabs v-model:active-key="familyTab" destroy-inactive-tab-pane>
-        <TabPane key="v4" tab="IPv4 子网与地址池">
-          <div class="mb-2 flex justify-end">
-            <Button size="small" type="primary" @click="openAdd(4)">+ 新建 IPv4 子网</Button>
-          </div>
-          <SubnetGrid :table-data="v4Rows">
-            <template #orgId="{ row }">
-              {{ orgName(row.orgId) }}
-            </template>
-            <template #gateway="{ row }">
-              {{ row.gateway || '-' }}
-            </template>
-            <template #pools="{ row }">
-              {{ (row.pools ?? []).length }}
-            </template>
-            <template #keaSubnetId="{ row }">
-              <Tag v-if="row.keaSubnetId" color="green">{{ row.keaSubnetId }}</Tag>
-              <Tag v-else color="orange">未下发</Tag>
-            </template>
-            <template #op="{ row }">
-              <div class="flex items-center gap-1">
-                <Button size="small" @click="edit(row as Subnet)">编辑</Button>
-                <Button size="small" danger @click="remove(row.id)">删除</Button>
-              </div>
-            </template>
-          </SubnetGrid>
-        </TabPane>
-        <TabPane key="v6" tab="IPv6 子网与地址池">
-          <div class="mb-2 flex justify-end">
-            <Button size="small" type="primary" @click="openAdd(6)">+ 新建 IPv6 子网</Button>
-          </div>
-          <SubnetGrid :table-data="v6Rows">
-            <template #orgId="{ row }">
-              {{ orgName(row.orgId) }}
-            </template>
-            <template #gateway="{ row }">
-              {{ row.gateway || row.dnsServers || '-' }}
-            </template>
-            <template #pools="{ row }">
-              {{ (row.pools ?? []).length }}
-            </template>
-            <template #keaSubnetId="{ row }">
-              <Tag v-if="row.keaSubnetId" color="green">{{ row.keaSubnetId }}</Tag>
-              <Tag v-else color="orange">未下发</Tag>
-            </template>
-            <template #op="{ row }">
-              <div class="flex items-center gap-1">
-                <Button size="small" @click="edit(row as Subnet)">编辑</Button>
-                <Button size="small" danger @click="remove(row.id)">删除</Button>
-              </div>
-            </template>
-          </SubnetGrid>
-          <Card title="PD 租约（DHCPv6 · Kea 实时查询）" class="mt-3" size="small">
-            <template #extra>
-              <Button size="small" :loading="lease6Loading" @click="loadLeases6">刷新</Button>
-            </template>
-            <Lease6Grid :table-data="lease6Rows" />
-          </Card>
-        </TabPane>
-      </Tabs>
-     </Card>
-     </div>
+      <div class="mb-3 flex items-center justify-between">
+        <RadioGroup
+          v-model:value="familyTab"
+          option-type="button"
+          size="small"
+          :options="[{ label: 'IPv4', value: 'v4' }, { label: 'IPv6', value: 'v6' }]"
+        />
+        <Button size="small" type="primary" @click="openAdd(familyTab === 'v6' ? 6 : 4)">
+          + 新建 {{ familyTab === 'v6' ? 'IPv6' : 'IPv4' }} 子网
+        </Button>
+      </div>
+
+      <template v-if="familyTab === 'v4'">
+        <SubnetGrid :table-data="v4Rows">
+          <template #orgId="{ row }">
+            {{ orgName(row.orgId) }}
+          </template>
+          <template #gateway="{ row }">
+            {{ row.gateway || '-' }}
+          </template>
+          <template #pools="{ row }">
+            {{ (row.pools ?? []).length }}
+          </template>
+          <template #keaSubnetId="{ row }">
+            <Tag v-if="row.keaSubnetId" color="green">{{ row.keaSubnetId }}</Tag>
+            <Tag v-else color="orange">未下发</Tag>
+          </template>
+          <template #op="{ row }">
+            <div class="flex items-center gap-1">
+              <Button size="small" @click="edit(row as Subnet)">编辑</Button>
+              <Button size="small" danger @click="remove(row.id)">删除</Button>
+            </div>
+          </template>
+        </SubnetGrid>
+      </template>
+      <template v-else>
+        <SubnetGrid :table-data="v6Rows">
+          <template #orgId="{ row }">
+            {{ orgName(row.orgId) }}
+          </template>
+          <template #gateway="{ row }">
+            {{ row.gateway || row.dnsServers || '-' }}
+          </template>
+          <template #pools="{ row }">
+            {{ (row.pools ?? []).length }}
+          </template>
+          <template #keaSubnetId="{ row }">
+            <Tag v-if="row.keaSubnetId" color="green">{{ row.keaSubnetId }}</Tag>
+            <Tag v-else color="orange">未下发</Tag>
+          </template>
+          <template #op="{ row }">
+            <div class="flex items-center gap-1">
+              <Button size="small" @click="edit(row as Subnet)">编辑</Button>
+              <Button size="small" danger @click="remove(row.id)">删除</Button>
+            </div>
+          </template>
+        </SubnetGrid>
+        <div class="mt-5 mb-2 flex items-center justify-between">
+          <span class="text-sm font-medium">PD 租约（DHCPv6 · Kea 实时查询）</span>
+          <Button size="small" :loading="lease6Loading" @click="loadLeases6">刷新</Button>
+        </div>
+        <Lease6Grid :table-data="lease6Rows" />
+      </template>
+      </Card>
+      </div>
   </div>
   </div>
 </template>
@@ -362,6 +364,9 @@ const [Lease6Grid] = useVbenVxeGrid({ gridOptions: lease6GridOptions });
   height: 32px;
   line-height: 32px;
   font-size: 13px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .org-menu :deep(.ant-menu) {
   border-inline-end: none;
