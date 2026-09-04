@@ -38,16 +38,16 @@ type RowDraft = { address: string; kind: 'bind' | 'reserve'; mac: string; reason
 const entries = ref<RowDraft[]>([{ address: '', kind: 'reserve', mac: '', reason: '' }]);
 const bulkResult = ref<ReservationBulkResult>();
 const submitting = ref(false);
-const resRows = ref<LedgerRow[]>([]);
-const bindRows = ref<LedgerRow[]>([]);
+const allRows = ref<LedgerRow[]>([]);
 const listLoading = ref(false);
 
 const subnetOptions = computed(() =>
   subnets.value.map((s) => ({ label: `${s.name}（${s.cidr}）`, value: s.id })),
 );
 
-// ── 模糊搜索（IP / MAC / 主机名，大小写不敏感） ──
+// ── 模糊搜索（IP / MAC / 主机名，大小写不敏感）+ IPv4/IPv6 分族 ──
 const search = ref('');
+const familyTab = ref<'v4' | 'v6'>('v4');
 function filterRows(rows: LedgerRow[]): LedgerRow[] {
   const kw = search.value.trim().toLowerCase();
   if (!kw) return rows;
@@ -55,12 +55,11 @@ function filterRows(rows: LedgerRow[]): LedgerRow[] {
     [r.address, r.mac, r.hostname].some((v) => (v ?? '').toLowerCase().includes(kw)),
   );
 }
-const resV4 = computed(() => filterRows(resRows.value).filter((r) => r.family === 4));
-const resV6 = computed(() => filterRows(resRows.value).filter((r) => r.family === 6));
-const bindV4 = computed(() => filterRows(bindRows.value).filter((r) => r.family === 4));
-const bindV6 = computed(() => filterRows(bindRows.value).filter((r) => r.family === 6));
-const resTab = ref('v4');
-const bindTab = ref('v4');
+const listRows = computed(() =>
+  filterRows(allRows.value).filter((r) =>
+    familyTab.value === 'v6' ? r.family === 6 : r.family === 4,
+  ),
+);
 
 async function loadLists() {
   listLoading.value = true;
@@ -69,8 +68,7 @@ async function loadLists() {
       listLedger({ state: 'reserved' }),
       listLedger({ state: 'static' }),
     ]);
-    resRows.value = r.items ?? [];
-    bindRows.value = b.items ?? [];
+    allRows.value = [...(r.items ?? []), ...(b.items ?? [])];
   } finally {
     listLoading.value = false;
   }
@@ -140,31 +138,19 @@ onMounted(() => {
   void loadSubnets();
 });
 
-const resGridOptions = reactive<VxeGridProps>({
+// ── 合并列表：保留 + 静态绑定（状态列区分）──
+const listGridOptions = reactive<VxeGridProps>({
   columns: [
+    { field: 'state', title: '状态', width: 80, slots: { default: 'state' } },
     { field: 'address', title: '地址', minWidth: 160 },
-    { field: 'family', title: '族', width: 70 },
     { field: 'mac', title: 'MAC', minWidth: 160, slots: { default: 'mac' } },
     { field: 'hostname', title: '主机名', minWidth: 120, slots: { default: 'hostname' } },
-    { field: 'actions', title: '操作', width: 90, fixed: 'right', slots: { default: 'resActions' } },
+    { field: 'actions', title: '操作', width: 140, fixed: 'right', slots: { default: 'actions' } },
   ],
   loading: listLoading.value,
   rowConfig: { keyField: 'address' },
 });
-const [ResGrid] = useVbenVxeGrid({ gridOptions: resGridOptions });
-
-const bindGridOptions = reactive<VxeGridProps>({
-  columns: [
-    { field: 'address', title: '地址', minWidth: 160 },
-    { field: 'family', title: '族', width: 70 },
-    { field: 'mac', title: 'MAC', minWidth: 160, slots: { default: 'mac' } },
-    { field: 'hostname', title: '主机名', minWidth: 120, slots: { default: 'hostname' } },
-    { field: 'actions', title: '操作', width: 140, fixed: 'right', slots: { default: 'bindActions' } },
-  ],
-  loading: listLoading.value,
-  rowConfig: { keyField: 'address' },
-});
-const [BindGrid] = useVbenVxeGrid({ gridOptions: bindGridOptions });
+const [ListGrid] = useVbenVxeGrid({ gridOptions: listGridOptions });
 
 // ── 释放 ──
 async function releaseRow(row: LedgerRow) {
@@ -279,71 +265,51 @@ async function confirmEdit() {
       </div>
     </Card>
 
-    <div class="mb-2 flex items-center gap-2">
-      <span class="text-xs text-gray-400">搜索</span>
-      <Input
-        v-model:value="search"
-        allow-clear
-        placeholder="按 IP / MAC / 主机名 模糊搜索（大小写不敏感）"
-        style="max-width: 380px"
-      />
-      <span v-if="search" class="text-xs text-gray-400">
-        命中：保留 v4 {{ resV4.length }} / v6 {{ resV6.length }} · 绑定 v4 {{ bindV4.length }} / v6 {{ bindV6.length }}
-      </span>
-    </div>
-
-    <Card title="保留列表（冻结不下发）">
-      <RadioGroup
-        v-model:value="resTab"
-        option-type="button"
-        size="small"
-        class="mb-2"
-        :options="[{ label: 'IPv4', value: 'v4' }, { label: 'IPv6', value: 'v6' }]"
-      />
-      <ResGrid v-if="resTab === 'v4'" :table-data="resV4">
-        <template #mac="{ row }">{{ row.mac || '-' }}</template>
-        <template #hostname="{ row }">{{ row.hostname || '-' }}</template>
-        <template #resActions="{ row }">
-          <Button size="small" danger @click="releaseRow(row)">释放</Button>
+    <Card title="保留与绑定列表">
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <RadioGroup
+          v-model:value="familyTab"
+          option-type="button"
+          size="small"
+          :options="[{ label: 'IPv4', value: 'v4' }, { label: 'IPv6', value: 'v6' }]"
+        />
+        <Input
+          v-model:value="search"
+          allow-clear
+          placeholder="按 IP / MAC / 主机名 模糊搜索（大小写不敏感）"
+          style="width: 380px"
+        />
+      </div>
+      <ListGrid v-if="familyTab === 'v4'" :table-data="listRows">
+        <template #state="{ row }">
+          <Tag v-if="row.state === 'static'" color="geekblue">静态</Tag>
+          <Tag v-else color="orange">保留</Tag>
         </template>
-      </ResGrid>
-      <ResGrid v-else :table-data="resV6">
-        <template #mac="{ row }">{{ row.mac || '-' }}</template>
-        <template #hostname="{ row }">{{ row.hostname || '-' }}</template>
-        <template #resActions="{ row }">
-          <Button size="small" danger @click="releaseRow(row)">释放</Button>
-        </template>
-      </ResGrid>
-    </Card>
-
-    <Card title="静态绑定列表（MAC↔IP）">
-      <RadioGroup
-        v-model:value="bindTab"
-        option-type="button"
-        size="small"
-        class="mb-2"
-        :options="[{ label: 'IPv4', value: 'v4' }, { label: 'IPv6', value: 'v6' }]"
-      />
-      <BindGrid v-if="bindTab === 'v4'" :table-data="bindV4">
         <template #mac="{ row }">
-          <Tag class="font-mono">{{ row.mac || '-' }}</Tag>
+          <Tag v-if="row.mac" class="font-mono" color="default">{{ row.mac }}</Tag>
+          <span v-else>-</span>
         </template>
         <template #hostname="{ row }">{{ row.hostname || '-' }}</template>
-        <template #bindActions="{ row }">
-          <Button size="small" class="mr-2" @click="openEdit(row)">编辑</Button>
+        <template #actions="{ row }">
+          <Button v-if="row.state === 'static'" size="small" class="mr-2" @click="openEdit(row)">编辑</Button>
           <Button size="small" danger @click="releaseRow(row)">释放</Button>
         </template>
-      </BindGrid>
-      <BindGrid v-else :table-data="bindV6">
+      </ListGrid>
+      <ListGrid v-else :table-data="listRows">
+        <template #state="{ row }">
+          <Tag v-if="row.state === 'static'" color="geekblue">静态</Tag>
+          <Tag v-else color="orange">保留</Tag>
+        </template>
         <template #mac="{ row }">
-          <Tag class="font-mono">{{ row.mac || '-' }}</Tag>
+          <Tag v-if="row.mac" class="font-mono" color="default">{{ row.mac }}</Tag>
+          <span v-else>-</span>
         </template>
         <template #hostname="{ row }">{{ row.hostname || '-' }}</template>
-        <template #bindActions="{ row }">
-          <Button size="small" class="mr-2" @click="openEdit(row)">编辑</Button>
+        <template #actions="{ row }">
+          <Button v-if="row.state === 'static'" size="small" class="mr-2" @click="openEdit(row)">编辑</Button>
           <Button size="small" danger @click="releaseRow(row)">释放</Button>
         </template>
-      </BindGrid>
+      </ListGrid>
     </Card>
 
     <EditModal>
