@@ -13,6 +13,8 @@ import {
   Input,
   Modal,
   Select,
+  TabPane,
+  Tabs,
   Tag,
   message,
 } from 'ant-design-vue';
@@ -29,6 +31,7 @@ import {
   type Subnet,
   updateBinding,
 } from '#/api/ipam';
+import { normalizeMacInput } from '#/utils/mac';
 
 const subnets = ref<Subnet[]>([]);
 const selectedSubnet = ref<string>();
@@ -43,6 +46,22 @@ const listLoading = ref(false);
 const subnetOptions = computed(() =>
   subnets.value.map((s) => ({ label: `${s.name}（${s.cidr}）`, value: s.id })),
 );
+
+// ── 模糊搜索（IP / MAC / 主机名，大小写不敏感） ──
+const search = ref('');
+function filterRows(rows: LedgerRow[]): LedgerRow[] {
+  const kw = search.value.trim().toLowerCase();
+  if (!kw) return rows;
+  return rows.filter((r) =>
+    [r.address, r.mac, r.hostname].some((v) => (v ?? '').toLowerCase().includes(kw)),
+  );
+}
+const resV4 = computed(() => filterRows(resRows.value).filter((r) => r.family === 4));
+const resV6 = computed(() => filterRows(resRows.value).filter((r) => r.family === 6));
+const bindV4 = computed(() => filterRows(bindRows.value).filter((r) => r.family === 4));
+const bindV6 = computed(() => filterRows(bindRows.value).filter((r) => r.family === 6));
+const resTab = ref('v4');
+const bindTab = ref('v4');
 
 async function loadLists() {
   listLoading.value = true;
@@ -83,8 +102,13 @@ async function submitBulk() {
     message.warning('至少一条条目且地址必填');
     return;
   }
-  if (entries.value.some((r) => r.kind === 'bind' && !r.mac)) {
-    message.warning('bind 条目必须填 MAC');
+  const macRej = entries.value.findIndex(
+    (r) => r.kind === 'bind' && !normalizeMacInput(r.mac),
+  );
+  if (macRej >= 0) {
+    message.warning(
+      `第 ${macRej + 1} 行 MAC 格式不合法（支持 C4-3D-1A-07-EB-2B / C43D1A07EB2B / 冒号分隔，大小写均可）`,
+    );
     return;
   }
   submitting.value = true;
@@ -92,7 +116,7 @@ async function submitBulk() {
     const payload: ReservationBulkEntryIn[] = entries.value.map((r) => ({
       address: r.address,
       kind: r.kind,
-      ...(r.kind === 'bind' ? { mac: r.mac } : {}),
+      ...(r.kind === 'bind' ? { mac: normalizeMacInput(r.mac) ?? r.mac } : {}),
       ...(r.reason ? { reason: r.reason } : {}),
     }));
     bulkResult.value = await bulkReservations({
@@ -187,24 +211,26 @@ function openEdit(row: LedgerRow) {
 async function confirmEdit() {
   const row = editTarget.value;
   if (!row) return;
-  const mac = editForm.mac.trim();
+  const normMac = normalizeMacInput(editForm.mac);
   const addr = editForm.address.trim();
-  if (!mac) {
-    message.warning('MAC 必填');
+  if (!normMac) {
+    message.warning(
+      'MAC 格式不合法（支持 C4-3D-1A-07-EB-2B / C43D1A07EB2B / 冒号分隔，大小写均可）',
+    );
     return;
   }
   try {
     if (addr === row.address) {
-      await updateBinding(row.address, mac);
+      await updateBinding(row.address, normMac);
     } else {
       if (!row.subnetId) {
         message.warning('该记录缺少子网信息，仅可修改 MAC');
         return;
       }
       await releaseAddress(row.address);
-      await bindStatic(row.subnetId, addr, mac);
+      await bindStatic(row.subnetId, addr, normMac);
     }
-    message.success(`${addr} 绑定已更新（${mac}）`);
+    message.success(`${addr} 绑定已更新（${normMac}）`);
     editModalApi.close();
   } catch (e) {
     message.error(e instanceof Error ? e.message : '更新失败');
@@ -254,27 +280,69 @@ async function confirmEdit() {
       </div>
     </Card>
 
+    <div class="mb-2 flex items-center gap-2">
+      <span class="text-xs text-gray-400">搜索</span>
+      <Input
+        v-model:value="search"
+        allow-clear
+        placeholder="按 IP / MAC / 主机名 模糊搜索（大小写不敏感）"
+        style="max-width: 380px"
+      />
+      <span v-if="search" class="text-xs text-gray-400">
+        命中：保留 v4 {{ resV4.length }} / v6 {{ resV6.length }} · 绑定 v4 {{ bindV4.length }} / v6 {{ bindV6.length }}
+      </span>
+    </div>
+
     <Card title="保留列表（冻结不下发）">
-      <ResGrid :table-data="resRows">
-        <template #mac="{ row }">{{ row.mac || '-' }}</template>
-        <template #hostname="{ row }">{{ row.hostname || '-' }}</template>
-        <template #resActions="{ row }">
-          <Button size="small" danger @click="releaseRow(row)">释放</Button>
-        </template>
-      </ResGrid>
+      <Tabs v-model:active-key="resTab" size="small">
+        <TabPane key="v4" tab="IPv4">
+          <ResGrid :table-data="resV4">
+            <template #mac="{ row }">{{ row.mac || '-' }}</template>
+            <template #hostname="{ row }">{{ row.hostname || '-' }}</template>
+            <template #resActions="{ row }">
+              <Button size="small" danger @click="releaseRow(row)">释放</Button>
+            </template>
+          </ResGrid>
+        </TabPane>
+        <TabPane key="v6" tab="IPv6">
+          <ResGrid :table-data="resV6">
+            <template #mac="{ row }">{{ row.mac || '-' }}</template>
+            <template #hostname="{ row }">{{ row.hostname || '-' }}</template>
+            <template #resActions="{ row }">
+              <Button size="small" danger @click="releaseRow(row)">释放</Button>
+            </template>
+          </ResGrid>
+        </TabPane>
+      </Tabs>
     </Card>
 
     <Card title="静态绑定列表（MAC↔IP）">
-      <BindGrid :table-data="bindRows">
-        <template #mac="{ row }">
-          <Tag class="font-mono">{{ row.mac || '-' }}</Tag>
-        </template>
-        <template #hostname="{ row }">{{ row.hostname || '-' }}</template>
-        <template #bindActions="{ row }">
-          <Button size="small" class="mr-2" @click="openEdit(row)">编辑</Button>
-          <Button size="small" danger @click="releaseRow(row)">释放</Button>
-        </template>
-      </BindGrid>
+      <Tabs v-model:active-key="bindTab" size="small">
+        <TabPane key="v4" tab="IPv4">
+          <BindGrid :table-data="bindV4">
+            <template #mac="{ row }">
+              <Tag class="font-mono">{{ row.mac || '-' }}</Tag>
+            </template>
+            <template #hostname="{ row }">{{ row.hostname || '-' }}</template>
+            <template #bindActions="{ row }">
+              <Button size="small" class="mr-2" @click="openEdit(row)">编辑</Button>
+              <Button size="small" danger @click="releaseRow(row)">释放</Button>
+            </template>
+          </BindGrid>
+        </TabPane>
+        <TabPane key="v6" tab="IPv6">
+          <BindGrid :table-data="bindV6">
+            <template #mac="{ row }">
+              <Tag class="font-mono">{{ row.mac || '-' }}</Tag>
+            </template>
+            <template #hostname="{ row }">{{ row.hostname || '-' }}</template>
+            <template #bindActions="{ row }">
+              <Button size="small" class="mr-2" @click="openEdit(row)">编辑</Button>
+              <Button size="small" danger @click="releaseRow(row)">释放</Button>
+            </template>
+          </BindGrid>
+        </TabPane>
+      </Tabs>
     </Card>
 
     <EditModal>

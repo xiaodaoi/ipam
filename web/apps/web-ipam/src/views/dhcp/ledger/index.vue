@@ -2,7 +2,13 @@
 import { computed, onMounted, ref } from 'vue';
 import { useVbenModal } from '@vben/common-ui';
 
-import { Card, Input, message, Table, Tree } from 'ant-design-vue';
+import {
+  Card,
+  Input,
+  Menu,
+  message,
+  Table,
+} from 'ant-design-vue';
 
 import IpPlanMap from '#/components/ip-plan-map.vue';
 
@@ -17,6 +23,7 @@ import {
   type OrgTreeNode,
   type Subnet,
 } from '#/api/ipam';
+import { normalizeMacInput } from '#/utils/mac';
 
 // ── IP 工具（与 IpPlanMap 同源）──
 function ipToInt(ip: string): number {
@@ -35,14 +42,24 @@ function parseCidr(cidr: string): { network: number; broadcast: number; hostCoun
   return { network, broadcast, hostCount: broadcast - network + 1 };
 }
 
-// ── 组织树 ──
+// ── 组织树（垂直菜单，子菜单弹出）──
 const orgTree = ref<OrgTreeNode[]>([]);
-const treeData = computed(() => {
-  const walk = (nodes: OrgTreeNode[]): Array<{ key: string; title: string; children: any[] }> =>
-    nodes.map((n) => ({ key: n.id, title: n.name, children: walk(n.children ?? []) }));
+const orgMenuItems = computed(() => {
+  const walk = (nodes: OrgTreeNode[]): any[] =>
+    nodes.map((n) => ({
+      key: n.id,
+      label: n.name,
+      children: n.children?.length ? walk(n.children) : undefined,
+    }));
   return walk(orgTree.value);
 });
 const selectedOrgId = ref<string>('');
+
+function onSelectMenu(key: string) {
+  selectedOrgId.value = key === selectedOrgId.value ? '' : key;
+  selectedCidr.value = '';
+  void loadSubnets();
+}
 
 // ── 子网（v4/v6 分栏）──
 const subnets = ref<Subnet[]>([]);
@@ -189,14 +206,16 @@ async function onMapAction(action: string, ips: MapCell[]) {
   void loadMap();
 }
 async function confirmBind() {
-  const mac = bindModal.value.mac.trim();
-  if (!mac || !bindModal.value.subnetId) {
-    message.warning('请填写 MAC');
+  const normMac = normalizeMacInput(bindModal.value.mac);
+  if (!normMac || !bindModal.value.subnetId) {
+    message.warning(
+      '请填写合法 MAC（支持 C4-3D-1A-07-EB-2B / C43D1A07EB2B / 冒号分隔，大小写均可）',
+    );
     return;
   }
   try {
-    await bindStatic(bindModal.value.subnetId, bindModal.value.address, mac);
-    message.success(`${bindModal.value.address} 已静态绑定 ${mac}`);
+    await bindStatic(bindModal.value.subnetId, bindModal.value.address, normMac);
+    message.success(`${bindModal.value.address} 已静态绑定 ${normMac}`);
     bindModalApi.close();
     void loadMap();
   } catch (e) {
@@ -216,12 +235,6 @@ function poolText(p: Subnet): string {
     .join('；') || '—';
 }
 
-function onSelectOrg(_keys: Array<string | number>, info: { selected: boolean }) {
-  selectedOrgId.value = info.selected ? String(_keys[0] ?? '') : '';
-  selectedCidr.value = '';
-  void loadSubnets();
-}
-
 onMounted(async () => {
   orgTree.value = await listOrgTree();
   await loadSubnets();
@@ -232,8 +245,15 @@ onMounted(async () => {
   <div class="p-4">
   <div class="flex gap-4">
     <Card style="width: 260px; flex-shrink: 0" title="组织分组">
-      <Tree :tree-data="treeData" selectable block-node @select="onSelectOrg" />
-      <div class="mt-2 text-xs text-gray-400">选择组织后展示其下 IPv4/IPv6 网段</div>
+      <Menu
+        mode="vertical"
+        :items="orgMenuItems"
+        :selected-keys="selectedOrgId ? [selectedOrgId] : []"
+        :inline-indent="12"
+        class="max-h-[440px] overflow-auto"
+        @click="({ key }: any) => onSelectMenu(String(key))"
+      />
+      <div class="mt-2 text-xs text-gray-400">点击选择组织（再点取消）；子菜单悬停弹出</div>
     </Card>
 
     <div class="min-w-0 flex-1">

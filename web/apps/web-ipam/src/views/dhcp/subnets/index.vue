@@ -7,7 +7,18 @@ import type { VxeGridProps } from '@vben/plugins/vxe-table';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 
-import { Button, Card, Input, InputNumber, message, Select, Tag, Tree } from 'ant-design-vue';
+import {
+  Button,
+  Card,
+  Input,
+  InputNumber,
+  Menu,
+  message,
+  Select,
+  TabPane,
+  Tabs,
+  Tag,
+} from 'ant-design-vue';
 
 import {
   createSubnet,
@@ -52,6 +63,21 @@ function flattenOrgs(nodes: OrgTreeNode[], depth = 0): { id: string; label: stri
   return out;
 }
 const orgOptions = computed(() => flattenOrgs(orgTree.value));
+
+// ── 组织垂直菜单（子菜单弹出）──
+const orgMenuItems = computed(() => {
+  const walk = (nodes: OrgTreeNode[]): any[] =>
+    nodes.map((n) => ({
+      key: n.id,
+      label: n.name,
+      children: n.children?.length ? walk(n.children) : undefined,
+    }));
+  return walk(orgTree.value);
+});
+function onSelectMenu(key: string) {
+  filterOrgId.value = key === filterOrgId.value ? undefined : key;
+  void load();
+}
 
 async function load() {
   loading.value = true;
@@ -139,15 +165,19 @@ const orgName = (id?: string) => {
   return hit?.label.trim() ?? id ?? '—';
 };
 
+// ── IPv4/IPv6 分族（Tabs 分开展示）──
+const familyTab = ref('v4');
+const v4Rows = computed(() => rows.value.filter((r) => r.family === 4));
+const v6Rows = computed(() => rows.value.filter((r) => r.family === 6));
+
 // ── Vben Vxe Table：子网与地址池（操作列固定右侧）──
 const gridOptions = reactive<VxeGridProps>({
   columns: [
     { field: 'name', title: '名称', minWidth: 120 },
     { field: 'cidr', title: 'CIDR', minWidth: 140 },
-    { field: 'family', title: '族', width: 70, slots: { default: 'family' } },
     { field: 'orgId', title: '组织', minWidth: 100, slots: { default: 'orgId' } },
-    { field: 'gateway', title: '网关', minWidth: 100, slots: { default: 'gateway' } },
-    { field: 'pools', title: '池数', minWidth: 100, slots: { default: 'pools' } },
+    { field: 'gateway', title: '网关/DNS', minWidth: 110, slots: { default: 'gateway' } },
+    { field: 'pools', title: '池数', minWidth: 80, slots: { default: 'pools' } },
     { field: 'keaSubnetId', title: 'Kea ID', minWidth: 100, slots: { default: 'keaSubnetId' } },
     { field: 'op', title: '操作', width: 150, fixed: 'right', slots: { default: 'op' } },
   ],
@@ -175,13 +205,15 @@ const [Lease6Grid] = useVbenVxeGrid({ gridOptions: lease6GridOptions });
 <template>
   <div class="p-4">
   <div class="flex gap-4">
-    <!-- 左侧组织树 -->
+    <!-- 左侧组织垂直菜单（子菜单弹出） -->
     <Card title="组织" class="w-64 shrink-0">
-      <Tree
-        :tree-data="orgTree.map((n) => ({ key: n.id, title: n.name, children: (n.children ?? []).map((c) => ({ key: c.id, title: c.name })) }))"
+      <Menu
+        mode="vertical"
+        :items="orgMenuItems"
         :selected-keys="filterOrgId ? [filterOrgId] : []"
-        :default-expand-all="true"
-        @select="(keys: any) => { filterOrgId = keys[0] as string; load(); }"
+        :inline-indent="12"
+        class="max-h-[460px] overflow-auto"
+        @click="({ key }: any) => onSelectMenu(String(key))"
       />
       <Button size="small" block class="mt-2" @click="filterOrgId = undefined; load()">全部</Button>
     </Card>
@@ -260,38 +292,62 @@ const [Lease6Grid] = useVbenVxeGrid({ gridOptions: lease6GridOptions });
         </div>
       </FormModal>
 
-      <SubnetGrid :table-data="rows">
-        <template #family="{ row }">
-          <Tag :color="row.family === 4 ? 'blue' : 'purple'">v{{ row.family }}</Tag>
-        </template>
-        <template #orgId="{ row }">
-          {{ orgName(row.orgId) }}
-        </template>
-        <template #gateway="{ row }">
-          {{ row.gateway || '-' }}
-        </template>
-        <template #pools="{ row }">
-          {{ (row.pools ?? []).length }}
-        </template>
-        <template #keaSubnetId="{ row }">
-          <Tag v-if="row.keaSubnetId" color="green">{{ row.keaSubnetId }}</Tag>
-          <Tag v-else color="orange">未下发</Tag>
-        </template>
-        <template #op="{ row }">
-          <div class="flex items-center gap-1">
-            <Button size="small" @click="edit(row as Subnet)">编辑</Button>
-            <Button size="small" danger @click="remove(row.id)">删除</Button>
-          </div>
-        </template>
-      </SubnetGrid>
-    </Card>
-    <Card title="PD 租约（DHCPv6 · Kea 实时查询）" class="mt-3">
-      <template #extra>
-        <Button size="small" :loading="lease6Loading" @click="loadLeases6">刷新</Button>
-      </template>
-      <Lease6Grid :table-data="lease6Rows" />
-    </Card>
-    </div>
+      <Tabs v-model:active-key="familyTab">
+        <TabPane key="v4" tab="IPv4 子网与地址池">
+          <SubnetGrid :table-data="v4Rows">
+            <template #orgId="{ row }">
+              {{ orgName(row.orgId) }}
+            </template>
+            <template #gateway="{ row }">
+              {{ row.gateway || '-' }}
+            </template>
+            <template #pools="{ row }">
+              {{ (row.pools ?? []).length }}
+            </template>
+            <template #keaSubnetId="{ row }">
+              <Tag v-if="row.keaSubnetId" color="green">{{ row.keaSubnetId }}</Tag>
+              <Tag v-else color="orange">未下发</Tag>
+            </template>
+            <template #op="{ row }">
+              <div class="flex items-center gap-1">
+                <Button size="small" @click="edit(row as Subnet)">编辑</Button>
+                <Button size="small" danger @click="remove(row.id)">删除</Button>
+              </div>
+            </template>
+          </SubnetGrid>
+        </TabPane>
+        <TabPane key="v6" tab="IPv6 子网与地址池">
+          <SubnetGrid :table-data="v6Rows">
+            <template #orgId="{ row }">
+              {{ orgName(row.orgId) }}
+            </template>
+            <template #gateway="{ row }">
+              {{ row.gateway || row.dnsServers || '-' }}
+            </template>
+            <template #pools="{ row }">
+              {{ (row.pools ?? []).length }}
+            </template>
+            <template #keaSubnetId="{ row }">
+              <Tag v-if="row.keaSubnetId" color="green">{{ row.keaSubnetId }}</Tag>
+              <Tag v-else color="orange">未下发</Tag>
+            </template>
+            <template #op="{ row }">
+              <div class="flex items-center gap-1">
+                <Button size="small" @click="edit(row as Subnet)">编辑</Button>
+                <Button size="small" danger @click="remove(row.id)">删除</Button>
+              </div>
+            </template>
+          </SubnetGrid>
+          <Card title="PD 租约（DHCPv6 · Kea 实时查询）" class="mt-3" size="small">
+            <template #extra>
+              <Button size="small" :loading="lease6Loading" @click="loadLeases6">刷新</Button>
+            </template>
+            <Lease6Grid :table-data="lease6Rows" />
+          </Card>
+        </TabPane>
+      </Tabs>
+     </Card>
+     </div>
   </div>
   </div>
 </template>

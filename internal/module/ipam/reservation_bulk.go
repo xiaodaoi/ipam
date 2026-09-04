@@ -73,7 +73,7 @@ func (s *LedgerService) BulkReservations(ctx context.Context, subnetID string, e
 	for i, e := range entries {
 		var uerr error
 		if e.Kind == "bind" {
-			uerr = s.applyBind(ctx, e.Address, e.MAC)
+			uerr = s.applyBind(ctx, e.Address, coherence.NormalizeMAC(e.MAC))
 		} else {
 			uerr = s.applyReserve(ctx, e.Address)
 		}
