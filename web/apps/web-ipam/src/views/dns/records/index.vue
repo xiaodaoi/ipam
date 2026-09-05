@@ -6,7 +6,20 @@ import type { VxeGridProps } from '@vben/plugins/vxe-table';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 
-import { Button, Card, Input, Select,  TabPane, Tabs, message } from 'ant-design-vue';
+import {
+  Button,
+  Card,
+  Empty,
+  Input,
+  InputNumber,
+  Modal,
+  Select,
+  Switch,
+  TabPane,
+  Tabs,
+  Tag,
+  message,
+} from 'ant-design-vue';
 
 import {
   createDnsRecord,
@@ -16,30 +29,37 @@ import {
   listDnsRecords,
   listDnsZones,
   listLinkedRecords,
+  updateDnsRecord,
+  updateDnsZone,
   type DnsRecord,
   type DnsZone,
 } from '#/api/ipam';
+
+type RecType = 'A' | 'AAAA' | 'CNAME' | 'PTR';
 
 const zones = ref<DnsZone[]>([]);
 const zoneId = ref<string>();
 const records = ref<DnsRecord[]>([]);
 const linked = ref<any[]>([]);
 const loading = ref(false);
-type RecType = 'A' | 'AAAA' | 'CNAME' | 'PTR';
-const form = ref<{ name: string; recType: RecType; rdata: string; ttl: number }>({
-  name: '', recType: 'A', rdata: '', ttl: 300,
-});
 
 const activeZone = computed(() => zones.value.find((z) => z.id === zoneId.value));
 
 async function loadZones() {
   const d = await listDnsZones();
   zones.value = d.items ?? [];
-  if (!zoneId.value && zones.value.length) zoneId.value = zones.value[0]!.id;
+  if (!zoneId.value || !zones.value.some((z) => z.id === zoneId.value)) {
+    zoneId.value = zones.value[0]?.id;
+  }
   if (zoneId.value) await loadRecords();
 }
+
 async function loadRecords() {
-  if (!zoneId.value) return;
+  if (!zoneId.value) {
+    records.value = [];
+    linked.value = [];
+    return;
+  }
   loading.value = true;
   try {
     const [rec, linkedRes] = await Promise.all([
@@ -52,51 +72,185 @@ async function loadRecords() {
     loading.value = false;
   }
 }
-const zoneModal = ref({ name: '' });
-const [ZoneModal, zoneModalApi] = useVbenModal({ draggable: true, title: '新建 DNS 区域', confirmText: '创建', onConfirm: () => addRecord() });
-async function createZoneConfirm() {
-  const name = zoneModal.value.name.trim();
-  if (!name) return;
-  await createDnsZone({ name: name.endsWith('.') ? name : `${name}.`, kind: 'auth' });
-  zoneModalApi.close();
-  zoneModal.value.name = '';
-  await loadZones();
+
+function selectZone(id: string) {
+  zoneId.value = id;
+  void loadRecords();
 }
+
+// ── 新建记录表单 ──
+const form = reactive<{ name: string; recType: RecType; rdata: string; ttl: number }>({
+  name: '', recType: 'A', rdata: '', ttl: 300,
+});
+
 async function addRecord() {
   if (!zoneId.value) {
-    message.warning('请先选择 DNS 区域（无可选区域时先在上方新建 zone）');
+    message.warning('请先选择区域');
     return;
   }
-  if (!form.value.name || !form.value.rdata) {
+  if (!form.name || !form.rdata) {
     message.warning('请填写记录名称与记录值');
     return;
   }
-  await createDnsRecord(zoneId.value, { ...form.value, enabled: true });
-  form.value = { name: '', recType: 'A', rdata: '', ttl: 300 };
-  await loadRecords();
+  try {
+    await createDnsRecord(zoneId.value, { ...form, enabled: true });
+    form.name = '';
+    form.rdata = '';
+    await loadRecords();
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '添加失败');
+  }
 }
-async function removeRecord(id?: string) {
-  if (id && zoneId.value) await deleteDnsRecord(zoneId.value, id);
-  await loadRecords();
+
+// ── 编辑记录 ──
+const editRecord = ref<DnsRecord>();
+const recordEdit = reactive<{ name: string; recType: RecType; rdata: string; ttl: number; enabled: boolean }>({
+  name: '', recType: 'A', rdata: '', ttl: 300, enabled: true,
+});
+const [RecordModal, recordModalApi] = useVbenModal({
+  draggable: true,
+  confirmText: '保存',
+  onConfirm: () => confirmEditRecord(),
+});
+
+function openEditRecord(r: DnsRecord) {
+  editRecord.value = r;
+  Object.assign(recordEdit, {
+    name: r.name, recType: r.recType, rdata: r.rdata, ttl: r.ttl, enabled: r.enabled,
+  });
+  recordModalApi.setState({ title: `编辑记录 · ${r.name}` });
+  recordModalApi.open();
 }
-async function removeZone() {
-  const z = activeZone.value;
-  if (!z) return;
-  if (!window.confirm(`删除区域 ${z.name}？其下记录将一并删除。`)) return;
-  await deleteDnsZone(z.id);
-  zoneId.value = undefined;
-  await loadZones();
-  message.success('区域已删除');
+
+async function confirmEditRecord() {
+  const r = editRecord.value;
+  if (!r || !zoneId.value) return;
+  if (!recordEdit.name || !recordEdit.rdata) {
+    message.warning('名称与值必填');
+    return;
+  }
+  try {
+    await updateDnsRecord(zoneId.value, r.id, { ...recordEdit });
+    message.success('记录已更新');
+    recordModalApi.close();
+    await loadRecords();
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '更新失败');
+  }
 }
+
+async function toggleRecord(r: DnsRecord, enabled: boolean) {
+  if (!zoneId.value) return;
+  try {
+    await updateDnsRecord(zoneId.value, r.id, { enabled });
+    await loadRecords();
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '操作失败');
+  }
+}
+
+function removeRecord(r: DnsRecord) {
+  Modal.confirm({
+    title: `删除记录 ${r.name}`,
+    content: `将删除 ${activeZone.value?.name ?? ''} 下的 ${r.name} ${r.recType} 记录。`,
+    okText: '删除',
+    okType: 'danger',
+    onOk: async () => {
+      if (!zoneId.value) return;
+      try {
+        await deleteDnsRecord(zoneId.value, r.id);
+        message.success('记录已删除');
+        await loadRecords();
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : '删除失败');
+      }
+    },
+  });
+}
+
+// ── 新建/编辑 zone ──
+const zoneForm = reactive<{ name: string; kind: 'auth' | 'local' }>({ name: '', kind: 'auth' });
+const editingZoneId = ref<string>();
+const [ZoneModal, zoneModalApi] = useVbenModal({
+  draggable: true,
+  confirmText: '保存',
+  onConfirm: () => confirmZone(),
+});
+
+function openCreateZone() {
+  editingZoneId.value = undefined;
+  zoneForm.name = '';
+  zoneForm.kind = 'auth';
+  zoneModalApi.setState({ title: '新建 DNS 区域' });
+  zoneModalApi.open();
+}
+
+function openEditZone(z: DnsZone) {
+  editingZoneId.value = z.id;
+  zoneForm.name = z.name.replace(/\.$/, '');
+  zoneForm.kind = z.kind;
+  zoneModalApi.setState({ title: `编辑区域 · ${z.name}` });
+  zoneModalApi.open();
+}
+
+async function confirmZone() {
+  const name = zoneForm.name.trim();
+  if (!name) return;
+  const fqdn = name.endsWith('.') ? name : `${name}.`;
+  try {
+    if (editingZoneId.value) {
+      await updateDnsZone(editingZoneId.value, { name: fqdn, kind: zoneForm.kind });
+      message.success('区域已更新');
+    } else {
+      await createDnsZone({ name: fqdn, kind: zoneForm.kind });
+      message.success('区域已创建');
+    }
+    zoneModalApi.close();
+    await loadZones();
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '保存失败');
+  }
+}
+
+async function toggleZone(z: DnsZone, enabled: boolean) {
+  try {
+    await updateDnsZone(z.id, { enabled });
+    await loadZones();
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '操作失败');
+  }
+}
+
+function removeZone(z: DnsZone) {
+  Modal.confirm({
+    title: `删除区域 ${z.name}`,
+    content: '其下全部解析记录将一并删除，且从 unbound 配置移除。',
+    okText: '删除',
+    okType: 'danger',
+    onOk: async () => {
+      try {
+        await deleteDnsZone(z.id);
+        if (zoneId.value === z.id) zoneId.value = undefined;
+        message.success('区域已删除');
+        await loadZones();
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : '删除失败');
+      }
+    },
+  });
+}
+
 onMounted(loadZones);
 
+// ── 记录表格 ──
 const recGridOptions = reactive<VxeGridProps>({
   columns: [
-    { field: 'name', title: '名称', minWidth: 100 },
+    { field: 'name', title: '记录名（相对名或 FQDN）', minWidth: 160 },
     { field: 'recType', title: '类型', width: 80 },
-    { field: 'ttl', title: 'TTL', width: 80 },
-    { field: 'rdata', title: '值', minWidth: 100 },
-    { field: 'op', title: '操作', width: 100, fixed: 'right', slots: { default: 'op' } },
+    { field: 'ttl', title: 'TTL', width: 70 },
+    { field: 'rdata', title: '记录值', minWidth: 140 },
+    { field: 'enabled', title: '启用', width: 70, slots: { default: 'enabled' } },
+    { field: 'op', title: '操作', width: 130, fixed: 'right', slots: { default: 'op' } },
   ],
   loading: loading.value,
   rowConfig: { keyField: 'id' },
@@ -105,58 +259,140 @@ const [RecGrid] = useVbenVxeGrid({ gridOptions: recGridOptions });
 
 const linkedGridOptions = reactive<VxeGridProps>({
   columns: [
-    { field: 'name', title: '名称', minWidth: 100 },
+    { field: 'name', title: '名称', minWidth: 160 },
     { field: 'recType', title: '类型', width: 80 },
-    { field: 'rdata', title: '值', minWidth: 100 },
-    { field: 'mac', title: '来源 MAC', minWidth: 100 },
+    { field: 'rdata', title: '值', minWidth: 140 },
+    { field: 'mac', title: '来源 MAC', minWidth: 140 },
   ],
   rowConfig: { keyField: 'name' },
 });
 const [LinkGrid] = useVbenVxeGrid({ gridOptions: linkedGridOptions });
-
-
 </script>
 
 <template>
-  <div class="p-4">
-  <Card>
-    <template #title>
-      <div class="flex items-center gap-3">
-        <span>解析记录</span>
-        <Select v-model:value="zoneId" style="width: 220px" :options="zones.map((z) => ({ value: z.id, label: z.name }))"
-          @change="loadRecords()" />
-        <Button size="small" danger :disabled="!zoneId" @click="removeZone">删区</Button>
-        <Button size="small" @click="zoneModalApi.open()">+ 新建 zone</Button>
+  <div class="flex gap-4 p-4">
+    <!-- 左侧 zone 列表 -->
+    <Card class="w-64 shrink-0 self-start" title="DNS 区域" :body-style="{ padding: '8px' }">
+      <template #extra>
+        <Button size="small" type="primary" @click="openCreateZone">+ 新建</Button>
+      </template>
+      <div v-if="!zones.length" class="py-8 text-center text-gray-400">
+        <Empty description="暂无区域" :image-style="{ height: '40px' }" />
       </div>
-    </template>
-    <Tabs>
-      <TabPane key="rec" :tab="`静态记录 (${records.length})`">
-        <div class="mb-3 flex flex-wrap items-center gap-2">
-          <Input v-model:value="form.name" placeholder="名称" style="width: 180px" />
-          <Select v-model:value="form.recType" style="width: 90px"
-            :options="(['A', 'AAAA', 'CNAME'] as RecType[]).map((v) => ({ value: v, label: v }))" />
-          <Input v-model:value="form.rdata" placeholder="值" style="width: 200px" />
-          <Input-number v-model:value="form.ttl" :min="30" style="width: 90px" />
+      <div
+        v-for="z in zones"
+        :key="z.id"
+        class="mb-1 cursor-pointer rounded px-2 py-2 transition-colors"
+        :class="zoneId === z.id ? 'bg-blue-50 ring-1 ring-blue-200' : 'hover:bg-gray-50'"
+        @click="selectZone(z.id)"
+      >
+        <div class="flex items-center justify-between gap-1">
+          <span class="truncate text-sm font-medium" :title="z.name">{{ z.name }}</span>
+          <Tag :color="z.kind === 'auth' ? 'blue' : 'purple'" class="mr-0">{{ z.kind }}</Tag>
         </div>
-        <RecGrid :table-data="records">
-          <template #op="{ row }">
-            <div class="flex items-center gap-1">
-              <Button size="small" danger @click="removeRecord(row.id)">删除</Button>
-            </div>
-          </template>
-        </RecGrid>
-      </TabPane>
-      <TabPane key="linked" :tab="`联动记录（只读）(${linked.length})`">
-        <div class="mb-2 text-xs text-gray-400">
-          来自 DHCP 双栈联动自动生成（§4.4），随租约/绑定变化自动更新，不可编辑。
-          当前 zone：{{ activeZone?.name ?? '—' }}
+        <div class="mt-1 flex items-center justify-between">
+          <span class="text-xs text-gray-400">{{ z.enabled ? '启用中' : '已停用' }}</span>
+          <div class="flex items-center gap-1" @click.stop>
+            <Switch :checked="z.enabled" size="small" @change="(v) => toggleZone(z as DnsZone, Boolean(v))" />
+            <Button size="small" type="text" @click="openEditZone(z)">改</Button>
+            <Button size="small" type="text" danger @click="removeZone(z)">删</Button>
+          </div>
         </div>
-        <LinkGrid :table-data="linked" />
-      </TabPane>
-    </Tabs>
-  </Card>
-  <ZoneModal>
-    <Input v-model:value="zoneModal.name" placeholder="如 office.local" @pressEnter="createZoneConfirm" />
-  </ZoneModal>
+      </div>
+    </Card>
+
+    <!-- 右侧记录 -->
+    <Card class="min-w-0 flex-1">
+      <template #title>
+        <span>解析记录 {{ activeZone ? `· ${activeZone.name}` : '' }}</span>
+      </template>
+      <Tabs v-if="activeZone" :destroy-inactive-tab-pane="true">
+        <TabPane key="rec" :tab="`静态记录（${records.length}）`">
+          <div class="mb-3 flex flex-wrap items-center gap-2">
+            <span class="text-xs text-gray-400">新增</span>
+            <Input v-model:value="form.name" placeholder="名称 如 www 或 api.corp.local" style="width: 220px" />
+            <Select
+              v-model:value="form.recType"
+              style="width: 90px"
+              :options="(['A', 'AAAA', 'CNAME', 'PTR'] as RecType[]).map((v) => ({ value: v, label: v }))"
+            />
+            <Input v-model:value="form.rdata" placeholder="记录值（A/IP、CNAME/域名尾点）" style="width: 240px" />
+            <span class="text-xs text-gray-400">TTL</span>
+            <InputNumber v-model:value="form.ttl" :min="1" :max="86400" style="width: 90px" />
+            <Button type="primary" size="small" @click="addRecord">添加</Button>
+          </div>
+          <RecGrid :table-data="records">
+            <template #enabled="{ row }">
+              <Switch :checked="row.enabled" size="small" @change="(v) => toggleRecord(row as DnsRecord, Boolean(v))" />
+            </template>
+            <template #op="{ row }">
+              <div class="flex items-center gap-1">
+                <Button size="small" @click="openEditRecord(row as DnsRecord)">编辑</Button>
+                <Button size="small" danger @click="removeRecord(row as DnsRecord)">删除</Button>
+              </div>
+            </template>
+          </RecGrid>
+        </TabPane>
+        <TabPane key="linked" :tab="`联动记录（${linked.length}）`">
+          <div class="mb-2 rounded bg-gray-50 p-2 text-xs text-gray-500">
+            联动记录由 DHCP 双栈联动自动生成（§4.4）：当终端通过 DHCP 获取地址时，控制面按「主机名 → IP」自动派生
+            A/AAAA 记录并随租约/绑定实时同步，用于内网按主机名访问。只读不可在此编辑——修改请到 DHCP 侧变更主机名或绑定。
+          </div>
+          <LinkGrid :table-data="linked" />
+        </TabPane>
+      </Tabs>
+      <div v-else class="py-12 text-center text-gray-400">请先在左侧选择或新建区域</div>
+    </Card>
+
+    <!-- 记录编辑弹窗 -->
+    <RecordModal>
+      <div class="flex flex-col gap-3">
+        <div class="flex items-center gap-2">
+          <span class="w-16 text-right text-xs text-gray-400">名称</span>
+          <Input v-model:value="recordEdit.name" style="width: 240px" placeholder="如 www 或 api.corp.local" />
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="w-16 text-right text-xs text-gray-400">类型</span>
+          <Select
+            v-model:value="recordEdit.recType"
+            style="width: 120px"
+            :options="(['A', 'AAAA', 'CNAME', 'PTR'] as RecType[]).map((v) => ({ value: v, label: v }))"
+          />
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="w-16 text-right text-xs text-gray-400">记录值</span>
+          <Input v-model:value="recordEdit.rdata" style="width: 240px" placeholder="A=IP / CNAME=域名（尾点）" />
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="w-16 text-right text-xs text-gray-400">TTL</span>
+          <InputNumber v-model:value="recordEdit.ttl" :min="1" :max="86400" style="width: 120px" />
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="w-16 text-right text-xs text-gray-400">启用</span>
+          <Switch v-model:checked="recordEdit.enabled" />
+        </div>
+      </div>
+    </RecordModal>
+
+    <!-- zone 弹窗 -->
+    <ZoneModal>
+      <div class="flex flex-col gap-3">
+        <div class="flex items-center gap-2">
+          <span class="w-16 text-right text-xs text-gray-400">域名</span>
+          <Input v-model:value="zoneForm.name" style="width: 260px" placeholder="如 office.local 或 crphbz.com" />
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="w-16 text-right text-xs text-gray-400">类型</span>
+          <Select
+            v-model:value="zoneForm.kind"
+            style="width: 140px"
+            :options="[
+              { value: 'auth', label: 'auth（权威）' },
+              { value: 'local', label: 'local（本地）' },
+            ]"
+          />
+        </div>
+      </div>
+    </ZoneModal>
   </div>
 </template>

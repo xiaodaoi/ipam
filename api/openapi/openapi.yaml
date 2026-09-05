@@ -112,6 +112,8 @@ paths:
     $ref: './paths/dnszone.yaml#/DnsZonesCollection'
   /dns/zones/{zoneId}/records:
     $ref: './paths/dnszone.yaml#/DnsRecordsCollection'
+  /dns/zones/{zoneId}/records/{recordId}:
+    $ref: './paths/dnszone.yaml#/DnsRecordItem'
   /dns/zones/{zoneId}/linked:
     $ref: './paths/dnszone.yaml#/DnsZoneLinked'
   /dns/zones/{zoneId}:

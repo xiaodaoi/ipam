@@ -6,3 +6,12 @@ ZoneId:
     type: string
     format: uuid
   description: 区域 ID
+
+RecordId:
+  name: recordId
+  in: path
+  required: true
+  schema:
+    type: string
+    format: uuid
+  description: 记录 ID

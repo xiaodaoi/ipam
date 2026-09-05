@@ -3,6 +3,15 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-05 · M3-011 补遗⑫——解析记录页重构（zone列表+记录CRUD全量补齐）
+
+- **需求**：解析记录页优化——zone 列表化、静态记录 CRUD、联动记录说明。
+- **补齐 API 缺口**：新增 updateDnsZone（PATCH /dns/zones/{id}：改名/启停/类型）、updateDnsRecord（PATCH .../records/{id}）、deleteDnsRecord（DELETE .../records/{id}——原记录"删除"按钮无后端端点，静默 404）。spec-first + gen。
+- **架构修正**：ZoneService 记录增删改走 ApplyConf 钩子（=applier.apply 全量渲染+reload），替换原 AuthZoneReload 单区刷新——local-zone/local-data 渲染进文件，须重渲染才运行时生效且持久（M3-011 架构结论）。zone 新建默认 enabled=true。
+- **后端**：ZoneRepo.UpdateZone/UpdateRecord(mem/pg，含 23505 唯一冲突→RECORD_NAME_DUP)；3 handler；main.go 装配钩子。
+- **前端重构**：左 zone 列表（域名+类型标签+启用开关+改/删，点击选中）+ 右记录（静态/联动 tabs：静态含新增表单、表格含启用开关+编辑+删除；联动页签含用途说明）。
+- **验证**：API CRUD 全链路 7 步 + dig 逐级（建区→建记录 dig 通→改记录 dig 更新→停用 dig 断→删记录→删区）；UI 布局量测（左 256px 右 1072px 无重叠，zone 列表+tabs 渲染正确，弹窗开关无卡死）；typecheck/build 绿。
+
 ## 2026-09-04 · M3-011 补遗⑪——解析记录(auth区)渲染语法修复 + 新建区域默认启用
 
 - **需求**：企业私有域名 www.crphbz.com → 内网 10.61.40.50（解析记录/权威区功能）。

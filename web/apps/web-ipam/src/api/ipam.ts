@@ -185,11 +185,18 @@ export const deleteForwardRule = (id: string) => req<void>(`/forward-rules/${id}
 // zone 与记录
 export const listDnsZones = () => req<{ items: DnsZone[] }>('/dns/zones');
 export const createDnsZone = (b: { name: string; kind: string }) => req<DnsZone>('/dns/zones', j(b));
+export const updateDnsZone = (id: string, b: { name?: string; kind?: string; enabled?: boolean }) =>
+  req<DnsZone>(`/dns/zones/${id}`, patch(b));
 export const deleteDnsZone = (id: string) => req<void>(`/dns/zones/${id}`, del);
 export const listDnsRecords = (zoneId: string) =>
   req<{ items: DnsRecord[] }>(`/dns/zones/${zoneId}/records`);
 export const createDnsRecord = (zoneId: string, b: Partial<DnsRecord>) =>
   req<DnsRecord>(`/dns/zones/${zoneId}/records`, j(b));
+export const updateDnsRecord = (
+  zoneId: string,
+  recordId: string,
+  b: Partial<DnsRecord>,
+) => req<DnsRecord>(`/dns/zones/${zoneId}/records/${recordId}`, patch(b));
 export const deleteDnsRecord = (zoneId: string, recordId: string) =>
   req<void>(`/dns/zones/${zoneId}/records/${recordId}`, del);
 export const listLinkedRecords = (zoneId: string) =>

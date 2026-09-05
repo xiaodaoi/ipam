@@ -839,6 +839,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/dns/zones/{zoneId}/records/{recordId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 区域 ID */
+                zoneId: components["parameters"]["ZoneId"];
+                /** @description 记录 ID */
+                recordId: components["parameters"]["RecordId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * 删除记录
+         * @description 删除后重渲染并 reload 生效。scope 为 dns.write。
+         */
+        delete: operations["deleteDnsRecord"];
+        options?: never;
+        head?: never;
+        /**
+         * 更新记录（改名/类型/TTL/值/启停）
+         * @description rdata 按类型校验；变更后重渲染并 reload 生效。scope 为 dns.write。
+         */
+        patch: operations["updateDnsRecord"];
+        trace?: never;
+    };
     "/dns/zones/{zoneId}/linked": {
         parameters: {
             query?: never;
@@ -880,7 +909,11 @@ export interface paths {
         delete: operations["deleteDnsZone"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * 更新区域（重命名/启停/类型）
+         * @description 变更后重渲染并 reload 生效。scope 为 dns.write。
+         */
+        patch: operations["updateDnsZone"];
         trace?: never;
     };
     "/forward-rules": {
@@ -2193,6 +2226,22 @@ export interface components {
          * @enum {string}
          */
         HealthLight: "up" | "down" | "unknown";
+        DnsRecordUpdate: {
+            name?: string;
+            /** @enum {string} */
+            recType?: "A" | "AAAA" | "CNAME" | "PTR";
+            ttl?: number;
+            rdata?: string;
+            enabled?: boolean;
+        };
+        DnsZoneUpdate: {
+            /** @description 重命名区域（尾点容错） */
+            name?: string;
+            /** @enum {string} */
+            kind?: "auth" | "local";
+            /** @description 启用/停用区域（停用即不再渲染解析） */
+            enabled?: boolean;
+        };
         UpdateBindingRequest: {
             /** @description 已存在静态绑定的地址 */
             address: string;
@@ -2390,6 +2439,8 @@ export interface components {
         LogExportLimit: number;
         /** @description 区域 ID */
         ZoneId: string;
+        /** @description 记录 ID */
+        RecordId: string;
         /** @description 子网 ID */
         SubnetIdParam: string;
     };
@@ -3925,6 +3976,86 @@ export interface operations {
             };
         };
     };
+    deleteDnsRecord: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 区域 ID */
+                zoneId: components["parameters"]["ZoneId"];
+                /** @description 记录 ID */
+                recordId: components["parameters"]["RecordId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已删除 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 记录不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        code?: string;
+                    };
+                };
+            };
+        };
+    };
+    updateDnsRecord: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 区域 ID */
+                zoneId: components["parameters"]["ZoneId"];
+                /** @description 记录 ID */
+                recordId: components["parameters"]["RecordId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DnsRecordUpdate"];
+            };
+        };
+        responses: {
+            /** @description 已更新 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DnsRecord"];
+                };
+            };
+            /** @description 记录不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        code?: string;
+                    };
+                };
+            };
+        };
+    };
     listLinkedRecords: {
         parameters: {
             query?: never;
@@ -3991,6 +4122,47 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    updateDnsZone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 区域 ID */
+                zoneId: components["parameters"]["ZoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DnsZoneUpdate"];
+            };
+        };
+        responses: {
+            /** @description 已更新 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DnsZone"];
+                };
+            };
+            /** @description 区域不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        code?: string;
+                    };
+                };
             };
         };
     };

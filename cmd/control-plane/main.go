@@ -422,6 +422,10 @@ func newEngine(version string) *gin.Engine {
 		_, err := applier.apply(ctx)
 		return err
 	}
+	zoneSvc.ApplyConf = func(ctx context.Context) error {
+		_, err := applier.apply(ctx)
+		return err
+	}
 	settingsH := dnsmodule.NewSettingsHandler(settingsSvc, settingsRepo)
 
 	// 启动收敛（M3-011 事故教训：unbound 容器重建后运行态转发区丢失）——

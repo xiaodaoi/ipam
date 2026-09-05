@@ -73,6 +73,39 @@ DnsZoneItem:
     responses:
       '204':
         description: 已删除
+  patch:
+    operationId: updateDnsZone
+    tags: [dns]
+    summary: 更新区域（重命名/启停/类型）
+    description: 变更后重渲染并 reload 生效。scope 为 dns.write。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - $ref: '../parameters/dnszone.yaml#/ZoneId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/dnszone.yaml#/DnsZoneUpdate'
+    responses:
+      '200':
+        description: 已更新
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/dnszone.yaml#/DnsZone'
+      '404':
+        description: 区域不存在
+        content:
+          application/problem+json:
+            schema:
+              type: object
+              required: [type, title, status]
+              properties:
+                type: { type: string }
+                title: { type: string }
+                status: { type: integer }
+                code: { type: string }
 
 DnsRecordsCollection:
   get:
@@ -111,6 +144,63 @@ DnsRecordsCollection:
           application/json:
             schema:
               $ref: '../components/schemas/dnszone.yaml#/DnsRecord'
+DnsRecordItem:
+  parameters:
+    - $ref: '../parameters/dnszone.yaml#/ZoneId'
+    - $ref: '../parameters/dnszone.yaml#/RecordId'
+  delete:
+    operationId: deleteDnsRecord
+    tags: [dns]
+    summary: 删除记录
+    description: 删除后重渲染并 reload 生效。scope 为 dns.write。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '204':
+        description: 已删除
+      '404':
+        description: 记录不存在
+        content:
+          application/problem+json:
+            schema:
+              type: object
+              required: [type, title, status]
+              properties:
+                type: { type: string }
+                title: { type: string }
+                status: { type: integer }
+                code: { type: string }
+  patch:
+    operationId: updateDnsRecord
+    tags: [dns]
+    summary: 更新记录（改名/类型/TTL/值/启停）
+    description: rdata 按类型校验；变更后重渲染并 reload 生效。scope 为 dns.write。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/dnszone.yaml#/DnsRecordUpdate'
+    responses:
+      '200':
+        description: 已更新
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/dnszone.yaml#/DnsRecord'
+      '404':
+        description: 记录不存在
+        content:
+          application/problem+json:
+            schema:
+              type: object
+              required: [type, title, status]
+              properties:
+                type: { type: string }
+                title: { type: string }
+                status: { type: integer }
+                code: { type: string }
+
 DnsZoneLinked:
   get:
     operationId: listLinkedRecords

@@ -15,6 +15,13 @@ DnsZoneCreate:
     name: { type: string }
     kind: { type: string, enum: [auth, local], default: auth }
 
+DnsZoneUpdate:
+  type: object
+  properties:
+    name: { type: string, description: 重命名区域（尾点容错） }
+    kind: { type: string, enum: [auth, local] }
+    enabled: { type: boolean, description: 启用/停用区域（停用即不再渲染解析） }
+
 DnsRecord:
   type: object
   description: 解析记录。
@@ -37,6 +44,15 @@ DnsRecordCreate:
     ttl: { type: integer, default: 300 }
     rdata: { type: string }
     enabled: { type: boolean, default: true }
+
+DnsRecordUpdate:
+  type: object
+  properties:
+    name: { type: string }
+    recType: { type: string, enum: [A, AAAA, CNAME, PTR] }
+    ttl: { type: integer, minimum: 1, maximum: 86400 }
+    rdata: { type: string }
+    enabled: { type: boolean }
 
 LinkedRecord:
   type: object

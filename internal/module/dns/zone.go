@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -36,9 +38,11 @@ type Record struct {
 type ZoneRepo interface {
 	ListZones(ctx context.Context) ([]Zone, error)
 	CreateZone(ctx context.Context, z Zone) (Zone, error)
+	UpdateZone(ctx context.Context, z Zone) error
 	DeleteZone(ctx context.Context, id string) error
 	ListRecords(ctx context.Context, zoneID string) ([]Record, error)
 	CreateRecord(ctx context.Context, r Record) (Record, error)
+	UpdateRecord(ctx context.Context, r Record) error
 	DeleteRecord(ctx context.Context, id string) error
 }
 
@@ -73,14 +77,27 @@ func ValidateRecord(recType, rdata string) error {
 	return nil
 }
 
-// ZoneService 记录 CRUD + 变更触发单区刷新。
+// ZoneService 记录 CRUD + 变更触发全量渲染/reload。
 type ZoneService struct {
 	repo ZoneRepo
 	ctl  UnboundController
+	// ApplyConf 全量渲染+reload 钩子（main.go 装配为 confApplier.apply）。
+	// local-zone/local-data 渲染进文件，运行时变更须重渲染+reload 才生效与持久（M3-011）。
+	ApplyConf func(ctx context.Context) error
 }
 
 func NewZoneService(repo ZoneRepo, ctl UnboundController) *ZoneService {
 	return &ZoneService{repo: repo, ctl: ctl}
+}
+
+// apply 触发全量重渲染+reload（最佳努力：失败仅日志，一致性由下次收敛兜底）。
+func (s *ZoneService) apply(ctx context.Context) {
+	if s.ApplyConf == nil {
+		return
+	}
+	if err := s.ApplyConf(ctx); err != nil {
+		log.Printf("[zone] apply failed: %v", err)
+	}
 }
 
 // CreateZone 创建区域。
@@ -88,10 +105,36 @@ func (s *ZoneService) CreateZone(ctx context.Context, z Zone) (Zone, error) {
 	if !strings.HasSuffix(z.Name, ".") {
 		z.Name += "."
 	}
-	return s.repo.CreateZone(ctx, z)
+	saved, err := s.repo.CreateZone(ctx, z)
+	if err != nil {
+		return Zone{}, err
+	}
+	s.apply(ctx)
+	return saved, nil
 }
 
-// CreateRecord 校验→落库→单区刷新（auth_zone_reload）。
+// UpdateZone 更新区域（重命名/启停/类型）。
+func (s *ZoneService) UpdateZone(ctx context.Context, z Zone) (Zone, error) {
+	if !strings.HasSuffix(z.Name, ".") {
+		z.Name += "."
+	}
+	if err := s.repo.UpdateZone(ctx, z); err != nil {
+		return Zone{}, err
+	}
+	s.apply(ctx)
+	return z, nil
+}
+
+// DeleteZone 删除区域（级联记录）。
+func (s *ZoneService) DeleteZone(ctx context.Context, id string) error {
+	if err := s.repo.DeleteZone(ctx, id); err != nil {
+		return err
+	}
+	s.apply(ctx)
+	return nil
+}
+
+// CreateRecord 校验→落库→全量重渲染/reload。
 func (s *ZoneService) CreateRecord(ctx context.Context, zoneID string, r Record) (Record, error) {
 	if err := ValidateRecord(r.RecType, r.Rdata); err != nil {
 		return Record{}, err
@@ -101,15 +144,28 @@ func (s *ZoneService) CreateRecord(ctx context.Context, zoneID string, r Record)
 	if err != nil {
 		return Record{}, err
 	}
-	_ = s.ctl.AuthZoneReload(ctx, zoneID) // 刷新失败记录但返回创建成功（一致性由 M3-006 对账兜底）
+	s.apply(ctx)
 	return saved, nil
 }
 
-// DeleteRecord 删除→刷新。
+// UpdateRecord 更新记录（校验→落库→重渲染）。
+func (s *ZoneService) UpdateRecord(ctx context.Context, r Record) (Record, error) {
+	if err := ValidateRecord(r.RecType, r.Rdata); err != nil {
+		return Record{}, err
+	}
+	if err := s.repo.UpdateRecord(ctx, r); err != nil {
+		return Record{}, err
+	}
+	s.apply(ctx)
+	return r, nil
+}
+
+// DeleteRecord 删除→重渲染。
 func (s *ZoneService) DeleteRecord(ctx context.Context, id string) error {
 	if err := s.repo.DeleteRecord(ctx, id); err != nil {
 		return err
 	}
+	s.apply(ctx)
 	return nil
 }
 
@@ -178,6 +234,20 @@ func (r *MemZoneRepo) DeleteZone(_ context.Context, id string) error {
 	delete(r.zones, id)
 	return nil
 }
+func (r *MemZoneRepo) UpdateZone(_ context.Context, z Zone) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.zones[z.ID]; !ok {
+		return ErrZoneNotFound
+	}
+	for _, e := range r.zones {
+		if e.ID != z.ID && strings.EqualFold(e.Name, z.Name) {
+			return ErrZoneNameDup
+		}
+	}
+	r.zones[z.ID] = z
+	return nil
+}
 func (r *MemZoneRepo) ListRecords(_ context.Context, zoneID string) ([]Record, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -209,6 +279,20 @@ func (r *MemZoneRepo) DeleteRecord(_ context.Context, id string) error {
 		return ErrRecordNotFound
 	}
 	delete(r.records, id)
+	return nil
+}
+func (r *MemZoneRepo) UpdateRecord(_ context.Context, rec Record) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.records[rec.ID]; !ok {
+		return ErrRecordNotFound
+	}
+	for _, e := range r.records {
+		if e.ID != rec.ID && e.ZoneID == rec.ZoneID && strings.EqualFold(e.Name, rec.Name) && e.RecType == rec.RecType {
+			return ErrRecordNameDup
+		}
+	}
+	r.records[rec.ID] = rec
 	return nil
 }
 
@@ -244,6 +328,17 @@ func (r *PgZoneRepo) DeleteZone(ctx context.Context, id string) error {
 	_, err := r.pool.Exec(ctx, `DELETE FROM dns_zone WHERE id=$1`, id)
 	return err
 }
+func (r *PgZoneRepo) UpdateZone(ctx context.Context, z Zone) error {
+	tag, err := r.pool.Exec(ctx, `UPDATE dns_zone SET name=$1, kind=$2, enabled=$3 WHERE id=$4`,
+		z.Name, z.Kind, z.Enabled, z.ID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrZoneNotFound
+	}
+	return nil
+}
 func (r *PgZoneRepo) ListRecords(ctx context.Context, zoneID string) ([]Record, error) {
 	rows, err := r.pool.Query(ctx,
 		`SELECT id::text, zone_id::text, name, rec_type, ttl, rdata, enabled FROM dns_record WHERE zone_id=$1`, zoneID)
@@ -275,4 +370,20 @@ func (r *PgZoneRepo) CreateRecord(ctx context.Context, rec Record) (Record, erro
 func (r *PgZoneRepo) DeleteRecord(ctx context.Context, id string) error {
 	_, err := r.pool.Exec(ctx, `DELETE FROM dns_record WHERE id=$1`, id)
 	return err
+}
+func (r *PgZoneRepo) UpdateRecord(ctx context.Context, rec Record) error {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE dns_record SET name=$1, rec_type=$2, ttl=$3, rdata=$4, enabled=$5 WHERE id=$6`,
+		rec.Name, rec.RecType, rec.TTL, rec.Rdata, rec.Enabled, rec.ID)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return ErrRecordNameDup
+		}
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrRecordNotFound
+	}
+	return nil
 }

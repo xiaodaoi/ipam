@@ -43,18 +43,23 @@ func TestExportZonefile_格式(t *testing.T) {
 	}
 }
 
-func TestZoneService_CreateRecord触发刷新(t *testing.T) {
+func TestZoneService_变更触发ApplyConf(t *testing.T) {
 	fc := &fakeCtl{}
 	svc := NewZoneService(NewMemZoneRepo(), fc)
+	applies := 0
+	svc.ApplyConf = func(context.Context) error { applies++; return nil }
 	zone, err := svc.CreateZone(context.Background(), Zone{Name: "test.local.", Kind: "auth"})
 	if err != nil {
 		t.Fatal(err)
 	}
+	if applies != 1 {
+		t.Fatalf("CreateZone 应触发 ApplyConf，实际 %d", applies)
+	}
 	if _, err := svc.CreateRecord(context.Background(), zone.ID, Record{Name: "www", RecType: "A", TTL: 300, Rdata: "10.1.1.1"}); err != nil {
 		t.Fatal(err)
 	}
-	if fc.zoneReloads != 1 {
-		t.Fatalf("auth_zone_reload not triggered: %d", fc.zoneReloads)
+	if applies != 2 {
+		t.Fatalf("CreateRecord 应触发 ApplyConf，实际 %d", applies)
 	}
 	// 同名同类型冲突
 	if _, err := svc.CreateRecord(context.Background(), zone.ID, Record{Name: "www", RecType: "A", TTL: 300, Rdata: "10.1.1.2"}); err != ErrRecordNameDup {
@@ -62,14 +67,16 @@ func TestZoneService_CreateRecord触发刷新(t *testing.T) {
 	}
 }
 
-func TestZoneService_非法记录拒绝且不触发刷新(t *testing.T) {
-	fc := &fakeCtl{}
-	svc := NewZoneService(NewMemZoneRepo(), fc)
+func TestZoneService_非法记录拒绝且不触发Apply(t *testing.T) {
+	svc := NewZoneService(NewMemZoneRepo(), &fakeCtl{})
+	applies := 0
+	svc.ApplyConf = func(context.Context) error { applies++; return nil }
 	zone, _ := svc.CreateZone(context.Background(), Zone{Name: "t.local.", Kind: "auth"})
+	applies = 0
 	if _, err := svc.CreateRecord(context.Background(), zone.ID, Record{Name: "x", RecType: "A", Rdata: "bad"}); err == nil {
 		t.Fatal("want BAD_RDATA")
 	}
-	if fc.zoneReloads != 0 {
-		t.Fatal("invalid record must not trigger reload")
+	if applies != 0 {
+		t.Fatal("invalid record must not trigger apply")
 	}
 }

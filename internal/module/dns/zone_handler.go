@@ -68,11 +68,55 @@ func (h *ZoneHandler) CreateDnsZone(c *gin.Context) {
 }
 
 func (h *ZoneHandler) DeleteDnsZone(c *gin.Context, zoneId rtypes.UUID) {
-	if err := h.svc.repo.DeleteZone(c.Request.Context(), zoneId.String()); err != nil {
+	if err := h.svc.DeleteZone(c.Request.Context(), zoneId.String()); err != nil {
 		problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "ZONE_NOT_FOUND", "区域不存在")
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+// UpdateDnsZone PATCH /dns/zones/{zoneId}
+func (h *ZoneHandler) UpdateDnsZone(c *gin.Context, zoneId rtypes.UUID) {
+	var body apigen.DnsZoneUpdate
+	if err := c.ShouldBindJSON(&body); err != nil {
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "BAD_REQUEST", err.Error())
+		return
+	}
+	zones, err := h.svc.repo.ListZones(c.Request.Context())
+	if err != nil {
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "INTERNAL", err.Error())
+		return
+	}
+	var cur *Zone
+	for i := range zones {
+		if zones[i].ID == zoneId.String() {
+			cur = &zones[i]
+		}
+	}
+	if cur == nil {
+		problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "ZONE_NOT_FOUND", "区域不存在")
+		return
+	}
+	if body.Name != nil {
+		cur.Name = *body.Name
+	}
+	if body.Kind != nil {
+		cur.Kind = string(*body.Kind)
+	}
+	if body.Enabled != nil {
+		cur.Enabled = *body.Enabled
+	}
+	updated, err := h.svc.UpdateZone(c.Request.Context(), *cur)
+	if err != nil {
+		switch err {
+		case ErrZoneNameDup:
+			problem.Write(c, http.StatusConflict, "https://ipam.local/problems/zone-name-dup", "ZONE_NAME_DUP", "区域名已存在")
+		default:
+			problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "INTERNAL", err.Error())
+		}
+		return
+	}
+	c.JSON(http.StatusOK, apigen.DnsZone{Id: *uuidPtr(updated.ID), Name: updated.Name, Kind: apigen.DnsZoneKind(updated.Kind), Enabled: updated.Enabled})
 }
 
 func (h *ZoneHandler) ListDnsRecords(c *gin.Context, zoneId rtypes.UUID) {
@@ -132,6 +176,67 @@ func (h *ZoneHandler) ExportDnsZone(c *gin.Context, zoneId rtypes.UUID) {
 	records, _ := h.svc.repo.ListRecords(c.Request.Context(), zone.ID)
 	c.Header("Content-Type", "text/plain")
 	c.String(http.StatusOK, "%s", ExportZonefile(*zone, records))
+}
+
+// DeleteDnsRecord DELETE /dns/zones/{zoneId}/records/{recordId}
+func (h *ZoneHandler) DeleteDnsRecord(c *gin.Context, zoneId rtypes.UUID, recordId rtypes.UUID) {
+	if err := h.svc.DeleteRecord(c.Request.Context(), recordId.String()); err != nil {
+		problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "RECORD_NOT_FOUND", "记录不存在")
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// UpdateDnsRecord PATCH /dns/zones/{zoneId}/records/{recordId}
+func (h *ZoneHandler) UpdateDnsRecord(c *gin.Context, zoneId rtypes.UUID, recordId rtypes.UUID) {
+	var body apigen.DnsRecordUpdate
+	if err := c.ShouldBindJSON(&body); err != nil {
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "BAD_REQUEST", err.Error())
+		return
+	}
+	recs, err := h.svc.repo.ListRecords(c.Request.Context(), zoneId.String())
+	if err != nil {
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "INTERNAL", err.Error())
+		return
+	}
+	var cur *Record
+	for i := range recs {
+		if recs[i].ID == recordId.String() {
+			cur = &recs[i]
+		}
+	}
+	if cur == nil {
+		problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "RECORD_NOT_FOUND", "记录不存在")
+		return
+	}
+	if body.Name != nil {
+		cur.Name = *body.Name
+	}
+	if body.RecType != nil {
+		cur.RecType = string(*body.RecType)
+	}
+	if body.Ttl != nil {
+		cur.TTL = *body.Ttl
+	}
+	if body.Rdata != nil {
+		cur.Rdata = *body.Rdata
+	}
+	if body.Enabled != nil {
+		cur.Enabled = *body.Enabled
+	}
+	updated, err := h.svc.UpdateRecord(c.Request.Context(), *cur)
+	if err != nil {
+		switch err {
+		case ErrRecordNameDup:
+			problem.Write(c, http.StatusConflict, "https://ipam.local/problems/record-name-dup", "RECORD_NAME_DUP", "同名同类型记录已存在")
+		case ErrBadRdata:
+			problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "BAD_RDATA", err.Error())
+		default:
+			problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "INTERNAL", err.Error())
+		}
+		return
+	}
+	c.JSON(http.StatusOK, toGenRecord(updated))
 }
 
 func (h *ZoneHandler) ListLinkedRecords(c *gin.Context, zoneId rtypes.UUID) {
