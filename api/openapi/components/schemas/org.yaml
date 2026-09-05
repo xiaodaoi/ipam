@@ -58,3 +58,18 @@ OrgUpdate:
       maxLength: 64
     parentId:
       type: [string, 'null']
+
+OrgReorder:
+  type: object
+  description: 拖拽排序请求：重排 parentId 下 orderedIds 所列同级节点的显示顺序。
+  required: [orderedIds]
+  properties:
+    parentId:
+      type: [string, 'null']
+      description: 目标父节点；null 表示根级
+    orderedIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+      description: 拖拽后的同级节点顺序（须全部同父）

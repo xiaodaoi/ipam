@@ -109,3 +109,34 @@ OrgItem:
         $ref: '../components/responses/org.yaml#/NotFound404'
       '409':
         $ref: '../components/responses/org.yaml#/OrgInUseError'
+
+OrgsReorder:
+  post:
+    operationId: reorderOrgs
+    tags: [org]
+    summary: 拖拽重排同级组织顺序
+    description: |
+      将 orderedIds 中的同级节点按给定顺序写入 sort_order（须全部同父，否则 400 ORG_MOVE）。
+      所需 scope：org.write。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/org.yaml#/OrgReorder'
+    responses:
+      '204':
+        description: 已重排
+      '400':
+        description: 节点不同父 / 不存在
+        content:
+          application/problem+json:
+            schema:
+              type: object
+              required: [type, title, status]
+              properties:
+                type: { type: string }
+                title: { type: string }
+                status: { type: integer }
+                code: { type: string }

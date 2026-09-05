@@ -93,6 +93,25 @@ func (h *OrgHandler) DeleteOrg(c *gin.Context, orgId apigen.OrgId) {
 	c.Status(http.StatusNoContent)
 }
 
+// ReorderOrgs POST /orgs/reorder（组织拖拽排序）
+func (h *OrgHandler) ReorderOrgs(c *gin.Context) {
+	var body apigen.OrgReorder
+	if err := c.ShouldBindJSON(&body); err != nil {
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "BAD_REQUEST", err.Error())
+		return
+	}
+	parent := derefStr(body.ParentId)
+	ids := make([]string, 0, len(body.OrderedIds))
+	for _, id := range body.OrderedIds {
+		ids = append(ids, id.String())
+	}
+	if err := h.svc.Reorder(c.Request.Context(), parent, ids); err != nil {
+		mapErr(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 func mapErr(c *gin.Context, err error) {
 	switch err.Error() {
 	case ErrOrgNotFound.Error():
@@ -103,6 +122,8 @@ func mapErr(c *gin.Context, err error) {
 		problem.Write(c, http.StatusConflict, "https://ipam.local/problems/org-cycle", "ORG_CYCLE", "移动目标为自身或其子孙")
 	case ErrOrgInUse.Error():
 		problem.Write(c, http.StatusConflict, "https://ipam.local/problems/org-in-use", "ORG_IN_USE", "该分组下存在子节点或仍被子网/资产引用")
+	case ErrOrgMove.Error():
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/org-move", "ORG_MOVE", "重排节点须全部同父")
 	default:
 		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "INTERNAL", err.Error())
 	}

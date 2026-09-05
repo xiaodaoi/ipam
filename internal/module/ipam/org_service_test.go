@@ -147,3 +147,46 @@ func TestTree_嵌套排序(t *testing.T) {
 		t.Fatalf("unexpected tree: %+v", tree)
 	}
 }
+
+func TestOrgService_Reorder同级排序与树序(t *testing.T) {
+	ctx := context.Background()
+	s := NewMemOrgStore()
+	svc := NewOrgService(s)
+	// 建根 A/B/C（字母序自动 B C A... 测试重排效果）
+	ids := []string{}
+	for _, name := range []string{"A公司", "B公司", "C公司"} {
+		n, err := svc.Create(ctx, "", name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, n.ID)
+	}
+	// 默认按字母序：A,B,C → A公司,B公司,C公司
+	tree := svc.Tree(ctx)
+	if tree[0].Name != "A公司" || tree[2].Name != "C公司" {
+		t.Fatalf("初始字母序不符: %s,%s,%s", tree[0].Name, tree[1].Name, tree[2].Name)
+	}
+	// 重排为 C,B,A
+	if err := svc.Reorder(ctx, "", []string{ids[2], ids[1], ids[0]}); err != nil {
+		t.Fatal(err)
+	}
+	tree = svc.Tree(ctx)
+	if tree[0].Name != "C公司" || tree[1].Name != "B公司" || tree[2].Name != "A公司" {
+		t.Fatalf("重排后顺序不符: %s,%s,%s", tree[0].Name, tree[1].Name, tree[2].Name)
+	}
+	// 不同父节点混排 → ORG_MOVE
+	child, err := svc.Create(ctx, ids[0], "研发部")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Reorder(ctx, "", []string{child.ID, ids[1]}); err != ErrOrgMove {
+		t.Fatalf("跨父重排 err=%v want ORG_MOVE", err)
+	}
+	// 追加节点排在末尾
+	n, _ := svc.Create(ctx, "", "D公司")
+	_ = n
+	tree = svc.Tree(ctx)
+	if tree[3].Name != "D公司" {
+		t.Fatalf("新建应追加末尾: %+v", tree)
+	}
+}

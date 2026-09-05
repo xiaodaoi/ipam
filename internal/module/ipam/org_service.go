@@ -30,11 +30,33 @@ func (s *OrgService) Create(_ context.Context, parentID, name string) (OrgNode, 
 		}
 		parentPath = strings.TrimSuffix(p.Path, "/")
 	}
-	n := OrgNode{ID: id, ParentID: parentID, Name: name, Path: parentPath + "/" + id}
+	siblingCount := 0
+	for _, c := range s.store.List() {
+		if c.ParentID == parentID {
+			siblingCount++
+		}
+	}
+	n := OrgNode{ID: id, ParentID: parentID, Name: name, Path: parentPath + "/" + id, SortOrder: siblingCount}
 	if err := s.store.Create(n); err != nil {
 		return OrgNode{}, err
 	}
 	return n, nil
+}
+
+// Reorder 重排某父节点下的同级组织顺序（sort_order = 序号；须全部同父）。
+func (s *OrgService) Reorder(_ context.Context, parentID string, orderedIDs []string) error {
+	for i, id := range orderedIDs {
+		cur, ok := s.store.Get(id)
+		if !ok {
+			return ErrOrgNotFound
+		}
+		if cur.ParentID != parentID {
+			return ErrOrgMove
+		}
+		cur.SortOrder = i
+		s.store.Update(cur)
+	}
+	return nil
 }
 
 // Update 改名与/或移动；移动到自身子孙返回 ErrOrgCycle，成功则级联刷新子树 path。
@@ -134,9 +156,16 @@ func (s *OrgService) Tree(_ context.Context) []TreeNode {
 func sortTree(ns []TreeNode) {
 	for i := range ns {
 		for j := i + 1; j < len(ns); j++ {
-			if ns[j].Name < ns[i].Name {
+			if less(ns[j].Node, ns[i].Node) {
 				ns[i], ns[j] = ns[j], ns[i]
 			}
 		}
 	}
+}
+
+func less(a, b OrgNode) bool {
+	if a.SortOrder != b.SortOrder {
+		return a.SortOrder < b.SortOrder
+	}
+	return a.Name < b.Name
 }

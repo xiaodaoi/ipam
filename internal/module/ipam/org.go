@@ -7,10 +7,11 @@ import (
 
 // OrgNode 组织分组节点（PG org_group 行投影，§13.4 主数据）。
 type OrgNode struct {
-	ID       string
-	ParentID string // 空=根
-	Name     string
-	Path     string // 物化路径 /<id>/<id>
+	ID        string
+	ParentID  string // 空=根
+	Name      string
+	Path      string // 物化路径 /<id>/<id>
+	SortOrder int    // 同级排序（组织拖拽排序，0020 迁移）
 }
 
 // OrgStore 组织持久化抽象：M2-002 起提供 pgx 实现；当前内存实现支撑 PoC。
@@ -30,4 +31,5 @@ var (
 	ErrOrgNameDup  = errors.New("ORG_NAME_DUP")
 	ErrOrgInUse    = errors.New("ORG_IN_USE")
 	ErrOrgCycle    = errors.New("ORG_CYCLE")
+	ErrOrgMove     = errors.New("ORG_MOVE")
 )

@@ -144,6 +144,8 @@ paths:
     $ref: './paths/subnets.yaml#/SubnetItem'
   /orgs:
     $ref: './paths/orgs.yaml#/OrgsCollection'
+  /orgs/reorder:
+    $ref: './paths/orgs.yaml#/OrgsReorder'
   /orgs/{orgId}:
     $ref: './paths/orgs.yaml#/OrgItem'
   /system/info:

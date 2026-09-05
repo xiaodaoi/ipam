@@ -45,6 +45,8 @@ export const listLedger = (params: { orgId?: string; subnetId?: string; family?:
 };
 
 export const listOrgTree = () => req<OrgTreeNode[]>('/orgs');
+export const reorderOrgs = (parentId: string | null, orderedIds: string[]) =>
+  req<void>('/orgs/reorder', j({ parentId, orderedIds }));
 
 export const reserveAddress = (subnetId: string, address: string) =>
   req<void>('/ledger', { method: 'POST', body: JSON.stringify({ subnetId, address }) });

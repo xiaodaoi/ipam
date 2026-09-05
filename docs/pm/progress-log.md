@@ -3,6 +3,14 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-05 · M3-011 补遗⑭——组织管理同级拖拽排序 + UI 美化
+
+- **需求**：组织管理组织支持拖拽排序 + 专业 UI 优化。
+- **数据模型**：org_group 无排序字段 → 迁移 0020 加 sort_order int DEFAULT 0；OrgNode 加字段；PG/Mem store 读写。
+- **后端**：OrgService.Create 追加同级末尾（sort_order=同级数）；Tree/sortTree 按 (sort_order, name) 排序（reorder 后顺序优先、默认回落字母序）；新增 Reorder(parentID, orderedIDs)（须同父，否则 ORG_MOVE）；handler POST /orgs/reorder（spec-first + gen）；单测覆盖（初始字母序→重排→追加末尾→跨父 ORG_MOVE）。
+- **前端**：组织管理页 antd Tree 开启 draggable + allowDrop 禁拖入节点内部（仅同级排序）；drop 处理器计算目标父下新顺序调 reorderOrgs；拖拽中节点半透明；工具栏加图标按钮；提示文案/灰字改主题语义色（深色适配）。
+- **验证**：Playwright 建 3 根组织拖拽丙→最前，顺序变 丙/甲/乙 + "排序已更新" toast；刷新后顺序保持（持久化）；go test/typecheck/build 绿。
+
 ## 2026-09-05 · M3-011 补遗⑬——解析记录页深色选中底色 + 记录列表包住修复
 
 - **① zone 选中白底看不清**：根因——选中态硬编码 `bg-blue-50 ring-blue-200`（近白），深色主题下文字近白 → 不可见。修复：改用主题语义色 `bg-accent text-accent-foreground`（shadcn 自适应：深色下 --accent=216 5% 19% 深灰 + 近白文字，亮色下浅灰+深字）；次要灰字 text-gray-400 → text-muted-foreground。

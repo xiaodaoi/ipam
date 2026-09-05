@@ -197,7 +197,7 @@ func NewOrgRepo(pool *pgxpool.Pool) *OrgRepo { return &OrgRepo{pool: pool} }
 
 func (r *OrgRepo) List() []OrgNode {
 	rows, err := r.pool.Query(context.Background(),
-		`SELECT id::text, coalesce(parent_id::text,''), name, path FROM org_group`)
+		`SELECT id::text, coalesce(parent_id::text,''), name, path, sort_order FROM org_group`)
 	if err != nil {
 		return nil
 	}
@@ -205,7 +205,7 @@ func (r *OrgRepo) List() []OrgNode {
 	var out []OrgNode
 	for rows.Next() {
 		var n OrgNode
-		if err := rows.Scan(&n.ID, &n.ParentID, &n.Name, &n.Path); err == nil {
+		if err := rows.Scan(&n.ID, &n.ParentID, &n.Name, &n.Path, &n.SortOrder); err == nil {
 			out = append(out, n)
 		}
 	}
@@ -215,8 +215,8 @@ func (r *OrgRepo) List() []OrgNode {
 func (r *OrgRepo) Get(id string) (OrgNode, bool) {
 	var n OrgNode
 	err := r.pool.QueryRow(context.Background(),
-		`SELECT id::text, coalesce(parent_id::text,''), name, path FROM org_group WHERE id=$1`, id).
-		Scan(&n.ID, &n.ParentID, &n.Name, &n.Path)
+		`SELECT id::text, coalesce(parent_id::text,''), name, path, sort_order FROM org_group WHERE id=$1`, id).
+		Scan(&n.ID, &n.ParentID, &n.Name, &n.Path, &n.SortOrder)
 	if err != nil {
 		return OrgNode{}, false
 	}
@@ -225,15 +225,15 @@ func (r *OrgRepo) Get(id string) (OrgNode, bool) {
 
 func (r *OrgRepo) Create(n OrgNode) error {
 	_, err := r.pool.Exec(context.Background(),
-		`INSERT INTO org_group(id,parent_id,name,path) VALUES($1,$2,$3,$4)`,
-		n.ID, nullStr(n.ParentID), n.Name, n.Path)
+		`INSERT INTO org_group(id,parent_id,name,path,sort_order) VALUES($1,$2,$3,$4,$5)`,
+		n.ID, nullStr(n.ParentID), n.Name, n.Path, n.SortOrder)
 	return err
 }
 
 func (r *OrgRepo) Update(n OrgNode) {
 	_, _ = r.pool.Exec(context.Background(),
-		`UPDATE org_group SET parent_id=$2, name=$3, path=$4 WHERE id=$1`,
-		n.ID, nullStr(n.ParentID), n.Name, n.Path)
+		`UPDATE org_group SET parent_id=$2, name=$3, path=$4, sort_order=$5 WHERE id=$1`,
+		n.ID, nullStr(n.ParentID), n.Name, n.Path, n.SortOrder)
 }
 
 func (r *OrgRepo) Delete(id string) error {

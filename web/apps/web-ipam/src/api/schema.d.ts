@@ -1227,6 +1227,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/orgs/reorder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 拖拽重排同级组织顺序
+         * @description 将 orderedIds 中的同级节点按给定顺序写入 sort_order（须全部同父，否则 400 ORG_MOVE）。
+         *     所需 scope：org.write。
+         */
+        post: operations["reorderOrgs"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/orgs/{orgId}": {
         parameters: {
             query?: never;
@@ -2253,6 +2274,13 @@ export interface components {
             address: string;
             /** @description 释放原因（审计） */
             reason?: string;
+        };
+        /** @description 拖拽排序请求：重排 parentId 下 orderedIds 所列同级节点的显示顺序。 */
+        OrgReorder: {
+            /** @description 目标父节点；null 表示根级 */
+            parentId?: string | null;
+            /** @description 拖拽后的同级节点顺序（须全部同父） */
+            orderedIds: string[];
         };
     };
     responses: {
@@ -4813,6 +4841,42 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    reorderOrgs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgReorder"];
+            };
+        };
+        responses: {
+            /** @description 已重排 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 节点不同父 / 不存在 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        code?: string;
+                    };
                 };
             };
         };
