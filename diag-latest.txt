@@ -1,0 +1,244 @@
+== replay assertions on live stack ==
+-- [1]
+{"code":"TOKEN_MISSING","detail":"未携带有效访问令牌","instance":"/api/v1/system/info","status":401,"title":"Unauthorized","type":"https://ipam.local/problems/unauthorized"}
+-- [2]
+[ { "arguments": { "extended": "2.2.0\ntarball\nlinked with:\nlog4cplus 2.0.8\nOpenSSL 3.0.20 7 Apr 2026\ndatabase:\nMySQL backend 14.0, library 3.3.19\nPostgreSQL backend 13.0, library 150019\nMemfile backend 2.1" }, "result": 0, "text": "2.2.0" } ]
+-- [3]
+Error response from daemon: Container 5e3d7d78a00e6bbbb4f9b105005ec19316e8aeb6faad036fa0a4b911d6237f36 is restarting, wait until the container is running
+
+-- [4]
+Error response from daemon: Container 5e3d7d78a00e6bbbb4f9b105005ec19316e8aeb6faad036fa0a4b911d6237f36 is restarting, wait until the container is running
+
+-- [5] inject+dig
+Error response from daemon: Container 5e3d7d78a00e6bbbb4f9b105005ec19316e8aeb6faad036fa0a4b911d6237f36 is restarting, wait until the container is running
+Error response from daemon: Container 5e3d7d78a00e6bbbb4f9b105005ec19316e8aeb6faad036fa0a4b911d6237f36 is restarting, wait until the container is running
+-- [6] logs endpoint
+{"code":"TOKEN_MISSING","detail":"未携带有效访问令牌","instance":"/api/v1/logs","status":401,"title":"Unauthorized","type":"https://ipam.local/problems/unauthorized"}
+-- [7] logs table
+0
+
+== ps ==
+NAME                      IMAGE                                       COMMAND                  SERVICE            CREATED          STATUS                                    PORTS
+ipam-clickhouse-1         clickhouse/clickhouse-server:24.8-alpine    "/entrypoint.sh"         clickhouse         15 seconds ago   Up 14 seconds                             8123/tcp, 9009/tcp, 127.0.0.1:9000->9000/tcp
+ipam-coherence-daemon-1   ipam/coherence-daemon:0.1.0-dev             "/usr/local/bin/cohe…"   coherence-daemon   15 seconds ago   Up 8 seconds                              
+ipam-control-plane-1      ipam/control-plane:0.1.0-dev                "/usr/local/bin/cont…"   control-plane      15 seconds ago   Up 8 seconds                              0.0.0.0:8443->8443/tcp, [::]:8443->8443/tcp
+ipam-kea-ctrl-agent-1     ipam-kea-ctrl-agent                         "kea-ctrl-agent -c /…"   kea-ctrl-agent     15 seconds ago   Up 14 seconds                             127.0.0.1:8000->8000/tcp
+ipam-kea-dhcp4-1          ipam-kea-dhcp4                              "sh -c 'mkdir -p /va…"   kea-dhcp4          15 seconds ago   Up 14 seconds                             
+ipam-kea-dhcp6-1          ipam-kea-dhcp6                              "kea-dhcp6 -c /etc/k…"   kea-dhcp6          15 seconds ago   Up 14 seconds                             
+ipam-postgresql-1         postgres:16-alpine                          "docker-entrypoint.s…"   postgresql         15 seconds ago   Up 14 seconds (healthy)                   127.0.0.1:5432->5432/tcp
+ipam-unbound-1            ipam/unbound:0.1.0-dev                      "sh -c 'unbound-chec…"   unbound            15 seconds ago   Restarting (1) Less than a second ago     
+ipam-vector-1             ghcr.io/vectordotdev/vector:0.46.1-alpine   "/usr/local/bin/vect…"   vector             15 seconds ago   Restarting (255) Less than a second ago   
+
+== logs(tail) ==
+kea-dhcp6-1  | 2026-09-05 02:42:43.885 INFO  [kea-dhcp6.dhcp6/1.140631193985536] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1  | 2026-09-05 02:42:43.885 INFO  [kea-dhcp6.hosts/1.140631193985536] HOSTS_BACKENDS_REGISTERED the following host backend types are available: mysql postgresql 
+vector-1     | exec /usr/local/bin/vector: exec format error
+vector-1     | exec /usr/local/bin/vector: exec format error
+vector-1     | exec /usr/local/bin/vector: exec format error
+vector-1     | exec /usr/local/bin/vector: exec format error
+vector-1     | exec /usr/local/bin/vector: exec format error
+vector-1     | exec /usr/local/bin/vector: exec format error
+vector-1     | exec /usr/local/bin/vector: exec format error
+vector-1     | exec /usr/local/bin/vector: exec format error
+kea-dhcp6-1  | 2026-09-05 02:42:43.886 INFO  [kea-dhcp6.dhcpsrv/1.140631193985536] DHCPSRV_CFGMGR_ADD_IFACE listening on interface eth0
+kea-dhcp6-1         | 2026-09-05 02:42:43.886 INFO  [kea-dhcp6.hooks/1.140631193985536] HOOKS_LIBRARY_CLOSED hooks library /usr/lib/x86_64-linux-gnu/kea/hooks/libdhcp_lease_cmds.so successfully closed
+kea-dhcp6-1         | 2026-09-05 02:42:43.887 INFO  [kea-dhcp6.dhcpsrv/1.140631193985536] DHCPSRV_CFGMGR_NEW_SUBNET6 a new subnet has been added to configuration: 2406:172::/64 with params: preferred-lifetime=3600, valid-lifetime=3600, rapid-commit is false
+kea-dhcp6-1         | 2026-09-05 02:42:43.887 INFO  [kea-dhcp6.commands/1.140631193985536] COMMAND_ACCEPTOR_START Starting to accept connections via unix domain socket bound to /run/ipam/kea6-ctrl.sock
+kea-dhcp6-1         | 2026-09-05 02:42:43.887 INFO  [kea-dhcp6.lease-cmds-hooks/1.140631193985536] LEASE_CMDS_INIT_OK loading Lease Commands hooks library successful
+kea-dhcp6-1         | 2026-09-05 02:42:43.887 INFO  [kea-dhcp6.hooks/1.140631193985536] HOOKS_LIBRARY_LOADED hooks library /usr/lib/x86_64-linux-gnu/kea/hooks/libdhcp_lease_cmds.so successfully loaded
+kea-dhcp6-1         | 2026-09-05 02:42:43.888 INFO  [kea-dhcp6.dhcp6/1.140631193985536] DHCP6_CONFIG_COMPLETE DHCPv6 server has completed configuration: added IPv6 subnets: 1; DDNS: disabled
+kea-dhcp6-1         | 2026-09-05 02:42:43.888 INFO  [kea-dhcp6.dhcpsrv/1.140631193985536] DHCPSRV_MEMFILE_DB opening memory file lease database: type=memfile universe=6
+kea-dhcp6-1         | 2026-09-05 02:42:43.888 INFO  [kea-dhcp6.dhcpsrv/1.140631193985536] DHCPSRV_MEMFILE_LEASE_FILE_LOAD loading leases from file /var/lib/kea/kea-leases6.csv
+kea-dhcp6-1         | 2026-09-05 02:42:43.889 INFO  [kea-dhcp6.dhcpsrv/1.140631193985536] DHCPSRV_MEMFILE_LFC_SETUP setting up the Lease File Cleanup interval to 3600 sec
+kea-dhcp6-1         | 2026-09-05 02:42:43.889 INFO  [kea-dhcp6.dhcp6/1.140631193985536] DHCP6_USING_SERVERID server is using server-id 00:01:00:01:32:2e:3e:23:16:24:74:c8:1f:93 and stores in the file /var/lib/kea/kea-dhcp6-serverid
+kea-dhcp6-1         | 2026-09-05 02:42:43.889 WARN  [kea-dhcp6.dhcpsrv/1.140631193985536] DHCPSRV_NO_SOCKETS_OPEN no interface configured to listen to DHCP traffic
+kea-dhcp6-1         | 2026-09-05 02:42:43.889 WARN  [kea-dhcp6.dhcp6/1.140631193985536] DHCP6_MULTI_THREADING_INFO enabled: no, number of threads: 0, queue size: 0
+kea-dhcp6-1         | 2026-09-05 02:42:43.889 INFO  [kea-dhcp6.dhcp6/1.140631193985536] DHCP6_STARTED Kea DHCPv6 server version 2.2.0 started
+postgresql-1        | CREATE TABLE
+postgresql-1        | CREATE TABLE
+postgresql-1        | CREATE TABLE
+postgresql-1        | CREATE TABLE
+postgresql-1        | CREATE TABLE
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0002_notify.sql
+postgresql-1        | CREATE FUNCTION
+postgresql-1        | psql:/docker-entrypoint-initdb.d/0002_notify.sql:13: NOTICE:  trigger "trg_coherence_notify" for relation "coherence_binding" does not exist, skipping
+postgresql-1        | DROP TRIGGER
+postgresql-1        | CREATE TRIGGER
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0003_subnets.sql
+postgresql-1        | CREATE TABLE
+postgresql-1        | CREATE INDEX
+postgresql-1        | CREATE TABLE
+postgresql-1        | CREATE INDEX
+postgresql-1        | 
+kea-ctrl-agent-1    | 2026-09-05 02:42:44.052 INFO  [kea-ctrl-agent.dctl/1.140469549389696] DCTL_STARTING Control-agent starting, pid: 1, version: 2.2.0 (stable)
+kea-ctrl-agent-1    | 2026-09-05 02:42:44.053 INFO  [kea-ctrl-agent.ctrl-agent/1.140469549389696] CTRL_AGENT_HTTP_SERVICE_STARTED HTTP service bound to address 0.0.0.0:8000
+kea-ctrl-agent-1    | 2026-09-05 02:42:44.053 INFO  [kea-ctrl-agent.dctl/1.140469549389696] DCTL_CONFIG_COMPLETE server has completed configuration: listening on 0.0.0.0, port 8000, control sockets: dhcp4 dhcp6, 0 lib(s):
+kea-ctrl-agent-1    | 2026-09-05 02:42:44.053 INFO  [kea-ctrl-agent.ctrl-agent/1.140469549389696] CTRL_AGENT_STARTED Kea Control Agent version 2.2.0 started
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0004_upstreams.sql
+postgresql-1        | CREATE TABLE
+control-plane-1     | 2026/09/05 02:42:49 control-plane 0.1.0-dev listening on :8443
+control-plane-1     | 2026/09/05 02:42:49 [migrator] 存量库基线：≤0009 记为已应用（9 项）
+control-plane-1     | 2026/09/05 02:42:49 [migrator] applied 0010_users
+control-plane-1     | 2026/09/05 02:42:49 [migrator] applied 0011_dhcp_options
+control-plane-1     | 2026/09/05 02:42:49 [migrator] applied 0012_pd_pool_len
+control-plane-1     | 2026/09/05 02:42:49 [migrator] applied 0013_token_version
+control-plane-1     | 2026/09/05 02:42:49 [migrator] applied 0014_subnet_options
+control-plane-1     | 2026/09/05 02:42:49 [migrator] applied 0015_token_blacklist
+control-plane-1     | 2026/09/05 02:42:49 [migrator] applied 0016_roles
+control-plane-1     | 2026/09/05 02:42:49 [migrator] applied 0017_webui_settings
+control-plane-1     | 2026/09/05 02:42:49 [migrator] applied 0018_webui_settings_port
+control-plane-1     | 2026/09/05 02:42:49 [migrator] applied 0019_reservation_ipv4_uniq
+control-plane-1     | 2026/09/05 02:42:49 [migrator] applied 0020_org_sort_order
+control-plane-1     | 2026/09/05 02:42:49 [checkconf] 候选配置校验失败，已写 /tmp/ipam-checkconf-fail.conf：unbound-checkconf: error while loading shared libraries: libpython3.10.so.1.0: cannot open shared object file: No such file or directory
+control-plane-1     | 2026/09/05 02:42:49 [conf-apply] startup attempt 1 failed: checkconf: exit status 127: unbound-checkconf: error while loading shared libraries: libpython3.10.so.1.0: cannot open shared object file: No such file or directory
+control-plane-1     | 2026/09/05 02:42:54 [checkconf] 候选配置校验失败，已写 /tmp/ipam-checkconf-fail.conf：unbound-checkconf: error while loading shared libraries: libpython3.10.so.1.0: cannot open shared object file: No such file or directory
+control-plane-1     | 2026/09/05 02:42:54 [conf-apply] startup attempt 2 failed: checkconf: exit status 127: unbound-checkconf: error while loading shared libraries: libpython3.10.so.1.0: cannot open shared object file: No such file or directory
+coherence-daemon-1  | 2026/09/05 02:42:49 loaded 0 bindings from PG
+coherence-daemon-1  | 2026/09/05 02:42:49 loaded 0 templates from PG
+coherence-daemon-1  | 2026/09/05 02:42:49 coherence-daemon listening on /run/ipam/coherence.sock (pg=true)
+postgresql-1        | CREATE INDEX
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0005_forward_rules.sql
+postgresql-1        | CREATE TABLE
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0006_dns_zones.sql
+postgresql-1        | CREATE TABLE
+postgresql-1        | CREATE TABLE
+postgresql-1        | CREATE INDEX
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0007_blocklist_idx.sql
+postgresql-1        | CREATE INDEX
+postgresql-1        | CREATE INDEX
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0008_settings.sql
+postgresql-1        | CREATE TABLE
+postgresql-1        | CREATE TABLE
+kea-ctrl-agent-1    | 2026-09-05 02:42:57.553 INFO  [kea-ctrl-agent.commands/1.140469549389696] COMMAND_RECEIVED Received command 'version-get'
+kea-ctrl-agent-1    | 2026-09-05 02:42:57.553 INFO  [kea-ctrl-agent.ctrl-agent/1.140469549389696] CTRL_AGENT_COMMAND_RECEIVED command version-get received from remote address 172.18.0.1
+kea-ctrl-agent-1    | 2026-09-05 02:42:57.553 INFO  [kea-ctrl-agent.ctrl-agent/1.140469549389696] CTRL_AGENT_COMMAND_FORWARDED command version-get successfully forwarded to the service dhcp4 from remote address 172.18.0.1
+unbound-1           | /etc/unbound/unbound.conf:40: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+unbound-1           | /etc/unbound/unbound.conf:40: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+unbound-1           | /etc/unbound/unbound.conf:40: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+unbound-1           | /etc/unbound/unbound.conf:40: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+unbound-1           | /etc/unbound/unbound.conf:40: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+unbound-1           | /etc/unbound/unbound.conf:40: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+unbound-1           | /etc/unbound/unbound.conf:40: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+kea-dhcp4-1         | 2026-09-05 02:42:43.907 INFO  [kea-dhcp4.dhcp4/1.140344210539008] DHCP4_STARTING Kea DHCPv4 server version 2.2.0 (stable) starting
+kea-dhcp4-1         | 2026-09-05 02:42:43.909 INFO  [kea-dhcp4.hosts/1.140344210539008] HOSTS_BACKENDS_REGISTERED the following host backend types are available: mysql postgresql 
+kea-dhcp4-1         | 2026-09-05 02:42:43.909 INFO  [kea-dhcp4.dhcpsrv/1.140344210539008] DHCPSRV_CFGMGR_ADD_IFACE listening on interface eth0
+kea-dhcp4-1         | 2026-09-05 02:42:43.909 INFO  [kea-dhcp4.dhcpsrv/1.140344210539008] DHCPSRV_CFGMGR_SOCKET_TYPE_DEFAULT "dhcp-socket-type" not specified , using default socket type raw
+kea-dhcp4-1         | 2026-09-05 02:42:43.910 INFO  [kea-dhcp4.dhcpsrv/1.140344210539008] DHCPSRV_CFGMGR_NEW_SUBNET4 a new subnet has been added to configuration: 10.61.172.0/24 with params: valid-lifetime=3600
+kea-dhcp4-1         | 2026-09-05 02:42:43.910 INFO  [kea-dhcp4.commands/1.140344210539008] COMMAND_ACCEPTOR_START Starting to accept connections via unix domain socket bound to /run/ipam/kea4-ctrl.sock
+kea-dhcp4-1         | 2026-09-05 02:42:43.910 INFO  [kea-dhcp4.dhcp4/1.140344210539008] DHCP4_CONFIG_COMPLETE DHCPv4 server has completed configuration: added IPv4 subnets: 1; DDNS: disabled
+kea-dhcp4-1         | 2026-09-05 02:42:43.910 INFO  [kea-dhcp4.dhcpsrv/1.140344210539008] DHCPSRV_MEMFILE_DB opening memory file lease database: type=memfile universe=4
+kea-dhcp4-1         | 2026-09-05 02:42:43.910 INFO  [kea-dhcp4.dhcpsrv/1.140344210539008] DHCPSRV_MEMFILE_LEASE_FILE_LOAD loading leases from file /var/lib/kea/kea-leases4.csv
+kea-dhcp4-1         | 2026-09-05 02:42:43.911 INFO  [kea-dhcp4.dhcpsrv/1.140344210539008] DHCPSRV_MEMFILE_LFC_SETUP setting up the Lease File Cleanup interval to 3600 sec
+kea-dhcp4-1         | 2026-09-05 02:42:43.914 WARN  [kea-dhcp4.dhcp4/1.140344210539008] DHCP4_MULTI_THREADING_INFO enabled: no, number of threads: 0, queue size: 0
+kea-dhcp4-1         | 2026-09-05 02:42:43.914 INFO  [kea-dhcp4.dhcp4/1.140344210539008] DHCP4_STARTED Kea DHCPv4 server version 2.2.0 started
+kea-dhcp4-1         | 2026-09-05 02:42:57.553 INFO  [kea-dhcp4.commands/1.140344210539008] COMMAND_RECEIVED Received command 'version-get'
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0009_operation_audit.sql
+postgresql-1        | CREATE TABLE
+postgresql-1        | CREATE INDEX
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0010_users.sql
+postgresql-1        | CREATE TABLE
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0011_dhcp_options.sql
+postgresql-1        | CREATE TABLE
+postgresql-1        | CREATE TABLE
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0012_pd_pool_len.sql
+postgresql-1        | ALTER TABLE
+postgresql-1        | ALTER TABLE
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0013_token_version.sql
+postgresql-1        | ALTER TABLE
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0014_subnet_options.sql
+postgresql-1        | ALTER TABLE
+postgresql-1        | ALTER TABLE
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0015_token_blacklist.sql
+postgresql-1        | CREATE TABLE
+clickhouse-1        | /entrypoint.sh: create new user 'ipam' instead 'default'
+clickhouse-1        | Processing configuration file '/etc/clickhouse-server/config.xml'.
+clickhouse-1        | Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.
+clickhouse-1        | Logging trace to /var/log/clickhouse-server/clickhouse-server.log
+postgresql-1        | CREATE INDEX
+clickhouse-1        | Logging errors to /var/log/clickhouse-server/clickhouse-server.err.log
+clickhouse-1        | 
+clickhouse-1        | /entrypoint.sh: create database 'ipam'
+clickhouse-1        | /entrypoint.sh: running /docker-entrypoint-initdb.d/01_logs.sql
+clickhouse-1        | 
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0016_roles.sql
+postgresql-1        | CREATE TABLE
+postgresql-1        | INSERT 0 4
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0017_webui_settings.sql
+postgresql-1        | CREATE TABLE
+postgresql-1        | INSERT 0 1
+clickhouse-1        | 
+postgresql-1        | 
+clickhouse-1        | Processing configuration file '/etc/clickhouse-server/config.xml'.
+clickhouse-1        | Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.
+clickhouse-1        | Logging trace to /var/log/clickhouse-server/clickhouse-server.log
+clickhouse-1        | Logging errors to /var/log/clickhouse-server/clickhouse-server.err.log
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0018_webui_settings_port.sql
+postgresql-1        | ALTER TABLE
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0019_reservation_ipv4_uniq.sql
+postgresql-1        | DELETE 0
+postgresql-1        | CREATE INDEX
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0020_org_sort_order.sql
+postgresql-1        | ALTER TABLE
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | waiting for server to shut down....2026-09-05 02:42:46.017 UTC [41] LOG:  received fast shutdown request
+postgresql-1        | 2026-09-05 02:42:46.017 UTC [41] LOG:  aborting any active transactions
+postgresql-1        | 2026-09-05 02:42:46.021 UTC [41] LOG:  background worker "logical replication launcher" (PID 47) exited with exit code 1
+postgresql-1        | 2026-09-05 02:42:46.022 UTC [42] LOG:  shutting down
+postgresql-1        | 2026-09-05 02:42:46.023 UTC [42] LOG:  checkpoint starting: shutdown immediate
+postgresql-1        | 2026-09-05 02:42:46.040 UTC [42] LOG:  checkpoint complete: wrote 976 buffers (6.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.014 s, sync=0.003 s, total=0.018 s; sync files=414, longest=0.001 s, average=0.001 s; distance=4820 kB, estimate=4820 kB; lsn=0/19AC338, redo lsn=0/19AC338
+postgresql-1        | 2026-09-05 02:42:46.048 UTC [41] LOG:  database system is shut down
+postgresql-1        |  done
+postgresql-1        | server stopped
+postgresql-1        | 
+postgresql-1        | PostgreSQL init process complete; ready for start up.
+postgresql-1        | 
+postgresql-1        | 2026-09-05 02:42:46.140 UTC [1] LOG:  starting PostgreSQL 16.15 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+postgresql-1        | 2026-09-05 02:42:46.140 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+postgresql-1        | 2026-09-05 02:42:46.140 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+postgresql-1        | 2026-09-05 02:42:46.141 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgresql-1        | 2026-09-05 02:42:46.143 UTC [97] LOG:  database system was shut down at 2026-09-05 02:42:46 UTC
+postgresql-1        | 2026-09-05 02:42:46.148 UTC [1] LOG:  database system is ready to accept connections
