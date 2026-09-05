@@ -14,9 +14,8 @@ import {
   InputNumber,
   Modal,
   Select,
+  RadioGroup,
   Switch,
-  TabPane,
-  Tabs,
   Tag,
   message,
 } from 'ant-design-vue';
@@ -77,6 +76,8 @@ function selectZone(id: string) {
   zoneId.value = id;
   void loadRecords();
 }
+
+const recTab = ref<'rec' | 'linked'>('rec');
 
 // ── 新建记录表单 ──
 const form = reactive<{ name: string; recType: RecType; rdata: string; ttl: number }>({
@@ -245,10 +246,10 @@ onMounted(loadZones);
 // ── 记录表格 ──
 const recGridOptions = reactive<VxeGridProps>({
   columns: [
-    { field: 'name', title: '记录名（相对名或 FQDN）', minWidth: 160 },
+    { field: 'name', title: '记录名（相对名或 FQDN）', minWidth: 160, showOverflow: true },
     { field: 'recType', title: '类型', width: 80 },
     { field: 'ttl', title: 'TTL', width: 70 },
-    { field: 'rdata', title: '记录值', minWidth: 140 },
+    { field: 'rdata', title: '记录值', minWidth: 140, showOverflow: true },
     { field: 'enabled', title: '启用', width: 70, slots: { default: 'enabled' } },
     { field: 'op', title: '操作', width: 130, fixed: 'right', slots: { default: 'op' } },
   ],
@@ -276,14 +277,14 @@ const [LinkGrid] = useVbenVxeGrid({ gridOptions: linkedGridOptions });
       <template #extra>
         <Button size="small" type="primary" @click="openCreateZone">+ 新建</Button>
       </template>
-      <div v-if="!zones.length" class="py-8 text-center text-gray-400">
+      <div v-if="!zones.length" class="py-8 text-center text-muted-foreground">
         <Empty description="暂无区域" :image-style="{ height: '40px' }" />
       </div>
       <div
         v-for="z in zones"
         :key="z.id"
         class="mb-1 cursor-pointer rounded px-2 py-2 transition-colors"
-        :class="zoneId === z.id ? 'bg-blue-50 ring-1 ring-blue-200' : 'hover:bg-gray-50'"
+        :class="zoneId === z.id ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/60'"
         @click="selectZone(z.id)"
       >
         <div class="flex items-center justify-between gap-1">
@@ -291,7 +292,7 @@ const [LinkGrid] = useVbenVxeGrid({ gridOptions: linkedGridOptions });
           <Tag :color="z.kind === 'auth' ? 'blue' : 'purple'" class="mr-0">{{ z.kind }}</Tag>
         </div>
         <div class="mt-1 flex items-center justify-between">
-          <span class="text-xs text-gray-400">{{ z.enabled ? '启用中' : '已停用' }}</span>
+          <span class="text-xs text-muted-foreground">{{ z.enabled ? '启用中' : '已停用' }}</span>
           <div class="flex items-center gap-1" @click.stop>
             <Switch :checked="z.enabled" size="small" @change="(v) => toggleZone(z as DnsZone, Boolean(v))" />
             <Button size="small" type="text" @click="openEditZone(z)">改</Button>
@@ -306,10 +307,22 @@ const [LinkGrid] = useVbenVxeGrid({ gridOptions: linkedGridOptions });
       <template #title>
         <span>解析记录 {{ activeZone ? `· ${activeZone.name}` : '' }}</span>
       </template>
-      <Tabs v-if="activeZone" :destroy-inactive-tab-pane="true">
-        <TabPane key="rec" :tab="`静态记录（${records.length}）`">
+      <div v-if="activeZone">
+        <div class="mb-3">
+          <RadioGroup
+            v-model:value="recTab"
+            option-type="button"
+            size="small"
+            :options="[
+              { label: `静态记录（${records.length}）`, value: 'rec' },
+              { label: `联动记录（${linked.length}）`, value: 'linked' },
+            ]"
+          />
+        </div>
+
+        <template v-if="recTab === 'rec'">
           <div class="mb-3 flex flex-wrap items-center gap-2">
-            <span class="text-xs text-gray-400">新增</span>
+            <span class="text-xs text-muted-foreground">新增</span>
             <Input v-model:value="form.name" placeholder="名称 如 www 或 api.corp.local" style="width: 220px" />
             <Select
               v-model:value="form.recType"
@@ -317,7 +330,7 @@ const [LinkGrid] = useVbenVxeGrid({ gridOptions: linkedGridOptions });
               :options="(['A', 'AAAA', 'CNAME', 'PTR'] as RecType[]).map((v) => ({ value: v, label: v }))"
             />
             <Input v-model:value="form.rdata" placeholder="记录值（A/IP、CNAME/域名尾点）" style="width: 240px" />
-            <span class="text-xs text-gray-400">TTL</span>
+            <span class="text-xs text-muted-foreground">TTL</span>
             <InputNumber v-model:value="form.ttl" :min="1" :max="86400" style="width: 90px" />
             <Button type="primary" size="small" @click="addRecord">添加</Button>
           </div>
@@ -332,27 +345,28 @@ const [LinkGrid] = useVbenVxeGrid({ gridOptions: linkedGridOptions });
               </div>
             </template>
           </RecGrid>
-        </TabPane>
-        <TabPane key="linked" :tab="`联动记录（${linked.length}）`">
-          <div class="mb-2 rounded bg-gray-50 p-2 text-xs text-gray-500">
+        </template>
+
+        <template v-else>
+          <div class="mb-2 rounded bg-muted p-2 text-xs text-muted-foreground">
             联动记录由 DHCP 双栈联动自动生成（§4.4）：当终端通过 DHCP 获取地址时，控制面按「主机名 → IP」自动派生
             A/AAAA 记录并随租约/绑定实时同步，用于内网按主机名访问。只读不可在此编辑——修改请到 DHCP 侧变更主机名或绑定。
           </div>
           <LinkGrid :table-data="linked" />
-        </TabPane>
-      </Tabs>
-      <div v-else class="py-12 text-center text-gray-400">请先在左侧选择或新建区域</div>
+        </template>
+      </div>
+      <div v-else class="py-12 text-center text-muted-foreground">请先在左侧选择或新建区域</div>
     </Card>
 
     <!-- 记录编辑弹窗 -->
     <RecordModal>
       <div class="flex flex-col gap-3">
         <div class="flex items-center gap-2">
-          <span class="w-16 text-right text-xs text-gray-400">名称</span>
+          <span class="w-16 text-right text-xs text-muted-foreground">名称</span>
           <Input v-model:value="recordEdit.name" style="width: 240px" placeholder="如 www 或 api.corp.local" />
         </div>
         <div class="flex items-center gap-2">
-          <span class="w-16 text-right text-xs text-gray-400">类型</span>
+          <span class="w-16 text-right text-xs text-muted-foreground">类型</span>
           <Select
             v-model:value="recordEdit.recType"
             style="width: 120px"
@@ -360,15 +374,15 @@ const [LinkGrid] = useVbenVxeGrid({ gridOptions: linkedGridOptions });
           />
         </div>
         <div class="flex items-center gap-2">
-          <span class="w-16 text-right text-xs text-gray-400">记录值</span>
+          <span class="w-16 text-right text-xs text-muted-foreground">记录值</span>
           <Input v-model:value="recordEdit.rdata" style="width: 240px" placeholder="A=IP / CNAME=域名（尾点）" />
         </div>
         <div class="flex items-center gap-2">
-          <span class="w-16 text-right text-xs text-gray-400">TTL</span>
+          <span class="w-16 text-right text-xs text-muted-foreground">TTL</span>
           <InputNumber v-model:value="recordEdit.ttl" :min="1" :max="86400" style="width: 120px" />
         </div>
         <div class="flex items-center gap-2">
-          <span class="w-16 text-right text-xs text-gray-400">启用</span>
+          <span class="w-16 text-right text-xs text-muted-foreground">启用</span>
           <Switch v-model:checked="recordEdit.enabled" />
         </div>
       </div>
@@ -378,11 +392,11 @@ const [LinkGrid] = useVbenVxeGrid({ gridOptions: linkedGridOptions });
     <ZoneModal>
       <div class="flex flex-col gap-3">
         <div class="flex items-center gap-2">
-          <span class="w-16 text-right text-xs text-gray-400">域名</span>
+          <span class="w-16 text-right text-xs text-muted-foreground">域名</span>
           <Input v-model:value="zoneForm.name" style="width: 260px" placeholder="如 office.local 或 crphbz.com" />
         </div>
         <div class="flex items-center gap-2">
-          <span class="w-16 text-right text-xs text-gray-400">类型</span>
+          <span class="w-16 text-right text-xs text-muted-foreground">类型</span>
           <Select
             v-model:value="zoneForm.kind"
             style="width: 140px"

@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-05 · M3-011 补遗⑬——解析记录页深色选中底色 + 记录列表包住修复
+
+- **① zone 选中白底看不清**：根因——选中态硬编码 `bg-blue-50 ring-blue-200`（近白），深色主题下文字近白 → 不可见。修复：改用主题语义色 `bg-accent text-accent-foreground`（shadcn 自适应：深色下 --accent=216 5% 19% 深灰 + 近白文字，亮色下浅灰+深字）；次要灰字 text-gray-400 → text-muted-foreground。
+- **② 记录列表 div 跑出卡片外**：根因——页面用 antd `<Tabs>`（rc-tabs content-holder 测量高度脆弱，vxe 异步渲染后内容溢出卡片，与 DHCP 各页同型）。修复：Tabs→RadioGroup 按钮组 + v-if 切换（同已验证模式）；记录列加 showOverflow 长值省略号+提示。
+- **验证**：深色下选中项 bg=rgb(46,48,51)+text=rgb(250,250,250) 清晰可读；记录 grid bottom 距卡片 body 底部 -24px（完全包住）；hasTabs=false。
+
 ## 2026-09-05 · M3-011 补遗⑫——解析记录页重构（zone列表+记录CRUD全量补齐）
 
 - **需求**：解析记录页优化——zone 列表化、静态记录 CRUD、联动记录说明。
