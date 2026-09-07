@@ -407,7 +407,6 @@ type NoopKea struct{}
 func NewNoopKea() *NoopKea { return &NoopKea{} }
 
 func (n *NoopKea) DeploySubnet(_ context.Context, _ []Subnet, _ bool) (int, error) { return 1, nil }
-func (n *NoopKea) RemoveSubnet(_ context.Context, _ int) error                     { return nil }
 
 // LoadLedgerBindings 台账绑定源：读 PG coherence_binding（active/grace）。
 func LoadLedgerBindings(ctx context.Context, pool *pgxpool.Pool) ([]LedgerBinding, error) {

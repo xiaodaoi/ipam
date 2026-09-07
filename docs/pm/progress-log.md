@@ -3,6 +3,13 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-07 · M3-012 A 阶段——子网创建静默失败修复 + Kea 2.2 删除命令缺陷根治
+
+- **① 创建"按钮无反应"**：根因是前端——add() 缺组织/名称/CIDR 时静默 return 无提示；createSubnet 抛错无 try/catch（弹窗卡住无 toast）。修复：逐项 message.warning + try/catch 透传后端 detail + 池不完整校验提示 + 成功/失败明确反馈（失败保留弹窗内容可重试）。后端链路实测正常（API 建子网 10.77.0.0/24 → kea-dhcp4 日志确认加载）。
+- **② 删除子网 503**：根因——Kea 2.2.0 **不支持 subnet4-del 命令**（2.4+ 才有，实测 command not supported），RemoveSubnet 必失败。修复：Delete 改为"落库删除→全量 config-set 收敛（剩余子网）→失败恢复落库"，与创建/更新统一收敛语义；移除 KeaDeployer.RemoveSubnet（接口+CtrlAgent+NoopKea）。
+- **③ dhcp6 控制套接字丢失**（运维）：kea-dhcp6 于 8-31 重启后 kea6-ctrl.sock 未重建（volume 内死 socket 文件），agent 转发 dhcp6 命令一直失败（v6 配置变更从未运行时生效）。已重启 kea-dhcp6 重建 socket 并 PATCH 触发全量补发（kea6 重载成功）。此为环境类问题，后续如复现先重启 kea-dhcp6。
+- **验证**：API 建子网（kea 加载）→ 删（204，kea 运行态收敛为剩余 4 个 10.99.x）全通；typecheck/build 绿。
+
 ## 2026-09-05 · M3-011 补遗⑭——组织管理同级拖拽排序 + UI 美化
 
 - **需求**：组织管理组织支持拖拽排序 + 专业 UI 优化。

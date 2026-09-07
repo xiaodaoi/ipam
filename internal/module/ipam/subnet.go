@@ -35,7 +35,6 @@ type KeaDeployer interface {
 	// DeploySubnet 全量子网段配置下发；返回 kea 分配的 subnet-id。
 	// dryRun=true 时仅生成与校验，不发网络调用。
 	DeploySubnet(ctx context.Context, subnets []Subnet, dryRun bool) (int, error)
-	RemoveSubnet(ctx context.Context, subnetID int) error
 }
 
 var (
@@ -160,13 +159,20 @@ func (s *SubnetService) Update(ctx context.Context, id string, in Subnet) (Subne
 }
 
 // Delete 级联删除；Kea 先摘除再删库。
+// Delete 删除子网：落库→全量 config-set 收敛（剩余子网）→失败恢复落库。
+// 不用 subnet4-del——Kea 2.2 无该命令（实测 command not supported），删除与
+// 创建/更新统一走全量 config-set 收敛语义（M3-007 架构）。
 func (s *SubnetService) Delete(ctx context.Context, id string) error {
 	cur, ok, err := s.repo.Get(ctx, id)
 	if err != nil || !ok {
 		return ErrSubnetNotFound
 	}
-	if err := s.kea.RemoveSubnet(ctx, cur.KeaSubnetID); err != nil {
+	if err := s.repo.Delete(ctx, id); err != nil {
+		return err
+	}
+	if err := s.notifyApply(ctx); err != nil {
+		_, _ = s.repo.Create(ctx, cur) // 收敛失败恢复落库（下次收敛重试）
 		return ErrKeaDown
 	}
-	return s.repo.Delete(ctx, id)
+	return nil
 }

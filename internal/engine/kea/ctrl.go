@@ -120,15 +120,6 @@ func (c *CtrlAgent) BindStatic(ctx context.Context, subnetID, addr, mac string) 
 	return err
 }
 
-// RemoveSubnet 摘除指定 subnet-id（真实模式）。
-func (c *CtrlAgent) RemoveSubnet(ctx context.Context, subnetID int) error {
-	if subnetID <= 0 {
-		return nil // dryRun/未下发
-	}
-	_, err := c.Command(ctx, "subnet4-del", "dhcp4", map[string]any{"id": subnetID})
-	return err
-}
-
 // Lease6 单条 DHCPv6 租约投影（M2-022，lease_cmds hook 实时查询）。
 type Lease6 struct {
 	IPAddress     string `json:"ip-address"`

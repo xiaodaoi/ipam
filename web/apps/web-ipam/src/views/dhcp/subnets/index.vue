@@ -98,7 +98,18 @@ async function load() {
 }
 async function add() {
   const f = form.value;
-  if (!f.orgId || !f.name || !f.cidr) return;
+  if (!f.orgId) {
+    message.warning('请选择所属组织');
+    return;
+  }
+  if (!f.name) {
+    message.warning('请填写子网名称');
+    return;
+  }
+  if (!f.cidr) {
+    message.warning('请填写 CIDR（如 10.61.172.0/24）');
+    return;
+  }
   let pools:
     | { startAddr: string; endAddr?: string; kind: string; prefixLen?: number; delegatedLen?: number }[]
     | undefined;
@@ -107,18 +118,29 @@ async function add() {
     pools = [{ startAddr: f.poolStart, prefixLen: f.poolPrefixLen, delegatedLen: f.poolDelegatedLen, kind: 'pd' }];
   } else if (f.poolStart && f.poolEnd) {
     pools = [{ startAddr: f.poolStart, endAddr: f.poolEnd, kind: f.family === 6 ? f.poolKind : 'dynamic' }];
-  }
-  if (editingId.value) {
-    await updateSubnet(editingId.value, {
-      name: f.name, cidr: f.cidr,
-      gateway: f.gateway || undefined, dnsServers: f.dnsServers || undefined, pools,
-    });
-    message.success('子网已更新并下发 Kea');
+  } else if (f.poolStart || f.poolEnd) {
+    message.warning('地址池需同时填写池起与池止（留空则不建池，该子网不分配动态地址）');
+    return;
   } else {
-    await createSubnet({
-      orgId: f.orgId, name: f.name, family: f.family, cidr: f.cidr, pools,
-      gateway: f.gateway || undefined, dnsServers: f.dnsServers || undefined,
-    });
+    message.info('未填地址池：该子网不分配动态地址（仅可用于保留/静态绑定）');
+  }
+  try {
+    if (editingId.value) {
+      await updateSubnet(editingId.value, {
+        name: f.name, cidr: f.cidr,
+        gateway: f.gateway || undefined, dnsServers: f.dnsServers || undefined, pools,
+      });
+      message.success('子网已更新并下发 Kea');
+    } else {
+      await createSubnet({
+        orgId: f.orgId, name: f.name, family: f.family, cidr: f.cidr, pools,
+        gateway: f.gateway || undefined, dnsServers: f.dnsServers || undefined,
+      });
+      message.success('子网已创建并下发 Kea');
+    }
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '创建/下发失败（Kea 不可用或参数被拒）');
+    return; // 保留弹窗与已填内容，便于修正后重试
   }
   editingId.value = undefined;
   formModalApi.close();
