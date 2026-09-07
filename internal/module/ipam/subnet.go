@@ -25,9 +25,10 @@ type Subnet struct {
 	CIDR        string
 	Pools       []Pool
 	KeaSubnetID int
-	Description string
-	Gateway     string // v4 option routers；v6 留空（M2-019）
-	DNSServers  string // 逗号分隔（v4 domain-name-servers / v6 dns-servers，M2-019）
+	Description   string
+	Gateway       string // v4 option routers；v6 留空（M2-019）
+	DNSServers    string // 逗号分隔（v4 domain-name-servers / v6 dns-servers，M2-019）
+	ValidLifetime int    // 租约时长秒（子网级覆盖 Kea 全局 3600，0021 迁移）
 }
 
 // SubnetRepo 子网持久化抽象。（engine/kea 实现；测试用 fake）。

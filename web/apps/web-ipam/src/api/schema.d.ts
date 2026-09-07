@@ -1362,6 +1362,8 @@ export interface components {
             family: 4 | 6;
             /** @description 如 10.61.172.0/24 或 2406:172::/64（掩码由 CIDR 隐含） */
             cidr: string;
+            /** @description 租约时长（秒，子网级覆盖 Kea 全局） */
+            validLifetime?: number;
             /** @description 网关（v4 option routers；v6 留空——v6 网关走 RA） */
             gateway?: string;
             /** @description DNS 服务器（逗号分隔；v4 domain-name-servers / v6 dns-servers） */
@@ -1388,6 +1390,11 @@ export interface components {
             delegatedLen?: number;
         };
         SubnetCreate: {
+            /**
+             * @description 租约时长（秒，子网级覆盖 Kea 全局；Kea 按 50%/87.5% 自动推导 T1/T2）
+             * @default 3600
+             */
+            validLifetime: number;
             /** @description 网关（v4 option routers；v6 留空） */
             gateway?: string;
             /** @description DNS 服务器（逗号分隔；v4 domain-name-servers / v6 dns-servers） */
@@ -1407,6 +1414,8 @@ export interface components {
             description?: string;
         };
         SubnetUpdate: {
+            /** @description 租约时长（秒） */
+            validLifetime?: number;
             /** @description 网关（v4；v6 留空） */
             gateway?: string;
             /** @description DNS 服务器（逗号分隔） */

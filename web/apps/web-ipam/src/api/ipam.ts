@@ -222,11 +222,11 @@ export const compilePolicyGroup = (id: string) => req<components['schemas']['Rpz
 export const listOrgs = () => req<OrgTreeNode[]>('/orgs');
 
 export const createSubnet = (b: {
-  orgId: string; name: string; family: 4 | 6; cidr: string; gateway?: string; dnsServers?: string;
+  orgId: string; name: string; family: 4 | 6; cidr: string; gateway?: string; dnsServers?: string; validLifetime?: number;
   pools?: { startAddr: string; endAddr?: string; kind: string; prefixLen?: number; delegatedLen?: number }[];
 }) => req<Subnet>('/subnets', j(b));
 export const updateSubnet = (id: string, b: {
-  name?: string; cidr?: string; gateway?: string; dnsServers?: string;
+  name?: string; cidr?: string; gateway?: string; dnsServers?: string; validLifetime?: number;
   pools?: { startAddr: string; endAddr?: string; kind: string; prefixLen?: number; delegatedLen?: number }[];
 }) => req<Subnet>(`/subnets/${id}`, patch(b));
 export const deleteSubnet = (id: string) => req<void>(`/subnets/${id}`, del);

@@ -69,12 +69,8 @@ func TestCtrlAgent_HTTP错误(t *testing.T) {
 	}
 }
 
-func TestRemoveSubnet_未下发跳过(t *testing.T) {
-	c := NewCtrlAgent("http://127.0.0.1:1")
-	if err := c.RemoveSubnet(context.Background(), 0); err != nil {
-		t.Fatalf("id<=0 should no-op: %v", err)
-	}
-}
+// RemoveSubnet 已随 Kea 2.2 无 subnet4-del 命令一并移除（M3-012）——
+// 删除语义由 SubnetService.Delete 的全量 config-set 收敛承担。
 
 func TestCtrlAgent_空结果容忍(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

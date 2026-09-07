@@ -3,6 +3,13 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-07 · M3-012 B 阶段——子网级租约时长（v4/v6）
+
+- **迁移 0021**：subnet 加 valid_lifetime int DEFAULT 3600；Subnet/SubnetCreate/SubnetUpdate/Subnet(响应) schema + gen。
+- **Kea 渲染**：BuildConfig/BuildConfig6 每子网输出 valid-lifetime（>0 时；覆盖全局 3600；Kea 自动推导 T1=50%/T2=87.5%）。
+- **前端**：新建/编辑弹窗加「租约时长（秒）」InputNumber + 预设快捷（1h/8h/1d/7天），v4/v6 通用；列表回显。
+- **验证**：API 建子网 validLifetime=7200 → 响应回显 7200 + Kea config-get 运行态 per-subnet valid-lifetime=7200 ✓；清理 204。
+
 ## 2026-09-07 · M3-012 A 阶段——子网创建静默失败修复 + Kea 2.2 删除命令缺陷根治
 
 - **① 创建"按钮无反应"**：根因是前端——add() 缺组织/名称/CIDR 时静默 return 无提示；createSubnet 抛错无 try/catch（弹窗卡住无 toast）。修复：逐项 message.warning + try/catch 透传后端 detail + 池不完整校验提示 + 成功/失败明确反馈（失败保留弹窗内容可重试）。后端链路实测正常（API 建子网 10.77.0.0/24 → kea-dhcp4 日志确认加载）。

@@ -54,8 +54,9 @@ func (h *SubnetHandler) CreateSubnet(c *gin.Context) {
 		CIDR:        body.Cidr,
 		Pools:       poolsFromGen(body.Pools),
 		Description: derefStr(body.Description),
-		Gateway:     derefStr(body.Gateway),
-		DNSServers:  derefStr(body.DnsServers),
+		Gateway:       derefStr(body.Gateway),
+		DNSServers:    derefStr(body.DnsServers),
+		ValidLifetime: deref(body.ValidLifetime, 3600),
 	}
 	saved, err := h.svc.Create(c.Request.Context(), in, dry)
 	if err != nil {
@@ -75,8 +76,9 @@ func (h *SubnetHandler) UpdateSubnet(c *gin.Context, subnetId apigen.SubnetIdPar
 		Name:        derefStr(body.Name),
 		Pools:       poolsFromGen(body.Pools),
 		Description: derefStr(body.Description),
-		Gateway:     derefStr(body.Gateway),
-		DNSServers:  derefStr(body.DnsServers),
+		Gateway:       derefStr(body.Gateway),
+		DNSServers:    derefStr(body.DnsServers),
+		ValidLifetime: deref(body.ValidLifetime, 3600),
 	}
 	next, err := h.svc.Update(c.Request.Context(), guuid.UUID(subnetId).String(), in)
 	if err != nil {
@@ -121,13 +123,21 @@ func toGenSubnet(s Subnet) apigen.Subnet {
 		OrgId:       orgID,
 		Name:        s.Name,
 		Family:      apigen.SubnetFamily(s.Family),
-		Cidr:        s.CIDR,
-		Gateway:     &s.Gateway,
-		DnsServers:  &s.DNSServers,
+		Cidr:          s.CIDR,
+		ValidLifetime: &s.ValidLifetime,
+		Gateway:       &s.Gateway,
+		DnsServers:    &s.DNSServers,
 		Pools:       pools,
 		KeaSubnetId: &[]int{s.KeaSubnetID}[0],
 		Description: strPtr(s.Description),
 	}
+}
+
+func deref[T any](p *T, def T) T {
+	if p == nil {
+		return def
+	}
+	return *p
 }
 
 func mapSubnetErr(c *gin.Context, err error) {

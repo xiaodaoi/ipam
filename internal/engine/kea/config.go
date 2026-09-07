@@ -45,6 +45,9 @@ func BuildConfig(subnets []ipam.Subnet) (Dhcp4Config, error) {
 			"subnet": s.CIDR,
 			"pools":  pools,
 		}
+		if s.ValidLifetime > 0 {
+			sub["valid-lifetime"] = s.ValidLifetime // 子网级租期覆盖全局（0021 迁移）
+		}
 		// 子网级 option-data（M2-019：网关/DNS，覆盖全局）
 		var od []map[string]any
 		if s.Gateway != "" {
@@ -165,6 +168,9 @@ func BuildConfig6(subnets []ipam.Subnet) (Dhcp6Config, error) {
 			continue
 		}
 		sub := map[string]any{"id": s.KeaSubnetID, "subnet": s.CIDR}
+		if s.ValidLifetime > 0 {
+			sub["valid-lifetime"] = s.ValidLifetime
+		}
 		if s.DNSServers != "" {
 			sub["option-data"] = []map[string]any{{"name": "dns-servers", "data": s.DNSServers}}
 		}

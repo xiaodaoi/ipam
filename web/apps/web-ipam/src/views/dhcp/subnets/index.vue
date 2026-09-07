@@ -51,6 +51,7 @@ const form = ref({
   poolKind: 'dynamic' as 'dynamic' | 'pd',
   poolPrefixLen: 64,
   poolDelegatedLen: 80,
+  validLifetime: 3600,
 });
 
 function flattenOrgs(nodes: OrgTreeNode[], depth = 0): { id: string; label: string }[] {
@@ -129,12 +130,14 @@ async function add() {
       await updateSubnet(editingId.value, {
         name: f.name, cidr: f.cidr,
         gateway: f.gateway || undefined, dnsServers: f.dnsServers || undefined, pools,
+        validLifetime: f.validLifetime,
       });
       message.success('子网已更新并下发 Kea');
     } else {
       await createSubnet({
         orgId: f.orgId, name: f.name, family: f.family, cidr: f.cidr, pools,
         gateway: f.gateway || undefined, dnsServers: f.dnsServers || undefined,
+        validLifetime: f.validLifetime,
       });
       message.success('子网已创建并下发 Kea');
     }
@@ -144,12 +147,12 @@ async function add() {
   }
   editingId.value = undefined;
   formModalApi.close();
-  form.value = { orgId: f.orgId, name: '', family: 4, cidr: '', gateway: '', dnsServers: '', poolStart: '', poolEnd: '', poolKind: 'dynamic', poolPrefixLen: 64, poolDelegatedLen: 80 };
+  form.value = { orgId: f.orgId, name: '', family: 4, cidr: '', gateway: '', dnsServers: '', poolStart: '', poolEnd: '', poolKind: 'dynamic', poolPrefixLen: 64, poolDelegatedLen: 80, validLifetime: 3600 };
   await load();
 }
 function cancelEdit() {
   editingId.value = undefined;
-  form.value = { orgId: form.value.orgId, name: '', family: 4, cidr: '', gateway: '', dnsServers: '', poolStart: '', poolEnd: '', poolKind: 'dynamic', poolPrefixLen: 64, poolDelegatedLen: 80 };
+  form.value = { orgId: form.value.orgId, name: '', family: 4, cidr: '', gateway: '', dnsServers: '', poolStart: '', poolEnd: '', poolKind: 'dynamic', poolPrefixLen: 64, poolDelegatedLen: 80, validLifetime: 3600 };
 }
 function edit(r: Subnet) {
   const p0 = (r.pools ?? [])[0];
@@ -160,6 +163,7 @@ function edit(r: Subnet) {
     poolStart: p0?.startAddr ?? '', poolEnd: p0?.endAddr ?? '',
     poolKind: (p0?.kind as 'dynamic' | 'pd') ?? 'dynamic',
     poolPrefixLen: p0?.prefixLen ?? 64, poolDelegatedLen: p0?.delegatedLen ?? 80,
+    validLifetime: (r as any).validLifetime || 3600,
   };
   formModalApi.setState({ title: '编辑子网', confirmText: '保存修改' });
   formModalApi.open();
@@ -270,6 +274,22 @@ const [Lease6Grid] = useVbenVxeGrid({ gridOptions: lease6GridOptions });
           <div class="mb-1 text-xs text-gray-400">{{ form.family === 6 ? 'DNS 服务器' : '网关' }}</div>
           <Input v-model:value="form.gateway" v-if="form.family === 4" style="width: 140px" placeholder="10.61.172.1" />
           <Input v-model:value="form.dnsServers" v-if="form.family === 6" style="width: 170px" placeholder="2406:172::53" />
+        </div>
+        <div>
+          <div class="mb-1 text-xs text-gray-400">租约时长（秒）</div>
+          <InputNumber v-model:value="form.validLifetime" :min="60" :max="2592000" style="width: 110px" />
+          <Select
+            style="width: 84px; margin-left: 6px"
+            :value="[3600, 28800, 86400, 604800].includes(form.validLifetime) ? form.validLifetime : undefined"
+            :options="[
+              { value: 3600, label: '1小时' },
+              { value: 28800, label: '8小时' },
+              { value: 86400, label: '1天' },
+              { value: 604800, label: '7天' },
+            ]"
+            placeholder="预设"
+            @change="(v: any) => (form.validLifetime = v)"
+          />
         </div>
         <div v-if="form.family === 4">
           <div class="mb-1 text-xs text-gray-400">DNS 服务器</div>
