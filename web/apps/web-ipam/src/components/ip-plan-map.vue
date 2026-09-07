@@ -64,6 +64,7 @@ interface IpCell {
   status: string;
   overlays?: string[];
   hostname?: string;
+  mac?: string;
   leaseStatus?: string;
   leaseStart?: string;
   leaseEnd?: string;
@@ -352,6 +353,9 @@ onMounted(() => {
               <div style="font-weight: 600">{{ ipObj.ip }}</div>
               <div>状态：{{ IP_STATUS[ipObj.status]?.label || ipObj.status }}{{ (ipObj.overlays || []).length ? `（叠加：${(ipObj.overlays || []).map((o) => OVERLAY_STATUS[o]?.label || o).join('、')}）` : '' }}</div>
               <div v-if="ipObj.hostname">主机名：{{ ipObj.hostname }}</div>
+              <div v-if="ipObj.mac">MAC：{{ ipObj.mac }}</div>
+              <div v-if="ipObj.leaseStart">租用时间：{{ ipObj.leaseStart }}</div>
+              <div v-if="ipObj.leaseEnd">到期时间：{{ ipObj.leaseEnd }}</div>
               <div v-if="ipObj.user">使用人：{{ ipObj.user }}</div>
             </div>
           </template>

@@ -24,6 +24,7 @@ import (
 	keaengine "github.com/xiaodaoi/ipam/internal/engine/kea"
 	unboundengine "github.com/xiaodaoi/ipam/internal/engine/unbound"
 	"github.com/xiaodaoi/ipam/internal/module/dashboard"
+	"github.com/xiaodaoi/ipam/internal/module/coherence"
 	dhcpmodule "github.com/xiaodaoi/ipam/internal/module/dhcp"
 	dnsmodule "github.com/xiaodaoi/ipam/internal/module/dns"
 	dualstack "github.com/xiaodaoi/ipam/internal/module/dualstack"
@@ -241,6 +242,28 @@ func newEngine(version string) *gin.Engine {
 		_, _ = keaCmd.Command(ctx, "config-write", "dhcp6", map[string]any{})
 		return nil
 	}
+	// 启动 DHCP 收敛（M3-012 现场教训：kea 容器重建后运行态配置丢失，直到下次子网变更才恢复）——
+	// kea 可能未就绪，重试 6×5s；与 unbound 启动收敛对偶。
+	go func() {
+		for attempt := 1; attempt <= 6; attempt++ {
+			if err := applyDhcpFn(context.Background()); err == nil {
+				log.Printf("[dhcp-apply] startup converge ok (attempt %d)", attempt)
+				return
+			} else if attempt < 6 {
+				log.Printf("[dhcp-apply] startup attempt %d failed: %v", attempt, err)
+				time.Sleep(5 * time.Second)
+			} else {
+				log.Printf("[dhcp-apply] startup converge failed after retries: %v", err)
+			}
+		}
+	}()
+
+	// Kea v4 租约→coherence_binding 同步（30s 轮询）：台账在线态/联动记录的数据源
+	// （依赖 dhcp4 的 lease_cmds hook，M3-012 补齐；此前写入方缺失导致台账无在线态）。
+	if pool != nil && keaCmd != nil {
+		coherence.StartLease4SyncLoop(context.Background(), pool, os.Getenv("IPAM_KEA_API"), 30*time.Second)
+	}
+
 	lease6Fn := func(ctx context.Context) ([]apigen.DhcpLease6, error) {
 		if keaCmd == nil {
 			return nil, nil

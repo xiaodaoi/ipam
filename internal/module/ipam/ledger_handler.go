@@ -295,6 +295,9 @@ func toGenLedger(r LedgerRow) apigen.LedgerRow {
 	if !r.LeaseExpiry.IsZero() {
 		row.LeaseExpiry = &r.LeaseExpiry
 	}
+	if !r.LeaseStart.IsZero() {
+		row.LeaseStart = &r.LeaseStart
+	}
 	return row
 }
 

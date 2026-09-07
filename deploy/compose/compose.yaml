@@ -158,6 +158,10 @@ services:
       dockerfile: deploy/images/kea/Dockerfile
       args: { COMPONENT: kea-dhcp4-server }
     command: ["sh", "-c", "mkdir -p /var/log/kea && exec kea-dhcp4 -c /etc/kea/kea-dhcp4.conf"]
+    # DHCP 中继/客户端经宿主地址(10.61.40.50:67)单播到达——必须映射 67 端口（M3-012 现场调试）
+    ports:
+      - "67:67/udp"
+      - "67:67/tcp"
     volumes:
       - ../../config/kea/kea-dhcp4.conf:/etc/kea/kea-dhcp4.conf:ro
       - ipam-run:/run/ipam

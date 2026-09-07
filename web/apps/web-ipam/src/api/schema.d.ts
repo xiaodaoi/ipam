@@ -1450,6 +1450,11 @@ export interface components {
             owner?: string;
             /**
              * Format: date-time
+             * @description 租约开始时间（kea cltt，在线态展示）
+             */
+            leaseStart?: string;
+            /**
+             * Format: date-time
              * @description 租约到期时间（在线态展示）
              */
             leaseExpiry?: string;

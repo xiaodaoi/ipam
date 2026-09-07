@@ -3,6 +3,15 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-07 · M3-012 补遗——现场 DHCPv4 中继调试（VLAN135）三链路修复
+
+- **背景**：H3C 核心 VLAN135（10.193.135.0/24）中继指向 10.61.40.50，设备接入后拿到 10.193.135.2（cr-pc），但日志中心无 DHCP 日志、台账无在线状态。
+- **根因一（中继不可达）**：kea-dhcp4 在 bridge 网络且无 67 端口映射——中继单播到宿主 10.61.40.50:67 被丢弃。修复：compose 加 67:67/udp+tcp 映射（对偶 unbound 的 53 模式）。
+- **根因二（租约查询空）**：dhcp4 配置缺 libdhcp_lease_cmds hook（v6 有 v4 无）——lease4-get-all 恒空，台账/联动数据源断。修复：渲染与静态 conf 补 hook。
+- **根因三（日志管道从未通）**：① vector VRL 正则事件分隔符写错——kea 日志是 DHCP4_EVENT（下划线）而正则写 DHCP4\.（点），自 M2-011 起从未匹配过；② kea 日志走 stdout 而 vector 只读文件——渲染与静态 conf 的 loggers 改落 /var/log/kea/*.log（注意 Kea 2.2 不支持 maxsize/maxfiles 参数，2.3+ 才有）；③ poller 的 lease4-get-all 空 arguments 对象会被 Kea 2.2 判为“subnets 未指定”——去掉 arguments 键。
+- **联动修复**：control-plane 新增 30s 租约同步 poller（lease4-get-all → coherence_binding upsert/过期删除 + NOTIFY）；启动 DHCP 收敛 goroutine（kea 容器重建后 7 子网自动恢复）；迁移 0024（coherence_binding 加 cltt/valid_lft）；台账真实租期（cltt 起、+valid_lft 到期）替代 +30min 近似；台账地图 tooltip 加 MAC/租用/到期。
+- **验证**：CH dhcp 18 行（含 LEASE_ALLOC/ADVERT，client_ip=10.193.135.2、client_mac=f8e43be9398d）；coherence_binding 一行（cr-pc）；台账 API 回显 online+MAC+hostname+租用/到期；kea 运行态 7 子网。
+
 ## 2026-09-07 · M3-012 补遗——新建子网弹窗 CIDR 输入框丢失修复
 
 - **现象**：提示"请填写 CIDR"但表单里没有 CIDR 输入框。

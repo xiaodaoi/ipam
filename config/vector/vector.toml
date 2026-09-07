@@ -14,12 +14,12 @@ type = "file"
 include = ["/var/log/unbound/unbound.log"]
 read_from = "beginning"
 
-# ── Kea DHCPv4 租约/分配日志解析 ──
+# ── Kea DHCPv4 租约/分配日志解析（Kea 2.2 行格式：TS LEVEL [组件/pid] DHCP4.EVENT ...）──
 [transforms.parse_kea]
 type = "remap"
 inputs = ["kea_stdout"]
 source = '''
-  m, merr = parse_regex(.message, r'^(?P<ts>\S+ \S+) (?P<level>\w+) \[(?P<pid>\d+)\] DHCP4\.(?P<event>[A-Z0-9_]+) (?P<rest>.*)$')
+  m, merr = parse_regex(.message, r'^(?P<ts>\S+ \S+)\s+(?P<level>\w+)\s+\[[^\]]+\]\s+DHCP4_(?P<event>[A-Z0-9_]+)\s+(?P<rest>.*)$')
   if merr != null {
     abort
   }
@@ -29,7 +29,7 @@ source = '''
   }
   .severity = m.level
   .event = m.event
-  mac_m, mac_err = parse_regex(m.rest, r'(?:hwaddr|HWAddr)=(?P<mac>[0-9a-fA-F:]{17})')
+  mac_m, mac_err = parse_regex(m.rest, r'(?:hwaddr=|\[hwtype=\d+\s+)(?P<mac>[0-9a-fA-F:]{17})')
   if mac_err == null && mac_m != null {
     m1, e1 = replace(mac_m.mac, ":", "")
     m2 = replace(m1, "-", "")
@@ -41,7 +41,7 @@ source = '''
   } else {
     .client_mac = ""
   }
-  ip_m, ip_err = parse_regex(m.rest, r'(?:assigned|address)=(?P<ip>\d+\.\d+\.\d+\.\d+)')
+  ip_m, ip_err = parse_regex(m.rest, r'(?:\blease\s+|assigned\s+|address=)(?P<ip>\d+\.\d+\.\d+\.\d+)')
   if ip_err == null && ip_m != null {
     .address = ip_m.ip
   } else {

@@ -472,7 +472,8 @@ func (n *NoopKea) DeploySubnet(_ context.Context, _ []Subnet, _ bool) (int, erro
 // LoadLedgerBindings 台账绑定源：读 PG coherence_binding（active/grace）。
 func LoadLedgerBindings(ctx context.Context, pool *pgxpool.Pool) ([]LedgerBinding, error) {
 	rows, err := pool.Query(ctx,
-		`SELECT coalesce(mac,''), host(ipv4), coalesce(host(ipv6),''), coalesce(hostname,''), state
+		`SELECT coalesce(mac,''), host(ipv4), coalesce(host(ipv6),''), coalesce(hostname,''), state,
+		 coalesce(cltt,0), coalesce(valid_lft,0)
 		 FROM coherence_binding WHERE state IN ('active','grace')`)
 	if err != nil {
 		return nil, err
@@ -481,7 +482,7 @@ func LoadLedgerBindings(ctx context.Context, pool *pgxpool.Pool) ([]LedgerBindin
 	out := []LedgerBinding{}
 	for rows.Next() {
 		var b LedgerBinding
-		if err := rows.Scan(&b.MAC, &b.IPv4, &b.IPv6, &b.Hostname, &b.State); err == nil {
+		if err := rows.Scan(&b.MAC, &b.IPv4, &b.IPv6, &b.Hostname, &b.State, &b.Cltt, &b.ValidLft); err == nil {
 			out = append(out, b)
 		}
 	}

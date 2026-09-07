@@ -30,6 +30,7 @@ type LedgerRow struct {
 	LeaseExpiry time.Time
 	SubnetID    string
 	PoolIndex   string
+	LeaseStart  time.Time // 租约开始（kea cltt）
 }
 
 // LedgerQuery 过滤条件。
@@ -49,6 +50,8 @@ type LedgerBinding struct {
 	IPv6     string
 	Hostname string
 	State    string
+	Cltt     int64 // 客户端最近交互时间（unix 秒，真实租用时间）
+	ValidLft int   // 剩余有效期（秒）
 }
 
 // LedgerSource 台账数据源聚合（绑定/预留/资产/子网池）。
@@ -138,11 +141,17 @@ func QueryLedger(src LedgerSource, q LedgerQuery) ([]LedgerRow, string, int) {
 						SubnetID:  s.ID,
 						PoolIndex: "4:" + addr,
 					}
-					if b := byAddr[addr]; b != nil {
-						row.MAC = b.MAC
-						row.Hostname = b.Hostname
-						row.LeaseExpiry = time.Now().Add(30 * time.Minute) // 租约近似
+				if b := byAddr[addr]; b != nil {
+					row.MAC = b.MAC
+					row.Hostname = b.Hostname
+					if b.Cltt > 0 && b.ValidLft > 0 {
+						// 真实租期（kea cltt/valid-lft，M3-012）
+						row.LeaseStart = time.Unix(b.Cltt, 0)
+						row.LeaseExpiry = time.Unix(b.Cltt+int64(b.ValidLft), 0)
+					} else {
+						row.LeaseExpiry = time.Now().Add(30 * time.Minute) // 近似兜底
 					}
+				}
 					if r := resByAddr[addr]; r.MAC != "" {
 						row.MAC = r.MAC
 					}

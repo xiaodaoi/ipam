@@ -86,7 +86,9 @@ interface MapCell {
   status: string;
   overlays?: string[];
   hostname?: string;
+  mac?: string;
   user?: string;
+  leaseStart?: string;
   leaseEnd?: string;
   purpose?: string;
   remark?: string;
@@ -138,7 +140,9 @@ async function loadMap() {
         status,
         overlays,
         hostname: row.hostname || '',
+        mac: row.mac || '',
         user: row.owner || '',
+        leaseStart: row.leaseStart ? new Date(row.leaseStart).toLocaleString() : '',
         leaseEnd: row.leaseExpiry ? new Date(row.leaseExpiry).toLocaleString() : '',
         leaseStatus: row.state === 'online' ? '已分配' : '',
         purpose: row.state === 'reserved' ? '保留' : '',

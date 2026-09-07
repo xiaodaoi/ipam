@@ -88,12 +88,17 @@ func defaultBaseConfig() map[string]any {
 		},
 		"lease-database": map[string]any{"type": "memfile"},
 		"valid-lifetime": 3600,
+		// lease_cmds hook：lease4-get-all 依赖（coherence 轮询/台账在线判定数据源，M3-012）
+		"hooks-libraries": []map[string]any{
+			{"library": "/usr/lib/x86_64-linux-gnu/kea/hooks/libdhcp_lease_cmds.so"},
+		},
 		"loggers": []any{
 			map[string]any{
 				"name":     "kea-dhcp4",
 				"severity": "INFO",
 				"output_options": []any{
-					map[string]any{"output": "stdout"},
+					// 日志落文件供 vector 采集（stdout 仅进 docker logs，日志中心不可见）
+					map[string]any{"output": "/var/log/kea/kea-dhcp4.log"},
 				},
 			},
 		},
@@ -173,6 +178,15 @@ func BuildConfig6(subnets []ipam.Subnet) (Dhcp6Config, error) {
 		},
 		"valid-lifetime": 3600,
 		"lease-database": map[string]any{"type": "memfile"},
+		"loggers": []any{
+			map[string]any{
+				"name":     "kea-dhcp6",
+				"severity": "INFO",
+				"output_options": []any{
+					map[string]any{"output": "/var/log/kea/kea-dhcp6.log"},
+				},
+			},
+		},
 	}
 	sub6 := make([]map[string]any, 0, len(subnets))
 	for i := range subnets {
