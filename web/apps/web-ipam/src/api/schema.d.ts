@@ -1364,6 +1364,7 @@ export interface components {
             cidr: string;
             /** @description 租约时长（秒，子网级覆盖 Kea 全局） */
             validLifetime?: number;
+            options?: components["schemas"]["SubnetOptionList"];
             /** @description 网关（v4 option routers；v6 留空——v6 网关走 RA） */
             gateway?: string;
             /** @description DNS 服务器（逗号分隔；v4 domain-name-servers / v6 dns-servers） */
@@ -1390,6 +1391,7 @@ export interface components {
             delegatedLen?: number;
         };
         SubnetCreate: {
+            options?: components["schemas"]["SubnetOptionList"];
             /**
              * @description 租约时长（秒，子网级覆盖 Kea 全局；Kea 按 50%/87.5% 自动推导 T1/T2）
              * @default 3600
@@ -1414,6 +1416,7 @@ export interface components {
             description?: string;
         };
         SubnetUpdate: {
+            options?: components["schemas"]["SubnetOptionList"];
             /** @description 租约时长（秒） */
             validLifetime?: number;
             /** @description 网关（v4；v6 留空） */
@@ -2284,6 +2287,20 @@ export interface components {
             /** @description 释放原因（审计） */
             reason?: string;
         };
+        /** @description 子网级 DHCP 选项（Kea option-data；space 由 family 推导 dhcp4/dhcp6）。 */
+        SubnetOption: {
+            /** @description 选项码（v4 1-254 / v6 1-65535） */
+            code: number;
+            /** @description Kea 标准选项名（如 routers）；提供时优先生效，省略则用 code */
+            name?: string;
+            /** @description 选项值（地址列表用逗号分隔；原始字节用 hex） */
+            data: string;
+            /** @default true */
+            csvFormat: boolean;
+            /** @default true */
+            enabled: boolean;
+        };
+        SubnetOptionList: components["schemas"]["SubnetOption"][];
         /** @description 拖拽排序请求：重排 parentId 下 orderedIds 所列同级节点的显示顺序。 */
         OrgReorder: {
             /** @description 目标父节点；null 表示根级 */

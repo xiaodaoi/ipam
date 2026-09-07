@@ -22,6 +22,8 @@ Subnet:
     validLifetime:
       type: integer
       description: 租约时长（秒，子网级覆盖 Kea 全局）
+    options:
+      $ref: '#/SubnetOptionList' 
     gateway:
       type: string
       description: 网关（v4 option routers；v6 留空——v6 网关走 RA）
@@ -68,6 +70,8 @@ SubnetCreate:
   type: object
   required: [orgId, name, family, cidr]
   properties:
+    options:
+      $ref: '#/SubnetOptionList'
     validLifetime:
       type: integer
       minimum: 60
@@ -97,6 +101,8 @@ SubnetCreate:
 SubnetUpdate:
   type: object
   properties:
+    options:
+      $ref: '#/SubnetOptionList'
     validLifetime:
       type: integer
       minimum: 60
@@ -126,3 +132,29 @@ SubnetList:
         $ref: 'subnet.yaml#/Subnet'
     total:
       type: integer
+
+SubnetOption:
+  type: object
+  description: 子网级 DHCP 选项（Kea option-data；space 由 family 推导 dhcp4/dhcp6）。
+  required: [code, data]
+  properties:
+    code:
+      type: integer
+      description: 选项码（v4 1-254 / v6 1-65535）
+    name:
+      type: string
+      description: Kea 标准选项名（如 routers）；提供时优先生效，省略则用 code
+    data:
+      type: string
+      description: 选项值（地址列表用逗号分隔；原始字节用 hex）
+    csvFormat:
+      type: boolean
+      default: true
+    enabled:
+      type: boolean
+      default: true
+
+SubnetOptionList:
+  type: array
+  items:
+    $ref: '#/SubnetOption'

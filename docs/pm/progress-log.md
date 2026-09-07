@@ -3,6 +3,16 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-07 · M3-012 C 阶段——子网级 DHCP 选项下发（RFC2132/8415）+ 重复 CIDR 防护
+
+- **迁移 0022**：subnet_option 子表（subnet_id/code/name/data/csv_format/enabled，UNIQUE(subnet_id,code)）。
+- **模型/API**：Subnet.Options []SubnetOption；SubnetCreate/Update/Subnet(响应) 加 options 数组（spec-first + gen）；Create/Update 一并保存（先删后插，23505→RECORD_NAME_DUP 同型处理）；List/Get 回填 loadOptions。
+- **校验**：code 范围（v4 1-254 / v6 1-65535）、data 非空、同 code 重复 → BAD_OPTION。
+- **Kea 渲染**：subnet4/6 的 option-data = 网关/DNS（既有独立字段）+ 用户选项（有 name 用 Kea 标准名否则用 code；space 由 family 推导 dhcp4/dhcp6；csv-format 透传）——子网级覆盖全局。
+- **重复 CIDR 防护**（事故驱动）：创建重复 CIDR 时全量 config-set 被 Kea 拒绝（"prefix already exists"）且报错误导为 KEA_DOWN——Create 校验重复 CIDR → 409 SUBNET_DUP 友好报错；迁移 0023 去重 + cidr 唯一索引兜底。
+- **前端**：创建/编辑弹窗「DHCP 选项」可重复行——预设下拉（内置 RFC2132/8415 常用表 options.ts：v4 9 项/v6 7 项，含中文名与说明）+ 自定义 code + 值 + CSV 开关；说明文案。
+- **验证**：建子网带 options（ntp-servers）→ 响应回显 options → Kea config-get 运行态 option-data 含 {"name":"ntp-servers","data":"10.61.0.1","space":"dhcp4"} + vl 7200 ✓；重复 CIDR → 409 SUBNET_DUP ✓；清理 204。
+
 ## 2026-09-07 · M3-012 B 阶段——子网级租约时长（v4/v6）
 
 - **迁移 0021**：subnet 加 valid_lifetime int DEFAULT 3600；Subnet/SubnetCreate/SubnetUpdate/Subnet(响应) schema + gen。

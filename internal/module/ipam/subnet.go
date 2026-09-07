@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"strings"
 )
 
 // Pool 地址池（§13.4：dynamic/pd/excluded 三类）。
@@ -16,6 +17,15 @@ type Pool struct {
 	DelegatedLen *int // PD 委派前缀长度（kind=pd 必填）
 }
 
+// SubnetOption 子网级 DHCP 选项（Kea option-data；space 由 family 推导，0022 迁移）。
+type SubnetOption struct {
+	Code      int
+	Name      string // Kea 标准名（如 routers）；空则渲染用 code
+	Data      string
+	CSVFormat bool
+	Enabled   bool
+}
+
 // Subnet 子网领域对象（PG subnet 行 + 池列表）。
 type Subnet struct {
 	ID          string
@@ -24,6 +34,7 @@ type Subnet struct {
 	Family      int
 	CIDR        string
 	Pools       []Pool
+	Options     []SubnetOption
 	KeaSubnetID int
 	Description   string
 	Gateway       string // v4 option routers；v6 留空（M2-019）
@@ -39,6 +50,8 @@ type KeaDeployer interface {
 }
 
 var (
+	ErrBadOption       = errors.New("BAD_OPTION")
+	ErrSubnetDup       = errors.New("SUBNET_DUP")
 	ErrSubnetNotFound = errors.New("SUBNET_NOT_FOUND")
 	ErrSubnetInUse    = errors.New("SUBNET_IN_USE")
 	ErrOrgNotFound2   = errors.New("ORG_NOT_FOUND")
@@ -88,6 +101,28 @@ func validateSubnet(s Subnet) error {
 	if s.Family != want {
 		return fmt.Errorf("%w: cidr is v%d but family=%d", ErrFamilyMismatch, want, s.Family)
 	}
+	return validateSubnetOptions(s)
+}
+
+// validateSubnetOptions 子网级选项校验：code 范围（v4 1-254 / v6 1-65535）、data 非空、重复 code。
+func validateSubnetOptions(s Subnet) error {
+	seen := map[int]bool{}
+	maxCode := 65535
+	if s.Family == 4 {
+		maxCode = 254
+	}
+	for _, o := range s.Options {
+		if o.Code < 1 || o.Code > maxCode {
+			return fmt.Errorf("%w: option code %d 超出 v%d 范围(1-%d)", ErrBadOption, o.Code, s.Family, maxCode)
+		}
+		if strings.TrimSpace(o.Data) == "" {
+			return fmt.Errorf("%w: option %d data 为空", ErrBadOption, o.Code)
+		}
+		if seen[o.Code] {
+			return fmt.Errorf("%w: option code %d 重复", ErrBadOption, o.Code)
+		}
+		seen[o.Code] = true
+	}
 	return nil
 }
 
@@ -108,6 +143,9 @@ func (s *SubnetService) Create(ctx context.Context, in Subnet, dryRun bool) (Sub
 	}
 	maxID := 0
 	for i := range existing {
+		if existing[i].CIDR == in.CIDR {
+			return Subnet{}, ErrSubnetDup // Kea 要求 prefix 唯一，重复会使全量 config-set 整体被拒
+		}
 		if existing[i].KeaSubnetID > maxID {
 			maxID = existing[i].KeaSubnetID
 		}

@@ -26,10 +26,12 @@ import {
   listSubnets,
   updateSubnet,
   type Subnet,
+  type SubnetOptionIn,
   type OrgTreeNode,
   listDhcpLeases6,
   type DhcpLease6Row,
 } from '#/api/ipam';
+import { DHCP4_OPTION_PRESETS, DHCP6_OPTION_PRESETS } from './options';
 
 const rows = ref<Subnet[]>([]);
 const editingId = ref<string>();
@@ -52,6 +54,7 @@ const form = ref({
   poolPrefixLen: 64,
   poolDelegatedLen: 80,
   validLifetime: 3600,
+  options: [] as SubnetOptionIn[],
 });
 
 function flattenOrgs(nodes: OrgTreeNode[], depth = 0): { id: string; label: string }[] {
@@ -131,6 +134,7 @@ async function add() {
         name: f.name, cidr: f.cidr,
         gateway: f.gateway || undefined, dnsServers: f.dnsServers || undefined, pools,
         validLifetime: f.validLifetime,
+        options: f.options.filter((o) => o.enabled),
       });
       message.success('子网已更新并下发 Kea');
     } else {
@@ -138,6 +142,7 @@ async function add() {
         orgId: f.orgId, name: f.name, family: f.family, cidr: f.cidr, pools,
         gateway: f.gateway || undefined, dnsServers: f.dnsServers || undefined,
         validLifetime: f.validLifetime,
+        options: f.options.filter((o) => o.enabled),
       });
       message.success('子网已创建并下发 Kea');
     }
@@ -147,12 +152,25 @@ async function add() {
   }
   editingId.value = undefined;
   formModalApi.close();
-  form.value = { orgId: f.orgId, name: '', family: 4, cidr: '', gateway: '', dnsServers: '', poolStart: '', poolEnd: '', poolKind: 'dynamic', poolPrefixLen: 64, poolDelegatedLen: 80, validLifetime: 3600 };
+  form.value = { orgId: f.orgId, name: '', family: 4, cidr: '', gateway: '', dnsServers: '', poolStart: '', poolEnd: '', poolKind: 'dynamic', poolPrefixLen: 64, poolDelegatedLen: 80, validLifetime: 3600, options: [] };
   await load();
+}
+function addOptionRow() {
+  form.value.options.push({ code: 0, name: '', data: '', csvFormat: true, enabled: true });
+}
+function removeOptionRow(i: number) {
+  form.value.options.splice(i, 1);
+}
+function onPresetChange(i: number, code: number) {
+  const row = form.value.options[i];
+  if (!row) return;
+  row.code = code;
+  const presets = form.value.family === 6 ? DHCP6_OPTION_PRESETS : DHCP4_OPTION_PRESETS;
+  row.name = presets.find((x) => x.code === code)?.name ?? '';
 }
 function cancelEdit() {
   editingId.value = undefined;
-  form.value = { orgId: form.value.orgId, name: '', family: 4, cidr: '', gateway: '', dnsServers: '', poolStart: '', poolEnd: '', poolKind: 'dynamic', poolPrefixLen: 64, poolDelegatedLen: 80, validLifetime: 3600 };
+  form.value = { orgId: form.value.orgId, name: '', family: 4, cidr: '', gateway: '', dnsServers: '', poolStart: '', poolEnd: '', poolKind: 'dynamic', poolPrefixLen: 64, poolDelegatedLen: 80, validLifetime: 3600, options: [] };
 }
 function edit(r: Subnet) {
   const p0 = (r.pools ?? [])[0];
@@ -164,6 +182,7 @@ function edit(r: Subnet) {
     poolKind: (p0?.kind as 'dynamic' | 'pd') ?? 'dynamic',
     poolPrefixLen: p0?.prefixLen ?? 64, poolDelegatedLen: p0?.delegatedLen ?? 80,
     validLifetime: (r as any).validLifetime || 3600,
+    options: ((r as any).options ?? []).map((o: any) => ({ code: o.code, name: o.name || '', data: o.data, csvFormat: o.csvFormat ?? true, enabled: o.enabled ?? true })),
   };
   formModalApi.setState({ title: '编辑子网', confirmText: '保存修改' });
   formModalApi.open();
@@ -290,6 +309,31 @@ const [Lease6Grid] = useVbenVxeGrid({ gridOptions: lease6GridOptions });
             placeholder="预设"
             @change="(v: any) => (form.validLifetime = v)"
           />
+        </div>
+        <div class="w-full">
+          <div class="mb-1 flex items-center gap-2">
+            <span class="text-xs text-gray-400">DHCP 选项（子网级覆盖全局）</span>
+            <Button size="small" @click="addOptionRow">+ 添加选项</Button>
+          </div>
+          <div v-for="(o, i) in form.options" :key="i" class="mb-2 flex flex-wrap items-center gap-2">
+            <Select
+              style="width: 240px"
+              placeholder="预设选项（RFC 标准）"
+              :value="o.code || undefined"
+              :options="(form.family === 6 ? DHCP6_OPTION_PRESETS : DHCP4_OPTION_PRESETS).map((x) => ({ value: x.code, label: `选项${x.code} ${x.label}` }))"
+              @change="(v: any) => onPresetChange(i, v)"
+            />
+            <span class="text-xs text-gray-400">或 code</span>
+            <InputNumber :value="o.code" :min="1" :max="form.family === 6 ? 65535 : 254" style="width: 90px"
+              @change="(v: any) => (form.options[i]!.code = v)" />
+            <Input v-model:value="o.data" placeholder="选项值（多值逗号分隔）" style="width: 240px" />
+            <span class="text-xs text-gray-400">CSV</span>
+            <Switch v-model:checked="o.csvFormat" size="small" />
+            <Button size="small" danger @click="removeOptionRow(i)">移除</Button>
+          </div>
+          <div v-if="!form.options.length" class="text-xs text-gray-400">
+            未配置子网级选项——网关/DNS 请用上方字段；其余选项可在此添加（如 NTP、域名后缀、PXE）。
+          </div>
         </div>
         <div v-if="form.family === 4">
           <div class="mb-1 text-xs text-gray-400">DNS 服务器</div>

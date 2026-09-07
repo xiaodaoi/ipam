@@ -53,6 +53,7 @@ func (h *SubnetHandler) CreateSubnet(c *gin.Context) {
 		Family:      int(body.Family),
 		CIDR:        body.Cidr,
 		Pools:       poolsFromGen(body.Pools),
+		Options:     optionsFromGen(body.Options),
 		Description: derefStr(body.Description),
 		Gateway:       derefStr(body.Gateway),
 		DNSServers:    derefStr(body.DnsServers),
@@ -75,6 +76,7 @@ func (h *SubnetHandler) UpdateSubnet(c *gin.Context, subnetId apigen.SubnetIdPar
 	in := Subnet{
 		Name:        derefStr(body.Name),
 		Pools:       poolsFromGen(body.Pools),
+		Options:     optionsFromGen(body.Options),
 		Description: derefStr(body.Description),
 		Gateway:       derefStr(body.Gateway),
 		DNSServers:    derefStr(body.DnsServers),
@@ -94,6 +96,25 @@ func (h *SubnetHandler) DeleteSubnet(c *gin.Context, subnetId apigen.SubnetIdPar
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+func optionsFromGen(opts *[]apigen.SubnetOption) []SubnetOption {
+	if opts == nil {
+		return nil
+	}
+	out := make([]SubnetOption, 0, len(*opts))
+	for _, o := range *opts {
+		csv := true
+		if o.CsvFormat != nil {
+			csv = *o.CsvFormat
+		}
+		enabled := true
+		if o.Enabled != nil {
+			enabled = *o.Enabled
+		}
+		out = append(out, SubnetOption{Code: o.Code, Name: derefStr(o.Name), Data: o.Data, CSVFormat: csv, Enabled: enabled})
+	}
+	return out
 }
 
 func poolsFromGen(pools *[]apigen.AddressPool) []Pool {
@@ -118,12 +139,17 @@ func toGenSubnet(s Subnet) apigen.Subnet {
 		pools = append(pools, apigen.AddressPool{StartAddr: p.StartAddr, EndAddr: p.EndAddr, Kind: &k, PrefixLen: p.PrefixLen, DelegatedLen: p.DelegatedLen})
 	}
 	orgID := guuid.MustParse(s.OrgID)
+	options := make([]apigen.SubnetOption, 0, len(s.Options))
+	for _, o := range s.Options {
+		options = append(options, apigen.SubnetOption{Code: o.Code, Name: strPtr(o.Name), Data: o.Data, CsvFormat: &o.CSVFormat, Enabled: &o.Enabled})
+	}
 	return apigen.Subnet{
 		Id:          guuid.MustParse(s.ID),
 		OrgId:       orgID,
 		Name:        s.Name,
 		Family:      apigen.SubnetFamily(s.Family),
 		Cidr:          s.CIDR,
+		Options:       &options,
 		ValidLifetime: &s.ValidLifetime,
 		Gateway:       &s.Gateway,
 		DnsServers:    &s.DNSServers,
@@ -148,6 +174,8 @@ func mapSubnetErr(c *gin.Context, err error) {
 		problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "ORG_NOT_FOUND", "组织节点不存在")
 	case errors.Is(err, ErrKeaDown):
 		problem.Write(c, http.StatusServiceUnavailable, "https://ipam.local/problems/kea-down", "KEA_DOWN", "Kea 配置下发失败，已回滚至上一版本")
+	case errors.Is(err, ErrSubnetDup):
+		problem.Write(c, http.StatusConflict, "https://ipam.local/problems/subnet-dup", "SUBNET_DUP", "该网段已存在（CIDR 重复，Kea 要求前缀唯一）")
 	case errors.Is(err, ErrBadCIDR), errors.Is(err, ErrFamilyMismatch):
 		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "BAD_SUBNET", err.Error())
 	default:

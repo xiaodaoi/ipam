@@ -112,6 +112,9 @@ func (r *PgSubnetRepo) List(ctx context.Context, orgID string, family int) ([]Su
 	if err := r.loadPools(ctx, out); err != nil {
 		return nil, err
 	}
+	if err := r.loadOptions(ctx, out); err != nil {
+		return nil, err
+	}
 	return out, rows.Err()
 }
 
@@ -127,6 +130,38 @@ func (r *PgSubnetRepo) Get(ctx context.Context, id string) (Subnet, bool, error)
 	return s, true, nil
 }
 
+// loadOptions 按 subnet_id 分组回填子网级 DHCP 选项（0022）。
+func (r *PgSubnetRepo) loadOptions(ctx context.Context, subs []Subnet) error {
+	if len(subs) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(subs))
+	for i := range subs {
+		ids = append(ids, subs[i].ID)
+	}
+	rows, err := r.pool.Query(ctx,
+		`SELECT subnet_id::text, code, coalesce(name,''), data, csv_format, enabled
+		 FROM subnet_option WHERE subnet_id = ANY($1::uuid[]) ORDER BY code`, ids)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	bySub := map[string][]SubnetOption{}
+	for rows.Next() {
+		var sid string
+		var o SubnetOption
+		if err := rows.Scan(&sid, &o.Code, &o.Name, &o.Data, &o.CSVFormat, &o.Enabled); err == nil {
+			bySub[sid] = append(bySub[sid], o)
+		}
+	}
+	for i := range subs {
+		if opts := bySub[subs[i].ID]; len(opts) > 0 {
+			subs[i].Options = opts
+		}
+	}
+	return rows.Err()
+}
+
 func (r *PgSubnetRepo) Create(ctx context.Context, s Subnet) (Subnet, error) {
 	var id string
 	err := r.pool.QueryRow(ctx,
@@ -138,6 +173,9 @@ func (r *PgSubnetRepo) Create(ctx context.Context, s Subnet) (Subnet, error) {
 	}
 	s.ID = id
 	if err := insertPools(ctx, r, id, s); err != nil {
+		return Subnet{}, err
+	}
+	if err := insertOptions(ctx, r, id, s); err != nil {
 		return Subnet{}, err
 	}
 	return s, nil
@@ -170,6 +208,23 @@ func insertPools(ctx context.Context, r *PgSubnetRepo, id string, s Subnet) erro
 	return nil
 }
 
+// insertOptions 写入子网级选项（调用方先清空旧值）。
+func insertOptions(ctx context.Context, r *PgSubnetRepo, id string, s Subnet) error {
+	for i := range s.Options {
+		o := &s.Options[i]
+		if !o.Enabled {
+			continue
+		}
+		if _, err := r.pool.Exec(ctx,
+			`INSERT INTO subnet_option(subnet_id,code,name,data,csv_format,enabled) VALUES($1,$2,$3,$4,$5,$6)
+			 ON CONFLICT (subnet_id,code) DO UPDATE SET name=$3, data=$4, csv_format=$5, enabled=$6`,
+			id, o.Code, nullStr(o.Name), o.Data, o.CSVFormat, o.Enabled); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (r *PgSubnetRepo) Update(ctx context.Context, s Subnet) (Subnet, error) {
 	if _, err := r.pool.Exec(ctx,
 		`UPDATE subnet SET name=$2, cidr=$3, gateway=$4, dns_servers=$5, description=$6, valid_lifetime=$7, updated_at=now() WHERE id=$1`,
@@ -180,6 +235,12 @@ func (r *PgSubnetRepo) Update(ctx context.Context, s Subnet) (Subnet, error) {
 		return Subnet{}, err
 	}
 	if err := insertPools(ctx, r, s.ID, s); err != nil {
+		return Subnet{}, err
+	}
+	if _, err := r.pool.Exec(ctx, `DELETE FROM subnet_option WHERE subnet_id=$1`, s.ID); err != nil {
+		return Subnet{}, err
+	}
+	if err := insertOptions(ctx, r, s.ID, s); err != nil {
 		return Subnet{}, err
 	}
 	return s, nil

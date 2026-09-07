@@ -56,6 +56,19 @@ func BuildConfig(subnets []ipam.Subnet) (Dhcp4Config, error) {
 		if s.DNSServers != "" {
 			od = append(od, map[string]any{"name": "domain-name-servers", "data": s.DNSServers})
 		}
+		// 子网级自定义选项（M3-012：RFC2132 预设 + 自定义 code；space 由 family 推导）
+		for _, o := range s.Options {
+			if !o.Enabled {
+				continue
+			}
+			item := map[string]any{"space": "dhcp4", "data": o.Data, "csv-format": o.CSVFormat}
+			if o.Name != "" {
+				item["name"] = o.Name
+			} else {
+				item["code"] = o.Code
+			}
+			od = append(od, item)
+		}
 		if len(od) > 0 {
 			sub["option-data"] = od
 		}
@@ -173,6 +186,21 @@ func BuildConfig6(subnets []ipam.Subnet) (Dhcp6Config, error) {
 		}
 		if s.DNSServers != "" {
 			sub["option-data"] = []map[string]any{{"name": "dns-servers", "data": s.DNSServers}}
+		}
+		for _, o := range s.Options {
+			if !o.Enabled {
+				continue
+			}
+			item := map[string]any{"space": "dhcp6", "data": o.Data, "csv-format": o.CSVFormat}
+			if o.Name != "" {
+				item["name"] = o.Name
+			} else {
+				item["code"] = o.Code
+			}
+			if sub["option-data"] == nil {
+				sub["option-data"] = []map[string]any{}
+			}
+			sub["option-data"] = append(sub["option-data"].([]map[string]any), item)
 		}
 		var pools6, pdPools []map[string]any
 		for _, p := range s.Pools {

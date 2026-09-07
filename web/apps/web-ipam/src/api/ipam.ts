@@ -10,6 +10,7 @@ export type LedgerRow = components['schemas']['LedgerRow'];
 export type LedgerPage = components['schemas']['LedgerPage'];
 export type OrgTreeNode = components['schemas']['OrgTreeNode'];
 export type Subnet = components['schemas']['Subnet'];
+export type SubnetOption = components['schemas']['SubnetOption'];
 export type Asset = components['schemas']['Asset'];
 
 const BASE = (import.meta.env.VITE_GLOB_API_URL as string) || '/api/v1';
@@ -221,13 +222,16 @@ export const compilePolicyGroup = (id: string) => req<components['schemas']['Rpz
 // GET /orgs 返回组织树（与 /orgs/tree 同源；flat 场景前端自行展平）
 export const listOrgs = () => req<OrgTreeNode[]>('/orgs');
 
+export type SubnetOptionIn = { code: number; name?: string; data: string; csvFormat?: boolean; enabled?: boolean };
 export const createSubnet = (b: {
   orgId: string; name: string; family: 4 | 6; cidr: string; gateway?: string; dnsServers?: string; validLifetime?: number;
   pools?: { startAddr: string; endAddr?: string; kind: string; prefixLen?: number; delegatedLen?: number }[];
+  options?: SubnetOptionIn[];
 }) => req<Subnet>('/subnets', j(b));
 export const updateSubnet = (id: string, b: {
   name?: string; cidr?: string; gateway?: string; dnsServers?: string; validLifetime?: number;
   pools?: { startAddr: string; endAddr?: string; kind: string; prefixLen?: number; delegatedLen?: number }[];
+  options?: SubnetOptionIn[];
 }) => req<Subnet>(`/subnets/${id}`, patch(b));
 export const deleteSubnet = (id: string) => req<void>(`/subnets/${id}`, del);
 
