@@ -290,8 +290,12 @@ const [Lease6Grid] = useVbenVxeGrid({ gridOptions: lease6GridOptions });
           <Input v-model:value="form.name" style="width: 150px" placeholder="研发-办公" />
         </div>
         <div>
+          <div class="mb-1 text-xs text-gray-400">CIDR</div>
+          <Input v-model:value="form.cidr" style="width: 190px" :placeholder="form.family === 6 ? '2406:172::/64' : '10.61.40.0/24'" />
+        </div>
+        <div>
           <div class="mb-1 text-xs text-gray-400">{{ form.family === 6 ? 'DNS 服务器' : '网关' }}</div>
-          <Input v-model:value="form.gateway" v-if="form.family === 4" style="width: 140px" placeholder="10.61.172.1" />
+          <Input v-model:value="form.gateway" v-if="form.family === 4" style="width: 140px" placeholder="10.61.40.1" />
           <Input v-model:value="form.dnsServers" v-if="form.family === 6" style="width: 170px" placeholder="2406:172::53" />
         </div>
         <div>
