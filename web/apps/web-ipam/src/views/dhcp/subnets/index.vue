@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 
+import { useRouter } from 'vue-router';
+
 import { useVbenModal } from '@vben/common-ui';
 
 import type { VxeGridProps } from '@vben/plugins/vxe-table';
@@ -22,6 +24,7 @@ import {
 import {
   createSubnet,
   deleteSubnet,
+  listLedger,
   listOrgTree,
   listSubnets,
   updateSubnet,
@@ -34,6 +37,24 @@ import {
 import { DHCP4_OPTION_PRESETS, DHCP6_OPTION_PRESETS } from './options';
 
 const rows = ref<Subnet[]>([]);
+const router = useRouter();
+const onlineCount = ref<Record<string, number>>({});
+
+async function loadOnlineCounts() {
+  try {
+    const [v4, v6] = await Promise.all([
+      listLedger({ family: 4, state: 'online', pageSize: 500 }),
+      listLedger({ family: 6, state: 'online', pageSize: 500 }),
+    ]);
+    const cnt: Record<string, number> = {};
+    for (const r of [...(v4.items ?? []), ...(v6.items ?? [])]) {
+      if (r.subnetId) cnt[r.subnetId] = (cnt[r.subnetId] ?? 0) + 1;
+    }
+    onlineCount.value = cnt;
+  } catch {
+    onlineCount.value = {};
+  }
+}
 const editingId = ref<string>();
 const orgTree = ref<OrgTreeNode[]>([]);
 const loading = ref(false);
@@ -96,6 +117,7 @@ async function load() {
     const [subs, orgs] = await Promise.all([listSubnets(filterOrgId.value), listOrgTree()]);
     rows.value = subs.items ?? [];
     orgTree.value = orgs;
+    await loadOnlineCounts();
   } finally {
     loading.value = false;
   }
@@ -226,7 +248,8 @@ const v6Rows = computed(() => rows.value.filter((r) => r.family === 6));
 const gridOptions = reactive<VxeGridProps>({
   columns: [
     { field: 'name', title: '名称', minWidth: 120 },
-    { field: 'cidr', title: 'CIDR', minWidth: 140 },
+    { field: 'cidr', title: 'CIDR（点击进入地址规划）', minWidth: 200, slots: { default: 'cidr' } },
+    { field: 'online', title: '在线地址数', width: 100, slots: { default: 'online' } },
     { field: 'orgId', title: '组织', minWidth: 100, slots: { default: 'orgId' } },
     { field: 'gateway', title: '网关/DNS', minWidth: 110, slots: { default: 'gateway' } },
     { field: 'pools', title: '池数', minWidth: 80, slots: { default: 'pools' } },
@@ -394,6 +417,9 @@ const [Lease6Grid] = useVbenVxeGrid({ gridOptions: lease6GridOptions });
 
       <template v-if="familyTab === 'v4'">
         <SubnetGrid :table-data="v4Rows">
+          <template #cidr="{ row }">
+            <a class="text-primary" @click="router.push(`/dhcp/ledger?cidr=${row.cidr}`)">{{ row.cidr }}</a>
+          </template>
           <template #orgId="{ row }">
             {{ orgName(row.orgId) }}
           </template>
@@ -402,6 +428,11 @@ const [Lease6Grid] = useVbenVxeGrid({ gridOptions: lease6GridOptions });
           </template>
           <template #pools="{ row }">
             {{ (row.pools ?? []).length }}
+          </template>
+          <template #online="{ row }">
+            <Tag :color="(onlineCount[row.id] ?? 0) > 0 ? 'green' : 'default'" class="m-0">
+              {{ onlineCount[row.id] ?? 0 }}
+            </Tag>
           </template>
           <template #keaSubnetId="{ row }">
             <Tag v-if="row.keaSubnetId" color="green">{{ row.keaSubnetId }}</Tag>
@@ -417,6 +448,9 @@ const [Lease6Grid] = useVbenVxeGrid({ gridOptions: lease6GridOptions });
       </template>
       <template v-else>
         <SubnetGrid :table-data="v6Rows">
+          <template #cidr="{ row }">
+            <a class="text-primary" @click="router.push(`/dhcp/ledger?cidr=${row.cidr}`)">{{ row.cidr }}</a>
+          </template>
           <template #orgId="{ row }">
             {{ orgName(row.orgId) }}
           </template>
@@ -425,6 +459,11 @@ const [Lease6Grid] = useVbenVxeGrid({ gridOptions: lease6GridOptions });
           </template>
           <template #pools="{ row }">
             {{ (row.pools ?? []).length }}
+          </template>
+          <template #online="{ row }">
+            <Tag :color="(onlineCount[row.id] ?? 0) > 0 ? 'green' : 'default'" class="m-0">
+              {{ onlineCount[row.id] ?? 0 }}
+            </Tag>
           </template>
           <template #keaSubnetId="{ row }">
             <Tag v-if="row.keaSubnetId" color="green">{{ row.keaSubnetId }}</Tag>

@@ -165,7 +165,9 @@ function handleCellClick(ipObj: IpCell, evt: MouseEvent) {
 const stats = computed(() => {
   const planned = ipList.value.filter((p) => ['static', 'dynamic', 'reserved', 'planned'].includes(p.status)).length;
   const online = ipList.value.filter((p) => (p.overlays || []).includes('online') || p.status === 'online').length;
-  return { total: ipList.value.length, planned, online, selected: selected.value.length };
+  const staticCount = ipList.value.filter((p) => p.status === 'static').length;
+  const reservedCount = ipList.value.filter((p) => p.status === 'reserved').length;
+  return { total: ipList.value.length, planned, online, static: staticCount, reserved: reservedCount, selected: selected.value.length };
 });
 
 // ── 网段切换 ──
@@ -285,9 +287,11 @@ onMounted(() => {
 
     <template v-else>
       <!-- 统计 -->
-      <Space :size="28" wrap style="margin-bottom: 12px">
-        <span><b style="color: #BE86E4">{{ stats.planned }}</b> 已规划IP数</span>
-        <span><b style="color: #21BF86">{{ stats.online }}</b> 在线IP数</span>
+      <Space :size="24" wrap style="margin-bottom: 12px">
+        <span><b style="color: #21BF86">{{ stats.online }}</b> 在线</span>
+        <span><b style="color: #2F54EB">{{ stats.static }}</b> 静态</span>
+        <span><b style="color: #FF9C6E">{{ stats.reserved }}</b> 保留</span>
+        <span><b style="color: #BE86E4">{{ stats.planned }}</b> 已规划</span>
         <span><b style="color: #0065FF">{{ stats.selected }}</b> 已选中</span>
         <span style="color: #A1A7C4">共 {{ stats.total }} 个地址</span>
       </Space>

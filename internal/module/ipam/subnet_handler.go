@@ -3,6 +3,7 @@ package ipam
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	guuid "github.com/google/uuid"
 
@@ -73,14 +74,46 @@ func (h *SubnetHandler) UpdateSubnet(c *gin.Context, subnetId apigen.SubnetIdPar
 		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "BAD_REQUEST", err.Error())
 		return
 	}
+	// 以现有子网为基，body 指针字段仅在有值时覆盖（PATCH 合并语义；全量覆盖会清空未传字段并撞唯一键）
+	cur, ok, err := h.svc.repo.Get(c.Request.Context(), guuid.UUID(subnetId).String())
+	if err != nil || !ok {
+		problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "SUBNET_NOT_FOUND", "子网不存在")
+		return
+	}
 	in := Subnet{
-		Name:        derefStr(body.Name),
-		Pools:       poolsFromGen(body.Pools),
-		Options:     optionsFromGen(body.Options),
-		Description: derefStr(body.Description),
-		Gateway:       derefStr(body.Gateway),
-		DNSServers:    derefStr(body.DnsServers),
-		ValidLifetime: deref(body.ValidLifetime, 3600),
+		ID:            cur.ID,
+		OrgID:         cur.OrgID,
+		Family:        cur.Family,
+		CIDR:          cur.CIDR,
+		KeaSubnetID:   cur.KeaSubnetID,
+		Name:          cur.Name,
+		Description:   cur.Description,
+		Gateway:       cur.Gateway,
+		DNSServers:    cur.DNSServers,
+		ValidLifetime: cur.ValidLifetime,
+		Pools:         cur.Pools,
+		Options:       cur.Options,
+	}
+	if body.Name != nil {
+		in.Name = *body.Name
+	}
+	if body.Description != nil {
+		in.Description = *body.Description
+	}
+	if body.Gateway != nil {
+		in.Gateway = *body.Gateway
+	}
+	if body.DnsServers != nil {
+		in.DNSServers = *body.DnsServers
+	}
+	if body.ValidLifetime != nil {
+		in.ValidLifetime = *body.ValidLifetime
+	}
+	if body.Pools != nil {
+		in.Pools = poolsFromGen(body.Pools)
+	}
+	if body.Options != nil {
+		in.Options = optionsFromGen(body.Options)
 	}
 	next, err := h.svc.Update(c.Request.Context(), guuid.UUID(subnetId).String(), in)
 	if err != nil {
@@ -178,6 +211,8 @@ func mapSubnetErr(c *gin.Context, err error) {
 		problem.Write(c, http.StatusConflict, "https://ipam.local/problems/subnet-dup", "SUBNET_DUP", "该网段已存在（CIDR 重复，Kea 要求前缀唯一）")
 	case errors.Is(err, ErrBadCIDR), errors.Is(err, ErrFamilyMismatch):
 		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "BAD_SUBNET", err.Error())
+	case strings.Contains(err.Error(), "23505"):
+		problem.Write(c, http.StatusConflict, "https://ipam.local/problems/subnet-name-dup", "SUBNET_NAME_DUP", "同组织下同名子网已存在")
 	default:
 		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "INTERNAL", err.Error())
 	}

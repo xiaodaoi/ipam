@@ -1,0 +1,88 @@
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue';
+
+import { Card, Table } from 'ant-design-vue';
+
+import OrgFilterCard from '#/components/org-filter-card.vue';
+
+import { listOrgTree, listSubnets, type OrgTreeNode, type Subnet } from '#/api/ipam';
+
+// ── 组织筛选 ──
+const orgTree = ref<OrgTreeNode[]>([]);
+const selectedOrgId = ref<string>('');
+
+function onSelectOrg(orgId: string) {
+  selectedOrgId.value = orgId;
+  void loadSubnets();
+}
+
+// ── IPv6 子网（台账视角）──
+const subnets = ref<Subnet[]>([]);
+const v6Subnets = computed(() => subnets.value.filter((s) => s.family === 6));
+
+async function loadSubnets() {
+  subnets.value = (await listSubnets(selectedOrgId.value || undefined)).items ?? [];
+}
+
+const v6Cols = [
+  { title: '网段（CIDR）', dataIndex: 'cidr' },
+  { title: '名称', dataIndex: 'name' },
+  { title: '类型', dataIndex: 'kind' },
+  { title: '池范围', dataIndex: 'pools' },
+];
+function poolText(p: Subnet): string {
+  return (
+    (p.pools ?? [])
+      .map((x: any) =>
+        x.kind === 'pd'
+          ? `PD:${x.startAddr}/${x.prefixLen}→${x.delegatedLen}`
+          : `${x.startAddr}-${x.endAddr ?? ''}`,
+      )
+      .join('；') || '—'
+  );
+}
+function kindText(p: Subnet): string {
+  const kinds = new Set((p.pools ?? []).map((x: any) => x.kind));
+  if (kinds.has('pd')) return 'PD 委派';
+  if (kinds.has('dynamic')) return '地址池';
+  return '—';
+}
+
+onMounted(async () => {
+  orgTree.value = await listOrgTree();
+  await loadSubnets();
+});
+</script>
+
+<template>
+  <div class="flex gap-4">
+    <OrgFilterCard
+      :org-tree="orgTree"
+      :selected-org-id="selectedOrgId"
+      @select="onSelectOrg"
+    />
+
+    <Card class="min-w-0 flex-1" title="IPv6 地址台账（子网级汇总）">
+      <template #extra>
+        <span class="text-xs text-muted-foreground">
+          IPv6 地址由 PD 委派/地址池动态分配，台账按子网级汇总展示
+        </span>
+      </template>
+      <div v-if="!v6Subnets.length" class="rounded border border-dashed py-16 text-center text-muted-foreground">
+        请先在左侧选择组织；或该组织暂无 IPv6 网段
+      </div>
+      <Table
+        v-else
+        :data-source="v6Subnets"
+        :columns="v6Cols"
+        row-key="id"
+        :pagination="false"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.dataIndex === 'kind'">{{ kindText(record as Subnet) }}</template>
+          <template v-else-if="column.dataIndex === 'pools'">{{ poolText(record as Subnet) }}</template>
+        </template>
+      </Table>
+    </Card>
+  </div>
+</template>

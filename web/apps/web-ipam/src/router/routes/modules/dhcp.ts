@@ -19,13 +19,33 @@ const routes: RouteRecordRaw[] = [
         meta: { icon: 'lucide:network', title: $t('page.dhcp.subnets'), authority: ['dhcp:read'] },
       },
       {
-        name: 'Ledger',
+        name: 'DhcpLedger',
         path: '/dhcp/ledger',
-        component: () => import('#/views/dhcp/ledger/index.vue'),
+        redirect: '/dhcp/ledger/v4',
         meta: {
           icon: 'lucide:table',
           title: $t('page.dhcp.ledger'),
         },
+        children: [
+          {
+            name: 'DhcpLedgerV4',
+            path: '/dhcp/ledger/v4',
+            component: () => import('#/views/dhcp/ledger/v4.vue'),
+            meta: { icon: 'lucide:map', title: 'IPv4 台账', authority: ['dhcp:read'] },
+          },
+          {
+            name: 'DhcpLedgerV6',
+            path: '/dhcp/ledger/v6',
+            component: () => import('#/views/dhcp/ledger/v6.vue'),
+            meta: { icon: 'lucide:network', title: 'IPv6 台账', authority: ['dhcp:read'] },
+          },
+          {
+            name: 'DhcpLedgerOnline',
+            path: '/dhcp/ledger/online',
+            component: () => import('#/views/dhcp/ledger/online.vue'),
+            meta: { icon: 'lucide:activity', title: '在线地址', authority: ['dhcp:read'] },
+          },
+        ],
       },
       {
         name: 'Reservations',
