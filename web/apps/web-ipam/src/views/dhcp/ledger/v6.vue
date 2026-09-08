@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 
-import { Card, Table } from 'ant-design-vue';
+import { Card, Table, Tag } from 'ant-design-vue';
 
 import OrgFilterCard from '#/components/org-filter-card.vue';
 
@@ -25,27 +25,38 @@ function onSelectOrg(orgId: string) {
 // ── IPv6 子网（台账视角）──
 const subnets = ref<Subnet[]>([]);
 const v6Subnets = computed(() => subnets.value.filter((s) => s.family === 6));
+const selectedCidr = ref('');
 const selectedSubnetId = computed(
-  () => v6Subnets.value.find((s) => s.cidr === (selectedCidr.value || v6Subnets.value[0]?.cidr))?.id ?? '',
+  () => v6Subnets.value.find((s) => s.cidr === selectedCidr.value)?.id ?? '',
 );
-const onlineRows = ref<Record<string, any>[]>([]);
+const allOnline = ref<Record<string, any>[]>([]);
+const onlineCounts = ref<Record<string, number>>({});
+const onlineRows = computed(() =>
+  allOnline.value.filter((r) => r.subnetId === selectedSubnetId.value),
+);
 
 async function loadOnline() {
-  if (!selectedSubnetId.value) {
-    onlineRows.value = [];
-    return;
-  }
   try {
-    const d = await listLedger({ subnetId: selectedSubnetId.value, family: 6, state: 'online', pageSize: 500 });
-    onlineRows.value = d.items ?? [];
+    const d = await listLedger({ family: 6, state: 'online', pageSize: 500 });
+    allOnline.value = d.items ?? [];
   } catch {
-    onlineRows.value = [];
+    allOnline.value = [];
+  }
+  const cnt: Record<string, number> = {};
+  for (const r of allOnline.value) {
+    if (r.subnetId) cnt[r.subnetId] = (cnt[r.subnetId] ?? 0) + 1;
+  }
+  onlineCounts.value = cnt;
+  // 未选中或选中网段已不在当前列表时自动回退：优先有在线地址的网段，否则取第一个
+  const list = v6Subnets.value;
+  if (list.length > 0 && !list.some((s) => s.cidr === selectedCidr.value)) {
+    const hit = list.find((s) => (cnt[s.id] ?? 0) > 0);
+    selectedCidr.value = (hit ?? list[0])!.cidr;
   }
 }
 
 function onSelectSubnet(cidr: string) {
   selectedCidr.value = cidr;
-  void loadOnline();
 }
 
 async function loadSubnets() {
@@ -53,12 +64,15 @@ async function loadSubnets() {
   await loadOnline();
 }
 
-const selectedCidr = ref('');
+function fmtTime(v?: string): string {
+  return v ? new Date(v).toLocaleString() : '—';
+}
 const v6Cols = [
   { title: '网段（CIDR）', dataIndex: 'cidr' },
   { title: '名称', dataIndex: 'name' },
   { title: '类型', dataIndex: 'kind' },
   { title: '池范围', dataIndex: 'pools' },
+  { title: '在线地址数', dataIndex: 'online', width: 110 },
 ];
 function poolText(p: Subnet): string {
   return (
@@ -108,29 +122,43 @@ onMounted(async () => {
         :columns="v6Cols"
         row-key="id"
         :pagination="false"
+        :row-class-name="(r: any) => (r.cidr === selectedCidr ? 'bg-accent' : '')"
         :custom-row="(r: any) => ({ onClick: () => onSelectSubnet(r.cidr), style: { cursor: 'pointer' } })"
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.dataIndex === 'kind'">{{ kindText(record as Subnet) }}</template>
           <template v-else-if="column.dataIndex === 'pools'">{{ poolText(record as Subnet) }}</template>
+          <template v-else-if="column.dataIndex === 'online'">
+            <Tag :color="(onlineCounts[(record as Subnet).id] ?? 0) > 0 ? 'green' : 'default'" class="m-0">
+              {{ onlineCounts[(record as Subnet).id] ?? 0 }}
+            </Tag>
+          </template>
         </template>
       </Table>
 
       <Card class="mt-4" size="small" :title="`在线地址 · ${selectedCidr || '未选择网段'}（${onlineRows.length}）`">
         <template #extra>
-          <span class="text-xs text-muted-foreground">IPv6 在线地址随租约联动接入后展示</span>
+          <span class="text-xs text-muted-foreground">点击上方网段行切换查看；客户端标识为 DHCPv6 DUID</span>
         </template>
         <Table
           :data-source="onlineRows"
           :columns="[
             { title: '在线地址', dataIndex: 'address' },
-            { title: 'MAC', dataIndex: 'mac' },
+            { title: '客户端标识（DUID）', dataIndex: 'mac' },
             { title: '主机名', dataIndex: 'hostname' },
+            { title: '租期到期', dataIndex: 'leaseExpiry' },
           ]"
           row-key="address"
           size="small"
           :pagination="{ pageSize: 20, showSizeChanger: true }"
-        />
+        >
+          <template #bodyCell="{ column, record }">
+            <template v-if="column.dataIndex === 'leaseExpiry'">{{ fmtTime((record as any).leaseExpiry) }}</template>
+            <template v-else-if="column.dataIndex === 'mac'">
+              <code class="text-xs">{{ (record as any).mac ?? '—' }}</code>
+            </template>
+          </template>
+        </Table>
       </Card>
     </Card>
   </div>
