@@ -85,6 +85,7 @@ onMounted(async () => {
 </script>
 
 <template>
+  <div class="p-4">
   <div class="flex gap-4">
     <OrgFilterCard
       :org-tree="orgTree"
@@ -128,9 +129,10 @@ onMounted(async () => {
           ]"
           row-key="address"
           size="small"
-          :pagination="{ pageSize: 10, showSizeChanger: false }"
+          :pagination="{ pageSize: 20, showSizeChanger: true }"
         />
       </Card>
     </Card>
+  </div>
   </div>
 </template>

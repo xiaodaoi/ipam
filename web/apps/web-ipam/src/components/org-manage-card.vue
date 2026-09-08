@@ -227,8 +227,7 @@ onMounted(() => load(false));
 </script>
 
 <template>
-  <div class="p-4">
-    <Card title="组织管理（全局主数据 ★）">
+  <Card title="组织管理（全局主数据 ★）">
       <template #extra>
         <div class="flex flex-wrap items-center justify-end gap-2">
           <Button type="primary" size="small" @click="addRoot">
@@ -308,7 +307,6 @@ onMounted(() => load(false));
         />
       </div>
     </NameModal>
-  </div>
 </template>
 
 <style scoped>

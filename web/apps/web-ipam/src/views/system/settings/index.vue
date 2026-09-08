@@ -5,6 +5,8 @@ import { updatePreferences } from '@vben/preferences';
 
 import { Button, Card, Input, InputNumber, Popconfirm, Upload, message } from 'ant-design-vue';
 
+import OrgManageCard from '#/components/org-manage-card.vue';
+
 import { requestClient } from '#/api/request';
 
 const form = reactive({ siteName: '', faviconUrl: '', logoUrl: '', serverPort: 8443 });
@@ -94,6 +96,8 @@ onMounted(load);
 
 <template>
   <div class="p-4">
+  <OrgManageCard class="mb-4" />
+
 <Card title="Web 页面设置">
     <div class="space-y-3">
       <div>

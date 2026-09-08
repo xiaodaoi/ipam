@@ -13,12 +13,6 @@ const routes: RouteRecordRaw[] = [
     path: '/system',
     children: [
       {
-        name: 'SystemOrgs',
-        path: '/system/orgs',
-        component: () => import('#/views/system/orgs/index.vue'),
-        meta: { icon: 'lucide:network', title: $t('page.system.orgs'), authority: ['system:read'] },
-      },
-      {
         name: 'SystemUsers',
         path: '/system/users',
         component: () => import('#/views/system/users/index.vue'),

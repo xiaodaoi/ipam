@@ -268,7 +268,7 @@ onMounted(async () => {
           ]"
           row-key="address"
           size="small"
-          :pagination="{ pageSize: 10, showSizeChanger: false }"
+          :pagination="{ pageSize: 20, showSizeChanger: true }"
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.dataIndex === 'mac'">
