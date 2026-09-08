@@ -44,6 +44,16 @@ const loading = ref(false);
 
 const activeZone = computed(() => zones.value.find((z) => z.id === zoneId.value));
 
+// 完整域名：记录名 + 区域（名称已含区域后缀则只补尾点）
+function fqdnOf(name: string): string {
+  const z = activeZone.value?.name;
+  if (!z) return name;
+  if (name.endsWith('.')) return name;
+  const root = z.replace(/\.$/, '');
+  if (name === root || name.endsWith('.' + root)) return name + '.';
+  return `${name}.${z}`;
+}
+
 async function loadZones() {
   const d = await listDnsZones();
   zones.value = d.items ?? [];
@@ -247,6 +257,7 @@ onMounted(loadZones);
 const recGridOptions = reactive<VxeGridProps>({
   columns: [
     { field: 'name', title: '记录名（相对名或 FQDN）', minWidth: 160, showOverflow: true },
+    { field: 'fqdn', title: '完整域名', minWidth: 190, slots: { default: 'fqdn' } },
     { field: 'recType', title: '类型', width: 80 },
     { field: 'ttl', title: 'TTL', width: 70 },
     { field: 'rdata', title: '记录值', minWidth: 140, showOverflow: true },
@@ -337,6 +348,9 @@ const [LinkGrid] = useVbenVxeGrid({ gridOptions: linkedGridOptions });
           <RecGrid :table-data="records">
             <template #enabled="{ row }">
               <Switch :checked="row.enabled" size="small" @change="(v) => toggleRecord(row as DnsRecord, Boolean(v))" />
+            </template>
+            <template #fqdn="{ row }">
+              <span class="font-mono">{{ fqdnOf(row.name) }}</span>
             </template>
             <template #op="{ row }">
               <div class="flex items-center gap-1">

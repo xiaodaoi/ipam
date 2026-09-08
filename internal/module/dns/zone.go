@@ -181,7 +181,12 @@ func ExportZonefile(zone Zone, records []Record) string {
 		}
 		name := r.Name
 		if !strings.HasSuffix(name, ".") {
-			name += "." + zone.Name
+			z := strings.TrimSuffix(zone.Name, ".")
+			if name == z || strings.HasSuffix(name, "."+z) {
+				name += "."
+			} else {
+				name += "." + zone.Name
+			}
 		}
 		ttl := r.TTL
 		if ttl <= 0 {

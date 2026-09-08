@@ -167,7 +167,13 @@ func fqdn(name, zone string) string {
 	if strings.HasSuffix(name, ".") {
 		return name
 	}
-	return name + "." + strings.TrimPrefix(zone, ".")
+	z := strings.TrimSuffix(zone, ".")
+	// 名称已含区域后缀（用户直接填完整域名，如 work2046.com / www.work2046.com）→ 只补尾点，
+	// 否则会拼出 work2046.com.work2046.com.（M3-012 现场问题：解析记录不生效）。
+	if name == z || strings.HasSuffix(name, "."+z) {
+		return name + "."
+	}
+	return name + "." + z
 }
 
 // ApplyDnsConf 实现 apigen.ServerInterface（POST /dns/conf/apply，§2.3 收口）。
