@@ -5,7 +5,13 @@ import { Card, Table } from 'ant-design-vue';
 
 import OrgFilterCard from '#/components/org-filter-card.vue';
 
-import { listOrgTree, listSubnets, type OrgTreeNode, type Subnet } from '#/api/ipam';
+import {
+  listLedger,
+  listOrgTree,
+  listSubnets,
+  type OrgTreeNode,
+  type Subnet,
+} from '#/api/ipam';
 
 // ── 组织筛选 ──
 const orgTree = ref<OrgTreeNode[]>([]);
@@ -19,11 +25,35 @@ function onSelectOrg(orgId: string) {
 // ── IPv6 子网（台账视角）──
 const subnets = ref<Subnet[]>([]);
 const v6Subnets = computed(() => subnets.value.filter((s) => s.family === 6));
+const selectedSubnetId = computed(
+  () => v6Subnets.value.find((s) => s.cidr === (selectedCidr.value || v6Subnets.value[0]?.cidr))?.id ?? '',
+);
+const onlineRows = ref<Record<string, any>[]>([]);
+
+async function loadOnline() {
+  if (!selectedSubnetId.value) {
+    onlineRows.value = [];
+    return;
+  }
+  try {
+    const d = await listLedger({ subnetId: selectedSubnetId.value, family: 6, state: 'online', pageSize: 500 });
+    onlineRows.value = d.items ?? [];
+  } catch {
+    onlineRows.value = [];
+  }
+}
+
+function onSelectSubnet(cidr: string) {
+  selectedCidr.value = cidr;
+  void loadOnline();
+}
 
 async function loadSubnets() {
   subnets.value = (await listSubnets(selectedOrgId.value || undefined)).items ?? [];
+  await loadOnline();
 }
 
+const selectedCidr = ref('');
 const v6Cols = [
   { title: '网段（CIDR）', dataIndex: 'cidr' },
   { title: '名称', dataIndex: 'name' },
@@ -77,12 +107,30 @@ onMounted(async () => {
         :columns="v6Cols"
         row-key="id"
         :pagination="false"
+        :custom-row="(r: any) => ({ onClick: () => onSelectSubnet(r.cidr), style: { cursor: 'pointer' } })"
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.dataIndex === 'kind'">{{ kindText(record as Subnet) }}</template>
           <template v-else-if="column.dataIndex === 'pools'">{{ poolText(record as Subnet) }}</template>
         </template>
       </Table>
+
+      <Card class="mt-4" size="small" :title="`在线地址 · ${selectedCidr || '未选择网段'}（${onlineRows.length}）`">
+        <template #extra>
+          <span class="text-xs text-muted-foreground">IPv6 在线地址随租约联动接入后展示</span>
+        </template>
+        <Table
+          :data-source="onlineRows"
+          :columns="[
+            { title: '在线地址', dataIndex: 'address' },
+            { title: 'MAC', dataIndex: 'mac' },
+            { title: '主机名', dataIndex: 'hostname' },
+          ]"
+          row-key="address"
+          size="small"
+          :pagination="{ pageSize: 10, showSizeChanger: false }"
+        />
+      </Card>
     </Card>
   </div>
 </template>

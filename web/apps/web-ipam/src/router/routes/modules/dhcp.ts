@@ -21,6 +21,7 @@ const routes: RouteRecordRaw[] = [
       {
         name: 'DhcpLedger',
         path: '/dhcp/ledger',
+        component: () => import('#/views/dhcp/ledger/parent.vue'),
         redirect: '/dhcp/ledger/v4',
         meta: {
           icon: 'lucide:table',
@@ -38,12 +39,6 @@ const routes: RouteRecordRaw[] = [
             path: '/dhcp/ledger/v6',
             component: () => import('#/views/dhcp/ledger/v6.vue'),
             meta: { icon: 'lucide:network', title: 'IPv6 台账', authority: ['dhcp:read'] },
-          },
-          {
-            name: 'DhcpLedgerOnline',
-            path: '/dhcp/ledger/online',
-            component: () => import('#/views/dhcp/ledger/online.vue'),
-            meta: { icon: 'lucide:activity', title: '在线地址', authority: ['dhcp:read'] },
           },
         ],
       },

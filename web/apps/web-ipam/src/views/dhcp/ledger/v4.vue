@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useVbenModal } from '@vben/common-ui';
 import { useRoute } from 'vue-router';
 
-import { Input, message } from 'ant-design-vue';
+import { Card, Table, Input, message } from 'ant-design-vue';
 
 import IpPlanMap from '#/components/ip-plan-map.vue';
 import OrgFilterCard from '#/components/org-filter-card.vue';
@@ -17,6 +17,7 @@ import {
   reserveAddress,
   type OrgTreeNode,
   type Subnet,
+  type LedgerRow,
 } from '#/api/ipam';
 import { normalizeMacInput } from '#/utils/mac';
 
@@ -63,6 +64,7 @@ interface MapCell {
   leaseStatus?: string;
 }
 const cells = ref<MapCell[]>([]);
+const onlineRows = ref<Partial<LedgerRow>[]>([]);
 const mapLoading = ref(false);
 const currentSubnet = computed(() => v4Subnets.value.find((s) => s.cidr === selectedCidr.value));
 
@@ -98,6 +100,7 @@ async function loadMap() {
     }
     // 2) 覆盖台账状态（按 host 定位）
     const page = await listLedger({ subnetId: sub.id, family: 4, pageSize: 500 });
+    onlineRows.value = (page.items ?? []).filter((r) => r.state === 'online');
     for (const row of page.items ?? []) {
       const host = ipToInt(row.address) - network;
       if (host < 0 || host >= hostCount) continue;
@@ -227,6 +230,7 @@ onMounted(async () => {
 </script>
 
 <template>
+  <div class="p-4">
   <div class="flex gap-4">
     <OrgFilterCard
       :org-tree="orgTree"
@@ -248,10 +252,44 @@ onMounted(async () => {
       <div v-if="!v4Subnets.length" class="rounded border border-dashed py-16 text-center text-gray-400">
         请先在左侧选择组织；或该组织暂无 IPv4 网段
       </div>
+
+      <Card class="mt-4" :title="`在线地址 · ${selectedCidr || '未选择网段'}（${onlineRows.length}）`">
+        <template #extra>
+          <span class="text-xs text-muted-foreground">DHCP 租约活跃的地址，随租约实时更新</span>
+        </template>
+        <Table
+          :data-source="onlineRows"
+          :columns="[
+            { title: '在线地址', dataIndex: 'address' },
+            { title: 'MAC', dataIndex: 'mac' },
+            { title: '主机名', dataIndex: 'hostname' },
+            { title: '租用时间', dataIndex: 'leaseStart' },
+            { title: '到期时间', dataIndex: 'leaseExpiry' },
+          ]"
+          row-key="address"
+          size="small"
+          :pagination="{ pageSize: 10, showSizeChanger: false }"
+        >
+          <template #bodyCell="{ column, record }">
+            <template v-if="column.dataIndex === 'mac'">
+              <span v-if="record.mac" class="font-mono">{{ record.mac }}</span>
+              <span v-else>-</span>
+            </template>
+            <template v-else-if="column.dataIndex === 'hostname'">{{ record.hostname || '-' }}</template>
+            <template v-else-if="column.dataIndex === 'leaseStart'">
+              {{ record.leaseStart ? new Date(record.leaseStart).toLocaleString() : '-' }}
+            </template>
+            <template v-else-if="column.dataIndex === 'leaseExpiry'">
+              {{ record.leaseExpiry ? new Date(record.leaseExpiry).toLocaleString() : '-' }}
+            </template>
+          </template>
+        </Table>
+      </Card>
     </div>
   </div>
 
   <BindModal>
     <Input v-model:value="bindModal.mac" placeholder="MAC 如 aa:bb:cc:dd:ee:01" @pressEnter="confirmBind" />
   </BindModal>
+  </div>
 </template>
