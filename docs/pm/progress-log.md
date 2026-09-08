@@ -3,6 +3,13 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-08 · M3-012 补遗⑨——IPv6 数据管道三链路（在线数/台账在线列表/日志中心）
+- **现象**：终端拿到 v6 地址后，子网/地址池在线数=0、IPv6 台账在线列表空、日志中心查不到 DHCPv6 日志。
+- **根因（三条管道均为 v4-only）**：① 租约→绑定同步 poller 只做 lease4-get-all；② QueryLedger v6 分支只发子网汇总行、从不生成地址明细行；③ kea6 日志未进 vector——kea-logs 卷未挂 kea6 容器（日志写在自己容器 FS 里）且 parse_kea 正则仅匹配 DHCP4_。
+- **修复**：① 新增 lease6-get-all 同步（IA_NA→coherence_binding；中继场景无 MAC，以 DUID 为主键、ipv4 落 0.0.0.0 哨兵；v4/v6 清理按哨兵 ipv6='::'/ipv4='0.0.0.0' 隔离防互删）+ main.go 装配 30s 轮询；② v6 分支补绑定地址明细行（含真实租期窗口/资产归属；不枚举池——/112 级枚举会爆行）；③ kea6 挂 kea-logs 卷 + parse_kea 正则 DHCP[46]_ 分支解析（v6 提取 duid→client_mac、lease for address→client_ip）。
+- **验证**：PG binding 出现 cr-pc v6 行（duid 主键 + ...:135:11 + cltt/valid_lft）；CH 07:20 后出现 kea6 启动行（CONFIG_COMPLETE/STARTED——kea4 自 9/7 未重启，仅可能来自 kea6）；TestQueryLedger_v6绑定明细行 通过；go test ./internal/... 全绿。
+- **说明**：客户端下次 T1 续租（约 30 分钟周期）或手动 release6/renew6 后，日志中心即出现 DHCP6 LEASE_ALLOC/ADVERT 行；在线数与台账在线列表已实时生效。
+
 ## 2026-09-08 · M3-012 补遗⑧——IPv6 地址池范围修复（::0 任播与 ::1 路由器冲突）
 - **现象**：服务端链路修通后客户端仍拿不到地址；kea 统计显示 Solicit/Request→Reply 全链路成功（pkt6-reply-sent=2），分配地址恒为 ...:135:0，客户端 51s 后重新 Solicit 且无 Decline——符合"收到 Reply 但地址不可用"特征。
 - **根因**：用户配置的动态池 0-100 包含 **::0**（/112 前缀的子网路由器任播地址，客户端 DAD 失败/拒绝）与 **::1**（核心交换机 Vlan-interface135 自身地址，若分配必冲突）。

@@ -19,7 +19,7 @@ read_from = "beginning"
 type = "remap"
 inputs = ["kea_stdout"]
 source = '''
-  m, merr = parse_regex(.message, r'^(?P<ts>\S+ \S+)\s+(?P<level>\w+)\s+\[[^\]]+\]\s+DHCP4_(?P<event>[A-Z0-9_]+)\s+(?P<rest>.*)$')
+  m, merr = parse_regex(.message, r'^(?P<ts>\S+ \S+)\s+(?P<level>\w+)\s+\[[^\]]+\]\s+DHCP(?P<fam>[46])_(?P<event>[A-Z0-9_]+)\s+(?P<rest>.*)$')
   if merr != null {
     abort
   }
@@ -29,23 +29,33 @@ source = '''
   }
   .severity = m.level
   .event = m.event
-  mac_m, mac_err = parse_regex(m.rest, r'(?:hwaddr=|\[hwtype=\d+\s+)(?P<mac>[0-9a-fA-F:]{17})')
-  if mac_err == null && mac_m != null {
-    m1, e1 = replace(mac_m.mac, ":", "")
-    m2 = replace(m1, "-", "")
-    if e1 == null {
-      .client_mac = downcase!(m2)
-    } else {
-      .client_mac = ""
+  .client_mac = ""
+  .address = ""
+  if m.fam == "4" {
+    mac_m, mac_err = parse_regex(m.rest, r'(?:hwaddr=|\[hwtype=\d+\s+)(?P<mac>[0-9a-fA-F:]{17})')
+    if mac_err == null && mac_m != null {
+      m1, e1 = replace(mac_m.mac, ":", "")
+      m2 = replace(m1, "-", "")
+      if e1 == null {
+        .client_mac = downcase!(m2)
+      }
+    }
+    ip_m, ip_err = parse_regex(m.rest, r'(?:\blease\s+|assigned\s+|address=)(?P<ip>\d+\.\d+\.\d+\.\d+)')
+    if ip_err == null && ip_m != null {
+      .address = ip_m.ip
     }
   } else {
-    .client_mac = ""
-  }
-  ip_m, ip_err = parse_regex(m.rest, r'(?:\blease\s+|assigned\s+|address=)(?P<ip>\d+\.\d+\.\d+\.\d+)')
-  if ip_err == null && ip_m != null {
-    .address = ip_m.ip
-  } else {
-    .address = ""
+    duid_m, duid_err = parse_regex(m.rest, r'duid=\[(?P<duid>[0-9a-fA-F:]+)\]')
+    if duid_err == null && duid_m != null {
+      d1, d1e = replace(duid_m.duid, ":", "")
+      if d1e == null {
+        .client_mac = downcase!(d1)
+      }
+    }
+    ip6_m, ip6_err = parse_regex(m.rest, r'(?:\blease\s+for\s+address\s+|assigned\s+|address=)(?P<ip>[0-9a-fA-F:]+)')
+    if ip6_err == null && ip6_m != null {
+      .address = ip6_m.ip
+    }
   }
   .domain = ""
   .rtype = "dhcp"

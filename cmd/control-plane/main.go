@@ -13,7 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-"strings"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -23,8 +23,8 @@ import (
 	"github.com/xiaodaoi/ipam/cmd/control-plane/webui"
 	keaengine "github.com/xiaodaoi/ipam/internal/engine/kea"
 	unboundengine "github.com/xiaodaoi/ipam/internal/engine/unbound"
-	"github.com/xiaodaoi/ipam/internal/module/dashboard"
 	"github.com/xiaodaoi/ipam/internal/module/coherence"
+	"github.com/xiaodaoi/ipam/internal/module/dashboard"
 	dhcpmodule "github.com/xiaodaoi/ipam/internal/module/dhcp"
 	dnsmodule "github.com/xiaodaoi/ipam/internal/module/dns"
 	dualstack "github.com/xiaodaoi/ipam/internal/module/dualstack"
@@ -262,6 +262,7 @@ func newEngine(version string) *gin.Engine {
 	// （依赖 dhcp4 的 lease_cmds hook，M3-012 补齐；此前写入方缺失导致台账无在线态）。
 	if pool != nil && keaCmd != nil {
 		coherence.StartLease4SyncLoop(context.Background(), pool, os.Getenv("IPAM_KEA_API"), 30*time.Second)
+		coherence.StartLease6SyncLoop(context.Background(), pool, os.Getenv("IPAM_KEA_API"), 30*time.Second)
 	}
 
 	lease6Fn := func(ctx context.Context) ([]apigen.DhcpLease6, error) {

@@ -141,17 +141,17 @@ func QueryLedger(src LedgerSource, q LedgerQuery) ([]LedgerRow, string, int) {
 						SubnetID:  s.ID,
 						PoolIndex: "4:" + addr,
 					}
-				if b := byAddr[addr]; b != nil {
-					row.MAC = b.MAC
-					row.Hostname = b.Hostname
-					if b.Cltt > 0 && b.ValidLft > 0 {
-						// 真实租期（kea cltt/valid-lft，M3-012）
-						row.LeaseStart = time.Unix(b.Cltt, 0)
-						row.LeaseExpiry = time.Unix(b.Cltt+int64(b.ValidLft), 0)
-					} else {
-						row.LeaseExpiry = time.Now().Add(30 * time.Minute) // 近似兜底
+					if b := byAddr[addr]; b != nil {
+						row.MAC = b.MAC
+						row.Hostname = b.Hostname
+						if b.Cltt > 0 && b.ValidLft > 0 {
+							// 真实租期（kea cltt/valid-lft，M3-012）
+							row.LeaseStart = time.Unix(b.Cltt, 0)
+							row.LeaseExpiry = time.Unix(b.Cltt+int64(b.ValidLft), 0)
+						} else {
+							row.LeaseExpiry = time.Now().Add(30 * time.Minute) // 近似兜底
+						}
 					}
-				}
 					if r := resByAddr[addr]; r.MAC != "" {
 						row.MAC = r.MAC
 					}
@@ -203,7 +203,8 @@ func QueryLedger(src LedgerSource, q LedgerQuery) ([]LedgerRow, string, int) {
 				}
 			}
 		} else {
-			// v6：子网级汇总行
+			// v6：子网级汇总行 + 绑定地址明细行（在线列表/在线数统计的数据源）；
+			// 不枚举池（/112 级池枚举会爆行），仅落绑定地址。
 			rows = append(rows, LedgerRow{
 				Address:   s.CIDR,
 				Family:    6,
@@ -211,6 +212,42 @@ func QueryLedger(src LedgerSource, q LedgerQuery) ([]LedgerRow, string, int) {
 				SubnetID:  s.ID,
 				PoolIndex: "6:" + s.CIDR,
 			})
+			if prefix, perr := netip.ParsePrefix(s.CIDR); perr == nil {
+				for i := range src.Bindings {
+					b := &src.Bindings[i]
+					if b.IPv6 == "" || b.IPv6 == "::" {
+						continue
+					}
+					a, aerr := netip.ParseAddr(b.IPv6)
+					if aerr != nil || !prefix.Contains(a) {
+						continue
+					}
+					state := StateOnline
+					switch b.State {
+					case "grace":
+						state = StateGrace
+					case "conflict":
+						state = StateConflict
+					}
+					row := LedgerRow{
+						Address:   b.IPv6,
+						Family:    6,
+						State:     state,
+						SubnetID:  s.ID,
+						PoolIndex: "6:" + b.IPv6,
+						MAC:       b.MAC,
+						Hostname:  b.Hostname,
+					}
+					if b.Cltt > 0 && b.ValidLft > 0 {
+						row.LeaseStart = time.Unix(b.Cltt, 0)
+						row.LeaseExpiry = time.Unix(b.Cltt+int64(b.ValidLft), 0)
+					}
+					if asset := src.Assets[row.MAC]; asset.MAC != "" {
+						row.Owner = asset.Owner
+					}
+					rows = append(rows, row)
+				}
+			}
 		}
 	}
 

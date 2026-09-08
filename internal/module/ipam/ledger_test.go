@@ -216,3 +216,34 @@ func TestBulkReservations_apply失败整体回滚(t *testing.T) {
 		t.Fatalf("apply 失败应整体回滚（含 bind 行）: %+v", rows)
 	}
 }
+
+func TestQueryLedger_v6绑定明细行(t *testing.T) {
+	// v6 台账在线列表/在线数统计的数据源：绑定地址生成明细行，不枚举池
+	src := LedgerSource{
+		Subnets: []Subnet{{
+			ID: "s6", Family: 6, CIDR: "2406:440:3c16:4006:10:193:135:0/112",
+			Pools: []Pool{{StartAddr: "2406:440:3c16:4006:10:193:135:10", EndAddr: "2406:440:3c16:4006:10:193:135:100", Kind: "dynamic"}},
+		}},
+		Bindings: []LedgerBinding{{
+			MAC: "0004956126c84e7e5223be15d0a23b13b963", IPv4: "0.0.0.0",
+			IPv6: "2406:440:3c16:4006:10:193:135:11", Hostname: "cr-pc",
+			State: "active", Cltt: 1788850092, ValidLft: 3600,
+		}},
+	}
+	rows, _, _ := QueryLedger(src, LedgerQuery{Family: 6, State: "online"})
+	if len(rows) != 1 {
+		t.Fatalf("v6 online rows=%d want 1", len(rows))
+	}
+	r := rows[0]
+	if r.Address != "2406:440:3c16:4006:10:193:135:11" || r.SubnetID != "s6" || r.State != StateOnline {
+		t.Fatalf("row wrong: %+v", r)
+	}
+	if r.LeaseExpiry.IsZero() || !r.LeaseExpiry.After(r.LeaseStart) {
+		t.Fatalf("lease window wrong: %v %v", r.LeaseStart, r.LeaseExpiry)
+	}
+	// 无状态过滤：汇总行 + 明细行并存
+	_, _, total := QueryLedger(src, LedgerQuery{Family: 6})
+	if total != 2 {
+		t.Fatalf("v6 all rows=%d want 2 (summary+detail)", total)
+	}
+}

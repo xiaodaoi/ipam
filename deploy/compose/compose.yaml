@@ -184,6 +184,7 @@ services:
       - ../../config/kea/kea-dhcp6.conf:/etc/kea/kea-dhcp6.conf:ro
       - ipam-run:/run/ipam
       - kea-leases:/var/lib/kea
+      - kea-logs:/var/log/kea
     restart: unless-stopped
 
   kea-ctrl-agent:
