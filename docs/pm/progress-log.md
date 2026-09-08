@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-08 · M3-012 补遗⑦——DHCPv6 服务端三链路修复（VLAN135 客户端拿不到 v6）
+- **现象**：核心交换机 VLAN135 已配 DHCPv6 中继指向服务器 v6（2406:440:3C16:4005:10:61:40:FF3），客户端仍拿不到地址。
+- **根因链（5 层）**：① kea6 容器在 bridge 网络无 IPv6，无法绑 DHCPv6 套接字 → compose 改 hostNetwork；② 渲染 interfaces-config 硬编码 eth0 → 新增 IPAM_KEA6_IFACE 环境变量（本站 ens160）；③ BuildConfig6 渲染 base 缺 control-socket 段——config-set 下发后 kea 会关闭并移除控制套接字（agent 报 server offline、锁文件被删）→ 补齐该段；④ 中继单播目标是全局 v6 地址，kea 默认仅绑 link-local+组播，发往全局地址的单播被内核丢弃 → 新增 IPAM_KEA6_UNICAST，渲染 "ens160/全局地址" 绑定；⑤ kea6 启动命令缺 mkdir /var/log/kea（loggers 落盘目录不存在，配置加载后日志全丢）→ 命令补 mkdir+锁清理；kea4 命令移除误删 kea6-ctrl.sock 的隐患。
+- **验证**：config-get（经 agent）返回 4 子网含用户 /112 池（.0-.100）+ interfaces [ens160/2406:...]；/proc/net/udp6 三套接字（全局单播+link-local+组播 ff02::1:2）绑 :547；kea6-ctrl.sock 落盘；kea6 日志 DHCP6_CONFIG_COMPLETE（4 子网）。
+- **遗留**：服务器 v6 为 SLAAC 动态 /128（valid_lft 约 9h）——中继目标地址依赖它，建议网络组为服务器配静态 v6 或注册 DHCPv6 稳定地址，否则地址变化后中继失效。
+
 ## 2026-09-08 · M3-012 补遗⑤——解析记录加完整域名列 + fqdn 拼接缺陷修复
 
 - **需求**：解析记录表增加完整域名记录列表。

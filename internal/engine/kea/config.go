@@ -171,8 +171,22 @@ type Dhcp6Config struct {
 
 // BuildConfig6 由 v6 子网组装 Dhcp6 配置：dynamic 池 → pools；pd 池 → pd-pools（M2-018）。
 func BuildConfig6(subnets []ipam.Subnet) (Dhcp6Config, error) {
+	// DHCPv6 数据面接口名按部署环境配置（hostNetwork 模式下为宿主网卡名，如 ens160）
+	iface6 := os.Getenv("IPAM_KEA6_IFACE")
+	if iface6 == "" {
+		iface6 = "eth0"
+	}
+	// kea 默认仅绑 link-local+组播，须以 "接口/全局地址" 形式绑定才能收到中继发往全局地址的单播
+	listenIfaces := []string{iface6}
+	if unicast := os.Getenv("IPAM_KEA6_UNICAST"); unicast != "" {
+		listenIfaces = []string{iface6 + "/" + unicast}
+	}
 	base := map[string]any{
-		"interfaces-config": map[string]any{"interfaces": []string{"eth0"}},
+		"interfaces-config": map[string]any{"interfaces": listenIfaces},
+		"control-socket": map[string]any{
+			"socket-type": "unix",
+			"socket-name": "/run/ipam/kea6-ctrl.sock",
+		},
 		"hooks-libraries": []map[string]any{
 			{"library": "/usr/lib/x86_64-linux-gnu/kea/hooks/libdhcp_lease_cmds.so"},
 		},

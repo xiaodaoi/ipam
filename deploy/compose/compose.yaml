@@ -53,6 +53,8 @@ services:
       IPAM_CH_USER: ${CLICKHOUSE_USER:-ipam}
       IPAM_CH_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
       IPAM_KEA_API: "http://kea-ctrl-agent:8000"
+      IPAM_KEA6_IFACE: ${IPAM_KEA6_IFACE:-ens160}  # DHCPv6 数据面接口（hostNetwork 下为宿主网卡名）
+      IPAM_KEA6_UNICAST: ${IPAM_KEA6_UNICAST:-}  # 中继单播目标全局地址；kea 以 接口/地址 形式绑定
       IPAM_MIGRATIONS_DIR: "/srv/migrations"
       IPAM_UNBOUND_CONF: "/etc/unbound-ctl/unbound.conf"
     volumes:
@@ -157,7 +159,7 @@ services:
       context: ../..
       dockerfile: deploy/images/kea/Dockerfile
       args: { COMPONENT: kea-dhcp4-server }
-    command: ["sh", "-c", "rm -f /run/ipam/kea4-ctrl.sock /run/ipam/kea6-ctrl.sock; mkdir -p /var/log/kea && exec kea-dhcp4 -c /etc/kea/kea-dhcp4.conf"]
+    command: ["sh", "-c", "rm -f /run/ipam/kea4-ctrl.sock; mkdir -p /var/log/kea && exec kea-dhcp4 -c /etc/kea/kea-dhcp4.conf"]
     # DHCP 中继/客户端经宿主地址(10.61.40.50:67)单播到达——必须映射 67 端口（M3-012 现场调试）
     ports:
       - "67:67/udp"
@@ -174,7 +176,10 @@ services:
       context: ../..
       dockerfile: deploy/images/kea/Dockerfile
       args: { COMPONENT: kea-dhcp6-server , APT_MIRROR: "${APT_MIRROR:-}" }
-    command: ["sh", "-c", "rm -f /run/ipam/kea6-ctrl.sock; exec kea-dhcp6 -c /etc/kea/kea-dhcp6.conf"]
+    command: ["sh", "-c", "rm -f /run/ipam/kea6-ctrl.sock /run/ipam/kea6-ctrl.sock.lock; mkdir -p /var/log/kea && exec kea-dhcp6 -c /etc/kea/kea-dhcp6.conf"]
+    network_mode: host
+    environment:
+      IPAM_KEA6_IFACE: ${IPAM_KEA6_IFACE:-ens160}
     volumes:
       - ../../config/kea/kea-dhcp6.conf:/etc/kea/kea-dhcp6.conf:ro
       - ipam-run:/run/ipam
