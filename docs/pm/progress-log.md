@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-08 · M3-012 补遗⑧——IPv6 地址池范围修复（::0 任播与 ::1 路由器冲突）
+- **现象**：服务端链路修通后客户端仍拿不到地址；kea 统计显示 Solicit/Request→Reply 全链路成功（pkt6-reply-sent=2），分配地址恒为 ...:135:0，客户端 51s 后重新 Solicit 且无 Decline——符合"收到 Reply 但地址不可用"特征。
+- **根因**：用户配置的动态池 0-100 包含 **::0**（/112 前缀的子网路由器任播地址，客户端 DAD 失败/拒绝）与 **::1**（核心交换机 Vlan-interface135 自身地址，若分配必冲突）。
+- **修复**：address_pool start_addr 0→10（DB 直改+重启 control-plane 收敛）；删除客户端陈旧 ::0 租约；模拟中继 Solicit（bash /dev/udp 构造 Relay-forward+fake DUID）验证 kea6 按新池分配 ...:135:10 ✓。
+- **后续**：a) 校验补强——v6 动态池禁止包含子网基址 ::0，UI 池起点默认值/提示；b) 客户端若仍失败→宿主抓包 UDP 547 + 交换机 display ipv6 dhcp relay statistics 查回程。
+
 ## 2026-09-08 · M3-012 补遗⑦——DHCPv6 服务端三链路修复（VLAN135 客户端拿不到 v6）
 - **现象**：核心交换机 VLAN135 已配 DHCPv6 中继指向服务器 v6（2406:440:3C16:4005:10:61:40:FF3），客户端仍拿不到地址。
 - **根因链（5 层）**：① kea6 容器在 bridge 网络无 IPv6，无法绑 DHCPv6 套接字 → compose 改 hostNetwork；② 渲染 interfaces-config 硬编码 eth0 → 新增 IPAM_KEA6_IFACE 环境变量（本站 ens160）；③ BuildConfig6 渲染 base 缺 control-socket 段——config-set 下发后 kea 会关闭并移除控制套接字（agent 报 server offline、锁文件被删）→ 补齐该段；④ 中继单播目标是全局 v6 地址，kea 默认仅绑 link-local+组播，发往全局地址的单播被内核丢弃 → 新增 IPAM_KEA6_UNICAST，渲染 "ens160/全局地址" 绑定；⑤ kea6 启动命令缺 mkdir /var/log/kea（loggers 落盘目录不存在，配置加载后日志全丢）→ 命令补 mkdir+锁清理；kea4 命令移除误删 kea6-ctrl.sock 的隐患。
