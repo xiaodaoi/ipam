@@ -3,6 +3,11 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-08 · M3-012 补遗⑪——台账分页统一（v4/v6 在线列表 + v6 子网汇总）
+- **改动**：v6 子网级汇总表启用分页（原 :pagination="false"）；v4/v6 在线列表统一分页配置（20/页 + 每页数切换 + showTotal"共 X 条"）；v6 汇总表 :key=selectedOrgId、在线表 :key=selectedCidr——防切组织/网段后停留在超界页码显示空白的 antd 已知行为。
+- **验证**：pnpm build:ipam 通过；服务端 chunk 实测（http 探测）——v4-D77l3rwe.js 与 v6-CHjGk7X-.js 均 200 且含 showTotal/DUID 新代码。
+- **教训**：control-plane 为 jammy 运行时（无 wget/apk）且 **8443 是纯 HTTP**（TLS 在外部终结）——容器内验证前端产物用 `curl -s http://localhost:8443/js/<chunk>.js`；webui 经 go:embed 进二进制，容器文件系统 grep 无效。
+
 ## 2026-09-08 · M3-012 补遗⑩——IPv6 台账在线卡未自动定位到有在线地址的网段
 - **现象**：IPv6 台账页在线卡标题恒为"未选择网段（0）"且列表空，尽管绑定数据已就绪。
 - **根因**：前端选中回退逻辑缺陷——用户未点击网段行时 selectedCidr 为空，回退查询固定取 v6Subnets[0]（列表第一个子网，是 e2e 测试网段而非用户的 /112），标题又只看 selectedCidr 显示"未选择网段"。

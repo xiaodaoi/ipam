@@ -5,6 +5,8 @@ import { useRoute } from 'vue-router';
 
 import { Card, Table, Input, message } from 'ant-design-vue';
 
+const showTotal = (t: number) => `共 ${t} 条`;
+
 import IpPlanMap from '#/components/ip-plan-map.vue';
 import OrgFilterCard from '#/components/org-filter-card.vue';
 
@@ -268,7 +270,7 @@ onMounted(async () => {
           ]"
           row-key="address"
           size="small"
-          :pagination="{ pageSize: 20, showSizeChanger: true }"
+          :pagination="{ pageSize: 20, showSizeChanger: true, showTotal }"
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.dataIndex === 'mac'">

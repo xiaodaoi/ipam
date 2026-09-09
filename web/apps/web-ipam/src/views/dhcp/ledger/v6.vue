@@ -3,6 +3,8 @@ import { computed, onMounted, ref } from 'vue';
 
 import { Card, Table, Tag } from 'ant-design-vue';
 
+const showTotal = (t: number) => `共 ${t} 条`;
+
 import OrgFilterCard from '#/components/org-filter-card.vue';
 
 import {
@@ -118,10 +120,11 @@ onMounted(async () => {
       </div>
       <Table
         v-else
+        :key="selectedOrgId"
         :data-source="v6Subnets"
         :columns="v6Cols"
         row-key="id"
-        :pagination="false"
+        :pagination="{ pageSize: 20, showSizeChanger: true, showTotal }"
         :row-class-name="(r: any) => (r.cidr === selectedCidr ? 'bg-accent' : '')"
         :custom-row="(r: any) => ({ onClick: () => onSelectSubnet(r.cidr), style: { cursor: 'pointer' } })"
       >
@@ -141,6 +144,7 @@ onMounted(async () => {
           <span class="text-xs text-muted-foreground">点击上方网段行切换查看；客户端标识为 DHCPv6 DUID</span>
         </template>
         <Table
+          :key="selectedCidr"
           :data-source="onlineRows"
           :columns="[
             { title: '在线地址', dataIndex: 'address' },
@@ -150,7 +154,7 @@ onMounted(async () => {
           ]"
           row-key="address"
           size="small"
-          :pagination="{ pageSize: 20, showSizeChanger: true }"
+          :pagination="{ pageSize: 20, showSizeChanger: true, showTotal }"
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.dataIndex === 'leaseExpiry'">{{ fmtTime((record as any).leaseExpiry) }}</template>
