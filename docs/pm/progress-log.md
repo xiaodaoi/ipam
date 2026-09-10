@@ -3,6 +3,14 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-10 · M3-012 补遗⑭——双栈租约对齐闭环（v4 .15 ↔ v6 :135:15 设计达成）+ ApplyTemplate 拼址 bug
+- **设计要求**：客户端 v4=10.193.135.15 时 v6 应为 2406:440:3c16:4006:10:193:135:15（B 型十进制镜像）；实际 kea6 独立分配（:10）不对齐。
+- **实现**：coherence/dualstack_reconcile.go——poller 每 30s 按主机名关联 v4/v6 租约 → 模板最长前缀匹配 → ApplyTemplate 计算规范 v6 → kea6 现租约不一致（或丢 hostname）时 lease6-del+lease6-add 强制对齐（保留 duid/iaid，回填 hostname）。kea6 subnet-id 经 config-get 动态解析（注意 subnet6 嵌套在 arguments.Dhcp6 下）。
+- **连带修复 ApplyTemplate 拼址 bug**：原字符串拼接 prefix+"::"+suffix 对内容前缀产生非法地址（8 组+::，net.ParseIP 拒绝）——改数值组装（前缀位+后缀组写字节 8-15）；A 型 hex32 修正为末 32 位（bytes 12-15）。回归：2406:440:3c16:4006::/64 + 10.193.135.15 → 2406:440:3c16:4006:10:193:135:15 ✓。
+- **hostname 自锁修复**：对齐重写的 lease6-add 未带 hostname → 租约 hostname 空 → 关联键丢失死循环。修复：① lease6-add 回填 hostname；② 同步 upsert hostname 空不覆盖旧值（CASE WHEN）；③ 对齐器对空 hostname 租约从绑定表按 DUID 找回。
+- **验证（合成租约端到端）**：注入 v4 .15（state 0）+ v6 :11 → 一个周期后 kea6 租约变为 :135:15 ✓ 绑定双行（f8e4→.15 / duid→:135:15，hostname cr-pc）✓。客户端重连时 Solicit 命中既有 :15 租约直接得规范地址。
+- **运维注意**：control-plane 运行态二进制经 docker cp 热替换（docker build 的 web 阶段多次 550/880s 超时——需 ≥900s 或接受 web 阶段重跑）；镜像重建必须跟上，否则容器重建回退旧二进制。诊断噪音（raw/decide 行）已裁撤，保留计数/待对齐/成功/错误四类日志。
+
 ## 2026-09-10 · M3-012 补遗⑬——双栈管理页表格从未渲染（DsGrid 组件不存在）
 - **现象**：新建双栈模板后刷新页面仍"没有相关的内容"；后端 API 实测正常（铸 admin 令牌直测 GET /api/v1/dualstack/templates → 200 返回两条模板 ✓）。
 - **根因**：dualstack/index.vue 模板使用 `<DsGrid>` 组件，但**全代码库不存在该组件的定义/导入/自动注册**——Vue 解析失败渲染为空元素，模板列表从来没能显示过（M2-012 起即坏）。
