@@ -3,6 +3,13 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-10 · M3-013 设计定稿——双栈关联匹配方案（matchScheme）
+- **背景**：现网客户端 client-id 为 `01:MAC`（无 RFC4361 DUID）、DUID 为 UUID 型（不含 MAC），且中继/老旧交换机不支持 option79——hostname 成为唯一跨协议信号，同名即误关联风险。
+- **定稿**：写入架构文档 §4.5 + ADR D16。方案枚举：`auto`（默认，链：admin→option79→client-id→duid-llt→hostname→冲突）/ `option79` / `client-id` / `duid-llt` / `hostname` / `admin`，模板级可选；admin 人工映射权威恒最优先；钉死语义=只认该方案、回落即进冲突清单。数据模型：`prefix_template.match_scheme` + 新表 `dualstack_identity`。收尾：确认关联落 kea6 预留 → 首次 Solicit 即得规范地址。
+- **核实的关键事实**：option79 链路三断点——① `hook-coherence/` 源码在但**从未编入 kea 镜像**（Dockerfile 无 hook 构建、无 .so 产物）；② kea6 运行态只加载 lease_cmds；③ 中继 RFC6939 插入未验证。故 option79 方案需先补 T3（hook 编译+加载）+ 网络侧开启。
+- **交付**：架构文档 §4.5 + ADR D16；任务卡 `M3-013`（backlog，含 T1–T7 拆解与 DoD）；commit 975644d。
+- **待决策**：钉死语义（仅认 vs 优先降级）、admin 是否恒最优先——确认后开工。
+
 ## 2026-09-10 · M3-012 补遗⑮——后台短暂中断事故与恢复（镜像替换被超时打断）
 - **现象**：管理后台打不开。
 - **根因**：为对齐 control-plane 镜像发起的后台 `docker compose build && up --force-recreate` 被工具超时连带杀死（未用 setsid 脱离进程组）——替换流程停在中间态：旧容器已删、新容器 Created 未启动，服务中断。
