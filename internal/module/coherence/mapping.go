@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"strconv"
 	"strings"
 )
 
@@ -49,22 +50,50 @@ func ApplyTemplate(t Template, ipv4 string) (string, error) {
 	}
 	o := ip.To4()
 
-	var suffix string
+	// 后缀组（16 位一组）按字节 8 起写入（B 型占满 64-127 位，A 型占 64-95 位）
+	var groups [4]uint16
 	switch t.Expr {
 	case "{v4.hextet4}":
-		suffix = fmt.Sprintf("%d:%d:%d:%d", o[0], o[1], o[2], o[3])
+		// B 型十进制镜像：八位组的十进制字面量按十六进制组解释（10 → 0x10）
+		for i := 0; i < 4; i++ {
+			v, err := strconv.ParseUint(fmt.Sprintf("%d", o[i]), 16, 16)
+			if err != nil {
+				return "", fmt.Errorf("hextet4 group %d invalid: %w", i, err)
+			}
+			groups[i] = uint16(v)
+		}
 	case "{v4.hex32}":
+		// A 型 hex32：v4 整体 32 位落在地址末 32 位（bytes 12-15）
 		u32 := uint32(o[0])<<24 | uint32(o[1])<<16 | uint32(o[2])<<8 | uint32(o[3])
-		suffix = fmt.Sprintf("%x:%x", u32>>16&0xffff, u32&0xffff)
+		groups[2] = uint16(u32 >> 16 & 0xffff)
+		groups[3] = uint16(u32 & 0xffff)
 	default:
 		return "", fmt.Errorf("unsupported expr %q (B/A 两型外属 CUSTOM，M2 实现)", t.Expr)
 	}
 
-	result := strings.TrimSuffix(t.Prefix, "::") + "::" + suffix
-	if net.ParseIP(result) == nil {
-		return "", fmt.Errorf("mapped result invalid: %q", result)
+	var base netip.Addr
+	if bits := strings.IndexByte(t.Prefix, '/'); bits >= 0 {
+		pr, perr := netip.ParsePrefix(strings.TrimSpace(t.Prefix))
+		if perr != nil {
+			return "", fmt.Errorf("invalid prefix %q: %w", t.Prefix, perr)
+		}
+		if pr.Bits() > 112 {
+			return "", fmt.Errorf("prefix %q 过长，接口标识不足 16 位", t.Prefix)
+		}
+		base = pr.Addr()
+	} else {
+		a, aerr := netip.ParseAddr(strings.TrimSpace(t.Prefix))
+		if aerr != nil {
+			return "", fmt.Errorf("invalid prefix %q: %w", t.Prefix, aerr)
+		}
+		base = a
 	}
-	return result, nil
+	b := base.As16()
+	for i := 0; i < 4; i++ {
+		b[8+2*i] = byte(groups[i] >> 8)
+		b[8+2*i+1] = byte(groups[i])
+	}
+	return netip.AddrFrom16(b).String(), nil
 }
 
 // NormalizeMAC 归一化任意常见书写为小写冒号格式；非法返回空串。

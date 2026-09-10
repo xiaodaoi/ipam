@@ -136,6 +136,7 @@ type Lease6 struct {
 	Type          string `json:"type"`
 	IPAddress     string `json:"ip-address"`
 	DUID          string `json:"duid"`
+	IAID          uint32 `json:"iaid"`
 	Hostname      string `json:"hostname"`
 	Cltt          int64  `json:"cltt"`
 	ValidLifetime uint32 `json:"valid-lft"`
@@ -181,7 +182,8 @@ func SyncLease6Bindings(ctx context.Context, pool *pgxpool.Pool, agentURL string
 		if _, err := tx.Exec(ctx,
 			`INSERT INTO coherence_binding(mac, ipv4, ipv6, hostname, state, cltt, valid_lft, last_seen)
 			 VALUES($1, '0.0.0.0', $2, $3, 'active', $4, $5, now())
-			 ON CONFLICT (mac) DO UPDATE SET ipv4='0.0.0.0', ipv6=$2, hostname=$3, state='active',
+			 ON CONFLICT (mac) DO UPDATE SET ipv4='0.0.0.0', ipv6=$2,
+		   hostname = CASE WHEN $3 <> '' THEN $3 ELSE coherence_binding.hostname END, state='active',
 			   cltt=$4, valid_lft=$5, last_seen=now()`,
 			duid, l.IPAddress, host, l.Cltt, int(l.ValidLifetime)); err != nil {
 			return err
@@ -242,6 +244,9 @@ func StartLease6SyncLoop(ctx context.Context, pool *pgxpool.Pool, agentURL strin
 			if err := SyncLease6Bindings(ctx, pool, agentURL); err != nil {
 				log.Printf("[lease6-sync] %v", err)
 			}
+			if err := ReconcileDualstackLeases(ctx, pool, agentURL); err != nil {
+				log.Printf("[dualstack-reconcile] %v", err)
+			}
 			select {
 			case <-ctx.Done():
 				return
@@ -249,4 +254,33 @@ func StartLease6SyncLoop(ctx context.Context, pool *pgxpool.Pool, agentURL strin
 			}
 		}
 	}()
+}
+
+// keaCmd 向 ctrl-agent 发送带 arguments 的命令；result 3（未找到）视为可接受。
+func keaCmd(ctx context.Context, agentURL, command string, service string, arguments map[string]any) error {
+	body, _ := json.Marshal(map[string]any{"command": command, "service": []string{service}, "arguments": arguments})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, agentURL+"/", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	var parsed []struct {
+		Result int    `json:"result"`
+		Text   string `json:"text"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+		return err
+	}
+	if len(parsed) == 0 {
+		return fmt.Errorf("empty %s response", command)
+	}
+	if r := parsed[0]; r.Result != 0 && r.Result != 3 {
+		return fmt.Errorf("%s failed: %s", command, r.Text)
+	}
+	return nil
 }

@@ -156,3 +156,15 @@ func TestResolve_自动选模板多池对(t *testing.T) {
 		t.Fatalf("auto-template resolve: %+v", r)
 	}
 }
+
+func TestApplyTemplate_B型内容前缀十进制镜像(t *testing.T) {
+	// 用户现场设计：10.193.135.15 → 2406:440:3c16:4006:10:193:135:15（/112 池内）
+	tpl := Template{V4Cidr: "10.193.135.0/24", Prefix: "2406:440:3c16:4006::/64", Expr: "{v4.hextet4}"}
+	got, err := ApplyTemplate(tpl, "10.193.135.15")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "2406:440:3c16:4006:10:193:135:15" {
+		t.Fatalf("got %q", got)
+	}
+}
