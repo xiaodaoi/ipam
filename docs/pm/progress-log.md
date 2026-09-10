@@ -3,6 +3,13 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-10 · M3-012 补遗⑮——后台短暂中断事故与恢复（镜像替换被超时打断）
+- **现象**：管理后台打不开。
+- **根因**：为对齐 control-plane 镜像发起的后台 `docker compose build && up --force-recreate` 被工具超时连带杀死（未用 setsid 脱离进程组）——替换流程停在中间态：旧容器已删、新容器 Created 未启动，服务中断。
+- **恢复**：`docker compose up -d control-plane` 完成启动 → `docker rename` 规范化容器名 → 用最小镜像层（FROM 现镜像 + COPY 最终二进制）快速对齐 tag（完整 docker build 的 web 阶段 >900s，需后台 setsid 执行）。
+- **现状（全绿）**：UI 200；对齐循环运行（tpls=2 v4=1 v6=1）；真机租约 2406:440:3c16:4006:10:193:135:15（state 0，host cr-pc.）；绑定双行（10.193.135.15 / …:135:15，hostname cr-pc）。
+- **教训**：长时间 docker build 必须 `setsid nohup ... &` 脱离进程组，否则工具超时会杀死整个进程组并留下 compose 中间态；容器替换中断后用 `up -d` 幂等恢复。
+
 ## 2026-09-10 · M3-012 补遗⑭——双栈租约对齐闭环（v4 .15 ↔ v6 :135:15 设计达成）+ ApplyTemplate 拼址 bug
 - **设计要求**：客户端 v4=10.193.135.15 时 v6 应为 2406:440:3c16:4006:10:193:135:15（B 型十进制镜像）；实际 kea6 独立分配（:10）不对齐。
 - **实现**：coherence/dualstack_reconcile.go——poller 每 30s 按主机名关联 v4/v6 租约 → 模板最长前缀匹配 → ApplyTemplate 计算规范 v6 → kea6 现租约不一致（或丢 hostname）时 lease6-del+lease6-add 强制对齐（保留 duid/iaid，回填 hostname）。kea6 subnet-id 经 config-get 动态解析（注意 subnet6 嵌套在 arguments.Dhcp6 下）。
