@@ -3,6 +3,13 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-10 · M3-012 补遗⑬——双栈管理页表格从未渲染（DsGrid 组件不存在）
+- **现象**：新建双栈模板后刷新页面仍"没有相关的内容"；后端 API 实测正常（铸 admin 令牌直测 GET /api/v1/dualstack/templates → 200 返回两条模板 ✓）。
+- **根因**：dualstack/index.vue 模板使用 `<DsGrid>` 组件，但**全代码库不存在该组件的定义/导入/自动注册**——Vue 解析失败渲染为空元素，模板列表从来没能显示过（M2-012 起即坏）。
+- **修复**：换项目标准 antd Table（列：名称/IPv4 网段/IPv6 前缀/编码/表达式/DNS 同步/宽限(h)/操作 + 20/页分页 showTotal；bodyCell 渲染编码 Tag/DNS 状态/编辑删除按钮）。
+- **验证**：构建通过；服务端 chunk 实测 dualstack-CJejrDRh.js 200 且含新代码。
+- **教训**：`<script setup>` 未导入组件仅报 console warning 不阻断构建——审查模板里的自定义组件必须有实体。
+
 ## 2026-09-10 · M3-012 补遗⑫——新建双栈绑定模板 + daemon 修复空载荷 NOTIFY 致绑定不可见
 - **用户需求**：双栈管理新建 IPv4:10.193.135.0/24 ↔ IPv6:2406:440:3c16:4006::/64 绑定。
 - **完成**：prefix_template 插入（有线双栈-10.193.135，B 型编码，expr {v4.hextet4}，dns_sync 开，grace 24h）；daemon TplLoader 30s 轮询自动拾取（日志 loaded 2 templates ✓）。
