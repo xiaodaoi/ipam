@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-10 · M3-012 补遗⑫——新建双栈绑定模板 + daemon 修复空载荷 NOTIFY 致绑定不可见
+- **用户需求**：双栈管理新建 IPv4:10.193.135.0/24 ↔ IPv6:2406:440:3c16:4006::/64 绑定。
+- **完成**：prefix_template 插入（有线双栈-10.193.135，B 型编码，expr {v4.hextet4}，dns_sync 开，grace 24h）；daemon TplLoader 30s 轮询自动拾取（日志 loaded 2 templates ✓）。
+- **连带发现并修复真缺陷**：daemon 内存 store 依赖 NOTIFY 增量（{"op","row"} JSON 载荷），而租约同步 poller 发裸 NOTIFY（空载荷）→ 解析失败被 continue 跳过 → **租约同步写入的绑定对 daemon 联动永不可见**（直到重启）。修复：listenOnce 空/异构载荷 → 节流全量重载（ReloadStore：Put 全量 + Delete 库中消失行，2s 节流，行数变化才记日志）。验证：bad payload 噪音消失，重载路径触发（当前 0 行为真实态——客户端租约 9/8 已过期被清理）。
+- **效果**：客户端重连后 ≤30s 内 kea 双栈租约 → poller 入 PG → NOTIFY → daemon 重载 → 按新模板完成 v4↔v6 关联与 DNS 联动，全链路无需重启。
+
 ## 2026-09-08 · M3-012 补遗⑪——台账分页统一（v4/v6 在线列表 + v6 子网汇总）
 - **改动**：v6 子网级汇总表启用分页（原 :pagination="false"）；v4/v6 在线列表统一分页配置（20/页 + 每页数切换 + showTotal"共 X 条"）；v6 汇总表 :key=selectedOrgId、在线表 :key=selectedCidr——防切组织/网段后停留在超界页码显示空白的 antd 已知行为。
 - **验证**：pnpm build:ipam 通过；服务端 chunk 实测（http 探测）——v4-D77l3rwe.js 与 v6-CHjGk7X-.js 均 200 且含 showTotal/DUID 新代码。

@@ -56,6 +56,32 @@ func LoadAllBindings(ctx context.Context, pool *pgxpool.Pool) ([]Binding, error)
 	return out, rows.Err()
 }
 
+// reloadable 支持全量枚举的 store（MemStore）；空载荷 NOTIFY 全量重载需要 All()。
+type reloadable interface {
+	Store
+	All() []Binding
+}
+
+// ReloadStore 从 PG 全量重载绑定到 store：Put 全量行 + Delete 库中已消失的行。
+// 供空载荷 NOTIFY（租约同步等批量写方）触发，替代逐行增量。
+func ReloadStore(ctx context.Context, pool *pgxpool.Pool, store *MemStore) error {
+	bindings, err := LoadAllBindings(ctx, pool)
+	if err != nil {
+		return err
+	}
+	seen := make(map[string]bool, len(bindings))
+	for _, b := range bindings {
+		store.Put(b)
+		seen[b.MAC] = true
+	}
+	for _, b := range store.All() {
+		if !seen[b.MAC] {
+			store.Delete(b.MAC)
+		}
+	}
+	return nil
+}
+
 // SubscribeNotify 阻塞订阅 coherence_change 频道，将增量应用到 store。
 // 断线自动重连（间隔 5s）；ctx 取消即退出。
 func SubscribeNotify(ctx context.Context, pool *pgxpool.Pool, store Store) error {
@@ -84,6 +110,8 @@ func listenOnce(ctx context.Context, pool *pgxpool.Pool, store Store) error {
 	if _, err = conn.Exec(ctx, "LISTEN coherence_change"); err != nil {
 		return err
 	}
+	var lastReload time.Time
+	var lastCount = -1
 	for {
 		n, err := conn.Conn().WaitForNotification(ctx)
 		if err != nil {
@@ -94,7 +122,16 @@ func listenOnce(ctx context.Context, pool *pgxpool.Pool, store Store) error {
 			Row pgBinding `json:"row"`
 		}
 		if uerr := json.Unmarshal([]byte(n.Payload), &payload); uerr != nil {
-			logErr("notify bad payload: %v", uerr)
+			// 空载荷/异构 NOTIFY（租约同步等批量写方）：节流全量重载，行数变化才记日志
+			if rl, ok := store.(reloadable); ok && time.Since(lastReload) >= 2*time.Second {
+				lastReload = time.Now()
+				if rerr := ReloadStore(ctx, pool, rl.(*MemStore)); rerr != nil {
+					logErr("notify full reload: %v", rerr)
+				} else if n := len(rl.All()); n != lastCount {
+					logErr("notify full reload: %d bindings", n)
+					lastCount = n
+				}
+			}
 			continue
 		}
 		switch payload.Op {
