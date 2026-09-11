@@ -1,0 +1,64 @@
+e/base/shared stub: [32m✔[39m Build complete in [32m3917ms[39m
+. postinstall: packages/@core/base/shared stub: [33m[PLUGIN_TIMINGS] [0mYour build spent significant time in plugins. Here is a breakdown:
+. postinstall: packages/@core/base/shared stub:   - rolldown-plugin-dts:generate (50%)
+. postinstall: packages/@core/base/shared stub:   - tsdown:deps (42%)
+. postinstall: packages/@core/base/shared stub: See https://rolldown.rs/options/checks#plugintimings for more details.
+. postinstall: packages/@core/base/shared stub: Done
+. postinstall: internal/lint-configs/eslint-config stub$ pnpm exec tsdown --if-present
+. postinstall: internal/vite-config stub$ pnpm exec tsdown --if-present
+. postinstall: scripts/turbo-run stub$ pnpm exec tsdown --if-present
+. postinstall: scripts/vsh stub$ pnpm exec tsdown --if-present
+. postinstall: internal/vite-config stub: [34mℹ[39m [34mtsdown v0.22.0[39m powered by [38;2;255;126;23mrolldown v1.0.1[39m
+. postinstall: scripts/vsh stub: [34mℹ[39m [34mtsdown v0.22.0[39m powered by [38;2;255;126;23mrolldown v1.0.1[39m
+. postinstall: scripts/vsh stub: [34mℹ[39m config file: [4m/home/runner/work/ipam/ipam/web/scripts/vsh/tsdown.config.ts[24m 
+. postinstall: scripts/vsh stub: [34mℹ[39m entry: [34msrc/index.ts[39m
+. postinstall: scripts/vsh stub: [34mℹ[39m tsconfig: [34mtsconfig.json[39m
+. postinstall: scripts/vsh stub: [34mℹ[39m Build start
+. postinstall: internal/vite-config stub: [34mℹ[39m config file: [4m/home/runner/work/ipam/ipam/web/internal/vite-config/tsdown.config.ts[24m 
+. postinstall: internal/vite-config stub: [34mℹ[39m entry: [34msrc/index.ts[39m
+. postinstall: internal/vite-config stub: [34mℹ[39m tsconfig: [34mtsconfig.json[39m
+. postinstall: internal/vite-config stub: [34mℹ[39m Build start
+. postinstall: internal/lint-configs/eslint-config stub: [34mℹ[39m [34mtsdown v0.22.0[39m powered by [38;2;255;126;23mrolldown v1.0.1[39m
+. postinstall: internal/lint-configs/eslint-config stub: [34mℹ[39m config file: [4m/home/runner/work/ipam/ipam/web/internal/lint-configs/eslint-config/tsdown.config.ts[24m 
+. postinstall: internal/lint-configs/eslint-config stub: [34mℹ[39m entry: [34msrc/index.ts[39m
+. postinstall: internal/lint-configs/eslint-config stub: [34mℹ[39m tsconfig: [34mtsconfig.json[39m
+. postinstall: internal/lint-configs/eslint-config stub: [34mℹ[39m Build start
+. postinstall: scripts/turbo-run stub: [34mℹ[39m [34mtsdown v0.22.0[39m powered by [38;2;255;126;23mrolldown v1.0.1[39m
+. postinstall: scripts/turbo-run stub: [34mℹ[39m config file: [4m/home/runner/work/ipam/ipam/web/scripts/turbo-run/tsdown.config.ts[24m 
+. postinstall: scripts/turbo-run stub: [34mℹ[39m entry: [34msrc/index.ts[39m
+. postinstall: scripts/turbo-run stub: [34mℹ[39m tsconfig: [34mtsconfig.json[39m
+. postinstall: scripts/turbo-run stub: [34mℹ[39m Build start
+. postinstall: scripts/vsh stub: [34mℹ[39m [2mdist/[22m[1mindex.mjs[22m   [2m14.02 kB[22m [2m│ gzip: 4.77 kB[22m
+. postinstall: scripts/vsh stub: [34mℹ[39m [2mdist/[22m[32m[1mindex.d.ts[22m[39m  [2m 0.01 kB[22m [2m│ gzip: 0.03 kB[22m
+. postinstall: scripts/vsh stub: [34mℹ[39m 2 files, total: 14.03 kB
+. postinstall: scripts/vsh stub: [32m✔[39m Build complete in [32m3087ms[39m
+. postinstall: scripts/vsh stub: Done
+. postinstall: scripts/turbo-run stub: [34mℹ[39m [2mdist/[22m[1mindex.mjs[22m   [2m1.45 kB[22m [2m│ gzip: 0.70 kB[22m
+. postinstall: scripts/turbo-run stub: [34mℹ[39m [2mdist/[22m[32m[1mindex.d.ts[22m[39m  [2m0.01 kB[22m [2m│ gzip: 0.03 kB[22m
+. postinstall: scripts/turbo-run stub: [34mℹ[39m 2 files, total: 1.46 kB
+. postinstall: scripts/turbo-run stub: [32m✔[39m Build complete in [32m2918ms[39m
+. postinstall: scripts/turbo-run stub: Done
+. postinstall: internal/lint-configs/eslint-config stub: [34mℹ[39m [2mdist/[22m[1mindex.mjs[22m   [2m25.68 kB[22m [2m│ gzip: 6.55 kB[22m
+. postinstall: internal/lint-configs/eslint-config stub: [34mℹ[39m [2mdist/[22m[32m[1mindex.d.ts[22m[39m  [2m 0.21 kB[22m [2m│ gzip: 0.16 kB[22m
+. postinstall: internal/lint-configs/eslint-config stub: [34mℹ[39m 2 files, total: 25.88 kB
+. postinstall: internal/lint-configs/eslint-config stub: [33m[PLUGIN_TIMINGS] [0mYour build spent significant time in plugin `rolldown-plugin-dts:generate`. See https://rolldown.rs/options/checks#plugintimings for more details.
+. postinstall: internal/lint-configs/eslint-config stub: [32m✔[39m Build complete in [32m3744ms[39m
+. postinstall: internal/lint-configs/eslint-config stub: Done
+. postinstall: internal/vite-config stub: [34mℹ[39m [2mdist/[22m[1mindex.mjs[22m   [2m30.14 kB[22m [2m│ gzip: 9.65 kB[22m
+. postinstall: internal/vite-config stub: [34mℹ[39m [2mdist/[22m[32m[1mindex.d.ts[22m[39m  [2m 4.92 kB[22m [2m│ gzip: 1.32 kB[22m
+. postinstall: internal/vite-config stub: [34mℹ[39m 2 files, total: 35.06 kB
+. postinstall: internal/vite-config stub: [33m[PLUGIN_TIMINGS] [0mYour build spent significant time in plugin `rolldown-plugin-dts:generate`. See https://rolldown.rs/options/checks#plugintimings for more details.
+. postinstall: internal/vite-config stub: [32m✔[39m Build complete in [32m4800ms[39m
+. postinstall: internal/vite-config stub: Done
+. postinstall: Done
+. prepare$ is-ci || pnpm exec lefthook install
+. prepare: Done
+Done in 17.3s using pnpm v10.33.4
+
+> @vben/web-ipam@5.7.0 typecheck /home/runner/work/ipam/ipam/web/apps/web-ipam
+> vue-tsc --noEmit --skipLibCheck
+
+src/views/dhcp/dualstack/index.vue(246,23): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'Record<DualstackMatchScheme, string>'.
+/home/runner/work/ipam/ipam/web/apps/web-ipam:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @vben/web-ipam@5.7.0 typecheck: `vue-tsc --noEmit --skipLibCheck`
+Exit status 2
