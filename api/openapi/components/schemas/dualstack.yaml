@@ -27,6 +27,13 @@ DualstackTemplate:
     graceHours:
       type: integer
       description: grace 期（小时）
+    matchScheme:
+      type: string
+      enum: [auto, option79, client-id, duid-llt, hostname, admin]
+      default: auto
+      description: |
+        关联匹配方案（§4.5）：auto=全局优先级链（admin→option79→client-id→duid-llt→hostname→冲突）；
+        指定值=钉死（该 v4 网段只认该方式，其他方式回落进冲突清单）。
     enabled:
       type: boolean
 
@@ -50,6 +57,11 @@ DualstackTemplateCreate:
     expr: { type: string }
     dnsSync: { type: boolean, default: true }
     graceHours: { type: integer, minimum: 0, default: 24 }
+    matchScheme:
+      type: string
+      enum: [auto, option79, client-id, duid-llt, hostname, admin]
+      default: auto
+      description: 关联匹配方案（§4.5）
     enabled: { type: boolean, default: true }
 
 DualstackTemplateUpdate:
@@ -63,4 +75,61 @@ DualstackTemplateUpdate:
     expr: { type: string }
     dnsSync: { type: boolean, default: true }
     graceHours: { type: integer, minimum: 0, default: 24 }
+    matchScheme:
+      type: string
+      enum: [auto, option79, client-id, duid-llt, hostname, admin]
+      default: auto
+      description: 关联匹配方案（§4.5）
     enabled: { type: boolean, default: true }
+
+DualstackIdentity:
+  type: object
+  required: [mac, duid, source]
+  properties:
+    mac: { type: string, description: 规范化 MAC（小写无冒号） }
+    duid: { type: string, description: 规范化 DUID（小写无冒号） }
+    source: { type: string, enum: [admin, auto], description: 来源：人工确认 / 精确方式自动学习 }
+    note: { type: string }
+    updatedAt: { type: string, format: date-time }
+
+DualstackIdentityList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: 'dualstack.yaml#/DualstackIdentity'
+
+DualstackIdentityCreate:
+  type: object
+  required: [mac, duid]
+  properties:
+    mac: { type: string }
+    duid: { type: string }
+    note: { type: string }
+
+DualstackConflict:
+  type: object
+  required: [duid, reason]
+  properties:
+    duid: { type: string }
+    v6Ip: { type: string }
+    v4Macs:
+      type: array
+      items: { type: string }
+    hostname: { type: string }
+    reason:
+      type: string
+      enum: [ambiguous_hostname, no_mac_signal, pinned_mismatch]
+      description: 同名歧义 / 无 MAC 信号 / 钉死方案被回落
+    updatedAt: { type: string, format: date-time }
+
+DualstackConflictList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: 'dualstack.yaml#/DualstackConflict'

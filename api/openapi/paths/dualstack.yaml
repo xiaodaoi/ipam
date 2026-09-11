@@ -105,3 +105,65 @@ DualstackTemplateItem:
     responses:
       '204':
         description: 已删除
+
+# ── MAC↔DUID 映射与冲突清单（M3-013，§4.5）──
+DualstackIdentityCollection:
+  get:
+    operationId: listDualstackIdentities
+    tags: [dualstack]
+    summary: 查询 MAC↔DUID 映射（人工 + 自动学习）
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: 映射列表
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/dualstack.yaml#/DualstackIdentityList'
+  post:
+    operationId: createDualstackIdentity
+    tags: [dualstack]
+    summary: 新建/覆盖 MAC↔DUID 映射（人工确认，优先级最高）
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/dualstack.yaml#/DualstackIdentityCreate'
+    responses:
+      '201':
+        description: 已创建
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/dualstack.yaml#/DualstackIdentity'
+
+DualstackIdentityItem:
+  delete:
+    operationId: deleteDualstackIdentity
+    tags: [dualstack]
+    summary: 删除 MAC↔DUID 映射
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: mac
+        in: path
+        required: true
+        schema: { type: string }
+    responses:
+      '204':
+        description: 已删除
+
+DualstackConflictCollection:
+  get:
+    operationId: listDualstackConflicts
+    tags: [dualstack]
+    summary: 查询未解析冲突清单（同名歧义/无 MAC 信号/钉死回落）
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: 冲突列表
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/dualstack.yaml#/DualstackConflictList'

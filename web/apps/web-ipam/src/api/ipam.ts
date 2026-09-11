@@ -264,16 +264,37 @@ export const flushCache = (zone?: string) =>
 
 // ── 双栈绑定模板（M2-012，§4.3 多池对）──
 export type DualstackTemplate = components['schemas']['DualstackTemplate'];
+export type DualstackMatchScheme =
+  | 'auto'
+  | 'option79'
+  | 'client-id'
+  | 'duid-llt'
+  | 'hostname'
+  | 'admin';
 
 export const listDualstackTemplates = () =>
   req<{ items: DualstackTemplate[] }>('/dualstack/templates');
 export const createDualstackTemplate = (b: {
   name: string; ipv4Cidr: string; ipv6Prefix: string;
   encoding: string; expr: string; dnsSync?: boolean; graceHours?: number;
+  matchScheme?: DualstackMatchScheme;
 }) => req<DualstackTemplate>('/dualstack/templates', j(b));
 export const deleteDualstackTemplate = (id: string) =>
   req<void>(`/dualstack/templates/${id}`, del);
 export const updateDualstackTemplate = (id: string, body: Partial<DualstackTemplate>) => req<DualstackTemplate>(`/dualstack/templates/${id}`, j(body));
+
+// ── MAC↔DUID 映射与冲突清单（M3-013，§4.5）──
+export type DualstackIdentity = components['schemas']['DualstackIdentity'];
+export type DualstackConflict = components['schemas']['DualstackConflict'];
+
+export const listDualstackIdentities = () =>
+  req<{ items: DualstackIdentity[] }>('/dualstack/identities');
+export const createDualstackIdentity = (b: { mac: string; duid: string; note?: string }) =>
+  req<DualstackIdentity>('/dualstack/identities', j(b));
+export const deleteDualstackIdentity = (mac: string) =>
+  req<void>(`/dualstack/identities/${encodeURIComponent(mac)}`, del);
+export const listDualstackConflicts = () =>
+  req<{ items: DualstackConflict[] }>('/dualstack/conflicts');
 
 // ── 用户与角色（M5-004，§13.4 系统管理）──
 export type UserRow = components['schemas']['User'];

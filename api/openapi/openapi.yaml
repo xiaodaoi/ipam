@@ -42,6 +42,12 @@ paths:
     $ref: './paths/dualstack.yaml#/DualstackTemplateCollection'
   /dualstack/templates/{templateId}:
     $ref: './paths/dualstack.yaml#/DualstackTemplateItem'
+  /dualstack/identities:
+    $ref: './paths/dualstack.yaml#/DualstackIdentityCollection'
+  /dualstack/identities/{mac}:
+    $ref: './paths/dualstack.yaml#/DualstackIdentityItem'
+  /dualstack/conflicts:
+    $ref: './paths/dualstack.yaml#/DualstackConflictCollection'
   /dhcp/options:
     $ref: './paths/dhcpoption.yaml#/DhcpOptionsCollection'
   /dhcp/options/{optionId}:

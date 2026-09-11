@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -16,15 +17,16 @@ import (
 
 // Template 模板行（PG prefix_template 投影）。
 type Template struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	V4Cidr     string `json:"ipv4Cidr"`
-	V6Prefix   string `json:"ipv6Prefix"`
-	Encoding   string `json:"encoding"`
-	Expr       string `json:"expr"`
-	DnsSync    bool   `json:"dnsSync"`
-	GraceHours int    `json:"graceHours"`
-	Enabled    bool   `json:"enabled"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	V4Cidr      string `json:"ipv4Cidr"`
+	V6Prefix    string `json:"ipv6Prefix"`
+	Encoding    string `json:"encoding"`
+	Expr        string `json:"expr"`
+	MatchScheme string `json:"matchScheme"`
+	DnsSync     bool   `json:"dnsSync"`
+	GraceHours  int    `json:"graceHours"`
+	Enabled     bool   `json:"enabled"`
 }
 
 // Store 持久化抽象（PG/内存双实现，沿用模块惯例）。
@@ -37,11 +39,19 @@ type Store interface {
 	Delete(ctx context.Context, id string) error
 	// Update 全量更新模板（M2-028）；未找到返回 ErrTemplateNotFound。
 	Update(ctx context.Context, t Template) (Template, error)
+
+	// M3-013：MAC↔DUID 映射与冲突清单（§4.5）
+	ListIdentities(ctx context.Context) ([]Identity, error)
+	UpsertIdentity(ctx context.Context, mac, duid, source, note string) (Identity, error)
+	DeleteIdentity(ctx context.Context, mac string) error
+	ListConflicts(ctx context.Context) ([]Conflict, error)
 }
 
 // NewMemStore 内存实现（PoC/单测）。
 type MemStore struct {
-	rows []Template
+	rows       []Template
+	identities []Identity
+	conflicts  []Conflict
 }
 
 func NewMemStore() *MemStore { return &MemStore{} }
@@ -52,6 +62,7 @@ func (m *MemStore) Create(_ context.Context, t Template) (Template, error) {
 	if t.ID == "" {
 		t.ID = uuid.NewString()
 	}
+	t.MatchScheme = normScheme(t.MatchScheme)
 	t.Enabled = true
 	m.rows = append(m.rows, t)
 	return t, nil
@@ -98,7 +109,7 @@ type PgStore struct{ pool *pgxpool.Pool }
 
 func NewPgStore(pool *pgxpool.Pool) *PgStore { return &PgStore{pool: pool} }
 
-const tplCols = `id::text, name, ipv4_cidr::text, ipv6_prefix::text, encoding, expr, dns_sync, grace_hours, enabled`
+const tplCols = `id::text, name, ipv4_cidr::text, ipv6_prefix::text, encoding, expr, match_scheme, dns_sync, grace_hours, enabled`
 
 func (s *PgStore) List(ctx context.Context) ([]Template, error) {
 	rows, err := s.pool.Query(ctx, `SELECT `+tplCols+` FROM prefix_template ORDER BY name`)
@@ -110,7 +121,7 @@ func (s *PgStore) List(ctx context.Context) ([]Template, error) {
 	for rows.Next() {
 		var t Template
 		if err := rows.Scan(&t.ID, &t.Name, &t.V4Cidr, &t.V6Prefix, &t.Encoding,
-			&t.Expr, &t.DnsSync, &t.GraceHours, &t.Enabled); err != nil {
+			&t.Expr, &t.MatchScheme, &t.DnsSync, &t.GraceHours, &t.Enabled); err != nil {
 			return nil, err
 		}
 		out = append(out, t)
@@ -120,10 +131,10 @@ func (s *PgStore) List(ctx context.Context) ([]Template, error) {
 
 func (s *PgStore) Create(ctx context.Context, t Template) (Template, error) {
 	return t, s.pool.QueryRow(ctx,
-		`INSERT INTO prefix_template(name, ipv4_cidr, ipv6_prefix, encoding, expr, dns_sync, grace_hours, enabled)
-		 VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id::text`,
+		`INSERT INTO prefix_template(name, ipv4_cidr, ipv6_prefix, encoding, expr, match_scheme, dns_sync, grace_hours, enabled)
+		 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id::text`,
 		t.Name, t.V4Cidr, t.V6Prefix, strings.ToUpper(t.Encoding), t.Expr,
-		t.DnsSync, t.GraceHours, t.Enabled).Scan(&t.ID)
+		normScheme(t.MatchScheme), t.DnsSync, t.GraceHours, t.Enabled).Scan(&t.ID)
 }
 
 func (s *PgStore) Delete(ctx context.Context, id string) error {
@@ -134,8 +145,8 @@ func (s *PgStore) Delete(ctx context.Context, id string) error {
 // Update 全量更新模板（M2-028）；未找到返回 ErrTemplateNotFound。
 func (s *PgStore) Update(ctx context.Context, t Template) (Template, error) {
 	tag, err := s.pool.Exec(ctx,
-		`UPDATE prefix_template SET name=$1, ipv4_cidr=$2, ipv6_prefix=$3, encoding=$4, expr=$5, dns_sync=$6, grace_hours=$7, enabled=$8 WHERE id=$9`,
-		t.Name, t.V4Cidr, t.V6Prefix, t.Encoding, t.Expr, t.DnsSync, t.GraceHours, t.Enabled, t.ID)
+		`UPDATE prefix_template SET name=$1, ipv4_cidr=$2, ipv6_prefix=$3, encoding=$4, expr=$5, match_scheme=$6, dns_sync=$7, grace_hours=$8, enabled=$9 WHERE id=$10`,
+		t.Name, t.V4Cidr, t.V6Prefix, t.Encoding, t.Expr, normScheme(t.MatchScheme), t.DnsSync, t.GraceHours, t.Enabled, t.ID)
 	if err != nil {
 		return Template{}, err
 	}
@@ -144,3 +155,41 @@ func (s *PgStore) Update(ctx context.Context, t Template) (Template, error) {
 	}
 	return t, nil
 }
+
+// normScheme 归一化匹配方案（空/非法回落 auto）。
+func normScheme(s string) string {
+	switch s {
+	case "option79", "client-id", "duid-llt", "hostname", "admin":
+		return s
+	default:
+		return "auto"
+	}
+}
+
+// ── MemStore：映射/冲突（PoC/单测）──
+
+func (m *MemStore) ListIdentities(_ context.Context) ([]Identity, error) { return m.identities, nil }
+
+func (m *MemStore) UpsertIdentity(_ context.Context, mac, duid, source, note string) (Identity, error) {
+	out := m.identities[:0]
+	for _, it := range m.identities {
+		if it.Mac != mac && it.Duid != duid {
+			out = append(out, it)
+		}
+	}
+	m.identities = append(out, Identity{Mac: mac, Duid: duid, Source: source, Note: note, UpdatedAt: time.Now()})
+	return m.identities[len(m.identities)-1], nil
+}
+
+func (m *MemStore) DeleteIdentity(_ context.Context, mac string) error {
+	out := m.identities[:0]
+	for _, it := range m.identities {
+		if it.Mac != mac {
+			out = append(out, it)
+		}
+	}
+	m.identities = out
+	return nil
+}
+
+func (m *MemStore) ListConflicts(_ context.Context) ([]Conflict, error) { return m.conflicts, nil }

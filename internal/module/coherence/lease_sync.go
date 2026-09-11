@@ -19,6 +19,7 @@ import (
 type Lease4 struct {
 	IPAddress     string `json:"ip-address"`
 	HWAddress     string `json:"hw-address"`
+	ClientID      string `json:"client-id"` // RFC4361 DUID 形态时可作 MAC↔DUID 桥（M3-013）
 	Hostname      string `json:"hostname"`
 	Cltt          int64  `json:"cltt"`
 	ValidLifetime uint32 `json:"valid-lft"`
@@ -137,6 +138,8 @@ type Lease6 struct {
 	IPAddress     string `json:"ip-address"`
 	DUID          string `json:"duid"`
 	IAID          uint32 `json:"iaid"`
+	HWAddress     string `json:"hw-address"` // option79（RFC6939）投影（M3-013）
+	HWType        int    `json:"hwtype"`
 	Hostname      string `json:"hostname"`
 	Cltt          int64  `json:"cltt"`
 	ValidLifetime uint32 `json:"valid-lft"`

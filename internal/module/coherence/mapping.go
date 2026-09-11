@@ -11,10 +11,11 @@ import (
 
 // Template 映射模板（PG prefix_template 行的最小投影）。
 type Template struct {
-	ID     string
-	V4Cidr string // 关联的 IPv4 网段（多池对自动匹配依据）
-	Prefix string // 如 "2407::"
-	Expr   string // "{v4.hextet4}" | "{v4.hex32}"
+	ID          string
+	V4Cidr      string // 关联的 IPv4 网段（多池对自动匹配依据）
+	Prefix      string // 如 "2407::"
+	Expr        string // "{v4.hextet4}" | "{v4.hex32}"
+	MatchScheme string // M3-013：auto/option79/client-id/duid-llt/hostname/admin（§4.5）
 }
 
 // MatchIPv4Template 按 IPv4 最长前缀匹配模板（多池对：每对 v4/v6 池一条模板，§4.3）。

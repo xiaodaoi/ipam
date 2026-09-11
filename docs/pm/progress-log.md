@@ -3,6 +3,20 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-11 · M3-013 后端实现完成——双栈匹配方案链全量落地 + 端到端验证
+- **实现**：迁移 0025（prefix_template.match_scheme + dualstack_identity/dualstack_conflict 表）；spec 先行（matchScheme 字段 + identities/conflicts 端点）→ gen；dualstack 模块（CRUD 带方案、映射/冲突存取、四端点）；coherence 对账器重构为 §4.5 方案链——resolve：admin（权威）→option79（租约 hw-address）→client-id（RFC4361 桥）→duid-llt（DUID 提取）→hostname（唯一）；歧义/无信号进冲突表（含候选 MAC）；钉死方案跨回落拦截（schemeAllows）；精确方式命中自动落映射表（hostname 不落）。
+- **端到端验证（合成租约）**：hostname 命中改写 :99→:20（日志「方式=hostname」）✓；同名歧义→冲突表含双候选 MAC ✓；admin 映射指向不存在 MAC→no_mac_signal 冲突（证明 admin 压过 hostname）✓；API CRUD 201/200/204 ✓；单测（链序/钉死/DUID 解析）+ 全量回归绿 ✓。
+- **部署**：web dist + Go 二进制经最小镜像层热更（完整 docker build 因 web 阶段>900s 仍需后台 setsid 跑一次对齐镜像层）；迁移随启动应用，存量模板零破坏（=auto）。
+- **遗留**：kea6 预留（reservation_cmds hook 缺失）暂缓——lease6-add 已保证已知 DUID 下次 Solicit 即得规范地址；option79 的 kea hook 编译进镜像待中继侧支持后一并落。
+- **状态**：任务卡 M3-013 → review（验收 6/7，预留项待 hook 条件）。
+
+## 2026-09-10 · M3-013 前端 UI 完成——匹配方案下拉 + MAC↔DUID 映射/冲突清单卡片
+- **背景**：M3-013 已定稿 §4.5 + ADR D16；后端 identities/conflicts 端点已实现（api/openapi/paths/dualstack.yaml），前端补消费 UI。
+- **做了什么**：① `api/ipam.ts` 双栈段补 `DualstackMatchScheme`（六方案字面量联合）、`DualstackIdentity`/`DualstackConflict` 类型，`createDualstackTemplate` 入参补 `matchScheme?: DualstackMatchScheme`，新增 `listDualstackIdentities`/`createDualstackIdentity`/`deleteDualstackIdentity`/`listDualstackConflicts`（沿用 req/j/del 与 components['schemas'] 取型）；② `views/dhcp/dualstack/index.vue`：模板表单加「匹配方案」Select（auto/option79/client-id/duid-llt/hostname/admin）+ 前置条件灰色提示，模板列表加「匹配方案」Tag 列，新增「MAC↔DUID 映射」卡（来源 admin/auto Tag、删除）与「未解析冲突」卡（原因中文映射：同名歧义/无 MAC 信号/钉死方案回落；操作列「设为映射」弹 useVbenModal 小模态——v4 MAC 多候选 Select/单候选预填、DUID 只读、备注；无候选 MAC 的 no_mac_signal/pinned_mismatch 禁用 + tooltip）；onMounted 并行加载三列表，建/删映射与模板 CRUD 后刷新。
+- **改动范围**：仅 `web/apps/web-ipam/src/api/ipam.ts` 与 `web/apps/web-ipam/src/views/dhcp/dualstack/index.vue`（禁改区未触碰）。
+- **验证**：`pnpm run build:ipam` 通过（vue-tsc typecheck 绿，11 tasks successful，dist.zip 生成）。
+- **遗留**：后端对账器方案链重构、kea6 预留下发、迁移 + 单测属 backend+devops；前端待与真机端点联调（可先铸 token 直测三个新端点）。
+
 ## 2026-09-10 · M3-013 设计定稿——双栈关联匹配方案（matchScheme）
 - **背景**：现网客户端 client-id 为 `01:MAC`（无 RFC4361 DUID）、DUID 为 UUID 型（不含 MAC），且中继/老旧交换机不支持 option79——hostname 成为唯一跨协议信号，同名即误关联风险。
 - **定稿**：写入架构文档 §4.5 + ADR D16。方案枚举：`auto`（默认，链：admin→option79→client-id→duid-llt→hostname→冲突）/ `option79` / `client-id` / `duid-llt` / `hostname` / `admin`，模板级可选；admin 人工映射权威恒最优先；钉死语义=只认该方案、回落即进冲突清单。数据模型：`prefix_template.match_scheme` + 新表 `dualstack_identity`。收尾：确认关联落 kea6 预留 → 首次 Solicit 即得规范地址。

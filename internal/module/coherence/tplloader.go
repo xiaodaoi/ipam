@@ -29,6 +29,7 @@ type tplRow struct {
 	V4Cidr string // PG cidr::text，如 "192.168.0.0/24"
 	V6Pre  string // PG cidr::text，如 "2407::/64"
 	Expr   string
+	Scheme string
 }
 
 // projectTemplate 行 → 联动模板投影；v6 前缀归一化为 "2407::"（ApplyTemplate 拼接约定）。
@@ -48,17 +49,18 @@ func projectTemplate(r tplRow) (Template, bool) {
 		return Template{}, false
 	}
 	return Template{
-		ID:     r.ID,
-		V4Cidr: v4.String(),
-		Prefix: p.Addr().String(),
-		Expr:   r.Expr,
+		ID:          r.ID,
+		V4Cidr:      v4.String(),
+		Prefix:      p.Addr().String(),
+		Expr:        r.Expr,
+		MatchScheme: r.Scheme,
 	}, true
 }
 
 // Refresh 全量拉取 enabled 模板；失败保留旧缓存（对账期间 PG 抖动不致联动瘫痪）。
 func (l *TplLoader) Refresh(ctx context.Context) (int, error) {
 	rows, err := l.pool.Query(ctx,
-		`SELECT id::text, ipv4_cidr::text, ipv6_prefix::text, expr
+		`SELECT id::text, ipv4_cidr::text, ipv6_prefix::text, expr, match_scheme
 		 FROM prefix_template WHERE enabled`)
 	if err != nil {
 		return 0, err
@@ -67,7 +69,7 @@ func (l *TplLoader) Refresh(ctx context.Context) (int, error) {
 	out := []Template{}
 	for rows.Next() {
 		var r tplRow
-		if err := rows.Scan(&r.ID, &r.V4Cidr, &r.V6Pre, &r.Expr); err != nil {
+		if err := rows.Scan(&r.ID, &r.V4Cidr, &r.V6Pre, &r.Expr, &r.Scheme); err != nil {
 			return 0, err
 		}
 		if t, ok := projectTemplate(r); ok {

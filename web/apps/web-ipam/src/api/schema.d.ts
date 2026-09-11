@@ -53,6 +53,58 @@ export interface paths {
         patch: operations["updateDualstackTemplate"];
         trace?: never;
     };
+    "/dualstack/identities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询 MAC↔DUID 映射（人工 + 自动学习） */
+        get: operations["listDualstackIdentities"];
+        put?: never;
+        /** 新建/覆盖 MAC↔DUID 映射（人工确认，优先级最高） */
+        post: operations["createDualstackIdentity"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dualstack/identities/{mac}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 删除 MAC↔DUID 映射 */
+        delete: operations["deleteDualstackIdentity"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dualstack/conflicts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询未解析冲突清单（同名歧义/无 MAC 信号/钉死回落） */
+        get: operations["listDualstackConflicts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dhcp/options": {
         parameters: {
             query?: never;
@@ -2105,6 +2157,13 @@ export interface components {
             dnsSync?: boolean;
             /** @description grace 期（小时） */
             graceHours?: number;
+            /**
+             * @description 关联匹配方案（§4.5）：auto=全局优先级链（admin→option79→client-id→duid-llt→hostname→冲突）；
+             *     指定值=钉死（该 v4 网段只认该方式，其他方式回落进冲突清单）。
+             * @default auto
+             * @enum {string}
+             */
+            matchScheme: "auto" | "option79" | "client-id" | "duid-llt" | "hostname" | "admin";
             enabled: boolean;
         };
         DualstackTemplateList: {
@@ -2121,6 +2180,12 @@ export interface components {
             dnsSync: boolean;
             /** @default 24 */
             graceHours: number;
+            /**
+             * @description 关联匹配方案（§4.5）
+             * @default auto
+             * @enum {string}
+             */
+            matchScheme: "auto" | "option79" | "client-id" | "duid-llt" | "hostname" | "admin";
             /** @default true */
             enabled: boolean;
         };
@@ -2135,8 +2200,52 @@ export interface components {
             dnsSync: boolean;
             /** @default 24 */
             graceHours: number;
+            /**
+             * @description 关联匹配方案（§4.5）
+             * @default auto
+             * @enum {string}
+             */
+            matchScheme: "auto" | "option79" | "client-id" | "duid-llt" | "hostname" | "admin";
             /** @default true */
             enabled: boolean;
+        };
+        DualstackIdentity: {
+            /** @description 规范化 MAC（小写无冒号） */
+            mac: string;
+            /** @description 规范化 DUID（小写无冒号） */
+            duid: string;
+            /**
+             * @description 来源：人工确认 / 精确方式自动学习
+             * @enum {string}
+             */
+            source: "admin" | "auto";
+            note?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        DualstackIdentityList: {
+            items: components["schemas"]["DualstackIdentity"][];
+        };
+        DualstackIdentityCreate: {
+            mac: string;
+            duid: string;
+            note?: string;
+        };
+        DualstackConflict: {
+            duid: string;
+            v6Ip?: string;
+            v4Macs?: string[];
+            hostname?: string;
+            /**
+             * @description 同名歧义 / 无 MAC 信号 / 钉死方案被回落
+             * @enum {string}
+             */
+            reason: "ambiguous_hostname" | "no_mac_signal" | "pinned_mismatch";
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        DualstackConflictList: {
+            items: components["schemas"]["DualstackConflict"][];
         };
         DhcpOption: {
             /** Format: uuid */
@@ -2604,6 +2713,90 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    listDualstackIdentities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 映射列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DualstackIdentityList"];
+                };
+            };
+        };
+    };
+    createDualstackIdentity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DualstackIdentityCreate"];
+            };
+        };
+        responses: {
+            /** @description 已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DualstackIdentity"];
+                };
+            };
+        };
+    };
+    deleteDualstackIdentity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mac: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已删除 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listDualstackConflicts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 冲突列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DualstackConflictList"];
+                };
             };
         };
     };
