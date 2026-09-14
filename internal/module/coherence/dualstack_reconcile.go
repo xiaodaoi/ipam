@@ -109,11 +109,33 @@ func (idx *identityIndex) resolve(v6 Lease6) (mac, method, reason string) {
 	}
 	h := normalizeHost(v6.Hostname)
 	if h != "" {
-		if l4s := idx.v4ByHostname[h]; len(l4s) == 1 {
+		l4s := idx.v4ByHostname[h]
+		if len(l4s) == 1 {
 			if m := macKey(l4s[0].HWAddress); m != "" {
 				return m, "hostname", ""
 			}
 		} else if len(l4s) > 1 {
+			// 时间就近消歧（§4.5.2 增强）：双栈客户端 v4/v6 几乎同时获取租约，
+			// 取 cltt 差最小者；限 5 分钟窗口且明显近于次优（≥30s），否则维持歧义进冲突清单。
+			best, bestDiff := 0, int64(1<<62)
+			secondDiff := int64(1 << 62)
+			for i, l := range l4s {
+				diff := v6.Cltt - l.Cltt
+				if diff < 0 {
+					diff = -diff
+				}
+				if diff < bestDiff {
+					secondDiff = bestDiff
+					best, bestDiff = i, diff
+				} else if diff < secondDiff {
+					secondDiff = diff
+				}
+			}
+			if bestDiff <= 300 && secondDiff-bestDiff >= 30 {
+				if m := macKey(l4s[best].HWAddress); m != "" {
+					return m, "hostname", ""
+				}
+			}
 			return "", "", "ambiguous_hostname"
 		}
 	}

@@ -66,3 +66,30 @@ func TestSchemeAllows_钉死拦截(t *testing.T) {
 		t.Fatal("钉死 option79 时 hostname 回落应被拦")
 	}
 }
+
+func TestResolve_同名时间就近消歧(t *testing.T) {
+	base := int64(1789349576)
+	l4 := []Lease4{
+		{IPAddress: "10.0.0.16", HWAddress: "aa:bb:cc:dd:ee:01", Hostname: "dup", Cltt: base - 600}, // 远：差600s
+		{IPAddress: "10.0.0.17", HWAddress: "aa:bb:cc:dd:ee:02", Hostname: "dup", Cltt: base - 5},   // 近：差5s
+	}
+	idx := buildIdentityIndex(l4, nil)
+	v6 := Lease6{DUID: "00:04:ff", Hostname: "dup", Cltt: base}
+	mac, method, reason := idx.resolve(v6)
+	if mac != "aabbccddee02" || method != "hostname" || reason != "" {
+		t.Fatalf("时间就近应选中近者: mac=%q method=%q reason=%q", mac, method, reason)
+	}
+	// 两者几乎同时（差<30s）→ 真歧义
+	l4[0].Cltt = base - 10
+	idx = buildIdentityIndex(l4, nil)
+	if _, _, reason := idx.resolve(v6); reason != "ambiguous_hostname" {
+		t.Fatalf("近同时应维持歧义, got %q", reason)
+	}
+	// 最近者也超窗口（>300s）→ 歧义（两者都拉远）
+	l4[0].Cltt = base - 600
+	l4[1].Cltt = base - 400
+	idx = buildIdentityIndex(l4, nil)
+	if _, _, reason := idx.resolve(v6); reason != "ambiguous_hostname" {
+		t.Fatalf("超窗口应维持歧义, got %q", reason)
+	}
+}

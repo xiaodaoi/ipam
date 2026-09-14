@@ -3,6 +3,13 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-14 · M3-013 补遗——双栈首次下发修复 + hostname 时间就近消歧
+- **现象复盘**：客户端重连后拿到 :135:10（旧 :15 租约隔日过期被回收→池内首空分配），对账器 30s 内已改写 kea 租约为 :135:15（日志「方式=hostname」），但客户端网卡持有 :10 至下次续约（≤30min）——用户看到的是收敛前窗口，方案链本身工作正常。
+- **修复①（结构性）**：/112 子网 valid-lifetime 3600→604800（7 天，kea6 运行态已生效）——租约不过期回收，重连时 kea6 直接复用 DUID 名下规范地址，**首次下发即正确**。
+- **修复②（用户建议采纳）**：hostname 同名歧义增加**时间就近消歧**——双栈客户端 v4/v6 几乎同时取租约，取 cltt 差最小者；护栏：5 分钟窗口 + 最近两者差 ≥30s（近同时视为真歧义），否则维持 ambiguous_hostname 进冲突清单。单测三场景（选中近者/近同时歧义/超窗歧义）全绿。
+- **遗留**：真正的「首现即正确」（首个 DUID 出现前的预留）需 kea6 host 预留（架构 §4.2 路径 A：PG host 后端）——kea 镜像暂无 reservation_cmds hook，作为 M3-014 候选。
+- **运维提示**：客户端执行 ipconfig /renew6 立即收敛；此后 7 天内重连均直接得规范地址。
+
 ## 2026-09-11 · M3-013 后端实现完成——双栈匹配方案链全量落地 + 端到端验证
 - **实现**：迁移 0025（prefix_template.match_scheme + dualstack_identity/dualstack_conflict 表）；spec 先行（matchScheme 字段 + identities/conflicts 端点）→ gen；dualstack 模块（CRUD 带方案、映射/冲突存取、四端点）；coherence 对账器重构为 §4.5 方案链——resolve：admin（权威）→option79（租约 hw-address）→client-id（RFC4361 桥）→duid-llt（DUID 提取）→hostname（唯一）；歧义/无信号进冲突表（含候选 MAC）；钉死方案跨回落拦截（schemeAllows）；精确方式命中自动落映射表（hostname 不落）。
 - **端到端验证（合成租约）**：hostname 命中改写 :99→:20（日志「方式=hostname」）✓；同名歧义→冲突表含双候选 MAC ✓；admin 映射指向不存在 MAC→no_mac_signal 冲突（证明 admin 压过 hostname）✓；API CRUD 201/200/204 ✓；单测（链序/钉死/DUID 解析）+ 全量回归绿 ✓。
