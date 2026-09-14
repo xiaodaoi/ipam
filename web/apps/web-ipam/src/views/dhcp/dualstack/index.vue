@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useVbenModal } from '@vben/common-ui';
 
 import { Button, Card, Input, Select, Switch, Table, Tag, Tooltip, message } from 'ant-design-vue';
@@ -15,6 +15,8 @@ import {
   deleteDualstackIdentity,
   listDualstackIdentities,
   listDualstackConflicts,
+  listSubnets,
+  type Subnet,
   type DualstackTemplate,
   type DualstackMatchScheme,
   type DualstackIdentity,
@@ -23,6 +25,27 @@ import {
 
 const rows = ref<DualstackTemplate[]>([]);
 const loading = ref(false);
+
+// 网段下拉：来自「子网管理」的 v4/v6 子网（M3-013 优化）
+const subnets = ref<Subnet[]>([]);
+const v4Options = computed(() =>
+  subnets.value
+    .filter((s) => s.family === 4)
+    .map((s) => ({ value: s.cidr, label: s.name ? `${s.cidr}（${s.name}）` : s.cidr })),
+);
+const v6Options = computed(() =>
+  subnets.value
+    .filter((s) => s.family === 6)
+    .map((s) => ({ value: s.cidr, label: s.name ? `${s.cidr}（${s.name}）` : s.cidr })),
+);
+async function loadSubnets() {
+  try {
+    const d = await listSubnets();
+    subnets.value = d.items ?? [];
+  } catch {
+    subnets.value = [];
+  }
+}
 const identityRows = ref<DualstackIdentity[]>([]);
 const conflictRows = ref<DualstackConflict[]>([]);
 const form = ref<{
@@ -61,6 +84,7 @@ function loadAll() {
   void load();
   void loadIdentities();
   void loadConflicts();
+  void loadSubnets();
 }
 function edit(r: DualstackTemplate) {
   editingId.value = r.id;
@@ -193,11 +217,11 @@ const SOURCE_TEXT: Record<string, string> = { admin: '人工', auto: '自动' };
       </div>
       <div>
         <div class="mb-1 text-xs text-gray-400">IPv4 网段</div>
-        <Input v-model:value="form.ipv4Cidr" style="width: 180px" placeholder="192.168.0.0/24" />
+        <Select v-model:value="form.ipv4Cidr" style="width: 230px" show-search :options="v4Options" placeholder="选择 IPv4 子网" />
       </div>
       <div>
         <div class="mb-1 text-xs text-gray-400">IPv6 前缀</div>
-        <Input v-model:value="form.ipv6Prefix" style="width: 160px" placeholder="2407::/64" />
+        <Select v-model:value="form.ipv6Prefix" style="width: 250px" show-search :options="v6Options" placeholder="选择 IPv6 子网" />
       </div>
       <div>
         <div class="mb-1 text-xs text-gray-400">编码</div>
