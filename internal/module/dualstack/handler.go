@@ -101,6 +101,7 @@ func fromGenUpdate(b apigen.DualstackTemplateUpdate, id string) Template {
 	return Template{
 		ID: id, Name: b.Name, V4Cidr: b.Ipv4Cidr, V6Prefix: b.Ipv6Prefix,
 		Encoding: string(b.Encoding), Expr: b.Expr, DnsSync: dnsSync, GraceHours: grace, Enabled: enabled,
+		MatchScheme: schemeVal(b.MatchScheme),
 	}
 }
 
@@ -121,6 +122,7 @@ func fromGenCreate(b apigen.DualstackTemplateCreate) Template {
 		Name: b.Name, V4Cidr: b.Ipv4Cidr, V6Prefix: b.Ipv6Prefix,
 		Encoding: string(b.Encoding), Expr: b.Expr,
 		DnsSync: dnsSync, GraceHours: grace, Enabled: enabled,
+		MatchScheme: schemeVal(b.MatchScheme),
 	}
 }
 
@@ -153,7 +155,7 @@ func (h *Handler) UpdateDualstackTemplate(c *gin.Context, templateId guuid.UUID)
 }
 
 // schemeVal/schemePtr 匹配方案与生成类型的互转（空回落 auto）。
-func schemeVal(s *apigen.DualstackTemplateMatchScheme) string {
+func schemeVal[T ~string](s *T) string {
 	if s == nil {
 		return "auto"
 	}
