@@ -281,7 +281,7 @@ export const createDualstackTemplate = (b: {
 }) => req<DualstackTemplate>('/dualstack/templates', j(b));
 export const deleteDualstackTemplate = (id: string) =>
   req<void>(`/dualstack/templates/${id}`, del);
-export const updateDualstackTemplate = (id: string, body: Partial<DualstackTemplate>) => req<DualstackTemplate>(`/dualstack/templates/${id}`, j(body));
+export const updateDualstackTemplate = (id: string, body: Partial<DualstackTemplate>) => req<DualstackTemplate>(`/dualstack/templates/${id}`, patch(body));
 
 // ── MAC↔DUID 映射与冲突清单（M3-013，§4.5）──
 export type DualstackIdentity = components['schemas']['DualstackIdentity'];
