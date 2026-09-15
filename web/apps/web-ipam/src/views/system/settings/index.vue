@@ -96,9 +96,12 @@ onMounted(load);
 
 <template>
   <div class="p-4">
-  <OrgManageCard class="mb-4" />
-
-<Card title="Web 页面设置">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-start">
+      <div class="min-w-0 flex-1">
+        <OrgManageCard />
+      </div>
+      <div class="min-w-0 flex-1">
+        <Card title="Web 页面设置">
     <div class="space-y-3">
       <div>
         <div class="mb-1 text-xs text-gray-400">站点名称（浏览器页签名称/侧栏显示）</div>
@@ -149,6 +152,8 @@ onMounted(load);
         </Popconfirm>
       </div>
     </div>
-  </Card>
+        </Card>
+      </div>
+    </div>
   </div>
 </template>
