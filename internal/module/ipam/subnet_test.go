@@ -102,3 +102,43 @@ func TestSubnetCIDR族校验(t *testing.T) {
 		t.Fatalf("err=%v want BAD_CIDR", err)
 	}
 }
+
+func TestSubnetCIDR归一化(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"2406:440:3C16:4005:10:61:40:1/112", "2406:440:3c16:4005:10:61:40:0/112"},
+		{"2406:440:3C16:4005:10:61:40:1/112 ", "2406:440:3c16:4005:10:61:40:0/112"},
+		{" 2406:440:3C16:4005:10:61:40:1/112", "2406:440:3c16:4005:10:61:40:0/112"},
+		{"2406:440:3C16:4005:10:61:40:1/112\n", "2406:440:3c16:4005:10:61:40:0/112"},
+		{"2406:440:3c16:4006::/64", "2406:440:3c16:4006::/64"},
+		{"10.61.40.5/24", "10.61.40.0/24"},
+	}
+	for _, c := range cases {
+		got, err := normalizeCIDR(c.in)
+		if err != nil {
+			t.Fatalf("normalizeCIDR(%q) err=%v", c.in, err)
+		}
+		if got != c.want {
+			t.Fatalf("normalizeCIDR(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+	for _, bad := range []string{"", "   ", "bad", "10.0.0.0", "10.0.0.0/33", "2406:440:3c16:4006::/129"} {
+		if _, err := normalizeCIDR(bad); !errors.Is(err, ErrBadCIDR) {
+			t.Fatalf("normalizeCIDR(%q) err=%v want BAD_CIDR", bad, err)
+		}
+	}
+}
+
+func TestSubnetCreate_空白与非规范CIDR落库为规范值(t *testing.T) {
+	svc, _, _ := newSubnetSvc(t)
+	saved, err := svc.Create(context.Background(), Subnet{Family: 6, CIDR: " 2406:440:3C16:4005:10:61:40:1/112 "}, false)
+	if err != nil {
+		t.Fatalf("create err=%v", err)
+	}
+	if saved.CIDR != "2406:440:3c16:4005:10:61:40:0/112" {
+		t.Fatalf("stored CIDR = %q", saved.CIDR)
+	}
+	// 归一化后重复判定生效：非规范写法应命中 SUBNET_DUP
+	if _, err := svc.Create(context.Background(), Subnet{Family: 6, CIDR: "2406:440:3c16:4005:10:61:40:0/112"}, false); !errors.Is(err, ErrSubnetDup) {
+		t.Fatalf("err=%v want SUBNET_DUP", err)
+	}
+}

@@ -171,13 +171,13 @@ func toGenSubnet(s Subnet) apigen.Subnet {
 		k := apigen.AddressPoolKind(p.Kind)
 		pools = append(pools, apigen.AddressPool{StartAddr: p.StartAddr, EndAddr: p.EndAddr, Kind: &k, PrefixLen: p.PrefixLen, DelegatedLen: p.DelegatedLen})
 	}
-	orgID := guuid.MustParse(s.OrgID)
+	orgID := parseUUID(s.OrgID)
 	options := make([]apigen.SubnetOption, 0, len(s.Options))
 	for _, o := range s.Options {
 		options = append(options, apigen.SubnetOption{Code: o.Code, Name: strPtr(o.Name), Data: o.Data, CsvFormat: &o.CSVFormat, Enabled: &o.Enabled})
 	}
 	return apigen.Subnet{
-		Id:          guuid.MustParse(s.ID),
+		Id:          parseUUID(s.ID),
 		OrgId:       orgID,
 		Name:        s.Name,
 		Family:      apigen.SubnetFamily(s.Family),
@@ -197,6 +197,16 @@ func deref[T any](p *T, def T) T {
 		return def
 	}
 	return *p
+}
+
+// parseUUID 宽松解析：dryRun 预览（未落库、ID 为空）与未选组织（OrgID 为空）场景下
+// MustParse 会 panic 并返回 500，此处退化为零值 UUID。
+func parseUUID(s string) guuid.UUID {
+	u, err := guuid.Parse(s)
+	if err != nil {
+		return guuid.UUID{}
+	}
+	return u
 }
 
 func mapSubnetErr(c *gin.Context, err error) {

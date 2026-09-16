@@ -89,8 +89,23 @@ func (s *SubnetService) notifyApply(ctx context.Context) error {
 	return s.apply(ctx)
 }
 
+// normalizeCIDR 归一化子网 CIDR：去首尾空白 + 掩码为规范网络地址。
+// 必要性：表单/粘贴值常带不可见空白（首尾空格、换行），直接解析会误报 BAD_CIDR；
+// 且非规范地址（主机位非 0，如 ...:40:1/112）落库会与 Kea 前缀唯一性、台账匹配口径不一致。
+func normalizeCIDR(raw string) (string, error) {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return "", fmt.Errorf("%w: %s", ErrBadCIDR, raw)
+	}
+	p, err := netip.ParsePrefix(s)
+	if err != nil {
+		return "", fmt.Errorf("%w: %s", ErrBadCIDR, raw)
+	}
+	return p.Masked().String(), nil
+}
+
 func validateSubnet(s Subnet) error {
-	p, err := netip.ParsePrefix(s.CIDR)
+	p, err := netip.ParsePrefix(strings.TrimSpace(s.CIDR))
 	if err != nil {
 		return fmt.Errorf("%w: %s", ErrBadCIDR, s.CIDR)
 	}
@@ -128,6 +143,11 @@ func validateSubnetOptions(s Subnet) error {
 
 // Create 校验→Kea 下发→落库；下发失败不落库（视为回滚）。
 func (s *SubnetService) Create(ctx context.Context, in Subnet, dryRun bool) (Subnet, error) {
+	norm, err := normalizeCIDR(in.CIDR)
+	if err != nil {
+		return Subnet{}, err
+	}
+	in.CIDR = norm
 	if in.OrgID != "" {
 		if _, ok := s.orgs.Get(in.OrgID); !ok {
 			return Subnet{}, ErrOrgNotFound2
