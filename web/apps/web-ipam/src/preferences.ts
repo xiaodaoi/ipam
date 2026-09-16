@@ -19,6 +19,9 @@ export const overridesPreferences = defineOverridesPreferences({
   // overrides
   app: {
     name: import.meta.env.VITE_APP_TITLE,
+    // 上游默认 /analytics 为演示页，本项目无此路由：登录后与根路径重定向均落 404。
+    // 指向真实首页（后端 /user/info 的 homePath 同值），保证根路径/守卫回落不再命中空路由。
+    defaultHomePath: '/overview',
   },
 });
 

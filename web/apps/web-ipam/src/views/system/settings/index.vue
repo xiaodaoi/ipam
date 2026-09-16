@@ -222,10 +222,11 @@ onMounted(() => {
 
 <template>
   <div class="p-4">
-    <div class="flex flex-col gap-4 lg:flex-row lg:items-start">
-      <div class="min-w-0 flex-1">
-        <OrgManageCard />
-      </div>
+    <div class="flex flex-col gap-4">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-start">
+        <div class="min-w-0 flex-1">
+          <OrgManageCard />
+        </div>
       <div class="min-w-0 flex-1">
         <Card title="Web 页面设置">
     <div class="space-y-3">
@@ -279,10 +280,10 @@ onMounted(() => {
       </div>
     </div>
         </Card>
+        </div>
       </div>
-    </div>
 
-    <div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
       <Card title="日志存储策略">
         <div class="space-y-3">
           <div>
@@ -330,7 +331,9 @@ onMounted(() => {
             <span
               v-for="p in stats.partitions"
               :key="p.month"
-              class="rounded bg-gray-100 px-2 py-1 text-xs dark:bg-gray-800"
+              class="cursor-pointer rounded bg-gray-100 px-2 py-1 text-xs hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700"
+              title="点击填入下方导出月份"
+              @click="exportMonthInput = p.month"
             >
               {{ p.month }} · {{ formatNumber(p.rowCount) }} 行 · {{ formatBytes(p.diskBytes) }}
             </span>
@@ -339,7 +342,7 @@ onMounted(() => {
       </Card>
     </div>
 
-    <Card title="日志归档（按月 Parquet）" class="mt-4">
+      <Card title="日志归档（按月 Parquet）">
       <div class="mb-3 flex flex-wrap items-center gap-2">
         <Input v-model:value="exportMonthInput" placeholder="YYYY-MM" style="width: 140px" />
         <Button type="primary" :loading="exporting" @click="doExport">导出该月</Button>
@@ -378,10 +381,25 @@ onMounted(() => {
             </td>
           </tr>
           <tr v-if="archives.length === 0">
-            <td colspan="6" class="py-6 text-center text-gray-400">暂无归档</td>
+            <td colspan="6" class="py-8 text-center text-gray-400">
+              <div class="mb-1 text-sm">暂无归档</div>
+              <div class="text-xs leading-relaxed">
+                此列表仅显示<strong>已导出</strong>的按月 Parquet 文件，不含 ClickHouse 在线数据。<br />
+                手动导出：上方填写月份（YYYY-MM）后点「导出该月」；自动导出：开启后于每月 1 日 02:00 生成上月归档。
+              </div>
+            </td>
           </tr>
         </tbody>
       </table>
     </Card>
+    </div>
   </div>
 </template>
+
+<style scoped>
+/* 本页各区块统一由 flex gap 控制纵向间距；抵消 ant Card 自带的 margin-bottom，
+   否则会与 gap 叠加造成行间距不一致（12+16=28px vs 16px）。 */
+:deep(.ant-card) {
+  margin-bottom: 0;
+}
+</style>
