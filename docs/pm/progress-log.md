@@ -3,6 +3,13 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-16 · M4-005 日志生命周期管理——可配置存储周期 + 按月 Parquet 归档
+- **需求**：系统设置中可配置日志存储周期（按天、默认 180、可改），并支持按月导出备份、下载、删除，实现自动滚动删除。
+- **实现**：迁移 0026（`log_settings` 策略单行表 + `log_archive` 归档元数据表）；spec 先行（7 个端点 + 5 个 schema）→ `make gen`；新增 `internal/module/logmanager/`（store 双实现 / ChAdmin / LogHandler 7 接口 / StartScheduler）；main.go 装配并启动调度；compose 增 `ch-exports` 卷；前端系统设置页新增「日志存储策略 / 日志存储概览 / 日志归档」三块。
+- **选型关键**：导出走 ClickHouse **HTTP 接口 + `FORMAT Parquet`** 而非 `file()` 表函数——规避 FILE 权限依赖，控制面流式落盘并算 SHA256；`ch-exports` 卷仅挂控制面（ClickHouse 无需 `user_files` 挂载）。
+- **实测修复 3 处**：① `sum(rows)` 为 UInt64 无法扫入 `*int64`（clickhouse-go 严格类型）→ SQL 侧 `toInt64`；② 分区键实际是 `YYYY-MM-DD` 而非 `YYYYMMDD` → `substring(partition,1,7)`；③ 物化视图不支持 `MODIFY TTL` → 动态解析 `.inner_id.<uuid>` 内表并尽力跟随（失败仅告警，不阻断主表 TTL）。
+- **验证**：TTL 120/90/180 往返生效（`toIntervalDay(N)`）；导出 2026-08 → 3932 行 / 61628 字节 / SHA256，下载 200 且魔数 `PAR1`（合法 Parquet）；删除 204 且文件同步清理；MV 内表 TTL 跟随；真实浏览器 UI 保存流程 → 消息「已保存并生效」+ 概览实时刷新为 120 天 + 控制台无错误；golangci-lint 0 issues、vue-tsc 0 error、`go test ./internal/...` 11 包全绿。
+- **运维提示**：既有部署的 `ch-exports` 卷需一次性 `chown 10001:998`（镜像已内置 `/srv/log-exports` 归属 ipam，新装无此问题）。
 ## 2026-09-14 · M3-013 补遗——双栈首次下发修复 + hostname 时间就近消歧
 - **现象复盘**：客户端重连后拿到 :135:10（旧 :15 租约隔日过期被回收→池内首空分配），对账器 30s 内已改写 kea 租约为 :135:15（日志「方式=hostname」），但客户端网卡持有 :10 至下次续约（≤30min）——用户看到的是收敛前窗口，方案链本身工作正常。
 - **修复①（结构性）**：/112 子网 valid-lifetime 3600→604800（7 天，kea6 运行态已生效）——租约不过期回收，重连时 kea6 直接复用 DUID 名下规范地址，**首次下发即正确**。

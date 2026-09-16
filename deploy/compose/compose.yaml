@@ -57,11 +57,13 @@ services:
       IPAM_KEA6_UNICAST: ${IPAM_KEA6_UNICAST:-}  # 中继单播目标全局地址；kea 以 接口/地址 形式绑定
       IPAM_MIGRATIONS_DIR: "/srv/migrations"
       IPAM_UNBOUND_CONF: "/etc/unbound-ctl/unbound.conf"
+      IPAM_LOG_EXPORT_DIR: "/srv/log-exports"
     volumes:
       - ipam-run:/run/ipam
       - ../../db/postgresql/migrations:/srv/migrations:ro
       - ../../config/unbound:/etc/unbound-ctl:ro
       - ../../config/unbound:/etc/unbound-rendered
+      - ch-exports:/srv/log-exports
     ports:
       - "${IPAM_PORT:-8443}:8443"
     restart: unless-stopped
@@ -210,6 +212,7 @@ volumes:
   kea-leases:
   unbound-logs:
   ch-data:
+  ch-exports:
 
 # unbound 日志经宿主文件（unbound.conf logfile 配置）→ 由 vector file source 读取；
 # unbound-logs 卷：unbound 服务读写挂载（root 容器写入），vector 服务只读挂载采集。

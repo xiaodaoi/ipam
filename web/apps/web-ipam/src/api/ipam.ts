@@ -364,3 +364,39 @@ export const listRoles = () => req<{ items: RoleRow[] }>('/roles');
 export const createRole = (b: { name: string; permissions: string[] }) => req<RoleRow>('/roles', j(b));
 export const updateRole = (name: string, b: { permissions: string[] }) => req<RoleRow>(`/roles/${name}`, j(b));
 export const deleteRole = (name: string) => req<void>(`/roles/${name}`, del);
+
+// ── 日志存储策略与归档（日志生命周期管理）──
+export type LogSettings = components['schemas']['LogSettings'];
+export type LogArchive = components['schemas']['LogArchive'];
+export type LogStorageStats = components['schemas']['LogStorageStats'];
+
+export const getLogSettings = () => req<LogSettings>('/system/log-settings');
+export const updateLogSettings = (b: {
+  retentionDays?: number;
+  archiveKeepMonths?: number;
+  autoExport?: boolean;
+}) => req<LogSettings>('/system/log-settings', { method: 'PUT', body: JSON.stringify(b) });
+export const getLogStorageStats = () => req<LogStorageStats>('/system/log-archives/stats');
+export const listLogArchives = () => req<{ items: LogArchive[] }>('/system/log-archives');
+export const exportLogArchive = (month: string) =>
+  req<LogArchive>(`/system/log-archives/${month}/export`, { method: 'POST' });
+export const deleteLogArchive = (month: string) =>
+  req<void>(`/system/log-archives/${month}`, { method: 'DELETE' });
+
+// Parquet 归档下载（非 JSON——不走 req 封装）
+export async function downloadLogArchive(month: string): Promise<void> {
+  const token = useAccessStore().accessToken;
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${BASE}/system/log-archives/${month}/download`, { headers });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { detail?: string };
+    throw new Error(body.detail || `HTTP ${res.status}`);
+  }
+  const blob = await res.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `logs-${month}.parquet`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}

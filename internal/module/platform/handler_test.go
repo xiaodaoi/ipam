@@ -17,6 +17,7 @@ import (
 	dnsmodule "github.com/xiaodaoi/ipam/internal/module/dns"
 	dualstack "github.com/xiaodaoi/ipam/internal/module/dualstack"
 	"github.com/xiaodaoi/ipam/internal/module/ipam"
+	"github.com/xiaodaoi/ipam/internal/module/logmanager"
 	logq "github.com/xiaodaoi/ipam/internal/module/logquery"
 )
 
@@ -63,6 +64,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		*dnsmodule.SettingsHandler
 		*RolesHandler
 		*WebuiHandler
+		*logmanager.LogHandler
 		*stubApplier
 	}{h,
 		ipam.NewOrgHandler(ipam.NewOrgService(orgStore)),
@@ -83,6 +85,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		dnsmodule.NewSettingsHandler(dnsmodule.NewSettingsService(dnsmodule.NewMemSettingsRepo(), fakeUnbound{}, "/tmp/unbound.conf", nil), dnsmodule.NewMemSettingsRepo()),
 		NewRolesHandler(NewMemRoleStore()),
 		NewWebuiHandler(NewMemWebuiRepo()),
+		logmanager.NewLogHandler(logmanager.NewMemSettingsRepo(), logmanager.NewMemArchiveRepo(), nil, "/tmp/log-exports"),
 		&stubApplier{},
 	}
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})

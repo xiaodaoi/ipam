@@ -29,6 +29,7 @@ import (
 	dnsmodule "github.com/xiaodaoi/ipam/internal/module/dns"
 	dualstack "github.com/xiaodaoi/ipam/internal/module/dualstack"
 	"github.com/xiaodaoi/ipam/internal/module/ipam"
+	"github.com/xiaodaoi/ipam/internal/module/logmanager"
 	logq "github.com/xiaodaoi/ipam/internal/module/logquery"
 	"github.com/xiaodaoi/ipam/internal/module/platform"
 	"github.com/xiaodaoi/ipam/internal/pkg/migrator"
@@ -311,15 +312,17 @@ func newEngine(version string) *gin.Engine {
 	// 日志检索（M4-002，FR-E-04）：配置 IPAM_CH_ADDR 走 ClickHouse，否则内存 PoC；
 	// 组织展开：PG 子树（org_group.path）或内存节点遍历。
 	var logStore logq.Store = logq.NewMemStore()
+	var chCfg logq.ChConfig
 	if chAddr := os.Getenv("IPAM_CH_ADDR"); chAddr != "" {
 		chDB := os.Getenv("IPAM_CH_DB")
 		if chDB == "" {
 			chDB = "ipam"
 		}
-		st, err := logq.OpenChStore(logq.ChConfig{
+		chCfg = logq.ChConfig{
 			Addr: chAddr, DB: chDB,
 			User: os.Getenv("IPAM_CH_USER"), Password: os.Getenv("IPAM_CH_PASSWORD"),
-		})
+		}
+		st, err := logq.OpenChStore(chCfg)
 		if err != nil {
 			log.Fatalf("ch store: %v", err)
 		}
@@ -507,6 +510,32 @@ func newEngine(version string) *gin.Engine {
 		webuiRepo = platform.NewPgWebuiRepo(pool)
 	}
 	webuiH := platform.NewWebuiHandler(webuiRepo)
+
+	var logSettingsRepo logmanager.SettingsRepo = logmanager.NewMemSettingsRepo()
+	var logArchiveRepo logmanager.ArchiveRepo = logmanager.NewMemArchiveRepo()
+	if pool != nil {
+		logSettingsRepo = logmanager.NewPgSettingsRepo(pool)
+		logArchiveRepo = logmanager.NewPgArchiveRepo(pool)
+	}
+	var chAdmin *logmanager.ChAdmin
+	if chCfg.Addr != "" {
+		ca, err := logmanager.OpenChAdmin(logmanager.ChConfig{
+			Addr: chCfg.Addr, DB: chCfg.DB, User: chCfg.User, Password: chCfg.Password,
+			HTTPAddr: os.Getenv("IPAM_CH_HTTP"),
+		})
+		if err != nil {
+			log.Fatalf("ch admin: %v", err)
+		}
+		chAdmin = ca
+	}
+	logExportDir := os.Getenv("IPAM_LOG_EXPORT_DIR")
+	if logExportDir == "" {
+		logExportDir = "/srv/log-exports"
+	}
+	if err := os.MkdirAll(logExportDir, 0o755); err != nil {
+		log.Printf("log export dir %s: %v", logExportDir, err)
+	}
+	logMgrH := logmanager.NewLogHandler(logSettingsRepo, logArchiveRepo, chAdmin, logExportDir)
 	permLookup := func(ctx context.Context, role string) ([]string, bool) {
 		if pool == nil {
 			return nil, false
@@ -539,14 +568,16 @@ func newEngine(version string) *gin.Engine {
 		*dnsmodule.SettingsHandler
 		*platform.RolesHandler
 		*platform.WebuiHandler
+		*logmanager.LogHandler
 		*confApplier
-	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore, bl, permLookup), platform.NewUserHandler(userStore), &dhcpAPI{dhcpH}, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, applier}
+	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore, bl, permLookup), platform.NewUserHandler(userStore), &dhcpAPI{dhcpH}, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, logMgrH, applier}
 	// RBAC 写权限拦截（M5-003）先于审计：被 403 的请求不入账。
 	// 操作审计（M4-003+M5-002）：actor 从 JWT claims 解析（human/bot 区分 §12.3）。
 	r.Use(platform.NewRBACMiddleware(userStore, bl, permLookup)) // M5-003/M5-010/M5-011/M2-035：认证+授权+吊销+域权限
 	r.Use(logq.NewAuditRecorder(auditRepo, platform.JWTActorProvider))
 	// spec servers.url=/api/v1 → 统一前缀注册
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
+	logmanager.StartScheduler(context.Background(), logMgrH, chAdmin)
 
 	dist, err := webuiFS()
 	if err != nil {

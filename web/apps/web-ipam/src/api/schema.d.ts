@@ -368,6 +368,139 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/system/log-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 日志存储策略读取
+         * @description ClickHouse 日志保留天数（TTL）/归档保留月数/自动导出开关。scope 为 system:read。
+         */
+        get: operations["getLogSettings"];
+        /**
+         * 日志存储策略保存
+         * @description 保存后立即对 ipam.logs 与 logs_topn_hourly 执行 MODIFY TTL 生效。scope 为 system:write。
+         */
+        put: operations["updateLogSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/system/log-archives": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 日志归档列表
+         * @description 已导出的按月 Parquet 归档（PG log_archive 表）。scope 为 system:read。
+         */
+        get: operations["listLogArchives"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/system/log-archives/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 日志存储概览
+         * @description ClickHouse 实时统计——总行数/磁盘占用/最早月份/按月分区明细。scope 为 system:read。
+         */
+        get: operations["getLogStorageStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/system/log-archives/{month}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 归档月份（YYYY-MM） */
+                month: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * 删除归档文件
+         * @description 删除归档 Parquet 文件与 PG 记录（不影响 ClickHouse 在线数据）。scope 为 system:write。
+         */
+        delete: operations["deleteLogArchive"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/system/log-archives/{month}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 归档月份（YYYY-MM） */
+                month: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 手动导出某月日志
+         * @description 从 ClickHouse 导出该月日志为 Parquet（覆盖已有归档）。scope 为 system:write。
+         */
+        post: operations["exportLogArchive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/system/log-archives/{month}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 归档月份（YYYY-MM） */
+                month: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * 下载归档文件
+         * @description 下载该月的 Parquet 归档文件。scope 为 system:read。
+         */
+        get: operations["downloadLogArchive"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/roles": {
         parameters: {
             query?: never;
@@ -2348,6 +2481,73 @@ export interface components {
             /** @description 监听端口（1-65535），重启后生效 */
             serverPort?: number;
         };
+        LogSettings: {
+            /** @description ClickHouse 日志保留天数（TTL，默认 180；到期分区自动滚动删除） */
+            retentionDays: number;
+            /** @description 归档文件保留月数（默认 12；过期归档自动清理） */
+            archiveKeepMonths: number;
+            /** @description 是否每月 1 日 02:00 自动导出上月日志为 Parquet */
+            autoExport: boolean;
+        };
+        LogSettingsUpdate: {
+            retentionDays?: number;
+            archiveKeepMonths?: number;
+            autoExport?: boolean;
+        };
+        LogArchive: {
+            /**
+             * @description 归档月份（YYYY-MM）
+             * @example 2026-01
+             */
+            month: string;
+            /**
+             * Format: int64
+             * @description 导出行数
+             */
+            rowCount: number;
+            /**
+             * Format: int64
+             * @description 文件大小（字节）
+             */
+            fileSize: number;
+            /** @description SHA256 校验 */
+            fileHash?: string;
+            /** @description system（自动）/ manual（手动） */
+            exportedBy: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        LogArchiveList: {
+            items: components["schemas"]["LogArchive"][];
+        };
+        LogPartitionStat: {
+            /** @description 月份（YYYY-MM，由分区键聚合） */
+            month: string;
+            /** Format: int64 */
+            rowCount: number;
+            /**
+             * Format: int64
+             * @description 磁盘占用（字节）
+             */
+            diskBytes: number;
+        };
+        LogStorageStats: {
+            /**
+             * Format: int64
+             * @description 日志总行数
+             */
+            totalRows: number;
+            /**
+             * Format: int64
+             * @description 总磁盘占用（字节）
+             */
+            diskBytes: number;
+            /** @description 最早日志月份（YYYY-MM，无数据时为空） */
+            earliestMonth?: string;
+            /** @description 当前生效的 TTL 天数 */
+            retentionDays: number;
+            partitions?: components["schemas"]["LogPartitionStat"][];
+        };
         /** @description 角色（内置或自定义；permissions 为权限点集合：域:read|write）。 */
         Role: {
             /** @description 角色名（主键，创建后不可改） */
@@ -3181,6 +3381,157 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    getLogSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 存储策略 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogSettings"];
+                };
+            };
+        };
+    };
+    updateLogSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LogSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description 已保存并生效 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogSettings"];
+                };
+            };
+        };
+    };
+    listLogArchives: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 归档列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogArchiveList"];
+                };
+            };
+        };
+    };
+    getLogStorageStats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 存储概览 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogStorageStats"];
+                };
+            };
+        };
+    };
+    deleteLogArchive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 归档月份（YYYY-MM） */
+                month: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已删除 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    exportLogArchive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 归档月份（YYYY-MM） */
+                month: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 导出完成 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogArchive"];
+                };
+            };
+        };
+    };
+    downloadLogArchive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 归档月份（YYYY-MM） */
+                month: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Parquet 文件流 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
             };
         };
     };

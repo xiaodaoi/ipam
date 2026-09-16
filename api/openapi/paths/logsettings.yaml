@@ -1,0 +1,129 @@
+LogSettingsCollection:
+  get:
+    operationId: getLogSettings
+    tags: [platform]
+    summary: 日志存储策略读取
+    description: ClickHouse 日志保留天数（TTL）/归档保留月数/自动导出开关。scope 为 system:read。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: 存储策略
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/logsettings.yaml#/LogSettings'
+  put:
+    operationId: updateLogSettings
+    tags: [platform]
+    summary: 日志存储策略保存
+    description: 保存后立即对 ipam.logs 与 logs_topn_hourly 执行 MODIFY TTL 生效。scope 为 system:write。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/logsettings.yaml#/LogSettingsUpdate'
+    responses:
+      '200':
+        description: 已保存并生效
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/logsettings.yaml#/LogSettings'
+
+LogArchiveCollection:
+  get:
+    operationId: listLogArchives
+    tags: [platform]
+    summary: 日志归档列表
+    description: 已导出的按月 Parquet 归档（PG log_archive 表）。scope 为 system:read。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: 归档列表
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/logsettings.yaml#/LogArchiveList'
+
+LogArchiveStats:
+  get:
+    operationId: getLogStorageStats
+    tags: [platform]
+    summary: 日志存储概览
+    description: ClickHouse 实时统计——总行数/磁盘占用/最早月份/按月分区明细。scope 为 system:read。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: 存储概览
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/logsettings.yaml#/LogStorageStats'
+
+LogArchiveItem:
+  parameters:
+    - name: month
+      in: path
+      required: true
+      description: 归档月份（YYYY-MM）
+      schema:
+        type: string
+        pattern: '^\d{4}-\d{2}$'
+  delete:
+    operationId: deleteLogArchive
+    tags: [platform]
+    summary: 删除归档文件
+    description: 删除归档 Parquet 文件与 PG 记录（不影响 ClickHouse 在线数据）。scope 为 system:write。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '204':
+        description: 已删除
+
+LogArchiveExport:
+  parameters:
+    - name: month
+      in: path
+      required: true
+      description: 归档月份（YYYY-MM）
+      schema:
+        type: string
+        pattern: '^\d{4}-\d{2}$'
+  post:
+    operationId: exportLogArchive
+    tags: [platform]
+    summary: 手动导出某月日志
+    description: 从 ClickHouse 导出该月日志为 Parquet（覆盖已有归档）。scope 为 system:write。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: 导出完成
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/logsettings.yaml#/LogArchive'
+
+LogArchiveDownload:
+  parameters:
+    - name: month
+      in: path
+      required: true
+      description: 归档月份（YYYY-MM）
+      schema:
+        type: string
+        pattern: '^\d{4}-\d{2}$'
+  get:
+    operationId: downloadLogArchive
+    tags: [platform]
+    summary: 下载归档文件
+    description: 下载该月的 Parquet 归档文件。scope 为 system:read。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: Parquet 文件流
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary

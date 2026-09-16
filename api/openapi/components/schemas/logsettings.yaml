@@ -1,0 +1,97 @@
+LogSettings:
+  type: object
+  required: [retentionDays, archiveKeepMonths, autoExport]
+  properties:
+    retentionDays:
+      type: integer
+      minimum: 1
+      maximum: 3650
+      description: ClickHouse 日志保留天数（TTL，默认 180；到期分区自动滚动删除）
+    archiveKeepMonths:
+      type: integer
+      minimum: 1
+      maximum: 120
+      description: 归档文件保留月数（默认 12；过期归档自动清理）
+    autoExport:
+      type: boolean
+      description: 是否每月 1 日 02:00 自动导出上月日志为 Parquet
+
+LogSettingsUpdate:
+  type: object
+  properties:
+    retentionDays: { type: integer, minimum: 1, maximum: 3650 }
+    archiveKeepMonths: { type: integer, minimum: 1, maximum: 120 }
+    autoExport: { type: boolean }
+
+LogArchive:
+  type: object
+  required: [month, rowCount, fileSize, exportedBy, createdAt]
+  properties:
+    month:
+      type: string
+      description: 归档月份（YYYY-MM）
+      example: "2026-01"
+    rowCount:
+      type: integer
+      format: int64
+      description: 导出行数
+    fileSize:
+      type: integer
+      format: int64
+      description: 文件大小（字节）
+    fileHash:
+      type: string
+      description: SHA256 校验
+    exportedBy:
+      type: string
+      description: system（自动）/ manual（手动）
+    createdAt:
+      type: string
+      format: date-time
+
+LogArchiveList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/LogArchive'
+
+LogPartitionStat:
+  type: object
+  required: [month, rowCount, diskBytes]
+  properties:
+    month:
+      type: string
+      description: 月份（YYYY-MM，由分区键聚合）
+    rowCount:
+      type: integer
+      format: int64
+    diskBytes:
+      type: integer
+      format: int64
+      description: 磁盘占用（字节）
+
+LogStorageStats:
+  type: object
+  required: [totalRows, diskBytes, retentionDays]
+  properties:
+    totalRows:
+      type: integer
+      format: int64
+      description: 日志总行数
+    diskBytes:
+      type: integer
+      format: int64
+      description: 总磁盘占用（字节）
+    earliestMonth:
+      type: string
+      description: 最早日志月份（YYYY-MM，无数据时为空）
+    retentionDays:
+      type: integer
+      description: 当前生效的 TTL 天数
+    partitions:
+      type: array
+      items:
+        $ref: '#/LogPartitionStat'

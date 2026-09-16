@@ -72,6 +72,18 @@ paths:
     $ref: "./paths/webui.yaml#/WebuiSettingsCollection"
   /system/restart:
     $ref: "./paths/webui.yaml#/RestartControlPlane"
+  /system/log-settings:
+    $ref: "./paths/logsettings.yaml#/LogSettingsCollection"
+  /system/log-archives:
+    $ref: "./paths/logsettings.yaml#/LogArchiveCollection"
+  /system/log-archives/stats:
+    $ref: "./paths/logsettings.yaml#/LogArchiveStats"
+  /system/log-archives/{month}:
+    $ref: "./paths/logsettings.yaml#/LogArchiveItem"
+  /system/log-archives/{month}/export:
+    $ref: "./paths/logsettings.yaml#/LogArchiveExport"
+  /system/log-archives/{month}/download:
+    $ref: "./paths/logsettings.yaml#/LogArchiveDownload"
   /roles:
     $ref: "./paths/role.yaml#/RolesCollection"
   /roles/{roleId}:
