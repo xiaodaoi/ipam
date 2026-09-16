@@ -191,6 +191,11 @@ const SCHEME_OPTIONS = (['auto', 'option79', 'client-id', 'duid-llt', 'hostname'
   (v) => ({ value: v, label: SCHEME_TEXT[v] }),
 );
 
+function schemeText(v: unknown): string {
+  if (typeof v !== 'string' || v === '') return 'auto';
+  return SCHEME_TEXT[v as DualstackMatchScheme] ?? v;
+}
+
 const CONFLICT_TEXT: Record<string, string> = {
   ambiguous_hostname: '同名歧义',
   no_mac_signal: '无 MAC 信号',
@@ -267,7 +272,7 @@ const SOURCE_TEXT: Record<string, string> = { admin: '人工', auto: '自动' };
               <Tag>{{ ENC_TEXT[record.encoding] ?? record.encoding }}</Tag>
             </template>
             <template v-else-if="column.dataIndex === 'matchScheme'">
-              <Tag>{{ SCHEME_TEXT[record.matchScheme] ?? record.matchScheme ?? 'auto' }}</Tag>
+              <Tag>{{ schemeText(record.matchScheme) }}</Tag>
             </template>
             <template v-else-if="column.dataIndex === 'dnsSync'">
               <Tag :color="record.dnsSync ? 'green' : 'default'">{{ record.dnsSync ? '开' : '关' }}</Tag>
