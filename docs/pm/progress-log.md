@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-16 · 缺陷修复——子网添加 IPv6 误报 BAD_CIDR
+- **现象**：添加 `2406:440:3C16:4005:10:61:40:1/112` 返回 `BAD_CIDR`。
+- **排查**：`netip.ParsePrefix` 对该字符串**实际可解析**（Go 不拒绝非规范主机位），故错误只可能来自"传入串与显示串不同"。逐变体验证后确认：**不可见空白**（尾随空格/换行/全角冒号）会使解析失败，而错误信息中的尾随空格肉眼不可见——与用户所见完全吻合。前端表单直接透传输入、后端也未 trim。
+- **修复**：新增 `normalizeCIDR`（去首尾空白 + `Masked()` 掩码为规范网络地址），`Create` 归一化后落库；`validateSubnet` 解析前 `TrimSpace` 防御。归一化后 `...:40:1/112` 落库为 `...:40:0/112`，且重复判定因此更准（非规范写法也能命中 SUBNET_DUP）。
+- **连带修复**：`toGenSubnet` 用 `MustParse` 解析 UUID，在 dryRun 预览（ID 为空）与未选组织（OrgID 为空）时会 panic → 500；改为宽松 `parseUUID` 退化为零值 UUID。
+- **验证**：用户原值 dryRun 201 且归一化为 `...:40:0/112`；带尾随空格同样成功；`bad` 仍 BAD_CIDR(400)；族不匹配仍 FAMILY_MISMATCH(400)；真实创建落库规范值 + kea_subnet_id 分配成功（201 即代表 Kea 下发通过，失败会回滚）；验证用子网已删除、环境还原。单测新增归一化 6 例 + 非法 6 例 + 落库/去重；`go test ./internal/...` 11 包全绿、golangci-lint 0 issues。
 ## 2026-09-16 · 缺陷修复——登录后 /analytics 404 + 系统设置模块间距
 - **缺陷①（登录后 404）**：根因是 `app.defaultHomePath` 沿用上游 vben 默认值 `/analytics`（演示页），而本项目无该路由——根路径重定向与守卫回落均落到空路由；在 404 页刷新时守卫才用 `homePath` 纠正，故表现为「刷新才正常」。修复：按 vben 官方 override 机制在 `web/apps/web-ipam/src/preferences.ts` 覆盖 `defaultHomePath: '/overview'`（与后端 `/user/info` 的 homePath 同值）。已验证 `overrides` 优先级高于默认值与浏览器缓存（`merge({}, overrides, defaultPreferences)` 且缓存仅补齐缺失字段），故老浏览器同样生效。
 - **缺陷②（模块间距不统一）**：`ant Card` 自带 `margin-bottom: 12px`，与本页 flex `gap-4` 叠加，导致第一行后可见间距 28px（12+16）而第二行后 16px。修复：外层统一为 `flex flex-col gap-4` 纵向节奏 + 页面内 `:deep(.ant-card){margin-bottom:0}` 抵消。实测三行间距均 16px、第一行容器高度由 399 降至 387（死区消除）。
