@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-16 · 缺陷修复——登录后 /analytics 404 + 系统设置模块间距
+- **缺陷①（登录后 404）**：根因是 `app.defaultHomePath` 沿用上游 vben 默认值 `/analytics`（演示页），而本项目无该路由——根路径重定向与守卫回落均落到空路由；在 404 页刷新时守卫才用 `homePath` 纠正，故表现为「刷新才正常」。修复：按 vben 官方 override 机制在 `web/apps/web-ipam/src/preferences.ts` 覆盖 `defaultHomePath: '/overview'`（与后端 `/user/info` 的 homePath 同值）。已验证 `overrides` 优先级高于默认值与浏览器缓存（`merge({}, overrides, defaultPreferences)` 且缓存仅补齐缺失字段），故老浏览器同样生效。
+- **缺陷②（模块间距不统一）**：`ant Card` 自带 `margin-bottom: 12px`，与本页 flex `gap-4` 叠加，导致第一行后可见间距 28px（12+16）而第二行后 16px。修复：外层统一为 `flex flex-col gap-4` 纵向节奏 + 页面内 `:deep(.ant-card){margin-bottom:0}` 抵消。实测三行间距均 16px、第一行容器高度由 399 降至 387（死区消除）。
+- **归档列表"没数据"说明**：该列表仅列**已导出**的按月 Parquet 归档，不含 ClickHouse 在线数据（在线数据在「日志存储概览」，二者不同层面）。已把空态改为说明原因 + 操作指引，并让概览的分区标签可点击直接填入导出月份。
+- **验证**：未登录访问 `/` → 登录页；登录后 / 已登录访问 `/` / 刷新 → 均落 `/#/overview`；三行间距 16/16px；UI 全流程（点标签→导出→列表出现归档）通过；控制台无错误；vue-tsc 0 error。
+- **遗留**：验证时导出了一份 2026-08 归档（3,932 行 / 60.2 KB）留在列表内，可按需删除。
 ## 2026-09-16 · M4-005 日志生命周期管理——可配置存储周期 + 按月 Parquet 归档
 - **需求**：系统设置中可配置日志存储周期（按天、默认 180、可改），并支持按月导出备份、下载、删除，实现自动滚动删除。
 - **实现**：迁移 0026（`log_settings` 策略单行表 + `log_archive` 归档元数据表）；spec 先行（7 个端点 + 5 个 schema）→ `make gen`；新增 `internal/module/logmanager/`（store 双实现 / ChAdmin / LogHandler 7 接口 / StartScheduler）；main.go 装配并启动调度；compose 增 `ch-exports` 卷；前端系统设置页新增「日志存储策略 / 日志存储概览 / 日志归档」三块。
