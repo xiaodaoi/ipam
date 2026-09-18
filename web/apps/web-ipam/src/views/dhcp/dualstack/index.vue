@@ -100,7 +100,7 @@ const [FormModal, formModalApi] = useVbenModal({ draggable: true, title: '双栈
 function openAdd() {
   // 不能先 cancelEdit()（其 close() 异步，会在 open() 后把 isOpen 置回 false）
   editingId.value = '';
-  form.value = { name: '', ipv4Cidr: '', ipv6Prefix: '', encoding: 'B', expr: '', dnsSync: true, graceHours: 24, matchScheme: 'auto' };
+  form.value = { name: '', ipv4Cidr: '', ipv6Prefix: '', encoding: 'B', expr: '{v4.hextet4}', dnsSync: true, graceHours: 24, matchScheme: 'auto' };
   formModalApi.setState({ title: '新建双栈绑定模板', confirmText: '创建模板' });
   formModalApi.open();
 }
@@ -113,7 +113,14 @@ function cancelEdit() {
   };
 }
 async function add() {
-  if (!form.value.name || !form.value.ipv4Cidr || !form.value.ipv6Prefix) return;
+  if (!form.value.name || !form.value.ipv4Cidr || !form.value.ipv6Prefix) {
+    message.warning('名称、IPv4 网段、IPv6 前缀均为必填');
+    return;
+  }
+  if (!EXPR_OPTIONS.some((o) => o.value === form.value.expr)) {
+    message.warning('请选择表达式');
+    return;
+  }
   if (editingId.value) {
     await updateDualstackTemplate(editingId.value, { ...form.value });
     message.success('模板已更新');
@@ -170,6 +177,17 @@ onMounted(loadAll);
 
 const ENC_TEXT: Record<string, string> = { B: 'B 型', A: 'A 型', CUSTOM: '自定义' };
 const EXAMPLE = '例：192.168.0.10 → 2407::192:168:0:10';
+
+// 仅列出后端 ApplyTemplate 已实现的两种；其余写法会报 unsupported expr（CUSTOM 待实现）
+const EXPR_OPTIONS = [
+  { value: '{v4.hextet4}', label: '{v4.hextet4}（B 型 · 十进制镜像，地址可读）' },
+  { value: '{v4.hex32}', label: '{v4.hex32}（A 型 · v4 压入末 32 位，紧凑）' },
+];
+
+function onExprChange(v: unknown) {
+  if (v === '{v4.hextet4}') form.value.encoding = 'B';
+  else if (v === '{v4.hex32}') form.value.encoding = 'A';
+}
 
 const SCHEME_TEXT: Record<DualstackMatchScheme, string> = {
   auto: '自动（优先级链）',
@@ -235,7 +253,13 @@ const SOURCE_TEXT: Record<string, string> = { admin: '人工', auto: '自动' };
       </div>
       <div>
         <div class="mb-1 text-xs text-gray-400">表达式</div>
-        <Input v-model:value="form.expr" style="width: 160px" placeholder="{v4.hextet4}" />
+        <Select
+          v-model:value="form.expr"
+          style="width: 320px"
+          :options="EXPR_OPTIONS"
+          placeholder="选择表达式"
+          @change="onExprChange"
+        />
       </div>
       <div>
         <div class="mb-1 text-xs text-gray-400">匹配方案</div>
