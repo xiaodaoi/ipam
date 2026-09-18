@@ -1,0 +1,420 @@
+== replay assertions on live stack ==
+-- [1]
+{"code":"TOKEN_MISSING","detail":"未携带有效访问令牌","instance":"/api/v1/system/info","status":401,"title":"Unauthorized","type":"https://ipam.local/problems/unauthorized"}
+-- [2]
+[ { "arguments": { "extended": "2.2.0\ntarball\nlinked with:\nlog4cplus 2.0.8\nOpenSSL 3.0.20 7 Apr 2026\ndatabase:\nMySQL backend 14.0, library 3.3.19\nPostgreSQL backend 13.0, library 150019\nMemfile backend 2.1" }, "result": 0, "text": "2.2.0" } ]
+-- [3]
+Error response from daemon: Container 1ad841f8ab6c48eb8bdca66a1896bc330537ad268855c9e3dc134709db5703de is restarting, wait until the container is running
+
+-- [4]
+Error response from daemon: Container 1ad841f8ab6c48eb8bdca66a1896bc330537ad268855c9e3dc134709db5703de is restarting, wait until the container is running
+
+-- [5] inject+dig
+Error response from daemon: Container 1ad841f8ab6c48eb8bdca66a1896bc330537ad268855c9e3dc134709db5703de is restarting, wait until the container is running
+Error response from daemon: Container 1ad841f8ab6c48eb8bdca66a1896bc330537ad268855c9e3dc134709db5703de is restarting, wait until the container is running
+-- [6] logs endpoint
+{"code":"TOKEN_MISSING","detail":"未携带有效访问令牌","instance":"/api/v1/logs","status":401,"title":"Unauthorized","type":"https://ipam.local/problems/unauthorized"}
+-- [7] logs table
+0
+
+== ps ==
+NAME                      IMAGE                                       COMMAND                  SERVICE            CREATED         STATUS                                    PORTS
+ipam-clickhouse-1         clickhouse/clickhouse-server:24.8-alpine    "/entrypoint.sh"         clickhouse         4 minutes ago   Up 4 minutes                              8123/tcp, 9009/tcp, 127.0.0.1:9000->9000/tcp
+ipam-coherence-daemon-1   ipam/coherence-daemon:0.1.0-dev             "/usr/local/bin/cohe…"   coherence-daemon   4 minutes ago   Up 4 minutes                              
+ipam-control-plane-1      ipam/control-plane:0.1.0-dev                "/usr/local/bin/cont…"   control-plane      4 minutes ago   Up 4 minutes                              0.0.0.0:8443->8443/tcp, [::]:8443->8443/tcp
+ipam-kea-ctrl-agent-1     ipam-kea-ctrl-agent                         "kea-ctrl-agent -c /…"   kea-ctrl-agent     4 minutes ago   Up 4 minutes                              127.0.0.1:8000->8000/tcp
+ipam-kea-dhcp4-1          ipam-kea-dhcp4                              "sh -c 'rm -f /run/i…"   kea-dhcp4          4 minutes ago   Up 4 minutes                              0.0.0.0:67->67/tcp, 0.0.0.0:67->67/udp, [::]:67->67/tcp, [::]:67->67/udp
+ipam-kea-dhcp6-1          ipam-kea-dhcp6                              "sh -c 'rm -f /run/i…"   kea-dhcp6          4 minutes ago   Restarting (1) Less than a second ago     
+ipam-postgresql-1         postgres:16-alpine                          "docker-entrypoint.s…"   postgresql         4 minutes ago   Up 4 minutes (healthy)                    127.0.0.1:5432->5432/tcp
+ipam-unbound-1            ipam/unbound:0.1.0-dev                      "sh -c 'unbound-chec…"   unbound            4 minutes ago   Restarting (1) 54 seconds ago             
+ipam-vector-1             ghcr.io/vectordotdev/vector:0.46.1-alpine   "/usr/local/bin/vect…"   vector             4 minutes ago   Restarting (255) Less than a second ago   
+
+== logs(tail) ==
+coherence-daemon-1  | 2026/09/18 03:52:56 loaded 0 bindings from PG
+kea-dhcp4-1         | 2026-09-18 03:52:50.666 INFO  [kea-dhcp4.dhcp4/1.139712322953728] DHCP4_STARTING Kea DHCPv4 server version 2.2.0 (stable) starting
+postgresql-1        | CREATE TABLE
+postgresql-1        | CREATE INDEX
+postgresql-1        | 
+unbound-1           | /etc/unbound/unbound.conf:43: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+unbound-1           | /etc/unbound/unbound.conf:43: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+unbound-1           | /etc/unbound/unbound.conf:43: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+vector-1            | exec /usr/local/bin/vector: exec format error
+vector-1            | exec /usr/local/bin/vector: exec format error
+kea-ctrl-agent-1    | 2026-09-18 03:52:50.926 INFO  [kea-ctrl-agent.dctl/1.139862669109120] DCTL_STARTING Control-agent starting, pid: 1, version: 2.2.0 (stable)
+kea-ctrl-agent-1    | 2026-09-18 03:52:50.927 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_HTTP_SERVICE_STARTED HTTP service bound to address 0.0.0.0:8000
+kea-ctrl-agent-1    | 2026-09-18 03:52:50.927 INFO  [kea-ctrl-agent.dctl/1.139862669109120] DCTL_CONFIG_COMPLETE server has completed configuration: listening on 0.0.0.0, port 8000, control sockets: dhcp4 dhcp6, 0 lib(s):
+kea-ctrl-agent-1    | 2026-09-18 03:52:50.927 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_STARTED Kea Control Agent version 2.2.0 started
+kea-ctrl-agent-1    | 2026-09-18 03:52:56.320 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease6-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:52:56.320 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease6-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:52:56.324 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease4-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:52:56.324 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:52:56.324 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_FORWARDED command lease4-get-all successfully forwarded to the service dhcp4 from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:52:56.327 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease4-get-all'
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+vector-1            | exec /usr/local/bin/vector: exec format error
+vector-1            | exec /usr/local/bin/vector: exec format error
+vector-1            | exec /usr/local/bin/vector: exec format error
+vector-1            | exec /usr/local/bin/vector: exec format error
+vector-1            | exec /usr/local/bin/vector: exec format error
+vector-1            | exec /usr/local/bin/vector: exec format error
+unbound-1           | /etc/unbound/unbound.conf:43: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+coherence-daemon-1  | 2026/09/18 03:52:56 loaded 0 templates from PG
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+coherence-daemon-1  | 2026/09/18 03:52:56 coherence-daemon listening on /run/ipam/coherence.sock (pg=true)
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0007_blocklist_idx.sql
+postgresql-1        | CREATE INDEX
+postgresql-1        | CREATE INDEX
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0008_settings.sql
+postgresql-1        | CREATE TABLE
+postgresql-1        | CREATE TABLE
+postgresql-1        | 
+postgresql-1        | 
+vector-1            | exec /usr/local/bin/vector: exec format error
+vector-1            | exec /usr/local/bin/vector: exec format error
+vector-1            | exec /usr/local/bin/vector: exec format error
+vector-1            | exec /usr/local/bin/vector: exec format error
+kea-dhcp6-1         | 2026-09-18 03:52:50.495 INFO  [kea-dhcp6.dhcp6/1.140270800929280] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-09-18 03:52:50.497 ERROR [kea-dhcp6.dhcp6/1.140270800929280] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-09-18 03:52:50.497 ERROR [kea-dhcp6.dhcp6/1.140270800929280] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+control-plane-1     | 2026/09/18 03:52:56 control-plane 0.1.0-dev listening on :8443
+control-plane-1     | 2026/09/18 03:52:56 [migrator] 存量库基线：≤0009 记为已应用（9 项）
+control-plane-1     | 2026/09/18 03:52:56 [migrator] applied 0010_users
+control-plane-1     | 2026/09/18 03:52:56 [migrator] applied 0011_dhcp_options
+control-plane-1     | 2026/09/18 03:52:56 [migrator] applied 0012_pd_pool_len
+control-plane-1     | 2026/09/18 03:52:56 [migrator] applied 0013_token_version
+control-plane-1     | 2026/09/18 03:52:56 [migrator] applied 0014_subnet_options
+kea-ctrl-agent-1    | 2026-09-18 03:52:56.327 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:52:56.330 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_FORWARDED command lease4-get-all successfully forwarded to the service dhcp4 from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:52:56.330 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease6-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:52:56.331 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease6-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:52:56.331 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'config-set'
+kea-ctrl-agent-1    | 2026-09-18 03:52:56.331 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command config-set received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:52:56.342 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_FORWARDED command config-set successfully forwarded to the service dhcp4 from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:52:56.346 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'config-write'
+kea-ctrl-agent-1    | 2026-09-18 03:52:56.346 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command config-write received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:52:56.347 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_FORWARDED command config-write successfully forwarded to the service dhcp4 from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:52:56.347 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'config-write'
+kea-ctrl-agent-1    | 2026-09-18 03:52:56.347 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command config-write received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:53:26.322 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease4-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:53:26.322 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:53:26.322 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_FORWARDED command lease4-get-all successfully forwarded to the service dhcp4 from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:53:26.322 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease6-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:53:26.323 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease6-get-all received from remote address 172.18.0.7
+clickhouse-1        | /entrypoint.sh: create new user 'ipam' instead 'default'
+coherence-daemon-1  | coherence: notify full reload: 0 bindings
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0009_operation_audit.sql
+vector-1            | exec /usr/local/bin/vector: exec format error
+vector-1            | exec /usr/local/bin/vector: exec format error
+kea-dhcp6-1         | 2026-09-18 03:52:50.848 INFO  [kea-dhcp6.dhcp6/1.140511330103808] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-09-18 03:52:50.850 ERROR [kea-dhcp6.dhcp6/1.140511330103808] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-09-18 03:52:50.850 ERROR [kea-dhcp6.dhcp6/1.140511330103808] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-09-18 03:52:51.264 INFO  [kea-dhcp6.dhcp6/1.140193621103104] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-09-18 03:52:51.270 ERROR [kea-dhcp6.dhcp6/1.140193621103104] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-09-18 03:52:51.270 ERROR [kea-dhcp6.dhcp6/1.140193621103104] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-09-18 03:52:51.819 INFO  [kea-dhcp6.dhcp6/1.140316274815488] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-09-18 03:52:51.820 ERROR [kea-dhcp6.dhcp6/1.140316274815488] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-09-18 03:52:51.820 ERROR [kea-dhcp6.dhcp6/1.140316274815488] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-09-18 03:52:52.752 INFO  [kea-dhcp6.dhcp6/1.140105759928832] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-09-18 03:52:52.754 ERROR [kea-dhcp6.dhcp6/1.140105759928832] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-09-18 03:52:52.754 ERROR [kea-dhcp6.dhcp6/1.140105759928832] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+unbound-1           | /etc/unbound/unbound.conf:43: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+unbound-1           | /etc/unbound/unbound.conf:43: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+unbound-1           | /etc/unbound/unbound.conf:43: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+unbound-1           | /etc/unbound/unbound.conf:43: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+unbound-1           | /etc/unbound/unbound.conf:43: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+unbound-1           | /etc/unbound/unbound.conf:43: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+unbound-1           | /etc/unbound/unbound.conf:43: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+clickhouse-1        | Processing configuration file '/etc/clickhouse-server/config.xml'.
+clickhouse-1        | Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.
+clickhouse-1        | Logging trace to /var/log/clickhouse-server/clickhouse-server.log
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+unbound-1           | /etc/unbound/unbound.conf:43: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+postgresql-1        | CREATE TABLE
+unbound-1           | /etc/unbound/unbound.conf:43: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+postgresql-1        | CREATE INDEX
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0010_users.sql
+postgresql-1        | CREATE TABLE
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0011_dhcp_options.sql
+postgresql-1        | CREATE TABLE
+postgresql-1        | CREATE TABLE
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0012_pd_pool_len.sql
+postgresql-1        | ALTER TABLE
+postgresql-1        | ALTER TABLE
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0013_token_version.sql
+postgresql-1        | ALTER TABLE
+postgresql-1        | 
+postgresql-1        | 
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0014_subnet_options.sql
+postgresql-1        | ALTER TABLE
+postgresql-1        | ALTER TABLE
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0015_token_blacklist.sql
+postgresql-1        | CREATE TABLE
+postgresql-1        | CREATE INDEX
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0016_roles.sql
+postgresql-1        | CREATE TABLE
+postgresql-1        | INSERT 0 4
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0017_webui_settings.sql
+postgresql-1        | CREATE TABLE
+postgresql-1        | INSERT 0 1
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0018_webui_settings_port.sql
+postgresql-1        | ALTER TABLE
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0019_reservation_ipv4_uniq.sql
+postgresql-1        | DELETE 0
+kea-ctrl-agent-1    | 2026-09-18 03:53:26.323 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease4-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:53:26.323 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:53:26.323 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_FORWARDED command lease4-get-all successfully forwarded to the service dhcp4 from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:53:26.324 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease6-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:53:26.324 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease6-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:53:56.318 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease4-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:53:56.318 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:53:56.318 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_FORWARDED command lease4-get-all successfully forwarded to the service dhcp4 from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:53:56.318 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease6-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:53:56.318 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease6-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:53:56.320 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease4-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:53:56.320 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:53:56.320 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_FORWARDED command lease4-get-all successfully forwarded to the service dhcp4 from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:53:56.320 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease6-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:53:56.321 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease6-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:54:26.318 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease4-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:54:26.318 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:54:26.318 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_FORWARDED command lease4-get-all successfully forwarded to the service dhcp4 from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:54:26.319 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease6-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:54:26.319 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease6-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:54:26.319 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease4-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:54:26.319 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:54:26.320 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_FORWARDED command lease4-get-all successfully forwarded to the service dhcp4 from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:54:26.320 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease6-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:54:26.320 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease6-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:54:56.318 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease4-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:54:56.318 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:54:56.319 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_FORWARDED command lease4-get-all successfully forwarded to the service dhcp4 from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:54:56.319 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease6-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:54:56.319 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease6-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:54:56.319 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease4-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:54:56.319 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:54:56.320 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_FORWARDED command lease4-get-all successfully forwarded to the service dhcp4 from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:54:56.320 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease6-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:54:56.320 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease6-get-all received from remote address 172.18.0.7
+clickhouse-1        | Logging errors to /var/log/clickhouse-server/clickhouse-server.err.log
+clickhouse-1        | 
+clickhouse-1        | /entrypoint.sh: create database 'ipam'
+control-plane-1     | 2026/09/18 03:52:56 [migrator] applied 0015_token_blacklist
+control-plane-1     | 2026/09/18 03:52:56 [migrator] applied 0016_roles
+control-plane-1     | 2026/09/18 03:52:56 [migrator] applied 0017_webui_settings
+control-plane-1     | 2026/09/18 03:52:56 [migrator] applied 0018_webui_settings_port
+control-plane-1     | 2026/09/18 03:52:56 [migrator] applied 0019_reservation_ipv4_uniq
+control-plane-1     | 2026/09/18 03:52:56 [migrator] applied 0020_org_sort_order
+control-plane-1     | 2026/09/18 03:52:56 [migrator] applied 0021_subnet_valid_lifetime
+control-plane-1     | 2026/09/18 03:52:56 [migrator] applied 0022_subnet_options
+control-plane-1     | 2026/09/18 03:52:56 [migrator] applied 0023_subnet_cidr_uniq
+control-plane-1     | 2026/09/18 03:52:56 [migrator] applied 0024_coherence_lease_meta
+control-plane-1     | 2026/09/18 03:52:56 [migrator] applied 0025_dualstack_match_scheme
+control-plane-1     | 2026/09/18 03:52:56 [migrator] applied 0026_log_lifecycle
+control-plane-1     | 2026/09/18 03:52:56 [lease6-sync] lease6-get-all failed: unable to forward command to the dhcp6 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/09/18 03:52:56 [dualstack-reconcile] lease6-get-all failed: unable to forward command to the dhcp6 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/09/18 03:52:56 [dhcp-apply] startup converge ok (attempt 1)
+control-plane-1     | 2026/09/18 03:52:56 [checkconf] 候选配置校验失败，已写 /tmp/ipam-checkconf-fail.conf：unbound-checkconf: error while loading shared libraries: libpython3.10.so.1.0: cannot open shared object file: No such file or directory
+control-plane-1     | 2026/09/18 03:52:56 [conf-apply] startup attempt 1 failed: checkconf: exit status 127: unbound-checkconf: error while loading shared libraries: libpython3.10.so.1.0: cannot open shared object file: No such file or directory
+control-plane-1     | 2026/09/18 03:53:01 [checkconf] 候选配置校验失败，已写 /tmp/ipam-checkconf-fail.conf：unbound-checkconf: error while loading shared libraries: libpython3.10.so.1.0: cannot open shared object file: No such file or directory
+control-plane-1     | 2026/09/18 03:53:01 [conf-apply] startup attempt 2 failed: checkconf: exit status 127: unbound-checkconf: error while loading shared libraries: libpython3.10.so.1.0: cannot open shared object file: No such file or directory
+control-plane-1     | 2026/09/18 03:53:06 [checkconf] 候选配置校验失败，已写 /tmp/ipam-checkconf-fail.conf：unbound-checkconf: error while loading shared libraries: libpython3.10.so.1.0: cannot open shared object file: No such file or directory
+control-plane-1     | 2026/09/18 03:53:06 [conf-apply] startup attempt 3 failed: checkconf: exit status 127: unbound-checkconf: error while loading shared libraries: libpython3.10.so.1.0: cannot open shared object file: No such file or directory
+control-plane-1     | 2026/09/18 03:53:11 [checkconf] 候选配置校验失败，已写 /tmp/ipam-checkconf-fail.conf：unbound-checkconf: error while loading shared libraries: libpython3.10.so.1.0: cannot open shared object file: No such file or directory
+control-plane-1     | 2026/09/18 03:53:11 [conf-apply] startup attempt 4 failed: checkconf: exit status 127: unbound-checkconf: error while loading shared libraries: libpython3.10.so.1.0: cannot open shared object file: No such file or directory
+control-plane-1     | 2026/09/18 03:53:16 [checkconf] 候选配置校验失败，已写 /tmp/ipam-checkconf-fail.conf：unbound-checkconf: error while loading shared libraries: libpython3.10.so.1.0: cannot open shared object file: No such file or directory
+control-plane-1     | 2026/09/18 03:53:16 [conf-apply] startup attempt 5 failed: checkconf: exit status 127: unbound-checkconf: error while loading shared libraries: libpython3.10.so.1.0: cannot open shared object file: No such file or directory
+control-plane-1     | 2026/09/18 03:53:21 [checkconf] 候选配置校验失败，已写 /tmp/ipam-checkconf-fail.conf：unbound-checkconf: error while loading shared libraries: libpython3.10.so.1.0: cannot open shared object file: No such file or directory
+control-plane-1     | 2026/09/18 03:53:21 [conf-apply] startup converge failed after retries: checkconf: exit status 127: unbound-checkconf: error while loading shared libraries: libpython3.10.so.1.0: cannot open shared object file: No such file or directory
+control-plane-1     | 2026/09/18 03:53:26 [lease6-sync] lease6-get-all failed: unable to forward command to the dhcp6 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/09/18 03:53:26 [dualstack-reconcile] lease6-get-all failed: unable to forward command to the dhcp6 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/09/18 03:53:56 [lease6-sync] lease6-get-all failed: unable to forward command to the dhcp6 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/09/18 03:53:56 [dualstack-reconcile] lease6-get-all failed: unable to forward command to the dhcp6 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/09/18 03:54:26 [lease6-sync] lease6-get-all failed: unable to forward command to the dhcp6 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/09/18 03:54:26 [dualstack-reconcile] lease6-get-all failed: unable to forward command to the dhcp6 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/09/18 03:54:56 [lease6-sync] lease6-get-all failed: unable to forward command to the dhcp6 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/09/18 03:54:56 [dualstack-reconcile] lease6-get-all failed: unable to forward command to the dhcp6 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/09/18 03:55:26 [lease6-sync] lease6-get-all failed: unable to forward command to the dhcp6 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/09/18 03:55:26 [dualstack-reconcile] lease6-get-all failed: unable to forward command to the dhcp6 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/09/18 03:55:56 [lease6-sync] lease6-get-all failed: unable to forward command to the dhcp6 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/09/18 03:55:56 [dualstack-reconcile] lease6-get-all failed: unable to forward command to the dhcp6 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/09/18 03:56:26 [lease6-sync] lease6-get-all failed: unable to forward command to the dhcp6 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/09/18 03:56:26 [dualstack-reconcile] lease6-get-all failed: unable to forward command to the dhcp6 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/09/18 03:56:56 [lease6-sync] lease6-get-all failed: unable to forward command to the dhcp6 service: No such file or directory. The server is likely to be offline
+clickhouse-1        | /entrypoint.sh: running /docker-entrypoint-initdb.d/01_logs.sql
+clickhouse-1        | 
+clickhouse-1        | 
+clickhouse-1        | Processing configuration file '/etc/clickhouse-server/config.xml'.
+clickhouse-1        | Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.
+clickhouse-1        | Logging trace to /var/log/clickhouse-server/clickhouse-server.log
+clickhouse-1        | Logging errors to /var/log/clickhouse-server/clickhouse-server.err.log
+kea-ctrl-agent-1    | 2026-09-18 03:55:26.318 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease4-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:55:26.318 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:55:26.318 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_FORWARDED command lease4-get-all successfully forwarded to the service dhcp4 from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:55:26.318 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease6-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:55:26.318 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease6-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:55:26.319 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease4-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:55:26.319 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:55:26.319 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_FORWARDED command lease4-get-all successfully forwarded to the service dhcp4 from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:55:26.320 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease6-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:55:26.320 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease6-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:55:56.318 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease6-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:55:56.318 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease6-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:55:56.319 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease4-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:55:56.319 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.7
+control-plane-1     | 2026/09/18 03:56:56 [dualstack-reconcile] lease6-get-all failed: unable to forward command to the dhcp6 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/09/18 03:57:26 [lease6-sync] lease6-get-all failed: unable to forward command to the dhcp6 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/09/18 03:57:26 [dualstack-reconcile] lease6-get-all failed: unable to forward command to the dhcp6 service: No such file or directory. The server is likely to be offline
+kea-dhcp6-1         | 2026-09-18 03:52:54.470 INFO  [kea-dhcp6.dhcp6/1.140676745593344] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-09-18 03:52:54.471 ERROR [kea-dhcp6.dhcp6/1.140676745593344] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-09-18 03:52:54.471 ERROR [kea-dhcp6.dhcp6/1.140676745593344] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-ctrl-agent-1    | 2026-09-18 03:55:56.319 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_FORWARDED command lease4-get-all successfully forwarded to the service dhcp4 from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:55:56.319 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease4-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:55:56.319 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:55:56.320 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_FORWARDED command lease4-get-all successfully forwarded to the service dhcp4 from remote address 172.18.0.7
+kea-dhcp6-1         | 2026-09-18 03:52:57.809 INFO  [kea-dhcp6.dhcp6/1.139857237230080] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-09-18 03:52:57.811 ERROR [kea-dhcp6.dhcp6/1.139857237230080] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-09-18 03:52:57.811 ERROR [kea-dhcp6.dhcp6/1.139857237230080] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-09-18 03:53:04.336 INFO  [kea-dhcp6.dhcp6/1.139911461728768] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-09-18 03:53:04.337 ERROR [kea-dhcp6.dhcp6/1.139911461728768] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-09-18 03:53:04.337 ERROR [kea-dhcp6.dhcp6/1.139911461728768] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-09-18 03:53:17.255 INFO  [kea-dhcp6.dhcp6/1.139735960461824] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-09-18 03:53:17.257 ERROR [kea-dhcp6.dhcp6/1.139735960461824] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-09-18 03:53:17.257 ERROR [kea-dhcp6.dhcp6/1.139735960461824] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-09-18 03:53:42.971 INFO  [kea-dhcp6.dhcp6/1.140325850583552] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-09-18 03:53:42.972 ERROR [kea-dhcp6.dhcp6/1.140325850583552] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-09-18 03:53:42.972 ERROR [kea-dhcp6.dhcp6/1.140325850583552] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-09-18 03:54:34.287 INFO  [kea-dhcp6.dhcp6/1.139756822561280] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-09-18 03:54:34.288 ERROR [kea-dhcp6.dhcp6/1.139756822561280] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-09-18 03:54:34.288 ERROR [kea-dhcp6.dhcp6/1.139756822561280] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-09-18 03:55:34.409 INFO  [kea-dhcp6.dhcp6/1.140077520056832] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-09-18 03:55:34.410 ERROR [kea-dhcp6.dhcp6/1.140077520056832] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-09-18 03:55:34.410 ERROR [kea-dhcp6.dhcp6/1.140077520056832] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-09-18 03:56:34.523 INFO  [kea-dhcp6.dhcp6/1.139839699198464] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-09-18 03:56:34.525 ERROR [kea-dhcp6.dhcp6/1.139839699198464] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-09-18 03:56:34.525 ERROR [kea-dhcp6.dhcp6/1.139839699198464] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-09-18 03:57:34.638 INFO  [kea-dhcp6.dhcp6/1.140415327236608] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-09-18 03:57:34.640 ERROR [kea-dhcp6.dhcp6/1.140415327236608] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-09-18 03:57:34.640 ERROR [kea-dhcp6.dhcp6/1.140415327236608] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-ctrl-agent-1    | 2026-09-18 03:55:56.320 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease6-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:55:56.320 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease6-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:56:26.320 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease4-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:56:26.320 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:56:26.320 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_FORWARDED command lease4-get-all successfully forwarded to the service dhcp4 from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:56:26.321 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease6-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:56:26.321 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease6-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:56:26.321 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease4-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:56:26.321 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:56:26.322 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_FORWARDED command lease4-get-all successfully forwarded to the service dhcp4 from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:56:26.322 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease6-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:56:26.322 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease6-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:56:56.318 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease4-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:56:56.318 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:56:56.318 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_FORWARDED command lease4-get-all successfully forwarded to the service dhcp4 from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:56:56.318 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease6-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:56:56.318 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease6-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:56:56.319 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease4-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:56:56.319 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:56:56.319 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_FORWARDED command lease4-get-all successfully forwarded to the service dhcp4 from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:56:56.320 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease6-get-all'
+postgresql-1        | CREATE INDEX
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0020_org_sort_order.sql
+postgresql-1        | ALTER TABLE
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0021_subnet_valid_lifetime.sql
+postgresql-1        | ALTER TABLE
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0022_subnet_options.sql
+postgresql-1        | CREATE TABLE
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0023_subnet_cidr_uniq.sql
+postgresql-1        | DELETE 0
+postgresql-1        | CREATE INDEX
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0024_coherence_lease_meta.sql
+postgresql-1        | ALTER TABLE
+postgresql-1        | ALTER TABLE
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0025_dualstack_match_scheme.sql
+postgresql-1        | ALTER TABLE
+postgresql-1        | DO
+postgresql-1        | CREATE TABLE
+postgresql-1        | CREATE INDEX
+postgresql-1        | CREATE TABLE
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0026_log_lifecycle.sql
+postgresql-1        | CREATE TABLE
+postgresql-1        | INSERT 0 1
+postgresql-1        | CREATE TABLE
+postgresql-1        | 
+postgresql-1        | 
+kea-ctrl-agent-1    | 2026-09-18 03:56:56.320 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease6-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:57:26.318 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease4-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:57:26.318 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:57:26.318 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_FORWARDED command lease4-get-all successfully forwarded to the service dhcp4 from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:57:26.319 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease6-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:57:26.319 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease6-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:57:26.319 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease4-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:57:26.319 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:57:26.320 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_FORWARDED command lease4-get-all successfully forwarded to the service dhcp4 from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:57:26.320 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'lease6-get-all'
+kea-ctrl-agent-1    | 2026-09-18 03:57:26.320 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command lease6-get-all received from remote address 172.18.0.7
+kea-ctrl-agent-1    | 2026-09-18 03:57:35.099 INFO  [kea-ctrl-agent.commands/1.139862669109120] COMMAND_RECEIVED Received command 'version-get'
+kea-ctrl-agent-1    | 2026-09-18 03:57:35.099 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_RECEIVED command version-get received from remote address 172.18.0.1
+kea-ctrl-agent-1    | 2026-09-18 03:57:35.100 INFO  [kea-ctrl-agent.ctrl-agent/1.139862669109120] CTRL_AGENT_COMMAND_FORWARDED command version-get successfully forwarded to the service dhcp4 from remote address 172.18.0.1
+postgresql-1        | waiting for server to shut down...2026-09-18 03:52:52.555 UTC [42] LOG:  received fast shutdown request
+postgresql-1        | .2026-09-18 03:52:52.556 UTC [42] LOG:  aborting any active transactions
+postgresql-1        | 2026-09-18 03:52:52.560 UTC [42] LOG:  background worker "logical replication launcher" (PID 48) exited with exit code 1
+postgresql-1        | 2026-09-18 03:52:52.560 UTC [43] LOG:  shutting down
+postgresql-1        | 2026-09-18 03:52:52.561 UTC [43] LOG:  checkpoint starting: shutdown immediate
+postgresql-1        | 2026-09-18 03:52:52.579 UTC [43] LOG:  checkpoint complete: wrote 985 buffers (6.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.015 s, sync=0.003 s, total=0.019 s; sync files=436, longest=0.001 s, average=0.001 s; distance=4934 kB, estimate=4934 kB; lsn=0/19C8938, redo lsn=0/19C8938
+postgresql-1        | 2026-09-18 03:52:52.586 UTC [42] LOG:  database system is shut down
+postgresql-1        |  done
+postgresql-1        | server stopped
+postgresql-1        | 
+postgresql-1        | PostgreSQL init process complete; ready for start up.
+postgresql-1        | 
+postgresql-1        | 2026-09-18 03:52:52.681 UTC [1] LOG:  starting PostgreSQL 16.15 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+postgresql-1        | 2026-09-18 03:52:52.681 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+postgresql-1        | 2026-09-18 03:52:52.681 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+postgresql-1        | 2026-09-18 03:52:52.682 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgresql-1        | 2026-09-18 03:52:52.685 UTC [110] LOG:  database system was shut down at 2026-09-18 03:52:52 UTC
+postgresql-1        | 2026-09-18 03:52:52.690 UTC [1] LOG:  database system is ready to accept connections
