@@ -88,7 +88,7 @@ const columns = [
   { title: 'IP', dataIndex: 'clientIp', width: 140 },
   { title: '应答码', dataIndex: 'rcode', width: 100 },
   { title: '应答IP', dataIndex: 'answerIp', width: 140 },
-  { title: '应答服务器', dataIndex: 'sip', width: 140 },
+  { title: '来源 IP', dataIndex: 'sip', width: 140 },
   { title: '动作', dataIndex: 'action', width: 120 },
 ];
 function fmtTs(v: string) {

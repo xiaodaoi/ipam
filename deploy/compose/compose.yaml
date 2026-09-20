@@ -143,6 +143,10 @@ services:
         max-size: "10m"
         max-file: "3"
     image: ipam/unbound:${IPAM_VERSION:-0.1.0-dev}
+    # hostNetwork：DNS 服务必须看到客户端真实源 IP。桥接网络为纯 IPv4，
+    # 客户端经 IPv6（如 2406::ff3）查询时 docker-proxy 会把源 NAT 成网桥网关
+    # （172.18.0.1），日志来源与按源限速/ACL 全部失真——与 kea-dhcp6 同理。
+    network_mode: host
     depends_on:
       coherence-daemon:
         condition: service_started
@@ -151,9 +155,6 @@ services:
       - ../../config/unbound:/etc/unbound:ro
       - ../../config/unbound:/etc/unbound-rendered:ro
       - unbound-logs:/var/log/unbound
-    ports:
-      - "${UNBOUND_PORT:-5353}:53/udp"
-      - "${UNBOUND_PORT:-5353}:53/tcp"
     restart: unless-stopped
 
   kea-dhcp4:

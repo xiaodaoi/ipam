@@ -324,8 +324,8 @@ func scanLogRow(rows chdriver.Rows) (LogRow, error) {
 		return LogRow{}, err
 	}
 	r.Severity, r.ClientMAC = sev, mac
-	r.ClientIP, r.SIP = formatAddr(clientIP), formatAddr(sip)
-	r.Domain, r.Rcode, r.Action, r.Category, r.AnswerIP, r.Detail = dom, rc, act, cg, ai, dt
+	r.ClientIP, r.SIP, r.AnswerIP = formatAddr(clientIP), formatAddr(sip), formatAddr(ai)
+	r.Domain, r.Rcode, r.Action, r.Category, r.Detail = dom, rc, act, cg, dt
 	return r, nil
 }
 
