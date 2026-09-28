@@ -368,6 +368,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/public/branding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 站点品牌（免鉴权只读）
+         * @description 登录页在鉴权前也需展示站点名称/图标，故提供免鉴权只读端点。 仅返回展示字段（siteName/faviconUrl/logoUrl），不含 serverIp/serverPort 等部署信息。
+         */
+        get: operations["getPublicBranding"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/system/log-settings": {
         parameters: {
             query?: never;
@@ -2481,6 +2501,14 @@ export interface components {
             /** @description 监听端口（1-65535），重启后生效 */
             serverPort?: number;
         };
+        PublicBranding: {
+            /** @description 站点名称（登录页与浏览器标题） */
+            siteName: string;
+            /** @description 站点图标 URL */
+            faviconUrl?: string;
+            /** @description 侧栏 LOGO URL */
+            logoUrl?: string;
+        };
         LogSettings: {
             /** @description ClickHouse 日志保留天数（TTL，默认 180；到期分区自动滚动删除） */
             retentionDays: number;
@@ -3381,6 +3409,26 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    getPublicBranding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 站点品牌 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicBranding"];
+                };
             };
         };
     };
