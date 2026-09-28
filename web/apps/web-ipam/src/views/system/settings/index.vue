@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 
-import { updatePreferences } from '@vben/preferences';
-
 import { Button, Card, Input, InputNumber, Popconfirm, Switch, Upload, message } from 'ant-design-vue';
 
 import OrgManageCard from '#/components/org-manage-card.vue';
 
 import { requestClient } from '#/api/request';
+import { applyBranding } from '#/utils/site-branding';
 import {
   deleteLogArchive,
   downloadLogArchive,
@@ -25,21 +24,7 @@ const saving = ref(false);
 
 // 侧栏 logo 渲染：preferences.logo 支持 URL（以 http/data 开头按图片渲染）
 function apply() {
-  if (form.siteName) document.title = form.siteName;
-  if (form.faviconUrl) {
-    let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
-    if (!link) {
-      link = document.createElement('link');
-      link.rel = 'icon';
-      document.head.appendChild(link);
-    }
-    link.href = form.faviconUrl;
-  }
-  // 同步侧栏：站点名称 + logo（页签/侧栏共用）
-  updatePreferences({
-    app: { name: form.siteName },
-    logo: { source: form.logoUrl },
-  });
+  applyBranding(form);
 }
 
 async function load() {
