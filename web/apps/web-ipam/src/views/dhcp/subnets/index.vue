@@ -419,7 +419,7 @@ const [Lease6Grid] = useVbenVxeGrid({ gridOptions: lease6GridOptions });
       <template v-if="familyTab === 'v4'">
         <SubnetGrid :table-data="v4Rows">
           <template #cidr="{ row }">
-            <a class="text-primary" @click="router.push(`/dhcp/ledger?cidr=${row.cidr}`)">{{ row.cidr }}</a>
+            <a class="text-primary" @click="router.push(`/dhcp/ledger/v4?cidr=${row.cidr}`)">{{ row.cidr }}</a>
           </template>
           <template #orgId="{ row }">
             {{ orgName(row.orgId) }}
@@ -452,7 +452,7 @@ const [Lease6Grid] = useVbenVxeGrid({ gridOptions: lease6GridOptions });
       <template v-else>
         <SubnetGrid :table-data="v6Rows">
           <template #cidr="{ row }">
-            <a class="text-primary" @click="router.push(`/dhcp/ledger?cidr=${row.cidr}`)">{{ row.cidr }}</a>
+            <a class="text-primary" @click="router.push(`/dhcp/ledger/v6?cidr=${row.cidr}`)">{{ row.cidr }}</a>
           </template>
           <template #orgId="{ row }">
             {{ orgName(row.orgId) }}

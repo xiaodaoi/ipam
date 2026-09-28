@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
 
 import { Card, Table, Tag } from 'ant-design-vue';
 
@@ -94,8 +95,15 @@ function kindText(p: Subnet): string {
   return '—';
 }
 
+const route = useRoute();
+
 onMounted(async () => {
   orgTree.value = await listOrgTree();
+  // 支持子网管理页 CIDR 点击跳转（?cidr=2406:440:3c16:4006::/64）
+  const want = route.query.cidr;
+  if (want) {
+    selectedCidr.value = String(want);
+  }
   await loadSubnets();
 });
 </script>

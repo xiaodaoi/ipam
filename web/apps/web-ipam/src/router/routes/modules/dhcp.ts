@@ -22,7 +22,8 @@ const routes: RouteRecordRaw[] = [
         name: 'DhcpLedger',
         path: '/dhcp/ledger',
         component: () => import('#/views/dhcp/ledger/parent.vue'),
-        redirect: '/dhcp/ledger/v4',
+        // 保留 query：子网管理页 CIDR 点击跳转带 ?cidr=...，静态 redirect 会丢弃它
+        redirect: (to) => ({ path: '/dhcp/ledger/v4', query: to.query }),
         meta: {
           icon: 'lucide:table',
           title: $t('page.dhcp.ledger'),
