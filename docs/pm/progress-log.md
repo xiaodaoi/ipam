@@ -3,6 +3,11 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-20 · M4-008 子网 CIDR 点击跳转台账错页修复
+- **现象**：子网管理页 IPv6 表格点 CIDR 落到 IPv4 台账。
+- **三个根因（叠加）**：① 两个表格的 CIDR 链接都硬编码 `/dhcp/ledger?cidr=...`，而父路由 `redirect: '/dhcp/ledger/v4'` → IPv6 一律进 v4；② 静态字符串 redirect **丢弃 query**，`?cidr=` 实际未生效（v4 也没预选，仅因落对页面未被发现）；③ `v6.vue` 未读取 `route.query.cidr`（`v4.vue` 有读）。
+- **修复**：v4/v6 表格分别显式跳 `/dhcp/ledger/v4|v6?cidr=...`；父路由 redirect 改函数式 `(to) => ({path, query: to.query})`；`v6.vue` 在 `loadSubnets()` 前按 query 预置 `selectedCidr`。
+- **验证**：点 `2406:440:3c16:4006:10:193:135:0/112` → `/#/dhcp/ledger/v6?cidr=...` 且该行高亮选中；点 `10.61.41.0/24` → `/#/dhcp/ledger/v4?cidr=10.61.41.0/24`；vue-tsc 0 error、控制台无错误。
 ## 2026-09-20 · M4-007 数据面网络模式统一 + 登录页品牌 + 双栈编码收敛
 - **① kea-dhcp4 改 hostNetwork**：与 kea-dhcp6/unbound 统一。桥接下客户端/中继经宿主 `10.61.40.50:67` 单播到达时由 docker-proxy 转发，源地址被 NAT 成网桥网关；hostNetwork 直接绑宿主 :67，保留真实源地址并避免 DHCPv4 广播在桥接网络的可见性问题。compose 去 `ports`、加 `IPAM_KEA4_IFACE`（默认 ens160）；静态 `kea-dhcp4.conf` 接口 `eth0→ens160`；`engine/kea` 的 `defaultBaseConfig` 改为按 `IPAM_KEA4_IFACE` 决定（与 v6 同构）。
 - **② 免鉴权公开品牌端点**：新增 `GET /public/branding`（仅 siteName/faviconUrl/logoUrl，**不含** serverIp/serverPort），RBAC 白名单放行；前端 `bootstrap` 启动即拉取应用——**登录页（鉴权前）**也显示站点名称/图标；移除 auth store 中冗余调用。spec 先行 → `make gen`。
