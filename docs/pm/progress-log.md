@@ -3,6 +3,11 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-20 · M4-007 数据面网络模式统一 + 登录页品牌 + 双栈编码收敛
+- **① kea-dhcp4 改 hostNetwork**：与 kea-dhcp6/unbound 统一。桥接下客户端/中继经宿主 `10.61.40.50:67` 单播到达时由 docker-proxy 转发，源地址被 NAT 成网桥网关；hostNetwork 直接绑宿主 :67，保留真实源地址并避免 DHCPv4 广播在桥接网络的可见性问题。compose 去 `ports`、加 `IPAM_KEA4_IFACE`（默认 ens160）；静态 `kea-dhcp4.conf` 接口 `eth0→ens160`；`engine/kea` 的 `defaultBaseConfig` 改为按 `IPAM_KEA4_IFACE` 决定（与 v6 同构）。
+- **② 免鉴权公开品牌端点**：新增 `GET /public/branding`（仅 siteName/faviconUrl/logoUrl，**不含** serverIp/serverPort），RBAC 白名单放行；前端 `bootstrap` 启动即拉取应用——**登录页（鉴权前）**也显示站点名称/图标；移除 auth store 中冗余调用。spec 先行 → `make gen`。
+- **③ 双栈「编码」下拉**：`['B','A','CUSTOM']`→`['B','A']`（后端仅实现 B/A，选中 CUSTOM 保存会报 unsupported expr）；`ENC_TEXT` 保留 CUSTOM 以兼容历史数据展示。
+- **验证**：kea4 `NetworkMode=host`、运行态 `interfaces-config=['ens160']`、`lease4-get-all` 返回既有租约（`10.61.40.20 / woker2026-vmware`）、`DHCP4_STARTING` 正常、docker-proxy 不再占 67；`/public/branding` 无 token 返回 200；登录页标题「登录 - DDI」、登录后「仪表盘 - DDI」；编码下拉 `["B 型","A 型"]`；go test 绿、vue-tsc 0 error、compose config 通过、控制台无错误。
 ## 2026-09-20 · M4-006 前端交互加固——删除二次确认 + 站点品牌持久化
 - **① 删除二次确认**：全站 14 处删除按钮统一包裹 `Popconfirm`（标题/描述/确认取消文案一致），覆盖 DHCP 模板·选项·分类·子网、DNS 上游·转发·记录·名单及条目、角色、用户、组织节点；组织节点原用原生 `window.confirm`，一并统一风格。
 - **② 站点名称刷新丢失（缺陷）**：根因是 vben `initPreferences` 用 `defu` 合并——`merge({}, initialPreferences, cachedPreferences)` 且 `initialPreferences = merge({}, overrides, defaultPreferences)` 含**全部默认键**，因此 localStorage 缓存在初始化时对任何已定义键都无效；站点名存于服务端 `webui_settings`，于是每次刷新被 `VITE_APP_TITLE`（`Vben Admin Antd`）覆盖。已用 `defu({}, initial, cached)` 实测确认首参优先。
