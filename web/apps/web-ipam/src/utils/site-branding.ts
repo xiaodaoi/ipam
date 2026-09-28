@@ -42,10 +42,11 @@ export function applyBranding(v: Partial<SiteBranding>): void {
   }
 }
 
-/** 拉取服务端站点设置并应用；失败静默（不阻塞启动/登录）。 */
+/** 拉取站点品牌并应用；失败静默（不阻塞启动）。
+ * 走免鉴权只读端点 /public/branding，故登录页（鉴权前）同样生效。 */
 export async function applySiteBranding(): Promise<null | SiteBranding> {
   try {
-    const v = await requestClient.get<SiteBranding>('/system/webui-settings');
+    const v = await requestClient.get<SiteBranding>('/public/branding');
     applyBranding(v);
     return v;
   } catch {

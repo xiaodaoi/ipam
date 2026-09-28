@@ -1,0 +1,15 @@
+PublicBranding:
+  get:
+    operationId: getPublicBranding
+    tags: [platform]
+    summary: 站点品牌（免鉴权只读）
+    description: >
+      登录页在鉴权前也需展示站点名称/图标，故提供免鉴权只读端点。
+      仅返回展示字段（siteName/faviconUrl/logoUrl），不含 serverIp/serverPort 等部署信息。
+    responses:
+      '200':
+        description: 站点品牌
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/public.yaml#/PublicBranding'

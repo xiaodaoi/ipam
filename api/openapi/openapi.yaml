@@ -72,6 +72,8 @@ paths:
     $ref: "./paths/webui.yaml#/WebuiSettingsCollection"
   /system/restart:
     $ref: "./paths/webui.yaml#/RestartControlPlane"
+  /public/branding:
+    $ref: "./paths/public.yaml#/PublicBranding"
   /system/log-settings:
     $ref: "./paths/logsettings.yaml#/LogSettingsCollection"
   /system/log-archives:

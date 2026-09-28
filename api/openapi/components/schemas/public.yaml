@@ -1,0 +1,16 @@
+PublicBranding:
+  type: object
+  required: [siteName]
+  properties:
+    siteName:
+      type: string
+      description: 站点名称（登录页与浏览器标题）
+      maxLength: 64
+    faviconUrl:
+      type: string
+      description: 站点图标 URL
+      maxLength: 200000
+    logoUrl:
+      type: string
+      description: 侧栏 LOGO URL
+      maxLength: 200000

@@ -10,6 +10,7 @@ import '@vben/styles/antd';
 import { useTitle } from '@vueuse/core';
 
 import { $t, setupI18n } from '#/locales';
+import { applySiteBranding } from '#/utils/site-branding';
 
 import { initComponentAdapter } from './adapter/component';
 import { initSetupVbenForm } from './adapter/form';
@@ -69,6 +70,9 @@ async function bootstrap(namespace: string) {
       useTitle(pageTitle);
     }
   });
+
+  // 站点品牌（浏览器标题/图标/侧栏 logo）：走免鉴权端点，登录页（鉴权前）亦生效
+  void applySiteBranding();
 
   app.mount('#app');
 }

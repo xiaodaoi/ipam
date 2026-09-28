@@ -151,6 +151,21 @@ func (h *WebuiHandler) UpdateWebuiSettings(c *gin.Context) {
 	h.respond(c, v)
 }
 
+// GetPublicBranding GET /public/branding——免鉴权只读（登录页在鉴权前需展示站点品牌）。
+// 仅暴露 siteName/faviconUrl/logoUrl，不含 serverIp/serverPort 等部署信息。
+func (h *WebuiHandler) GetPublicBranding(c *gin.Context) {
+	v, err := h.repo.Get(c.Request.Context())
+	if err != nil {
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, rtypes.PublicBranding{
+		SiteName:   v.SiteName,
+		FaviconUrl: &v.FaviconUrl,
+		LogoUrl:    &v.LogoUrl,
+	})
+}
+
 // RestartControlPlane POST /system/restart——优雅退出（容器 restart 策略自动拉起）。
 func (h *WebuiHandler) RestartControlPlane(c *gin.Context) {
 	c.Status(http.StatusNoContent)

@@ -86,8 +86,8 @@ func hasPerm(claims JWTClaims, need string, lookup func(ctx context.Context, rol
 
 func NewRBACMiddleware(users UserStore, bl *TokenBlacklist, permLookup func(ctx context.Context, role string) ([]string, bool)) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 登录/登出端点自身放行（无令牌前提）
-		if fp := c.FullPath(); fp == "/api/v1/auth/login" || fp == "/api/v1/auth/logout" {
+		// 登录/登出与公开品牌端点（登录页鉴权前展示站点名）自身放行
+		if fp := c.FullPath(); fp == "/api/v1/auth/login" || fp == "/api/v1/auth/logout" || fp == "/api/v1/public/branding" {
 			c.Next()
 			return
 		}
