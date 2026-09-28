@@ -249,7 +249,7 @@ const SOURCE_TEXT: Record<string, string> = { admin: '人工', auto: '自动' };
       <div>
         <div class="mb-1 text-xs text-gray-400">编码</div>
         <Select v-model:value="form.encoding" style="width: 100px"
-          :options="(['B', 'A', 'CUSTOM'] as const).map((v) => ({ value: v, label: ENC_TEXT[v] }))" />
+          :options="(['B', 'A'] as const).map((v) => ({ value: v, label: ENC_TEXT[v] }))" />
       </div>
       <div>
         <div class="mb-1 text-xs text-gray-400">表达式</div>
