@@ -80,8 +80,13 @@ func BuildConfig(subnets []ipam.Subnet) (Dhcp4Config, error) {
 }
 
 func defaultBaseConfig() map[string]any {
+	// DHCPv4 数据面接口名按部署环境配置（hostNetwork 模式下为宿主网卡名，如 ens160）
+	iface4 := os.Getenv("IPAM_KEA4_IFACE")
+	if iface4 == "" {
+		iface4 = "eth0"
+	}
 	return map[string]any{
-		"interfaces-config": map[string]any{"interfaces": []string{"eth0"}},
+		"interfaces-config": map[string]any{"interfaces": []string{iface4}},
 		"control-socket": map[string]any{
 			"socket-type": "unix",
 			"socket-name": "/run/ipam/kea4-ctrl.sock",

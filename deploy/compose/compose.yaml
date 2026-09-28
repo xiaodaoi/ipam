@@ -163,10 +163,12 @@ services:
       dockerfile: deploy/images/kea/Dockerfile
       args: { COMPONENT: kea-dhcp4-server }
     command: ["sh", "-c", "rm -f /run/ipam/kea4-ctrl.sock; mkdir -p /var/log/kea && exec kea-dhcp4 -c /etc/kea/kea-dhcp4.conf"]
-    # DHCP 中继/客户端经宿主地址(10.61.40.50:67)单播到达——必须映射 67 端口（M3-012 现场调试）
-    ports:
-      - "67:67/udp"
-      - "67:67/tcp"
+    # hostNetwork：与 kea-dhcp6/unbound 统一。桥接下客户端/中继经宿主 10.61.40.50:67 单播
+    # 到达时由 docker-proxy 转发，源地址被 NAT 成网桥网关；hostNetwork 直接绑宿主 :67，
+    # 既保留真实源地址，也避免 DHCPv4 广播在桥接网络中的可见性问题。
+    network_mode: host
+    environment:
+      IPAM_KEA4_IFACE: ${IPAM_KEA4_IFACE:-ens160}
     volumes:
       - ../../config/kea/kea-dhcp4.conf:/etc/kea/kea-dhcp4.conf:ro
       - ipam-run:/run/ipam
