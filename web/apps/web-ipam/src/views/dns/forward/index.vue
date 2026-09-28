@@ -6,7 +6,7 @@ import type { VxeGridProps } from '@vben/plugins/vxe-table';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 
-import { Button, Card, Input, Select, Switch, message } from 'ant-design-vue';
+import { Button, Card, Input, Popconfirm, Select, Switch, message } from 'ant-design-vue';
 
 import {
   createForwardRule,
@@ -136,7 +136,9 @@ onMounted(load);
       <template #op="{ row }">
         <div class="flex items-center gap-1">
           <Button size="small" @click="edit(row as ForwardRule)">编辑</Button>
-          <Button size="small" danger @click="remove(row.id)">删除</Button>
+          <Popconfirm title="确认删除该转发规则？" description="删除后不可恢复。" ok-text="删除" cancel-text="取消" @confirm="remove(row.id)">
+            <Button size="small" danger>删除</Button>
+          </Popconfirm>
         </div>
       </template>
     </FwdGrid>

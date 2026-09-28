@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 
-import { Button, Card, Checkbox, Input,  Tag, message } from 'ant-design-vue';
+import { Button, Card, Checkbox, Input, Popconfirm, Tag, message } from 'ant-design-vue';
 
 import { useVbenModal } from '@vben/common-ui';
 
@@ -131,7 +131,9 @@ onMounted(load);
       <template #op="{ row }">
         <div class="flex items-center gap-1">
           <Button size="small" @click="openEdit(row as RoleRow)">编辑</Button>
-          <Button v-if="!row.builtin" size="small" danger @click="remove(row as RoleRow)">删除</Button>
+          <Popconfirm v-if="!row.builtin" title="确认删除该角色？" description="删除后不可恢复。" ok-text="删除" cancel-text="取消" @confirm="remove(row as RoleRow)">
+            <Button size="small" danger>删除</Button>
+          </Popconfirm>
         </div>
       </template>
     </RoleGrid>

@@ -6,7 +6,7 @@ import type { VxeGridProps } from '@vben/plugins/vxe-table';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 
-import { Button, Card, Input, Select, Tag, message } from 'ant-design-vue';
+import { Button, Card, Input, Popconfirm, Select, Tag, message } from 'ant-design-vue';
 
 import {
   createUpstream,
@@ -133,7 +133,9 @@ const HEALTH_COLOR: Record<string, string> = { up: 'green', down: 'red', unknown
       <template #op="{ row }">
         <div class="flex items-center gap-1">
           <Button size="small" @click="edit(row as Upstream)">编辑</Button>
-          <Button size="small" danger @click="remove(row.id)">删除</Button>
+          <Popconfirm title="确认删除该上游？" description="删除后不可恢复。" ok-text="删除" cancel-text="取消" @confirm="remove(row.id)">
+            <Button size="small" danger>删除</Button>
+          </Popconfirm>
         </div>
       </template>
     </UpGrid>

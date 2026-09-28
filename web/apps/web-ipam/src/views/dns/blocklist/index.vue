@@ -6,7 +6,7 @@ import type { VxeGridProps } from '@vben/plugins/vxe-table';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 
-import { Button, Card, Input, Select,  Tag, message } from 'ant-design-vue';
+import { Button, Card, Input, Popconfirm, Select,  Tag, message } from 'ant-design-vue';
 
 import {
   addBlocklistEntry,
@@ -210,7 +210,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         <div class="flex items-center gap-1">
           <Button size="small" @click="openEntries(row as Blocklist)">条目</Button>
           <Button v-if="row.kind === 'feed'" size="small" @click="sync(row.id)">立即同步</Button>
-          <Button v-if="row.kind !== 'builtin'" size="small" danger @click="removeList(row.id)">删除</Button>
+          <Popconfirm title="确认删除该名单？" description="名单及其条目将一并删除，不可恢复。" ok-text="删除" cancel-text="取消" @confirm="removeList(row.id)">
+            <Button v-if="row.kind !== 'builtin'" size="small" danger>删除</Button>
+          </Popconfirm>
         </div>
       </template>
     </ListGrid>
@@ -247,7 +249,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
     <EntryGrid :table-data="entries">
       <template #op="{ row }">
         <div class="flex items-center gap-1">
-          <Button size="small" danger @click="removeEntry(row.listId, row.pattern)">删除</Button>
+          <Popconfirm title="确认删除该条目？" description="删除后不可恢复。" ok-text="删除" cancel-text="取消" @confirm="removeEntry(row.listId, row.pattern)">
+            <Button size="small" danger>删除</Button>
+          </Popconfirm>
         </div>
       </template>
     </EntryGrid>

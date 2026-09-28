@@ -16,6 +16,7 @@ import {
   InputNumber,
   Menu,
   message,
+  Popconfirm,
   RadioGroup,
   Select,
   Tag,
@@ -441,7 +442,9 @@ const [Lease6Grid] = useVbenVxeGrid({ gridOptions: lease6GridOptions });
           <template #op="{ row }">
             <div class="flex items-center gap-1">
               <Button size="small" @click="edit(row as Subnet)">编辑</Button>
-              <Button size="small" danger @click="remove(row.id)">删除</Button>
+              <Popconfirm title="确认删除该子网？" description="删除后不可恢复；已被租约/保留引用时会失败。" ok-text="删除" cancel-text="取消" @confirm="remove(row.id)">
+                <Button size="small" danger>删除</Button>
+              </Popconfirm>
             </div>
           </template>
         </SubnetGrid>
@@ -472,7 +475,9 @@ const [Lease6Grid] = useVbenVxeGrid({ gridOptions: lease6GridOptions });
           <template #op="{ row }">
             <div class="flex items-center gap-1">
               <Button size="small" @click="edit(row as Subnet)">编辑</Button>
-              <Button size="small" danger @click="remove(row.id)">删除</Button>
+              <Popconfirm title="确认删除该子网？" description="删除后不可恢复；已被租约/保留引用时会失败。" ok-text="删除" cancel-text="取消" @confirm="remove(row.id)">
+                <Button size="small" danger>删除</Button>
+              </Popconfirm>
             </div>
           </template>
         </SubnetGrid>

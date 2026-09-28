@@ -13,6 +13,7 @@ import {
   Card,
   Input,
   Modal,
+  Popconfirm,
   Select,
   Switch,
   Tag,
@@ -173,7 +174,9 @@ const isSelf = (username?: string) => !!myUsername && username === myUsername;
       <template #op="{ row }">
         <div class="flex items-center gap-1">
           <Button size="small" @click="reset = { id: row.id, open: true, password: '' }">重置口令</Button>
-          <Button size="small" danger :disabled="isSelf(row.username)" @click="remove(row.id)">删除</Button>
+          <Popconfirm title="确认删除该用户？" description="删除后不可恢复。" ok-text="删除" cancel-text="取消" @confirm="remove(row.id)">
+            <Button size="small" danger :disabled="isSelf(row.username)">删除</Button>
+          </Popconfirm>
         </div>
       </template>
     </UsrGrid>

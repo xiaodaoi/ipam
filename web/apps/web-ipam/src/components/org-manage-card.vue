@@ -4,7 +4,7 @@ import { useVbenModal } from '@vben/common-ui';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { Button, Card, Input, Tag, Tree, message } from 'ant-design-vue';
+import { Button, Card, Input, Popconfirm, Tag, Tree, message } from 'ant-design-vue';
 
 import {
   createOrg,
@@ -214,7 +214,6 @@ function rename() {
 }
 async function remove() {
   if (!selected.value) return;
-  if (!window.confirm(`删除「${selected.value.name}」？存在子节点/子网/资产引用时将被 409 拒绝。`)) return;
   try {
     await deleteOrg(selected.value.id);
     selected.value = undefined;
@@ -239,9 +238,17 @@ onMounted(() => load(false));
           <Button size="small" :disabled="!selected" @click="rename">
             <IconifyIcon icon="lucide:pencil" class="mr-1" />改名
           </Button>
-          <Button size="small" danger :disabled="!selected" @click="remove">
-            <IconifyIcon icon="lucide:trash-2" class="mr-1" />删除
-          </Button>
+          <Popconfirm
+            title="确认删除该组织？"
+            description="存在子节点/子网/资产引用时将被 409 拒绝；删除后不可恢复。"
+            ok-text="删除"
+            cancel-text="取消"
+            @confirm="remove"
+          >
+            <Button size="small" danger :disabled="!selected">
+              <IconifyIcon icon="lucide:trash-2" class="mr-1" />删除
+            </Button>
+          </Popconfirm>
         </div>
       </template>
 

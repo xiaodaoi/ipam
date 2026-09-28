@@ -12,6 +12,7 @@ import {
   Input,
   InputNumber,
   message,
+  Popconfirm,
   Switch,
   Tag,
 } from 'ant-design-vue';
@@ -230,7 +231,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         <template #op="{ row }">
           <div class="flex items-center gap-1">
             <Button size="small" @click="editOpt(row as DhcpOptionRow)">编辑</Button>
-            <Button size="small" danger @click="removeOption(row.id)">删除</Button>
+            <Popconfirm title="确认删除该选项？" description="删除后不可恢复。" ok-text="删除" cancel-text="取消" @confirm="removeOption(row.id)">
+              <Button size="small" danger>删除</Button>
+            </Popconfirm>
           </div>
         </template>
       </OptGrid>
@@ -275,7 +278,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         <template #op="{ row }">
           <div class="flex items-center gap-1">
             <Button size="small" @click="editCls(row as DhcpClassRow)">编辑</Button>
-            <Button size="small" danger @click="removeClass(row.id)">删除</Button>
+            <Popconfirm title="确认删除该分类？" description="删除后不可恢复。" ok-text="删除" cancel-text="取消" @confirm="removeClass(row.id)">
+              <Button size="small" danger>删除</Button>
+            </Popconfirm>
           </div>
         </template>
       </ClsGrid>

@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useVbenModal } from '@vben/common-ui';
 
-import { Button, Card, Input, Select, Switch, Table, Tag, Tooltip, message } from 'ant-design-vue';
+import { Button, Card, Input, Popconfirm, Select, Switch, Table, Tag, Tooltip, message } from 'ant-design-vue';
 
 const showTotal = (t: number) => `共 ${t} 条`;
 
@@ -304,7 +304,9 @@ const SOURCE_TEXT: Record<string, string> = { admin: '人工', auto: '自动' };
             <template v-else-if="column.dataIndex === 'op'">
               <div class="flex items-center gap-1">
                 <Button size="small" @click="edit(record as DualstackTemplate)">编辑</Button>
-                <Button size="small" danger @click="remove(record.id)">删除</Button>
+                <Popconfirm title="确认删除该模板？" description="删除后不可恢复。" ok-text="删除" cancel-text="取消" @confirm="remove(record.id)">
+                  <Button size="small" danger>删除</Button>
+                </Popconfirm>
               </div>
             </template>
           </template>
@@ -336,7 +338,9 @@ const SOURCE_TEXT: Record<string, string> = { admin: '人工', auto: '自动' };
           {{ record.note || '-' }}
         </template>
         <template v-else-if="column.dataIndex === 'op'">
-          <Button size="small" danger @click="removeIdentity(record.mac)">删除</Button>
+          <Popconfirm title="确认删除该映射？" description="删除后不可恢复。" ok-text="删除" cancel-text="取消" @confirm="removeIdentity(record.mac)">
+            <Button size="small" danger>删除</Button>
+          </Popconfirm>
         </template>
       </template>
     </Table>

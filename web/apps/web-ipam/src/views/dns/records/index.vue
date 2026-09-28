@@ -13,6 +13,7 @@ import {
   Input,
   InputNumber,
   Modal,
+  Popconfirm,
   Select,
   RadioGroup,
   Switch,
@@ -355,7 +356,9 @@ const [LinkGrid] = useVbenVxeGrid({ gridOptions: linkedGridOptions });
             <template #op="{ row }">
               <div class="flex items-center gap-1">
                 <Button size="small" @click="openEditRecord(row as DnsRecord)">编辑</Button>
-                <Button size="small" danger @click="removeRecord(row as DnsRecord)">删除</Button>
+                <Popconfirm title="确认删除该解析记录？" description="删除后不可恢复。" ok-text="删除" cancel-text="取消" @confirm="removeRecord(row as DnsRecord)">
+                  <Button size="small" danger>删除</Button>
+                </Popconfirm>
               </div>
             </template>
           </RecGrid>
