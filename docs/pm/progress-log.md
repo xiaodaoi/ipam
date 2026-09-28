@@ -3,6 +3,11 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-09-20 · M4-006 前端交互加固——删除二次确认 + 站点品牌持久化
+- **① 删除二次确认**：全站 14 处删除按钮统一包裹 `Popconfirm`（标题/描述/确认取消文案一致），覆盖 DHCP 模板·选项·分类·子网、DNS 上游·转发·记录·名单及条目、角色、用户、组织节点；组织节点原用原生 `window.confirm`，一并统一风格。
+- **② 站点名称刷新丢失（缺陷）**：根因是 vben `initPreferences` 用 `defu` 合并——`merge({}, initialPreferences, cachedPreferences)` 且 `initialPreferences = merge({}, overrides, defaultPreferences)` 含**全部默认键**，因此 localStorage 缓存在初始化时对任何已定义键都无效；站点名存于服务端 `webui_settings`，于是每次刷新被 `VITE_APP_TITLE`（`Vben Admin Antd`）覆盖。已用 `defu({}, initial, cached)` 实测确认首参优先。
+- **修复**：新增 `web/apps/web-ipam/src/utils/site-branding.ts`（`applyBranding`/`applySiteBranding`），在 `store/auth.ts` 的 `fetchUserInfo()`（登录 + 守卫每次页面加载都会调用）后拉取 `/system/webui-settings` 并运行时应用；标题由 bootstrap 的 `watchEffect` 从 `preferences.app.name` 响应式联动。设置页改用同一助手（去重）。
+- **验证**（真实浏览器，服务端站点名 `DDI`）：登录后 / 硬刷新 / F5 刷新标题均为「仪表盘 - DDI」、侧栏 `DDI`；组织、双栈模板、DHCP 选项三处点删除均弹出确认框且**取消后行数不变**；vue-tsc 0 error、控制台无错误。
 ## 2026-09-20 · 缺陷修复——日志中心 DNS 来源/应答地址失真
 - **现象**：日志中心「应答服务器」列出现 `172.18.0.1`（应为 10.x 客户端）；「应答IP」列显示 `::ffff:10.201.34.120` 类映射形式。
 - **根因①（172.18.0.1）**：客户端按 IPv6 DNS（`2406:440:3c16:4005:10:61:40:ff3:53`）查询，而 unbound 容器在**纯 IPv4 桥接网络**上经 docker-proxy 发布端口——IPv6 无法走内核 DNAT，由 userland proxy 接管后从网桥内侧连容器，**源地址被 NAT 成网桥网关 172.18.0.1**；v4 查询走内核 DNAT 源保留（10.60.226.x 正常）。
