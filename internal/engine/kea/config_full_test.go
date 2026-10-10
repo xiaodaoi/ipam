@@ -158,4 +158,44 @@ func TestBuildConfig6_子网级dnsServers(t *testing.T) {
 	}
 }
 
+func TestBuildConfig_日志轮转与LFC(t *testing.T) {
+	// M5-032：生成配置须带 logger 轮转上限（maxsize 10MB/maxver 5）与显式 lfc-interval 300
+	cfg, err := BuildConfig(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(cfg.Dhcp4)
+	s := string(b)
+	for _, want := range []string{`"lfc-interval":300`, `"maxsize":10485760`, `"maxver":5`, `/var/log/kea/kea-dhcp4.log`} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("生成配置缺少 %s: %s", want, s)
+		}
+	}
+}
+
+func TestBuildConfig_权威应答(t *testing.T) {
+	cfg, err := BuildConfig(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(cfg.Dhcp4)
+	if !strings.Contains(string(b), `"authoritative":true`) {
+		t.Fatalf("生成配置须渲染 authoritative=true: %s", b)
+	}
+}
+
+func TestBuildConfig6_日志轮转与LFC(t *testing.T) {
+	cfg, err := BuildConfig6(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(cfg.Dhcp6)
+	s := string(b)
+	for _, want := range []string{`"lfc-interval":300`, `"maxsize":10485760`, `"maxver":5`, `/var/log/kea/kea-dhcp6.log`} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("生成配置缺少 %s: %s", want, s)
+		}
+	}
+}
+
 func ipamInt(v int) *int { return &v }

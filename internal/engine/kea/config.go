@@ -91,8 +91,11 @@ func defaultBaseConfig() map[string]any {
 			"socket-type": "unix",
 			"socket-name": "/run/ipam/kea4-ctrl.sock",
 		},
-		"lease-database": map[string]any{"type": "memfile"},
+		// lfc-interval 300s（M5-032）：显式 LFC 周期压缩 memfile，防租约 CSV 无界增长
+		"lease-database": map[string]any{"type": "memfile", "lfc-interval": 300},
 		"valid-lifetime": 3600,
+		// authoritative=true（M2-046）：无租约 INIT-REBOOT 回 NAK 令客户端重入 DISCOVER，而非静默丢弃卡死
+		"authoritative": true,
 		// lease_cmds hook：lease4-get-all 依赖（coherence 轮询/台账在线判定数据源，M3-012）
 		"hooks-libraries": []map[string]any{
 			{"library": "/usr/lib/x86_64-linux-gnu/kea/hooks/libdhcp_lease_cmds.so"},
@@ -102,8 +105,13 @@ func defaultBaseConfig() map[string]any {
 				"name":     "kea-dhcp4",
 				"severity": "INFO",
 				"output_options": []any{
-					// 日志落文件供 vector 采集（stdout 仅进 docker logs，日志中心不可见）
-					map[string]any{"output": "/var/log/kea/kea-dhcp4.log"},
+					// 日志落文件供 vector 采集（stdout 仅进 docker logs，日志中心不可见）；
+					// maxsize/maxver（M5-032）：Kea 内建轮转（rename+同路径重建，采集路径稳定），防卷打满
+					map[string]any{
+						"output":  "/var/log/kea/kea-dhcp4.log",
+						"maxsize": 10485760,
+						"maxver":  5,
+					},
 				},
 			},
 		},
@@ -196,13 +204,18 @@ func BuildConfig6(subnets []ipam.Subnet) (Dhcp6Config, error) {
 			{"library": "/usr/lib/x86_64-linux-gnu/kea/hooks/libdhcp_lease_cmds.so"},
 		},
 		"valid-lifetime": 3600,
-		"lease-database": map[string]any{"type": "memfile"},
+		// lfc-interval/maxsize/maxver 同 v4（M5-032）
+		"lease-database": map[string]any{"type": "memfile", "lfc-interval": 300},
 		"loggers": []any{
 			map[string]any{
 				"name":     "kea-dhcp6",
 				"severity": "INFO",
 				"output_options": []any{
-					map[string]any{"output": "/var/log/kea/kea-dhcp6.log"},
+					map[string]any{
+						"output":  "/var/log/kea/kea-dhcp6.log",
+						"maxsize": 10485760,
+						"maxver":  5,
+					},
 				},
 			},
 		},
