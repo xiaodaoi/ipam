@@ -9,6 +9,22 @@ export interface SiteBranding {
 }
 
 /**
+ * 站点名单字图标（SVG data URI）。
+ *
+ * vben 折叠侧栏只渲染 logo 图片（文本被 `v-if="!collapsed"` 隐藏），未上传 logo 时
+ * 该区域会彻底空白；以站点名首字生成占位图标，折叠态即可见（如「DDI」→「D」）。
+ */
+export function monogramLogo(text: string): string {
+  const ch = Array.from(text.trim())[0] ?? '?';
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">' +
+    '<rect width="64" height="64" rx="14" fill="#1677ff"/>' +
+    `<text x="32" y="44" font-family="-apple-system,'Segoe UI',Roboto,sans-serif" font-size="38" font-weight="600" fill="#ffffff" text-anchor="middle">${ch}</text>` +
+    '</svg>';
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+/**
  * 应用站点品牌（浏览器标题 / 页签图标 / 侧栏 logo）。
  *
  * 必须运行时重新应用：vben 的 preferences 初始化用 defu（首参优先），
@@ -18,24 +34,27 @@ export interface SiteBranding {
  * 只需更新 preferences 即可联动。
  */
 export function applyBranding(v: Partial<SiteBranding>): void {
+  const mark = v.siteName ? monogramLogo(v.siteName) : '';
   if (v.siteName) {
     document.title = v.siteName;
   }
-  if (v.faviconUrl) {
+  const favicon = v.faviconUrl || mark;
+  if (favicon) {
     let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
     if (!link) {
       link = document.createElement('link');
       link.rel = 'icon';
       document.head.appendChild(link);
     }
-    link.href = v.faviconUrl;
+    link.href = favicon;
   }
   const next: { app?: { name: string }; logo?: { source: string } } = {};
   if (v.siteName) {
     next.app = { name: v.siteName };
   }
-  if (v.logoUrl !== undefined) {
-    next.logo = { source: v.logoUrl };
+  const logoSource = v.logoUrl || mark;
+  if (logoSource) {
+    next.logo = { source: logoSource };
   }
   if (Object.keys(next).length > 0) {
     updatePreferences(next);

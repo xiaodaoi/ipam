@@ -53,6 +53,7 @@ services:
       IPAM_CH_USER: ${CLICKHOUSE_USER:-ipam}
       IPAM_CH_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
       IPAM_KEA_API: "http://kea-ctrl-agent:8000"
+      IPAM_KEA4_IFACE: ${IPAM_KEA4_IFACE:-ens160}  # DHCPv4 数据面接口（hostNetwork 下为宿主网卡名；config-set 渲染读取）
       IPAM_KEA6_IFACE: ${IPAM_KEA6_IFACE:-ens160}  # DHCPv6 数据面接口（hostNetwork 下为宿主网卡名）
       IPAM_KEA6_UNICAST: ${IPAM_KEA6_UNICAST:-}  # 中继单播目标全局地址；kea 以 接口/地址 形式绑定
       IPAM_MIGRATIONS_DIR: "/srv/migrations"
