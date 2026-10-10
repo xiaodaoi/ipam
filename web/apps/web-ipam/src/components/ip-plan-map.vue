@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // IpPlanMap.vue —— 由 tmp/ip-plan-map/IpPlanMap.jsx（React+antd5）移植的 IP 规划「地址地图」组件
 // 功能：图形化地址地图（一格一 IP）/状态着色/叠加角标/选择/批量操作/编辑弹窗/详情抽屉/网段切换
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -16,6 +16,7 @@ import {
   Input,
   message,
   Modal,
+  Pagination,
   Select,
   Space,
   Tag,
@@ -93,6 +94,7 @@ const OVERLAY_STATUS: Record<string, { label: string; color: string }> = {
 };
 const STATUS_DISABLED = ['network', 'broadcast'];
 const MAX_CELLS = 2048;
+const PAGE_SIZE = 256;
 
 function makeDefaultIps(cidr: string): IpCell[] {
   const { network, broadcast } = parseCidr(cidr);
@@ -116,6 +118,14 @@ function makeDefaultIps(cidr: string): IpCell[] {
 const currentCidr = computed(() => props.cidr || '10.59.193.0/24');
 const internalIps = ref<IpCell[]>(makeDefaultIps(currentCidr.value));
 const ipList = computed<IpCell[]>(() => props.ips ?? internalIps.value);
+
+// ── 分页（每页一个 /24，256 格；选择/统计始终基于完整 ipList）──
+const page = ref(1);
+const pagedIps = computed<IpCell[]>(() =>
+  ipList.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE),
+);
+watch(currentCidr, () => { page.value = 1; });
+
 const selected = ref<string[]>([]);
 const selectedSet = computed(() => new Set(selected.value));
 const lastClickHost = ref<number | null>(null);
@@ -176,6 +186,7 @@ function changeSubnet(next: string | number | undefined) {
   emit('subnetChange', cidr);
   selected.value = [];
   lastClickHost.value = null;
+  page.value = 1;
 }
 function prevSubnet() {
   const subs = props.subnets || [];
@@ -347,7 +358,7 @@ onMounted(() => {
       <!-- 地址地图 -->
       <div class="ip-grid">
         <Tooltip
-          v-for="ipObj in ipList"
+          v-for="ipObj in pagedIps"
           :key="ipObj.ip"
           :mouse-enter-delay="0.2"
           placement="top"
@@ -384,6 +395,20 @@ onMounted(() => {
             />
           </div>
         </Tooltip>
+      </div>
+
+      <!-- 分页（超过一个 /24 时显示，右下角） -->
+      <div v-if="ipList.length > PAGE_SIZE" style="display: flex; justify-content: flex-end; margin-top: 12px">
+        <Pagination
+          v-if="ipList.length > PAGE_SIZE"
+          :current="page"
+          :page-size="PAGE_SIZE"
+          :total="ipList.length"
+          :show-size-changer="false"
+          show-quick-jumper
+          size="small"
+          @change="(p: number) => { page = p }"
+        />
       </div>
 
       <!-- 底部提示 -->
