@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/xiaodaoi/ipam/internal/module/ipam"
 )
@@ -71,6 +72,21 @@ func TestCtrlAgent_HTTP错误(t *testing.T) {
 
 // RemoveSubnet 已随 Kea 2.2 无 subnet4-del 命令一并移除（M3-012）——
 // 删除语义由 SubnetService.Delete 的全量 config-set 收敛承担。
+
+func TestNewCtrlAgent_传输层连接卫生(t *testing.T) {
+	// M5-032：IdleConnTimeout ≤60s 且 MaxIdleConnsPerHost 有界，防长运行期空闲连接堆积耗尽 fd
+	c := NewCtrlAgent("http://127.0.0.1:1")
+	tr, ok := c.hc.Transport.(*http.Transport)
+	if !ok {
+		t.Fatal("transport 应为 *http.Transport")
+	}
+	if tr.IdleConnTimeout <= 0 || tr.IdleConnTimeout > 60*time.Second {
+		t.Fatalf("IdleConnTimeout 应在 (0,60s]: %v", tr.IdleConnTimeout)
+	}
+	if tr.MaxIdleConnsPerHost <= 0 {
+		t.Fatal("MaxIdleConnsPerHost 应有界")
+	}
+}
 
 func TestCtrlAgent_空结果容忍(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

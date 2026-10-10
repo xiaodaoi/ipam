@@ -68,6 +68,8 @@ paths:
     $ref: './paths/auth.yaml#/AuthCodes'
   /auth/logout:
     $ref: './paths/auth.yaml#/AuthLogout'
+  /auth/refresh:
+    $ref: './paths/auth.yaml#/AuthRefresh'
   /system/webui-settings:
     $ref: "./paths/webui.yaml#/WebuiSettingsCollection"
   /system/restart:

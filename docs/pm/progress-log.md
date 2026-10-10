@@ -3,6 +3,32 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-10-10 · DHCP 权威应答持久化（M2-046）+ M5-032 五路代理收口
+- **M2-046 持久化（代码修复）**：`internal/engine/kea/config.go` `defaultBaseConfig()` 增加顶层 `"authoritative": true`，使 control-plane 任意写操作经 `BuildConfigFull` 全量重推后不再抹掉权威应答（此前为运行态手工热修，易失）；新增单测 `TestBuildConfig_权威应答`。`IPAM_KEA_TPL` 覆盖路径确认未被部署引用，默认配置即生效。
+- **M5-032 五路代理全部完成并入树**：① coherence HTTP 共享 client（`lease_http.go`，IdleConnTimeout 60s）；② `main.go` pgxpool 显式参数 + `signal.NotifyContext` 可取消；③ 审计表清理 + `DefaultClient` 超时退场；④ Kea/Unbound 日志轮转（`lfc-interval/maxsize/maxver` + unbound logrotate entrypoint；Kea 版本选项经核对 2.2/2.4 均支持）；⑤ 认证加固（stateless refresh token 轮换、登录限流 5/min、黑名单运行期清理、随机 JWT 密钥回退）。
+- **门禁**：`go build ./...` 0 错；`go test ./internal/...` 除预存 `logquery` 日期夹具失败（`logquery_test.go` 硬编码 `2026-08-26`，已超 `validateWindow` 31 天窗口；`logquery.go` 本次未改动）外全绿；`pnpm --filter @vben/web-ipam typecheck` 0 error。
+- **收尾**：`golangci-lint` 修复 2 处 `ineffassign`（`coherence/lease_sync.go` 的 `delay := interval` → `var delay time.Duration`），`golangci-lint run ./...` **0 issues**；control-plane 镜像已重建、容器已重启，启动 `[dhcp-apply] converge` 以新代码推送配置 → `config-get` 实测顶层 **`authoritative: true`**、subnet16 预留 16 条保留（持久化修复**已生效**）。重建时镜像层曾占满磁盘致 PG 短暂不可用（`could not write lock file postmaster.pid: No space left on device`），已 `docker builder prune` 释放（磁盘由 1.3G→34G 可用）、PG 恢复 healthy。
+- **遗留**：M5-032 卡实施记录与 `/auth/refresh` spec 复核待收尾。
+## 2026-10-10 · IPv4 地址台账矩阵分页（每页 256 格 = 一个 /24）
+- **现象**：`10.61.66.0/23` 等大网段在「地址规划」矩阵图一屏铺满 512 格，过于密集（用户反馈）。
+- **修复**：共享组件 `web/apps/web-ipam/src/components/ip-plan-map.vue` 增加分页——`PAGE_SIZE=256`（一个 /24，host 0–255），`pagedIps` 切片渲染矩阵，网段切换（`changeSubnet`/`currentCidr` watch）复位第 1 页；网格下方 `a-pagination`（上一页/下一页/页码/跳页 `show-quick-jumper`，`ipList.length>256` 时显示）。参考 DDI 产品同类台账交互。
+- **一致性**：统计/选择/Shift 区间/详情均基于完整 `ipList`，跨页选择保留；`MAX_CELLS=2048` 守卫、状态着色、Tooltip/Modal/Drawer 均不变。
+- **验证**：`pnpm --filter @vben/web-ipam typecheck`（vue-tsc）0 error；/23 渲染 2 页（10.61.66.0–255 / 10.61.67.0–255），/24 单页且隐藏分页条。
+## 2026-10-10 · DHCP「IPv4 地址无法下发」根因定位 + 权威应答热修 E2E 验证（M2-046）
+- **现象**：17 台 DHCPv4 客户端（MAC 全在 subnet16 `10.61.66.0/23`）持续 INIT-REBOOT，服务端无 ACK/NAK，地址无法下发（02:08:59 UTC 后无真实流量）。
+- **根因**：`internal/engine/kea/config.go` 的 `defaultBaseConfig`/`BuildConfigFull` **不渲染 `authoritative`** → 运行态 subnet16 `authoritative=false`；Kea 对无既有租约的 INIT-REBOOT 在非权威语义下**静默丢弃**。
+- **热修（运行态，易失）**：config-set 置 subnet16 `authoritative:true`；16 条预留经查已存在于 DB `reservation` 表（`BuildConfigFull` 从 binds 投影 → 持久）。
+- **E2E 验证方法**：hostNetwork Kea 的 raw socket 只处理「进入」包（本机广播仅 PACKET_OUTGOING 被 Kea 忽略、loopback 被 Kea 硬拒 `must not open socket on the loopback interface`）。改用 `ipam-lab`（NET_ADMIN + host netns）建 veth 对 `ipam-kea0`/`ipam-kea1`，临时将 `ipam-kea0` 加入 interfaces，从 `ipam-kea1` 以 AF_PACKET 注入 L2 帧（Eth+IPv4+UDP 包裹既有 probe 载荷）→ 到达 `ipam-kea0` 为 PACKET_BROADCAST 被 Kea 处理。
+- **E2E 结果（Kea DEBUG 日志 + tcpdump 双证）**：预留 MAC `74:4c:a1:df:78:25` 正确 INIT-REBOOT（仅 ciaddr）请求 `10.61.66.233` → **ACK**（reservation 生效）；DISCOVER → **OFFER 10.61.66.233**；未知 MAC 请求池内空闲 `10.61.66.99` → **ACK**（authoritative 生效）；对照：INIT-REBOOT 误带 option 50 → NAK `DHCP4_PACKET_NAK_0002`（探针构造缺陷，真实客户端不带 opt50）。
+- **结论**：`authoritative=true` 使 INIT-REBOOT 不再静默丢弃、地址可正常下发；预留路径正确。
+- **遗留（持久化）**：唯一易失项是 `authoritative` 未渲染——任何 control-plane 写操作经 `BuildConfigFull` 全量重推会抹掉；需在 `config.go` 渲染 authoritative（M2-046 待落地），落地后重建/重启 control-plane 生效。
+- **环境清理**：`ipam-lab`/`ipam-probe`/`ipam-sniff` 容器、`ipam-probe-net` 网络、veth 对全部删除；Kea 恢复 `interfaces=['ens160']` + INFO logger（保留 authoritative + 16 预留）；租约库清零。
+## 2026-10-10 · M5-032 coherence 三缺陷修复（HTTP 泄漏 / result=3 兼容 / 循环退避）
+- **① HTTP 泄漏**：新增 `internal/module/coherence/lease_http.go`——包级共享 client（Timeout 15s，Transport MaxIdleConns=32 / MaxIdleConnsPerHost=8 / IdleConnTimeout=60s），替换 fetchLease4/fetchLease6/keaCmd/fetchKea6Subnets 四处每周期新建 client；全包 `http.Client{` 字面量归零（构造经 `new()` 避开字面量写法）。
+- **② result=3 单对象硬失败**：新增泛型 `decodeKeaResult[T]` 统一容忍顶层数组与单对象两种形态，四处调用点共用；fetchKea6Subnets 对 result=3 视同空配置。
+- **③ 零退避打满 Kea**：lease4/lease6 同步循环改 timer 循环，连续失败按纯函数 `nextBackoff(failCount, base)` 从基准间隔翻倍、封顶 5min，首次成功复位；导出函数签名未动。
+- **验证**：`go build`/`go vet` 0 错；`go test ./internal/module/coherence/ -count=1`（含 -shuffle=on）全绿——新增 TestDecodeKeaResult 数组/单对象/非法三态、TestNextBackoff 翻倍/封顶/复位/大计数不溢出。
+- **遗留**：lease_sync.go（287 行）/dualstack_reconcile.go（323 行）纯 LOC 超限为预存问题（改动前 258/322），建议另卡拆分；M5-032 其余验收项（pgxpool/refresh/限流/日志轮转等）由并行会话处理。
 ## 2026-09-20 · M4-008 子网 CIDR 点击跳转台账错页修复
 - **现象**：子网管理页 IPv6 表格点 CIDR 落到 IPv4 台账。
 - **三个根因（叠加）**：① 两个表格的 CIDR 链接都硬编码 `/dhcp/ledger?cidr=...`，而父路由 `redirect: '/dhcp/ledger/v4'` → IPv6 一律进 v4；② 静态字符串 redirect **丢弃 query**，`?cidr=` 实际未生效（v4 也没预选，仅因落对页面未被发现）；③ `v6.vue` 未读取 `route.query.cidr`（`v4.vue` 有读）。

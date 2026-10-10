@@ -3,17 +3,64 @@ package logquery
 import (
 	"context"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // PgAuditStore PostgreSQL 实现（迁移 0009）。
-type PgAuditStore struct{ pool *pgxpool.Pool }
+type PgAuditStore struct {
+	pool *pgxpool.Pool
+	// lastCleanup 上次保留清理时刻（UnixNano，0=从未清理）；仅经 atomic 访问。
+	lastCleanup atomic.Int64
+}
+
+// 审计保留策略（M5-032）：与产品日志保留一致 180 天。惰性触发——Append 顺带检查，
+// 间隔满 1h 才执行一次 DELETE，无需 main.go 额外接线。
+const (
+	auditRetentionDays   = 180
+	auditCleanupInterval = time.Hour
+	auditCleanupTimeout  = 30 * time.Second
+)
+
+// auditCleanupSQL 删除保留期之外的审计行（走 idx_operation_audit_ts 索引范围扫描）。
+const auditCleanupSQL = `DELETE FROM operation_audit WHERE ts < $1`
 
 func NewPgAuditStore(pool *pgxpool.Pool) *PgAuditStore { return &PgAuditStore{pool: pool} }
+
+// auditCutoff 保留期截止时刻：ts 早于该时刻的行将被清理。
+func auditCutoff(now time.Time) time.Time { return now.AddDate(0, 0, -auditRetentionDays).UTC() }
+
+// auditCleanupDue 判断是否到达清理时点（last 零值表示从未清理，立即到期）。
+func auditCleanupDue(now, last time.Time) bool {
+	return last.IsZero() || now.Sub(last) >= auditCleanupInterval
+}
+
+// maybeCleanup 惰性保留清理：每 auditCleanupInterval 至多一次，并发 Append 只放行一个执行者；
+// 失败仅记日志，不影响审计写入路径。
+func (s *PgAuditStore) maybeCleanup(ctx context.Context) {
+	now := time.Now().UTC()
+	lastUnix := s.lastCleanup.Load()
+	var last time.Time
+	if lastUnix != 0 {
+		last = time.Unix(0, lastUnix).UTC()
+	}
+	if !auditCleanupDue(now, last) {
+		return
+	}
+	if !s.lastCleanup.CompareAndSwap(lastUnix, now.UnixNano()) {
+		return // 另一并发 Append 已接手本轮清理
+	}
+	cctx, cancel := context.WithTimeout(ctx, auditCleanupTimeout)
+	defer cancel()
+	if _, err := s.pool.Exec(cctx, auditCleanupSQL, auditCutoff(now)); err != nil {
+		log.Printf("logquery: audit retention cleanup: %v", err)
+	}
+}
 
 const auditCols = `id, extract(epoch from ts)*1000, actor_type, actor, token_sub,
   method, path, action, resource, status, detail`
@@ -30,8 +77,11 @@ func (s *PgAuditStore) Append(ctx context.Context, e AuditEntry) (AuditEntry, er
 		string(e.ActorType), actor, e.TokenSub,
 		e.Method, e.Path, e.Action, e.Resource, e.Status, e.Detail,
 	).Scan(&e.ID)
-	if err == nil && e.TS.IsZero() {
-		e.TS = time.Now().UTC()
+	if err == nil {
+		if e.TS.IsZero() {
+			e.TS = time.Now().UTC()
+		}
+		s.maybeCleanup(ctx)
 	}
 	return e, err
 }

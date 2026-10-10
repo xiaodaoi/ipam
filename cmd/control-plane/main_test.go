@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,7 +15,7 @@ func TestRoutesCoveredBySpec(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load embedded spec: %v", err)
 	}
-	r := newEngine("test")
+	r := newEngine("test", context.Background())
 	for _, ri := range r.Routes() {
 		if !strings.HasPrefix(ri.Path, "/api/v1/") {
 			continue
@@ -42,7 +43,7 @@ func normalizeToOpenAPIPath(p string) string {
 }
 
 func TestSPAIndexServed(t *testing.T) {
-	r := newEngine("test")
+	r := newEngine("test", context.Background())
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
 	if w.Code != http.StatusOK {
@@ -54,7 +55,7 @@ func TestSPAIndexServed(t *testing.T) {
 }
 
 func TestSPAFallbackDeepRoute(t *testing.T) {
-	r := newEngine("test")
+	r := newEngine("test", context.Background())
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/dashboard/analytics", nil))
 	if w.Code != http.StatusOK || !strings.Contains(w.Header().Get("Content-Type"), "text/html") {
@@ -63,7 +64,7 @@ func TestSPAFallbackDeepRoute(t *testing.T) {
 }
 
 func TestUnknownAPIRouteReturnsProblem(t *testing.T) {
-	r := newEngine("test")
+	r := newEngine("test", context.Background())
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/definitely-not-exist", nil))
 	if w.Code != http.StatusNotFound {

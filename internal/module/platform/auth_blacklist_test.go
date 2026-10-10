@@ -1,9 +1,26 @@
 package platform
 
 import (
+	"context"
 	"testing"
 	"time"
 )
+
+// Given purge 循环已启动，When ctx 取消，Then 循环及时退出（M5-032 协程生命周期）。
+func TestPurgeExpiredLoop_ctx取消即退出(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		purgeExpiredLoop(ctx, nil) // 首个 tick 为 1h 后，nil pool 不会被触及
+		close(done)
+	}()
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("ctx 取消后 purge 循环应退出")
+	}
+}
 
 func TestTokenBlacklist_语义(t *testing.T) {
 	bl := NewTokenBlacklist()

@@ -231,9 +231,9 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 登录颁发访问令牌（PoC 直通）
-         * @description 校验固定账号（admin / IPAM_POC_PASSWORD），签发 HMAC 形状 accessToken。
-         *     正式多用户/JWT/Bot Token 由 M5-002 替换（§12.3），响应结构保持兼容。
+         * 登录颁发访问/刷新令牌
+         * @description 校验账号口令（bcrypt），签发 HS256 JWT accessToken（24h）+ refreshToken（7d，M5-032）。
+         *     按客户端 IP 限流：5 次/分钟，超限返回 429（M5-032）。
          */
         post: operations["authLogin"];
         delete?: never;
@@ -315,9 +315,33 @@ export interface paths {
         put?: never;
         /**
          * 注销当前会话
-         * @description PoC 令牌为无状态签名，服务端无可撤销状态；端点仅作前端登出闭环。
+         * @description 吊销当前访问令牌 jti 入黑名单（至自然过期，M5-011）；
+         *     请求体携带 refreshToken 时一并吊销其 jti（M5-032：双令牌吊销）。
          */
         post: operations["logoutAuth"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 刷新访问令牌（轮换刷新令牌）
+         * @description 校验 refreshToken（签名/过期/kind=refresh/黑名单）后颁发新令牌对；
+         *     旧刷新令牌 jti 先入黑名单再签发（轮换防重放，M5-032）。
+         *     请求体缺省 refreshToken 时降级校验 Authorization Bearer 访问令牌
+         *     （签名有效 + 未吊销 + 过期后 7 天宽限窗口内）。
+         */
+        post: operations["authRefresh"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2208,8 +2232,10 @@ export interface components {
             pct: number;
         };
         AuthLoginResult: {
-            /** @description 访问令牌（PoC 为 HMAC-SHA256 签名 userId.exp，非标准 JWT） */
+            /** @description 访问令牌（HS256 JWT，24h TTL，M5-002） */
             accessToken: string;
+            /** @description 刷新令牌（HS256 JWT，kind=refresh，uid+jti+exp，7d TTL，M5-032） */
+            refreshToken: string;
         };
         AuthLoginRequest: {
             /** @description 账号（PoC 仅 admin） */
@@ -2481,6 +2507,23 @@ export interface components {
         };
         DhcpLease6List: {
             items: components["schemas"]["DhcpLease6"][];
+        };
+        AuthLogoutRequest: {
+            /** @description 随登出一并吊销的刷新令牌（M5-032：登出同时吊销访问/刷新双令牌 jti） */
+            refreshToken?: string;
+        };
+        AuthRefreshRequest: {
+            /**
+             * @description 刷新令牌（登录时颁发）。缺省/为空时降级校验 Authorization Bearer 访问令牌
+             *     （过期访问令牌在过期后 7 天宽限窗口内仍可换发，M5-032）。
+             */
+            refreshToken?: string;
+        };
+        AuthRefreshResult: {
+            /** @description 新访问令牌（24h TTL） */
+            accessToken: string;
+            /** @description 新刷新令牌（7d TTL；旧刷新令牌 jti 已轮换入黑名单） */
+            refreshToken: string;
         };
         WebuiSettings: {
             /** @description 站点名称（浏览器页签/侧栏显示） */
@@ -3247,7 +3290,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 令牌 */
+            /** @description 令牌对 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3258,6 +3301,15 @@ export interface operations {
             };
             /** @description 账号或口令错误 */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description 登录尝试过于频繁（每 IP 5 次/分钟） */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3337,7 +3389,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AuthLogoutRequest"];
+            };
+        };
         responses: {
             /** @description 已注销 */
             200: {
@@ -3346,6 +3402,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuthLogoutDone"];
+                };
+            };
+        };
+    };
+    authRefresh: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AuthRefreshRequest"];
+            };
+        };
+        responses: {
+            /** @description 新令牌对 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthRefreshResult"];
+                };
+            };
+            /** @description 刷新令牌无效/过期/已吊销 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };

@@ -17,6 +17,10 @@ import (
 	chdriver "github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 )
 
+// chExportClient Parquet 导出专用：大结果集导出可能很慢，显式 5 分钟超时
+//（M5-032：net/http 默认 client 无超时，对端挂死会无限泄漏 goroutine）。
+var chExportClient = &http.Client{Timeout: 5 * time.Minute}
+
 // ChConfig ClickHouse 连接配置（原生协议用于查询/DDL，HTTP 用于 Parquet 导出）。
 type ChConfig struct {
 	Addr     string // host:9000（原生协议）
@@ -172,7 +176,7 @@ func (a *ChAdmin) ExportMonth(ctx context.Context, month, dir string) (int64, in
 	}
 	req.Header.Set("X-ClickHouse-User", a.user)
 	req.Header.Set("X-ClickHouse-Key", a.password)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := chExportClient.Do(req)
 	if err != nil {
 		return 0, 0, "", fmt.Errorf("ch http export: %w", err)
 	}

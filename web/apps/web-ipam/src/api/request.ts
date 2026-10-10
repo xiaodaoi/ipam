@@ -47,11 +47,13 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
 
   /**
    * 刷新token逻辑
+   * M5-032：后端返回 { accessToken, refreshToken }（raw 响应取 data 体）；
+   * 携带当前访问令牌走降级刷新路径（详见 refreshTokenApi 注释）。
    */
   async function doRefreshToken() {
     const accessStore = useAccessStore();
-    const resp = await refreshTokenApi();
-    const newToken = resp.data;
+    const resp = await refreshTokenApi(accessStore.accessToken);
+    const newToken = resp.data.accessToken;
     accessStore.setAccessToken(newToken);
     return newToken;
   }

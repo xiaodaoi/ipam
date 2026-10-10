@@ -29,6 +29,15 @@ func TokenHash(tok string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// blacklistKey 黑名单条目键（M5-032 起 jti 为主键）；存量无 jti 令牌回退令牌指纹，
+// 保证升级前签发令牌的登出吊销与 DB 旧行查询仍然命中。
+func blacklistKey(claims JWTClaims, rawToken string) string {
+	if claims.JTI != "" {
+		return claims.JTI
+	}
+	return TokenHash(rawToken)
+}
+
 // Add 吊销令牌至其自然过期时刻（写入前惰性清理已过期条目）。
 func (b *TokenBlacklist) Add(hash string, until time.Time) {
 	b.mu.Lock()
@@ -84,8 +93,12 @@ func (b *TokenBlacklist) Len() int {
 	return len(b.m)
 }
 
+// blacklistPurgeInterval 运行期过期行清理周期（M5-032；测试可覆写）。
+var blacklistPurgeInterval = time.Hour
+
 // AttachDB 启用黑名单持久化（M5-012）：清理过期条目 + 加载未过期条目进内存；
 // 之后 Add 双写 DB，Revoked 仍走内存（启动加载保证重启后有效，单实例语义）。
+// M5-032：自启运行期每小时清理协程（ctx 取消即退出）。
 func (b *TokenBlacklist) AttachDB(ctx context.Context, pool *pgxpool.Pool) error {
 	if _, err := pool.Exec(ctx, `DELETE FROM auth_token_blacklist WHERE until <= now()`); err != nil {
 		return err
@@ -109,5 +122,21 @@ func (b *TokenBlacklist) AttachDB(ctx context.Context, pool *pgxpool.Pool) error
 		return err
 	}
 	b.db = pool
+	go purgeExpiredLoop(ctx, pool)
 	return nil
+}
+
+// purgeExpiredLoop 每小时清理 auth_token_blacklist 已过期行（M5-032：长运行防表膨胀）。
+// 清理失败静默重试下一周期——表增长缓慢，偶发失败可接受；ctx 取消即退出。
+func purgeExpiredLoop(ctx context.Context, pool *pgxpool.Pool) {
+	t := time.NewTicker(blacklistPurgeInterval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			_, _ = pool.Exec(ctx, `DELETE FROM auth_token_blacklist WHERE until <= now()`)
+		}
+	}
 }

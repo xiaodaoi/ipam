@@ -86,8 +86,10 @@ func hasPerm(claims JWTClaims, need string, lookup func(ctx context.Context, rol
 
 func NewRBACMiddleware(users UserStore, bl *TokenBlacklist, permLookup func(ctx context.Context, role string) ([]string, bool)) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 登录/登出与公开品牌端点（登录页鉴权前展示站点名）自身放行
-		if fp := c.FullPath(); fp == "/api/v1/auth/login" || fp == "/api/v1/auth/logout" || fp == "/api/v1/public/branding" {
+		// 登录/登出/刷新与公开品牌端点（登录页鉴权前展示站点名）自身放行
+		// （/auth/refresh 自持刷新令牌校验，过期访问令牌须能到达端点，M5-032）
+		if fp := c.FullPath(); fp == "/api/v1/auth/login" || fp == "/api/v1/auth/logout" ||
+			fp == "/api/v1/auth/refresh" || fp == "/api/v1/public/branding" {
 			c.Next()
 			return
 		}
@@ -105,8 +107,15 @@ func NewRBACMiddleware(users UserStore, bl *TokenBlacklist, permLookup func(ctx 
 			c.Abort()
 			return
 		}
-		// M5-011：登出黑名单（已吊销令牌立即失效）
-		if bl != nil && bl.Revoked(TokenHash(tok)) {
+		// M5-032：刷新令牌不得用作访问令牌（7d TTL 不得获得业务访问权）
+		if claims.Kind == tokenKindRefresh {
+			problem.Write(c, http.StatusUnauthorized,
+				"https://ipam.local/problems/unauthorized", "TOKEN_INVALID", "刷新令牌不能访问业务接口")
+			c.Abort()
+			return
+		}
+		// M5-011/M5-032：登出黑名单（已吊销令牌立即失效；jti 主键，存量令牌回退指纹）
+		if bl != nil && bl.Revoked(blacklistKey(claims, tok)) {
 			problem.Write(c, http.StatusUnauthorized,
 				"https://ipam.local/problems/unauthorized", "TOKEN_REVOKED", "令牌已吊销（已登出）")
 			c.Abort()

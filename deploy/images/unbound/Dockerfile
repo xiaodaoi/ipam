@@ -7,7 +7,7 @@ ARG UNBOUND_VERSION=1.26.0
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl bind9-dnsutils file build-essential libssl-dev libexpat1-dev libevent-dev flex bison \
-      python3-dev python3 swig \
+      python3-dev python3 swig logrotate \
     && curl -fsSL "https://github.com/NLnetLabs/unbound/archive/refs/tags/release-${UNBOUND_VERSION}.tar.gz" \
         -o /tmp/unbound.tgz \
     && tar -xzf /tmp/unbound.tgz -C /tmp \
@@ -23,8 +23,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY config/unbound/unbound.conf /etc/unbound/unbound.conf
 COPY config/unbound/dns_log.py /etc/unbound/dns_log.py
 COPY config/unbound/auth-corp.zone /etc/unbound/auth-corp.zone
+# M5-032：unbound.log 轮转（logrotate 后台循环，daily + maxsize 200M）
+COPY deploy/images/unbound/logrotate-unbound.conf /etc/logrotate.d/unbound
+COPY deploy/images/unbound/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN useradd -r unbound && mkdir -p /run/ipam /var/lib/unbound /var/log/unbound \
+    && chmod +x /usr/local/bin/entrypoint.sh \
     && unbound -V | head -2
 
 EXPOSE 53/udp 53/tcp
-CMD ["sh", "-c", "unbound-checkconf /etc/unbound/unbound.conf && exec unbound -d -c /etc/unbound/unbound.conf"]
+CMD ["/usr/local/bin/entrypoint.sh"]

@@ -95,14 +95,13 @@ func fetchLease4(ctx context.Context, agentURL string) ([]Lease4, error) {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := keaHTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	var parsed []keaLeaseResp
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+	parsed, err := decodeKeaResult[keaLeaseResp](resp.Body)
+	if err != nil {
 		return nil, err
 	}
 	if len(parsed) == 0 {
@@ -114,19 +113,42 @@ func fetchLease4(ctx context.Context, agentURL string) ([]Lease4, error) {
 	return parsed[0].Arguments.Leases, nil
 }
 
-// StartLease4SyncLoop 周期同步（间隔 30s；失败静默重试）。
+// maxBackoff 同步循环退避上限（M5-032：Kea 宕机时不再无退避打满）。
+const maxBackoff = 5 * time.Minute
+
+// nextBackoff 计算第 failCount 次连续失败后的等待时长：base 起逐次翻倍，封顶 maxBackoff；
+// failCount=0（成功后复位）返回 base。
+func nextBackoff(failCount int, base time.Duration) time.Duration {
+	d := base
+	for i := 0; i < failCount; i++ {
+		d *= 2
+		if d >= maxBackoff {
+			return maxBackoff
+		}
+	}
+	return d
+}
+
+// StartLease4SyncLoop 周期同步（间隔 30s；连续失败指数退避至 5min 上限，成功复位）。
 func StartLease4SyncLoop(ctx context.Context, pool *pgxpool.Pool, agentURL string, interval time.Duration) {
 	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
+		failCount := 0
+		var delay time.Duration
 		for {
 			if err := SyncLease4Bindings(ctx, pool, agentURL); err != nil {
-				log.Printf("[lease-sync] %v", err)
+				failCount++
+				delay = nextBackoff(failCount, interval)
+				log.Printf("[lease-sync] %v（连续失败 %d 次，%s 后重试）", err, failCount, delay)
+			} else {
+				failCount = 0
+				delay = interval
 			}
+			timer := time.NewTimer(delay)
 			select {
 			case <-ctx.Done():
+				timer.Stop()
 				return
-			case <-ticker.C:
+			case <-timer.C:
 			}
 		}
 	}()
@@ -219,14 +241,13 @@ func fetchLease6(ctx context.Context, agentURL string) ([]Lease6, error) {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := keaHTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	var parsed []keaLease6Resp
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+	parsed, err := decodeKeaResult[keaLease6Resp](resp.Body)
+	if err != nil {
 		return nil, err
 	}
 	if len(parsed) == 0 {
@@ -238,25 +259,42 @@ func fetchLease6(ctx context.Context, agentURL string) ([]Lease6, error) {
 	return parsed[0].Arguments.Leases, nil
 }
 
-// StartLease6SyncLoop 周期同步（间隔 30s；失败静默重试）。
+// StartLease6SyncLoop 周期同步（间隔 30s；连续失败指数退避至 5min 上限，成功复位）。
 func StartLease6SyncLoop(ctx context.Context, pool *pgxpool.Pool, agentURL string, interval time.Duration) {
 	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
+		failCount := 0
+		var delay time.Duration
 		for {
+			failed := false
 			if err := SyncLease6Bindings(ctx, pool, agentURL); err != nil {
 				log.Printf("[lease6-sync] %v", err)
+				failed = true
 			}
 			if err := ReconcileDualstackLeases(ctx, pool, agentURL); err != nil {
 				log.Printf("[dualstack-reconcile] %v", err)
+				failed = true
 			}
+			if failed {
+				failCount++
+				delay = nextBackoff(failCount, interval)
+			} else {
+				failCount = 0
+				delay = interval
+			}
+			timer := time.NewTimer(delay)
 			select {
 			case <-ctx.Done():
+				timer.Stop()
 				return
-			case <-ticker.C:
+			case <-timer.C:
 			}
 		}
 	}()
+}
+
+type keaCmdResp struct {
+	Result int    `json:"result"`
+	Text   string `json:"text"`
 }
 
 // keaCmd 向 ctrl-agent 发送带 arguments 的命令；result 3（未找到）视为可接受。
@@ -267,16 +305,13 @@ func keaCmd(ctx context.Context, agentURL, command string, service string, argum
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
+	resp, err := keaHTTPClient.Do(req)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	var parsed []struct {
-		Result int    `json:"result"`
-		Text   string `json:"text"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+	parsed, err := decodeKeaResult[keaCmdResp](resp.Body)
+	if err != nil {
 		return err
 	}
 	if len(parsed) == 0 {

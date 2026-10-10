@@ -11,9 +11,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -129,7 +131,8 @@ func hostPort(raw string) (host, port string, ok bool) {
 }
 
 // newEngine 装配完整路由：/api/v1 业务路由 + webui embed + SPA fallback（§13.3）。
-func newEngine(version string) *gin.Engine {
+// rootCtx 为信号感知的根上下文（M5-032）：所有后台循环随其取消而退出。
+func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -143,8 +146,17 @@ func newEngine(version string) *gin.Engine {
 	var keaCmd *keaengine.CtrlAgent
 	var pool *pgxpool.Pool
 	if dsn := os.Getenv("IPAM_DB_DSN"); dsn != "" {
-		var err error
-		pool, err = pgxpool.New(context.Background(), dsn)
+		// M5-032：显式池配置——零配置下死/闲连接不剔除，长运行后登录间歇 500。
+		cfg, err := pgxpool.ParseConfig(dsn)
+		if err != nil {
+			log.Fatalf("pg pool config: %v", err)
+		}
+		cfg.MaxConns = 16
+		cfg.MinConns = 1
+		cfg.MaxConnLifetime = 30 * time.Minute
+		cfg.MaxConnIdleTime = 5 * time.Minute
+		cfg.HealthCheckPeriod = time.Minute
+		pool, err = pgxpool.NewWithConfig(rootCtx, cfg)
 		if err != nil {
 			log.Fatalf("pg pool: %v", err)
 		}
@@ -247,12 +259,16 @@ func newEngine(version string) *gin.Engine {
 	// kea 可能未就绪，重试 6×5s；与 unbound 启动收敛对偶。
 	go func() {
 		for attempt := 1; attempt <= 6; attempt++ {
-			if err := applyDhcpFn(context.Background()); err == nil {
+			if err := applyDhcpFn(rootCtx); err == nil {
 				log.Printf("[dhcp-apply] startup converge ok (attempt %d)", attempt)
 				return
 			} else if attempt < 6 {
 				log.Printf("[dhcp-apply] startup attempt %d failed: %v", attempt, err)
-				time.Sleep(5 * time.Second)
+				select {
+				case <-rootCtx.Done():
+					return
+				case <-time.After(5 * time.Second):
+				}
 			} else {
 				log.Printf("[dhcp-apply] startup converge failed after retries: %v", err)
 			}
@@ -262,8 +278,8 @@ func newEngine(version string) *gin.Engine {
 	// Kea v4 租约→coherence_binding 同步（30s 轮询）：台账在线态/联动记录的数据源
 	// （依赖 dhcp4 的 lease_cmds hook，M3-012 补齐；此前写入方缺失导致台账无在线态）。
 	if pool != nil && keaCmd != nil {
-		coherence.StartLease4SyncLoop(context.Background(), pool, os.Getenv("IPAM_KEA_API"), 30*time.Second)
-		coherence.StartLease6SyncLoop(context.Background(), pool, os.Getenv("IPAM_KEA_API"), 30*time.Second)
+		coherence.StartLease4SyncLoop(rootCtx, pool, os.Getenv("IPAM_KEA_API"), 30*time.Second)
+		coherence.StartLease6SyncLoop(rootCtx, pool, os.Getenv("IPAM_KEA_API"), 30*time.Second)
 	}
 
 	lease6Fn := func(ctx context.Context) ([]apigen.DhcpLease6, error) {
@@ -389,8 +405,8 @@ func newEngine(version string) *gin.Engine {
 	}
 	prober := dnsmodule.NewProber(15*time.Second, unboundengine.DialProbe)
 	dnsSvc := dnsmodule.NewService(upRepo, prober, unboundCtl)
-	go prober.Run(context.Background(), func() []dnsmodule.Upstream {
-		list, err := upRepo.List(context.Background())
+	go prober.Run(rootCtx, func() []dnsmodule.Upstream {
+		list, err := upRepo.List(rootCtx)
 		if err != nil {
 			return nil
 		}
@@ -423,7 +439,7 @@ func newEngine(version string) *gin.Engine {
 	blSvc := dnsmodule.NewBlocklistService(blRepo, nil, unboundCtl, "/var/lib/ipam/rpz")
 	// M2-033：启动重放封禁 local_zone（unbound 重启后运行时态恢复）
 	go func() {
-		if err := blSvc.ReplayAll(context.Background()); err != nil {
+		if err := blSvc.ReplayAll(rootCtx); err != nil {
 			log.Printf("[bl-replay] %v", err)
 		}
 	}()
@@ -459,12 +475,16 @@ func newEngine(version string) *gin.Engine {
 	// 全量渲染+checkconf+reload 把文件与运行态都收敛到 DB 现状；unbound 未就绪则重试。
 	go func() {
 		for attempt := 1; attempt <= 6; attempt++ {
-			if _, err := applier.apply(context.Background()); err == nil {
+			if _, err := applier.apply(rootCtx); err == nil {
 				log.Printf("[conf-apply] startup converge ok (attempt %d)", attempt)
 				return
 			} else if attempt < 6 {
 				log.Printf("[conf-apply] startup attempt %d failed: %v", attempt, err)
-				time.Sleep(5 * time.Second)
+				select {
+				case <-rootCtx.Done():
+					return
+				case <-time.After(5 * time.Second):
+				}
 			} else {
 				log.Printf("[conf-apply] startup converge failed after retries: %v", err)
 			}
@@ -577,7 +597,7 @@ func newEngine(version string) *gin.Engine {
 	r.Use(logq.NewAuditRecorder(auditRepo, platform.JWTActorProvider))
 	// spec servers.url=/api/v1 → 统一前缀注册
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
-	logmanager.StartScheduler(context.Background(), logMgrH, chAdmin)
+	logmanager.StartScheduler(rootCtx, logMgrH, chAdmin)
 
 	dist, err := webuiFS()
 	if err != nil {
@@ -638,13 +658,27 @@ func webuiFS() (fs.FS, error) {
 }
 
 func main() {
+	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	addr := os.Getenv("IPAM_HTTP_ADDR")
 	if addr == "" {
 		addr = dbListenAddr()
 	}
 	log.Printf("control-plane %s listening on %s", version, addr)
-	if err := newEngine(version).Run(addr); err != nil {
-		log.Fatal(err)
+
+	srv := &http.Server{Addr: addr, Handler: newEngine(version, rootCtx)}
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("http serve: %v", err)
+		}
+	}()
+	<-rootCtx.Done()
+	log.Printf("shutdown signal received, draining http")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("http shutdown: %v", err)
 	}
 }
 

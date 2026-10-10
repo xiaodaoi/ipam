@@ -310,6 +310,18 @@ type kea6Subnet struct {
 	Prefix netip.Prefix
 }
 
+type kea6ConfigResp struct {
+	Result    int `json:"result"`
+	Arguments struct {
+		Dhcp6 struct {
+			Subnet6 []struct {
+				ID     uint32 `json:"id"`
+				Subnet string `json:"subnet"`
+			} `json:"subnet6"`
+		} `json:"Dhcp6"`
+	} `json:"arguments"`
+}
+
 // fetchKea6Subnets 拉取 kea6 运行态子网（subnet-id 定位用）。
 func fetchKea6Subnets(ctx context.Context, agentURL string) ([]kea6Subnet, error) {
 	body, _ := json.Marshal(map[string]any{"command": "config-get", "service": []string{"dhcp6"}})
@@ -318,26 +330,17 @@ func fetchKea6Subnets(ctx context.Context, agentURL string) ([]kea6Subnet, error
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
+	resp, err := keaHTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	var parsed []struct {
-		Result    int `json:"result"`
-		Arguments struct {
-			Dhcp6 struct {
-				Subnet6 []struct {
-					ID     uint32 `json:"id"`
-					Subnet string `json:"subnet"`
-				} `json:"subnet6"`
-			} `json:"Dhcp6"`
-		} `json:"arguments"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+	parsed, err := decodeKeaResult[kea6ConfigResp](resp.Body)
+	if err != nil {
 		return nil, err
 	}
-	if len(parsed) == 0 || parsed[0].Result != 0 {
+	// result 3（单对象形态，空配置）视为无子网，与租约拉取口径一致。
+	if len(parsed) == 0 || (parsed[0].Result != 0 && parsed[0].Result != 3) {
 		return nil, fmt.Errorf("config-get dhcp6 failed")
 	}
 	out := []kea6Subnet{}

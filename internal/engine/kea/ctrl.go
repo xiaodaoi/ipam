@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/xiaodaoi/ipam/internal/module/ipam"
 )
@@ -20,7 +21,19 @@ type CtrlAgent struct {
 }
 
 func NewCtrlAgent(baseURL string) *CtrlAgent {
-	return &CtrlAgent{baseURL: strings.TrimSuffix(baseURL, "/"), hc: &http.Client{Timeout: 10e9}}
+	// Transport 显式设界（M5-032）：IdleConnTimeout 60s 对齐 coherence/lease_http.go，
+	// 空闲连接按时回收，防长运行期 fd 耗尽
+	return &CtrlAgent{
+		baseURL: strings.TrimSuffix(baseURL, "/"),
+		hc: &http.Client{
+			Timeout: 10e9,
+			Transport: &http.Transport{
+				MaxIdleConns:        8,
+				MaxIdleConnsPerHost: 2,
+				IdleConnTimeout:     60 * time.Second,
+			},
+		},
+	}
 }
 
 type commandResp struct {

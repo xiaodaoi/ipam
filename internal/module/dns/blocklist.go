@@ -73,13 +73,16 @@ type BlocklistRepo interface {
 // FeedFetcher 订阅源拉取抽象（测试注入）。
 type FeedFetcher func(ctx context.Context, url string) (string, error)
 
+// feedHTTPClient 订阅源拉取专用（M5-032：net/http 默认 client 无超时，源挂死会无限泄漏 goroutine）。
+var feedHTTPClient = &http.Client{Timeout: 30 * time.Second}
+
 // HTTPSync 默认拉取器（30s 超时，正文 ≤5MB）。
 func HTTPSync(ctx context.Context, url string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return "", err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := feedHTTPClient.Do(req)
 	if err != nil {
 		return "", err
 	}

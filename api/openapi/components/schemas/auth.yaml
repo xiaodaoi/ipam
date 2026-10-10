@@ -2,11 +2,41 @@
 
 AuthLoginResult:
   type: object
-  required: [accessToken]
+  required: [accessToken, refreshToken]
   properties:
     accessToken:
       type: string
-      description: 访问令牌（PoC 为 HMAC-SHA256 签名 userId.exp，非标准 JWT）
+      description: 访问令牌（HS256 JWT，24h TTL，M5-002）
+    refreshToken:
+      type: string
+      description: 刷新令牌（HS256 JWT，kind=refresh，uid+jti+exp，7d TTL，M5-032）
+
+AuthRefreshRequest:
+  type: object
+  properties:
+    refreshToken:
+      type: string
+      description: |
+        刷新令牌（登录时颁发）。缺省/为空时降级校验 Authorization Bearer 访问令牌
+        （过期访问令牌在过期后 7 天宽限窗口内仍可换发，M5-032）。
+
+AuthRefreshResult:
+  type: object
+  required: [accessToken, refreshToken]
+  properties:
+    accessToken:
+      type: string
+      description: 新访问令牌（24h TTL）
+    refreshToken:
+      type: string
+      description: 新刷新令牌（7d TTL；旧刷新令牌 jti 已轮换入黑名单）
+
+AuthLogoutRequest:
+  type: object
+  properties:
+    refreshToken:
+      type: string
+      description: 随登出一并吊销的刷新令牌（M5-032：登出同时吊销访问/刷新双令牌 jti）
 
 AuthLoginRequest:
   type: object

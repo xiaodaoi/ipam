@@ -51,7 +51,11 @@ func TestRBAC_登出后令牌立即401(t *testing.T) {
 	if w := do(r, http.MethodPost, "/api/v1/auth/logout", tok); w.Code != 200 {
 		t.Fatalf("logout 应 200: %d", w.Code)
 	}
-	if !bl.Revoked(TokenHash(tok)) {
+	claims, err := ParseJWT(tok)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if !bl.Revoked(blacklistKey(claims, tok)) {
 		t.Fatal("黑名单未命中")
 	}
 	if w := do(r, http.MethodGet, "/api/v1/dashboard", tok); w.Code != http.StatusUnauthorized {
