@@ -2041,3 +2041,175 @@
   width: 6px;
   height: 6px;
 }
+
+/* ==========================================================================
+   双栈 / 选项与类匹配（M4-019）：双栏布局 / 表单栅格 / 选项码徽标 / 类规则行
+   ========================================================================== */
+
+/* 双栈页：MAC↔DUID 映射与未解析冲突并排；窄屏回落单列 */
+.ipam-dualstack-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr);
+  gap: 12px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .ipam-dualstack-cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* 弹窗表单栅格：默认两列，--wide 跨列 */
+.ipam-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+}
+
+@media (max-width: 720px) {
+  .ipam-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.ipam-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ipam-form-field--wide {
+  grid-column: 1 / -1;
+}
+
+.ipam-form-field__label {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 550;
+  color: hsl(var(--muted-foreground));
+}
+
+.ipam-form-field__label em {
+  font-style: normal;
+  color: hsl(var(--destructive));
+}
+
+.ipam-form-hint {
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 18px;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted) / 60%);
+  border: 1px solid hsl(var(--border) / 70%);
+  border-radius: 6px;
+}
+
+/* 选项码徽标：等宽、定宽，便于纵向对齐扫描 */
+.ipam-code-badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 20px;
+  padding: 0 6px;
+  font-family: var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11px;
+  font-weight: 600;
+  color: hsl(var(--ipam-tone-blue));
+  background: hsl(var(--ipam-tone-blue) / 10%);
+  border: 1px solid hsl(var(--ipam-tone-blue) / 22%);
+  border-radius: 5px;
+}
+
+/* 类内下发选项行 */
+.ipam-class-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  background: hsl(var(--muted) / 40%);
+  border: 1px solid hsl(var(--border) / 70%);
+  border-radius: 6px;
+}
+
+.ipam-class-row + .ipam-class-row {
+  margin-top: 8px;
+}
+
+/* DNS 解析记录（M4-019）：区域侧栏 + 记录区；1180px 以下回落单列 */
+.ipam-record-layout {
+  display: flex;
+  gap: var(--ipam-gap, 12px);
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.ipam-record-layout > .ant-card {
+  min-width: 0;
+}
+
+@media (max-width: 1180px) {
+  .ipam-record-layout {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* 区域列表项：选中态与悬停态 */
+.ipam-zone-item {
+  padding: 8px 10px;
+  margin-bottom: 2px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  transition: background-color 0.16s ease, border-color 0.16s ease;
+}
+
+.ipam-zone-item:hover {
+  background: hsl(var(--accent) / 60%);
+}
+
+.ipam-zone-item--active {
+  background: hsl(var(--primary) / 8%);
+  border-color: hsl(var(--primary) / 26%);
+}
+
+.ipam-zone-item--active:hover {
+  background: hsl(var(--primary) / 11%);
+}
+
+/* 区域侧栏卡片体：允许列表纵向滚动 */
+.ipam-page .ipam-side-card--wide > .ant-card-body {
+  max-height: 560px;
+  overflow: auto;
+}
+
+/* 编译结果等只读代码块 */
+.ipam-code-block {
+  max-height: 320px;
+  padding: 10px 12px;
+  overflow: auto;
+  font-family: var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11px;
+  line-height: 18px;
+  color: hsl(var(--foreground) / 88%);
+  background: hsl(var(--muted) / 55%);
+  border: 1px solid hsl(var(--border) / 80%);
+  border-radius: 8px;
+}
+
+/* 双栈双栏内的窄表格：固定布局，避免长 DUID 把操作列挤出卡片 */
+.ipam-dualstack-cols .ant-table table {
+  table-layout: fixed !important;
+}
+
+.ipam-dualstack-cols .ant-table-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
