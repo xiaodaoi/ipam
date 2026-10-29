@@ -41,6 +41,9 @@
   "system": {
     "title": "System",
     "orgs": "Organizations",
-    "users": "Users & Roles"
+    "users": "Accounts",
+    "about": "About",
+    "roles": "Roles",
+    "settings": "Settings"
   }
 }

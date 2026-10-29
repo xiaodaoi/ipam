@@ -85,6 +85,9 @@ export const getDashboard = (poolTopN?: number) =>
 export type HostMetrics = components['schemas']['HostMetrics'];
 export const getSystemMetrics = () => req<HostMetrics>('/system/metrics');
 
+export type SystemInfo = components['schemas']['SystemInfo'];
+export const getSystemInfo = () => req<SystemInfo>('/system/info');
+
 export type TopList = components['schemas']['TopList'];
 export type TopEntry = components['schemas']['TopEntry'];
 export type QpsSeries = components['schemas']['QpsSeries'];
@@ -387,7 +390,7 @@ export async function exportLogsCsv(params: Record<string, string>): Promise<voi
 export type RoleRow = components['schemas']['Role'];
 export const listRoles = () => req<{ items: RoleRow[] }>('/roles');
 export const createRole = (b: { name: string; permissions: string[] }) => req<RoleRow>('/roles', j(b));
-export const updateRole = (name: string, b: { permissions: string[] }) => req<RoleRow>(`/roles/${name}`, j(b));
+export const updateRole = (name: string, b: { permissions: string[] }) => req<RoleRow>(`/roles/${name}`, patch(b));
 export const deleteRole = (name: string) => req<void>(`/roles/${name}`, del);
 
 // ── 日志存储策略与归档（日志生命周期管理）──

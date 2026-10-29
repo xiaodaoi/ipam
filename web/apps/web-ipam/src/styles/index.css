@@ -2662,3 +2662,444 @@
   height: 4px;
   margin-top: 3px;
 }
+
+/* ==========================================================================
+   系统管理（M4-021）：账号 / 角色 / 设置 / 关于
+   ========================================================================== */
+
+/* ── 账号单元格：首字母头像 + 登录名 + 显示名 ─────────────────────────── */
+.ipam-account {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+.ipam-account__avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  font-size: 13px;
+  font-weight: 600;
+  color: hsl(var(--primary));
+  background: hsl(var(--primary) / 10%);
+  border: 1px solid hsl(var(--primary) / 18%);
+  border-radius: 9px;
+}
+
+.ipam-account__avatar[data-self='true'] {
+  color: hsl(var(--ipam-tone-green));
+  background: hsl(var(--ipam-tone-green) / 12%);
+  border-color: hsl(var(--ipam-tone-green) / 26%);
+}
+
+.ipam-account__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ipam-account__line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.ipam-account__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 600;
+  color: hsl(var(--foreground) / 92%);
+  white-space: nowrap;
+}
+
+/* ── 权限 chips / 覆盖度 ─────────────────────────────────────────────── */
+.ipam-perm-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ipam-perm-chip {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  padding: 0 7px;
+  font-size: 11px;
+  line-height: 19px;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+  background: hsl(var(--muted) / 55%);
+  border: 1px solid hsl(var(--border) / 80%);
+  border-radius: 5px;
+}
+
+.ipam-perm-chip b {
+  font-weight: 600;
+  color: hsl(var(--muted-foreground) / 70%);
+}
+
+.ipam-perm-chip[data-access='r'] {
+  color: hsl(var(--ipam-tone-blue));
+  background: hsl(var(--ipam-tone-blue) / 9%);
+  border-color: hsl(var(--ipam-tone-blue) / 24%);
+}
+
+.ipam-perm-chip[data-access='rw'] {
+  color: hsl(var(--ipam-tone-green));
+  background: hsl(var(--ipam-tone-green) / 10%);
+  border-color: hsl(var(--ipam-tone-green) / 26%);
+}
+
+.ipam-perm-chip[data-access='w'] {
+  color: hsl(var(--ipam-tone-amber));
+  background: hsl(var(--ipam-tone-amber) / 10%);
+  border-color: hsl(var(--ipam-tone-amber) / 26%);
+}
+
+.ipam-perm-chip[data-access='r'] b,
+.ipam-perm-chip[data-access='rw'] b,
+.ipam-perm-chip[data-access='w'] b {
+  color: inherit;
+  opacity: 0.85;
+}
+
+.ipam-perm-count {
+  display: inline-flex;
+  gap: 4px;
+  align-items: baseline;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground) / 90%);
+}
+
+.ipam-perm-count em {
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 400;
+  color: hsl(var(--muted-foreground));
+}
+
+.ipam-perm-bar {
+  width: 100%;
+  max-width: 132px;
+}
+
+.ipam-perm-selected {
+  display: flex;
+  gap: 3px;
+  align-items: baseline;
+  height: 32px;
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+}
+
+.ipam-perm-selected b {
+  font-size: 17px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--primary));
+}
+
+/* ── 权限勾选矩阵 ────────────────────────────────────────────────────── */
+.ipam-perm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+  gap: 8px;
+}
+
+.ipam-perm-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 9px 11px 10px;
+  background: hsl(var(--muted) / 30%);
+  border: 1px solid hsl(var(--border) / 75%);
+  border-radius: 9px;
+}
+
+.ipam-perm-card__head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ipam-perm-card__title {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: hsl(var(--foreground) / 90%);
+}
+
+.ipam-perm-card__title svg,
+.ipam-perm-card__title .iconify {
+  color: hsl(var(--primary));
+}
+
+.ipam-perm-card__body {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.ipam-page .ipam-perm-card .ant-checkbox-wrapper {
+  font-size: 12px;
+}
+
+/* ── 站点品牌：上传位 + 实时预览 ─────────────────────────────────────── */
+.ipam-logo-upload {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 88px;
+  height: 88px;
+  overflow: hidden;
+  font-size: 20px;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted) / 40%);
+  border: 1px dashed hsl(var(--border));
+  border-radius: 10px;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.ipam-logo-upload:hover {
+  color: hsl(var(--primary));
+  border-color: hsl(var(--primary) / 55%);
+}
+
+.ipam-logo-upload img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.ipam-brand-preview {
+  margin-top: 14px;
+  overflow: hidden;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border) / 85%);
+  border-radius: 9px;
+}
+
+.ipam-brand-preview__tab {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 10px;
+  background: hsl(var(--muted) / 45%);
+  border-bottom: 1px solid hsl(var(--border) / 75%);
+}
+
+.ipam-brand-preview__favicon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  overflow: hidden;
+  color: hsl(var(--primary));
+  background: hsl(var(--primary) / 10%);
+  border-radius: 4px;
+}
+
+.ipam-brand-preview__favicon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.ipam-brand-preview__title {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11.5px;
+  color: hsl(var(--foreground) / 80%);
+  white-space: nowrap;
+}
+
+.ipam-brand-preview__dots {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.ipam-brand-preview__dots i {
+  width: 5px;
+  height: 5px;
+  background: hsl(var(--muted-foreground) / 45%);
+  border-radius: 50%;
+}
+
+.ipam-brand-preview__body {
+  display: flex;
+  min-height: 128px;
+}
+
+.ipam-brand-preview__side {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 3px;
+  width: 104px;
+  padding: 9px 8px;
+  background: hsl(var(--muted) / 30%);
+  border-right: 1px solid hsl(var(--border) / 70%);
+}
+
+.ipam-brand-preview__logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-bottom: 4px;
+  overflow: hidden;
+  color: hsl(var(--primary));
+  background: hsl(var(--primary) / 10%);
+  border-radius: 6px;
+}
+
+.ipam-brand-preview__logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.ipam-brand-preview__item {
+  padding: 3px 6px;
+  font-size: 10.5px;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+  border-radius: 4px;
+}
+
+.ipam-brand-preview__item[data-active='true'] {
+  font-weight: 600;
+  color: hsl(var(--primary));
+  background: hsl(var(--primary) / 10%);
+}
+
+.ipam-brand-preview__canvas {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  background-image: radial-gradient(hsl(var(--border) / 70%) 1px, transparent 1px);
+  background-size: 11px 11px;
+}
+
+.ipam-brand-preview__hint {
+  padding: 2px 9px;
+  font-size: 10.5px;
+  color: hsl(var(--muted-foreground) / 80%);
+  background: hsl(var(--card) / 85%);
+  border-radius: 999px;
+}
+
+/* ── 只读服务信息 ────────────────────────────────────────────────────── */
+.ipam-service-value {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+  min-height: 32px;
+  font-size: 13px;
+  color: hsl(var(--foreground) / 88%);
+}
+
+/* ── 危险操作区 ──────────────────────────────────────────────────────── */
+.ipam-danger-zone {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 13px;
+  margin-top: 14px;
+  background: hsl(var(--ipam-tone-red) / 5%);
+  border: 1px solid hsl(var(--ipam-tone-red) / 22%);
+  border-radius: 9px;
+}
+
+.ipam-danger-zone__body {
+  min-width: 0;
+}
+
+.ipam-danger-zone__title {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: hsl(var(--ipam-tone-red));
+}
+
+.ipam-danger-zone__desc {
+  margin-top: 2px;
+  font-size: 11.5px;
+  line-height: 17px;
+  color: hsl(var(--muted-foreground));
+}
+
+/* ── 关于：产品首屏 ──────────────────────────────────────────────────── */
+.ipam-about-hero > .ant-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ipam-about-hero__top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ipam-about-hero__main {
+  display: flex;
+  flex: 1 1 520px;
+  gap: 16px;
+  align-items: center;
+  min-width: 0;
+}
+
+.ipam-about-hero__meta {
+  display: grid;
+  flex: none;
+  grid-template-columns: repeat(3, minmax(96px, auto));
+  gap: 6px 22px;
+  align-items: start;
+  padding-left: 22px;
+  border-left: 1px dashed hsl(var(--border) / 85%);
+}
+
+.ipam-about-hero__meta .ipam-figure__value {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+@media (max-width: 1100px) {
+  .ipam-about-hero__meta {
+    flex-basis: 100%;
+    padding-top: 14px;
+    padding-left: 0;
+    border-top: 1px dashed hsl(var(--border) / 85%);
+    border-left: 0;
+  }
+}
