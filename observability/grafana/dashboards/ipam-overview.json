@@ -1,0 +1,61 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "type": "stat",
+      "title": "控制面状态",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "targets": [{ "expr": "up{job=\"ipam-control-plane\"}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "mappings": [{ "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }], "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] } } }
+    },
+    {
+      "type": "stat",
+      "title": "运行时长",
+      "gridPos": { "h": 4, "w": 5, "x": 4, "y": 0 },
+      "targets": [{ "expr": "ipam_uptime_seconds", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "宿主 CPU %",
+      "gridPos": { "h": 8, "w": 8, "x": 9, "y": 0 },
+      "targets": [{ "expr": "ipam_host_cpu_usage_percent", "refId": "A" }]
+    },
+    {
+      "type": "timeseries",
+      "title": "宿主内存 %",
+      "gridPos": { "h": 8, "w": 7, "x": 17, "y": 0 },
+      "targets": [{ "expr": "100 * ipam_host_memory_used_bytes / ipam_host_memory_total_bytes", "refId": "A" }]
+    },
+    {
+      "type": "timeseries",
+      "title": "磁盘使用率 %",
+      "gridPos": { "h": 8, "w": 9, "x": 0, "y": 8 },
+      "targets": [{ "expr": "ipam_host_disk_used_percent", "legendFormat": "{{mount}}", "refId": "A" }]
+    },
+    {
+      "type": "timeseries",
+      "title": "API 请求速率",
+      "gridPos": { "h": 8, "w": 9, "x": 9, "y": 8 },
+      "targets": [{ "expr": "sum by (status) (rate(ipam_http_requests_total[5m]))", "legendFormat": "{{status}}", "refId": "A" }]
+    },
+    {
+      "type": "stat",
+      "title": "组件健康",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 8 },
+      "targets": [{ "expr": "ipam_component_up", "legendFormat": "{{component}}", "refId": "A" }]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["ipam", "ddi"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timezone": "browser",
+  "title": "IPAM 概览",
+  "uid": "ipam-overview",
+  "version": 1
+}

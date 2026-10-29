@@ -15,6 +15,12 @@ docker compose version >/dev/null 2>&1 || fail "docker compose v2 不可用"
 command -v openssl >/dev/null || fail "未安装 openssl（用于生成 TLS 证书与 JWT 密钥）"
 ok "docker/compose/openssl"
 
+# NTP 校时（日志/审计时间线依赖；容器继承宿主时钟）
+if command -v timedatectl >/dev/null 2>&1; then
+  ntp_state="$(timedatectl show -p NTPSynchronized --value 2>/dev/null || true)"
+  if [ "$ntp_state" = "yes" ]; then ok "NTP 已同步"; else warn "NTP 未同步（timedatectl NTPSynchronized=${ntp_state:-unknown}），请配置 chrony/systemd-timesyncd"; fi
+fi
+
 command -v ss >/dev/null && {
   for p in ${IPAM_PORT:-8443}; do
     ss -lun "( sport = :$p )" | grep -q "$p" && fail "端口 $p 已被占用" || ok "端口 $p 空闲"

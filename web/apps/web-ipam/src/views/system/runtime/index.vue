@@ -130,6 +130,11 @@ onMounted(load);
             <IconifyIcon icon="lucide:database" class="mr-1 size-3.5" />日志存储与归档
           </Button>
         </RouterLink>
+        <a href="/metrics" target="_blank" rel="noopener">
+          <Button size="small">
+            <IconifyIcon icon="lucide:activity" class="mr-1 size-3.5" />监控指标
+          </Button>
+        </a>
         <Button size="small" :loading="loading" @click="load">
           <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />刷新
         </Button>

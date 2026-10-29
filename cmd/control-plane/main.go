@@ -149,8 +149,9 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 
 	h := platform.NewHandler(version)
 	// 宿主资源采集：容器经只读挂载读宿主 /proc 等（env 未设则回落本机 /proc、/）。
-	h.SetHostMetrics(hostmetrics.New(
-		os.Getenv("IPAM_HOST_PROC"), os.Getenv("IPAM_HOST_SYS"), os.Getenv("IPAM_HOST_ROOT")))
+	hostCol := hostmetrics.New(
+		os.Getenv("IPAM_HOST_PROC"), os.Getenv("IPAM_HOST_SYS"), os.Getenv("IPAM_HOST_ROOT"))
+	h.SetHostMetrics(hostCol)
 
 	// 仓储装配：IPAM_DB_DSN 存在则走 PG（生产/compose），否则内存 PoC。
 	var orgStore ipam.OrgStore = ipam.NewMemOrgStore()
@@ -609,6 +610,34 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		*logmanager.LogHandler
 		*confApplier
 	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore, bl, permLookup, secStore), platform.NewUserHandler(userStore, secStore), &dhcpAPI{dhcpH}, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, platform.NewSecuritySettingsHandler(secStore), logMgrH, applier}
+	// Prometheus 指标（M6-005）：放在 RBAC 之前供抓取；中间件只统计其后的 /api/v1 路由。
+	metricsH := platform.NewMetricsHandler(platform.MetricsSources{
+		Version: version,
+		Postgres: func(ctx context.Context) error {
+			if pool == nil {
+				return nil
+			}
+			return pool.Ping(ctx)
+		},
+		ClickHouse: func(ctx context.Context) error {
+			if chAdmin == nil {
+				return nil
+			}
+			return chAdmin.Ping(ctx)
+		},
+		Kea: func(ctx context.Context) error {
+			if keaCmd == nil {
+				return nil
+			}
+			_, err := keaCmd.Command(ctx, "version-get", "dhcp4", nil)
+			return err
+		},
+		Host:        hostCol,
+		TLSCertFile: os.Getenv("IPAM_TLS_CERT"),
+	})
+	r.GET("/metrics", metricsH.Serve)
+	r.Use(metricsH.Middleware())
+
 	// 健康探针放在 RBAC 之前：容器编排/负载均衡无需令牌即可探活（M6-001）。
 	r.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})

@@ -1,0 +1,75 @@
+# IPAM 告警规则（M6-005）。指标来自 control-plane /metrics。
+groups:
+  - name: ipam-availability
+    rules:
+      - alert: IpamControlPlaneDown
+        expr: up{job="ipam-control-plane"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: ipam
+        annotations:
+          summary: "IPAM 控制面不可抓取"
+          description: "Prometheus 连续 2 分钟无法抓取 {{ $labels.instance }}，请检查容器/网络。"
+
+      - alert: IpamComponentDown
+        expr: ipam_component_up == 0
+        for: 3m
+        labels:
+          severity: critical
+          team: ipam
+        annotations:
+          summary: "IPAM 组件 {{ $labels.component }} 不可用"
+          description: "组件 {{ $labels.component }} 连续 3 分钟探针失败。"
+
+  - name: ipam-capacity
+    rules:
+      - alert: IpamDiskWarning
+        expr: ipam_host_disk_used_percent > 85
+        for: 10m
+        labels:
+          severity: warning
+          team: ipam
+        annotations:
+          summary: "宿主磁盘使用率 {{ $labels.mount }} > 85%"
+          description: "当前 {{ $value | printf \"%.1f\" }}%，请清理日志归档或扩容。"
+
+      - alert: IpamDiskCritical
+        expr: ipam_host_disk_used_percent > 90
+        for: 5m
+        labels:
+          severity: critical
+          team: ipam
+        annotations:
+          summary: "宿主磁盘使用率 {{ $labels.mount }} > 90%"
+          description: "当前 {{ $value | printf \"%.1f\" }}%，可能触发日志降级/写入失败。"
+
+      - alert: IpamMemoryHigh
+        expr: ipam_host_memory_used_bytes / ipam_host_memory_total_bytes > 0.9
+        for: 10m
+        labels:
+          severity: warning
+          team: ipam
+        annotations:
+          summary: "宿主内存使用率 > 90%"
+          description: "当前 {{ $value | printf \"%.2f\" }}，请检查进程与容器限制。"
+
+      - alert: IpamTLSCertExpiring
+        expr: (ipam_tls_cert_expiry_timestamp_seconds - time()) < 30 * 86400
+        for: 1h
+        labels:
+          severity: warning
+          team: ipam
+        annotations:
+          summary: "控制面 TLS 证书 30 天内到期"
+          description: "请提前轮换证书并重启 control-plane。"
+
+      - alert: IpamHTTP5xx
+        expr: sum(rate(ipam_http_requests_total{status=~"5.."}[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          team: ipam
+        annotations:
+          summary: "IPAM API 5xx 速率 > 1/s"
+          description: "请检查 control-plane 日志与依赖（PG/CH/Kea）。"

@@ -1,0 +1,31 @@
+# Alertmanager 示例：邮件 + 通用 Webhook + 钉钉机器人（按需启用）
+global:
+  resolve_timeout: 5m
+  smtp_smarthost: 'smtp.example.com:587'
+  smtp_from: 'ipam-alert@example.com'
+  smtp_auth_username: 'ipam-alert@example.com'
+  smtp_auth_password: 'CHANGE_ME'
+
+route:
+  receiver: default
+  group_by: [alertname, service]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers: [severity="critical"]
+      receiver: critical
+      repeat_interval: 30m
+
+receivers:
+  - name: default
+    email_configs:
+      - to: 'netops@example.com'
+  - name: critical
+    email_configs:
+      - to: 'netops@example.com,oncall@example.com'
+    webhook_configs:
+      - url: 'https://example.com/hooks/ipam-alert'
+        send_resolved: true
+    # 钉钉/企微：使用对应机器人 Webhook；不同厂商 body 需用 webhook_configs + 自定义模板
+    # - url: 'https://oapi.dingtalk.com/robot/send?access_token=CHANGE_ME'

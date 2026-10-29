@@ -18,7 +18,7 @@ import (
 )
 
 // chExportClient Parquet 导出专用：大结果集导出可能很慢，显式 5 分钟超时
-//（M5-032：net/http 默认 client 无超时，对端挂死会无限泄漏 goroutine）。
+// （M5-032：net/http 默认 client 无超时，对端挂死会无限泄漏 goroutine）。
 var chExportClient = &http.Client{Timeout: 5 * time.Minute}
 
 // ChConfig ClickHouse 连接配置（原生协议用于查询/DDL，HTTP 用于 Parquet 导出）。
@@ -89,6 +89,11 @@ func deriveHTTPAddr(native string) string {
 }
 
 // SetTTL 调整 logs 表 TTL（元数据操作，秒级生效）；TopN 物化视图尽力跟随。
+// Ping 连通性探针（/metrics 组件健康用）。
+func (a *ChAdmin) Ping(ctx context.Context) error {
+	return a.conn.Ping(ctx)
+}
+
 func (a *ChAdmin) SetTTL(ctx context.Context, days int) error {
 	if days < 1 || days > 3650 {
 		return fmt.Errorf("invalid retention days: %d", days)

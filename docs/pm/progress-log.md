@@ -3,6 +3,13 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-10-29 · 可观测与告警（M6-005）
+- **指标**：新增 `GET /metrics`（Prometheus 文本）：构建/运行时长、HTTP 请求计数与耗时、PG/CH/Kea 组件 up、宿主 CPU/内存/磁盘/运行时长、TLS 证书到期；`/metrics` 无需 Bearer，且不计入自身请求统计；未配置组件按 down(0) 输出。
+- **监控栈**：`observability/` 提供 Prometheus 抓取、6 条告警规则、Alertmanager 邮件/Webhook/钉钉示例、Grafana 数据源与「IPAM 概览」面板、可选 compose profile。
+- **NTP**：install.sh 检查 `timedatectl NTPSynchronized`，未同步警告。
+- **入口**：服务与运行页新增「监控指标」入口。
+- **验证**：`/metrics` 实测；单测覆盖计数/组件/内容类型；`go test ./...`、`vue-tsc`/eslint/build 通过；observability compose config 通过。
+- **遗留**：告警通道 UI（当前 YAML）、SNMP、证书自动续期。
 ## 2026-10-29 · 系统管理二级菜单拆分（M6-013）
 - **背景**：M6-001 后「系统设置」同时承载组织、品牌、账号安全、服务运行、日志存储，页面过长。
 - **拆分**：新增 `/system/orgs`（组织管理）、`/system/security`（账号安全：强制改密开关+口令策略）、`/system/branding`（站点品牌：名称/图标/实时预览）、`/system/runtime`（服务与运行：端口/版本/依赖/宿主资源/重启）；账号/角色/关于保留。
