@@ -27,13 +27,13 @@ const props = withDefaults(
   defineProps<{
     cidr?: string;
     ips?: IpCell[];
-    subnets?: { cidr: string; name?: string }[];
     readOnly?: boolean;
+    subnets?: { cidr: string; name?: string }[];
   }>(),
   { cidr: '10.59.193.0/24', ips: undefined, subnets: undefined, readOnly: false },
 );
 const emit = defineEmits<{
-  (e: 'change', selected: string[], meta: { lastIp: string | null }): void;
+  (e: 'change', selected: string[], meta: { lastIp: null | string }): void;
   (e: 'action', action: string, ips: IpCell[]): void;
   (e: 'save', target: IpCell[], values: Record<string, any>): void;
   (e: 'subnetChange', cidr: string): void;
@@ -41,18 +41,18 @@ const emit = defineEmits<{
 
 // ── IP 工具（纯函数）──
 function ipToInt(ip: string): number {
-  return ip.split('.').reduce((acc, o) => ((acc << 8) >>> 0) + parseInt(o, 10), 0) >>> 0;
+  return ip.split('.').reduce((acc, o) => ((acc << 8) >>> 0) + Number.parseInt(o, 10), 0) >>> 0;
 }
 function intToIp(n: number): string {
   return [n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.');
 }
 function parseCidr(cidr: string): {
-  ip: string; bits: number; ipInt: number; mask: number; network: number; broadcast: number; hostCount: number;
+  bits: number; broadcast: number; hostCount: number; ip: string; ipInt: number; mask: number; network: number;
 } {
   const parts = String(cidr).split('/');
-  const bits = parseInt(parts[1] || '32', 10);
+  const bits = Number.parseInt(parts[1] || '32', 10);
   const ipInt = ipToInt(parts[0] || '0.0.0.0');
-  const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
+  const mask = bits === 0 ? 0 : (0xFF_FF_FF_FF << (32 - bits)) >>> 0;
   const network = (ipInt & mask) >>> 0;
   const broadcast = (network | (~mask >>> 0)) >>> 0;
   return { ip: parts[0] || '', bits, ipInt, mask, network, broadcast, hostCount: broadcast - network + 1 };
@@ -78,7 +78,7 @@ interface IpCell {
   remark?: string;
 }
 
-const IP_STATUS: Record<string, { label: string; color: string }> = {
+const IP_STATUS: Record<string, { color: string; label: string; }> = {
   network: { label: '网络', color: '#637196' },
   broadcast: { label: '广播', color: '#637196' },
   available: { label: '未规划', color: '#9DBEFF' },
@@ -87,12 +87,12 @@ const IP_STATUS: Record<string, { label: string; color: string }> = {
   dynamic: { label: '动态', color: '#FFD666' },
   reserved: { label: '保留', color: '#FF9C6E' },
 };
-const OVERLAY_STATUS: Record<string, { label: string; color: string }> = {
+const OVERLAY_STATUS: Record<string, { color: string; label: string; }> = {
   zombie: { label: '僵尸', color: '#C41D7F' },
   conflict: { label: '冲突', color: '#FF6262' },
   online: { label: '在线', color: '#21BF86' },
 };
-const STATUS_DISABLED = ['network', 'broadcast'];
+const STATUS_DISABLED = new Set(['broadcast', 'network']);
 const MAX_CELLS = 2048;
 const PAGE_SIZE = 256;
 
@@ -104,7 +104,7 @@ function makeDefaultIps(cidr: string): IpCell[] {
     list.push({
       ip,
       host: n - network,
-      status: n === network ? 'network' : n === broadcast ? 'broadcast' : 'available',
+      status: n === network ? 'network' : (n === broadcast ? 'broadcast' : 'available'),
       overlays: [],
       hostname: '', leaseStatus: '', leaseStart: '', leaseEnd: '',
       deviceName: '', switchPort: '', purpose: '', user: '', phone: '',
@@ -124,11 +124,17 @@ const page = ref(1);
 const pagedIps = computed<IpCell[]>(() =>
   ipList.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE),
 );
+// 当前页对应的 /24 基址（每页 256 格；用于分页条旁提示，避免跨页时对不上号）
+const pageCidr = computed(() => {
+  const first = pagedIps.value[0];
+  if (!first) return '';
+  return `${intToIp((ipToInt(first.ip) & 0xFF_FF_FF_00) >>> 0)}/24`;
+});
 watch(currentCidr, () => { page.value = 1; });
 
 const selected = ref<string[]>([]);
 const selectedSet = computed(() => new Set(selected.value));
-const lastClickHost = ref<number | null>(null);
+const lastClickHost = ref<null | number>(null);
 
 const hostToIp = computed(() => {
   const m = new Map<number, IpCell>();
@@ -145,23 +151,23 @@ const selectedIps = computed(() =>
   selected.value.map((ip) => ipToCell.value.get(ip)).filter((x): x is IpCell => !!x),
 );
 
-function updateSelected(next: string[], lastIp: string | null) {
+function updateSelected(next: string[], lastIp: null | string) {
   selected.value = next;
   emit('change', next, { lastIp });
 }
 
 function handleCellClick(ipObj: IpCell, evt: MouseEvent) {
-  if (props.readOnly || STATUS_DISABLED.includes(ipObj.status)) return;
+  if (props.readOnly || STATUS_DISABLED.has(ipObj.status)) return;
   let next: string[];
-  if (evt.shiftKey && lastClickHost.value != null) {
+  if (evt.shiftKey && lastClickHost.value !== null) {
     const lo = Math.min(ipObj.host, lastClickHost.value);
     const hi = Math.max(ipObj.host, lastClickHost.value);
     const range: string[] = [];
     for (let h = lo; h <= hi; h++) {
       const p = hostToIp.value.get(h);
-      if (p && !STATUS_DISABLED.includes(p.status)) range.push(p.ip);
+      if (p && !STATUS_DISABLED.has(p.status)) range.push(p.ip);
     }
-    next = Array.from(new Set([...selected.value, ...range]));
+    next = [...new Set([...selected.value, ...range])];
   } else if (selectedSet.value.has(ipObj.ip)) {
     next = selected.value.filter((x) => x !== ipObj.ip);
   } else {
@@ -173,15 +179,25 @@ function handleCellClick(ipObj: IpCell, evt: MouseEvent) {
 
 // ── 统计 ──
 const stats = computed(() => {
-  const planned = ipList.value.filter((p) => ['static', 'dynamic', 'reserved', 'planned'].includes(p.status)).length;
+  const planned = ipList.value.filter((p) => ['dynamic', 'planned', 'reserved', 'static'].includes(p.status)).length;
   const online = ipList.value.filter((p) => (p.overlays || []).includes('online') || p.status === 'online').length;
   const staticCount = ipList.value.filter((p) => p.status === 'static').length;
   const reservedCount = ipList.value.filter((p) => p.status === 'reserved').length;
-  return { total: ipList.value.length, planned, online, static: staticCount, reserved: reservedCount, selected: selected.value.length };
+  const conflictCount = ipList.value.filter((p) => (p.overlays || []).includes('conflict')).length;
+  return { total: ipList.value.length, planned, online, static: staticCount, reserved: reservedCount, conflict: conflictCount, selected: selected.value.length };
 });
 
+const summaryItems = computed(() => [
+  { color: IP_STATUS.dynamic?.color, key: 'online', label: '在线', value: stats.value.online },
+  { color: IP_STATUS.static?.color, key: 'static', label: '静态', value: stats.value.static },
+  { color: IP_STATUS.reserved?.color, key: 'reserved', label: '保留', value: stats.value.reserved },
+  { color: IP_STATUS.planned?.color, key: 'planned', label: '已规划', value: stats.value.planned },
+  { color: OVERLAY_STATUS.conflict?.color, key: 'conflict', label: '冲突', value: stats.value.conflict },
+  { color: IP_STATUS.available?.color, key: 'selected', label: '已选中', value: stats.value.selected },
+]);
+
 // ── 网段切换 ──
-function changeSubnet(next: string | number | undefined) {
+function changeSubnet(next: number | string | undefined) {
   const cidr = String(next ?? '');
   emit('subnetChange', cidr);
   selected.value = [];
@@ -191,12 +207,12 @@ function changeSubnet(next: string | number | undefined) {
 function prevSubnet() {
   const subs = props.subnets || [];
   const idx = subs.findIndex((s) => s.cidr === currentCidr.value);
-  if (subs.length && idx > 0) { const s = subs[idx - 1]; if (s) changeSubnet(s.cidr); }
+  if (subs.length > 0 && idx > 0) { const s = subs[idx - 1]; if (s) changeSubnet(s.cidr); }
 }
 function nextSubnet() {
   const subs = props.subnets || [];
   const idx = subs.findIndex((s) => s.cidr === currentCidr.value);
-  if (subs.length && idx >= 0 && idx < subs.length - 1) { const s = subs[idx + 1]; if (s) changeSubnet(s.cidr); }
+  if (subs.length > 0 && idx !== -1 && idx < subs.length - 1) { const s = subs[idx + 1]; if (s) changeSubnet(s.cidr); }
 }
 const subnetOptions = computed(() =>
   (props.subnets || []).map((s) => ({ label: s.name ? `${s.name}（${s.cidr}）` : s.cidr, value: s.cidr })),
@@ -210,7 +226,7 @@ const editForm = reactive({
   customAttrText: '', remark: '',
 });
 function openEdit() {
-  if (props.readOnly || !selectedIps.value.length) return;
+  if (props.readOnly || selectedIps.value.length === 0) return;
   const first = selectedIps.value[0];
   if (!first) return;
   editing.value = selectedIps.value;
@@ -245,7 +261,7 @@ function openDetail() {
 
 // ── 批量操作（消息与刷新由父层在 API 结果后处理，组件仅发事件）──
 function applyStatus(status: string) {
-  if (props.readOnly || !selectedIps.value.length) return;
+  if (props.readOnly || selectedIps.value.length === 0) return;
   const ids = new Set(selectedIps.value.map((p) => p.ip));
   if (!props.ips) {
     internalIps.value = internalIps.value.map((p) => (ids.has(p.ip) ? { ...p, status } : p));
@@ -264,7 +280,10 @@ onMounted(() => {
 <template>
   <Card size="small">
     <template #title>
-      <span class="font-medium">地址规划</span>
+      <span class="ipam-card-title">
+        <IconifyIcon icon="lucide:layout-grid" />
+        地址矩阵
+      </span>
       <Tag color="blue" class="ml-2">{{ currentCidr }}</Tag>
       <Tag v-if="readOnly" class="ml-1">只读</Tag>
     </template>
@@ -298,17 +317,22 @@ onMounted(() => {
 
     <template v-else>
       <!-- 统计 -->
-      <Space :size="24" wrap style="margin-bottom: 12px">
-        <span><b style="color: #21BF86">{{ stats.online }}</b> 在线</span>
-        <span><b style="color: #2F54EB">{{ stats.static }}</b> 静态</span>
-        <span><b style="color: #FF9C6E">{{ stats.reserved }}</b> 保留</span>
-        <span><b style="color: #BE86E4">{{ stats.planned }}</b> 已规划</span>
-        <span><b style="color: #0065FF">{{ stats.selected }}</b> 已选中</span>
-        <span style="color: #A1A7C4">共 {{ stats.total }} 个地址</span>
-      </Space>
+      <div class="ipam-summary mb-3">
+        <div v-for="item in summaryItems" :key="item.key" class="ipam-summary__item">
+          <span class="ipam-summary__label">
+            <i class="ipam-fam-dot" :style="{ backgroundColor: item.color }"></i>
+            {{ item.label }}
+          </span>
+          <span class="ipam-summary__value">{{ item.value }}<small>个</small></span>
+        </div>
+        <div class="ipam-summary__item">
+          <span class="ipam-summary__label">地址总量</span>
+          <span class="ipam-summary__value">{{ stats.total }}<small>个</small></span>
+        </div>
+      </div>
 
       <!-- 操作栏 -->
-      <Space wrap style="margin-bottom: 12px">
+      <div class="ipam-toolbar mb-3">
         <Button size="small" :disabled="readOnly || !stats.selected" @click="applyStatus('static')">
           <IconifyIcon icon="lucide:refresh-cw" class="mr-1" />转静态
         </Button>
@@ -327,31 +351,32 @@ onMounted(() => {
         <Button v-if="stats.selected > 0" size="small" danger @click="updateSelected([], null)">
           <IconifyIcon icon="lucide:eraser" class="mr-1" />清空选择
         </Button>
-      </Space>
+        <div class="ipam-toolbar__spacer"></div>
+        <span class="ipam-hint">
+          {{ stats.selected > 0 ? `已选 ${stats.selected} 个地址` : '点击格子选择，Shift+点击 连续区间' }}
+        </span>
+      </div>
 
       <!-- 图例 -->
-      <Space wrap :size="[14, 6]" style="margin-bottom: 12px; font-size: 12px; color: #A1A7C4">
-        <span v-for="k in Object.keys(IP_STATUS)" :key="k" style="display: inline-flex; align-items: center; gap: 5px">
-          <span
-            :style="{
-              width: '12px', height: '12px', borderRadius: '3px', backgroundColor: IP_STATUS[k]?.color || '#ccc',
-              display: 'inline-block', opacity: STATUS_DISABLED.includes(k) ? 0.75 : 1,
-            }"
-          />
+      <div class="ipam-legend mb-3">
+        <span v-for="k in Object.keys(IP_STATUS)" :key="k" class="ipam-legend__item">
+          <i
+            class="ipam-legend__swatch"
+            :style="{ backgroundColor: IP_STATUS[k]?.color || '#ccc', opacity: STATUS_DISABLED.has(k) ? 0.75 : 1 }"
+          ></i>
           {{ IP_STATUS[k]?.label || k }}
         </span>
-        <Divider type="vertical" style="margin: 0 2px" />
-        <span>叠加状态：</span>
-        <span v-for="k in Object.keys(OVERLAY_STATUS)" :key="k" style="display: inline-flex; align-items: center; gap: 5px">
-          <span
-            :style="{
-              width: '12px', height: '12px', borderRadius: '50%', backgroundColor: OVERLAY_STATUS[k]?.color || '#ccc',
-              display: 'inline-block',
-            }"
-          />
+        <span class="ipam-legend__divider"></span>
+        <span class="ipam-legend__item">叠加状态</span>
+        <span v-for="k in Object.keys(OVERLAY_STATUS)" :key="k" class="ipam-legend__item">
+          <i
+            class="ipam-legend__swatch"
+            data-shape="dot"
+            :style="{ backgroundColor: OVERLAY_STATUS[k]?.color || '#ccc' }"
+          ></i>
           {{ OVERLAY_STATUS[k]?.label || k }}
         </span>
-      </Space>
+      </div>
 
       <Divider style="margin: 0 0 12px" />
 
@@ -366,7 +391,7 @@ onMounted(() => {
           <template #title>
             <div>
               <div style="font-weight: 600">{{ ipObj.ip }}</div>
-              <div>状态：{{ IP_STATUS[ipObj.status]?.label || ipObj.status }}{{ (ipObj.overlays || []).length ? `（叠加：${(ipObj.overlays || []).map((o) => OVERLAY_STATUS[o]?.label || o).join('、')}）` : '' }}</div>
+              <div>状态：{{ IP_STATUS[ipObj.status]?.label || ipObj.status }}{{ (ipObj.overlays || []).length > 0 ? `（叠加：${(ipObj.overlays || []).map((o) => OVERLAY_STATUS[o]?.label || o).join('、')}）` : '' }}</div>
               <div v-if="ipObj.hostname">主机名：{{ ipObj.hostname }}</div>
               <div v-if="ipObj.mac">MAC：{{ ipObj.mac }}</div>
               <div v-if="ipObj.leaseStart">租用时间：{{ ipObj.leaseStart }}</div>
@@ -380,10 +405,10 @@ onMounted(() => {
             :style="{
               backgroundColor: IP_STATUS[ipObj.status]?.color ?? '#9DBEFF',
               border: selectedSet.has(ipObj.ip) ? '2px dashed #000' : '1px solid #e6e9f4',
-              opacity: readOnly || STATUS_DISABLED.includes(ipObj.status) ? 0.8 : 1,
+              opacity: readOnly || STATUS_DISABLED.has(ipObj.status) ? 0.8 : 1,
             }"
           >
-            {{ ipObj.host }}
+            {{ ipObj.host % PAGE_SIZE }}
             <span
               v-for="(ov, i) in (ipObj.overlays || []).slice(0, 2)"
               :key="ov"
@@ -392,13 +417,14 @@ onMounted(() => {
                 width: '7px', height: '7px', borderRadius: '50%',
                 backgroundColor: OVERLAY_STATUS[ov]?.color || '#999', border: '1px solid #fff',
               }"
-            />
+            ></span>
           </div>
         </Tooltip>
       </div>
 
       <!-- 分页（超过一个 /24 时显示，右下角） -->
-      <div v-if="ipList.length > PAGE_SIZE" style="display: flex; justify-content: flex-end; margin-top: 12px">
+      <div v-if="ipList.length > PAGE_SIZE" style="display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 12px">
+        <span class="ipam-hint">{{ pageCidr }}</span>
         <Pagination
           v-if="ipList.length > PAGE_SIZE"
           :current="page"
@@ -412,7 +438,7 @@ onMounted(() => {
       </div>
 
       <!-- 底部提示 -->
-      <div style="margin-top: 10px; font-size: 12px; color: #A1A7C4">
+      <div class="ipam-hint mt-2">
         点击选择 IP · Shift+点击 区间选择 · 网络/广播地址不可操作{{ readOnly ? ' · 当前为只读模式' : '' }}
       </div>
 
@@ -429,7 +455,7 @@ onMounted(() => {
           <Form.Item label="状态">
             <Select
               v-model:value="editForm.status"
-              :options="Object.entries(IP_STATUS).filter(([k]) => !STATUS_DISABLED.includes(k)).map(([k, v]) => ({ label: v.label, value: k }))"
+              :options="Object.entries(IP_STATUS).filter(([k]) => !STATUS_DISABLED.has(k)).map(([k, v]) => ({ label: v.label, value: k }))"
             />
           </Form.Item>
           <div class="grid grid-cols-2 gap-x-3 gap-y-0">

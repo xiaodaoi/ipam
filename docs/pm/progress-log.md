@@ -3,6 +3,14 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-10-29 · 地址台账三页签体验优化（M4-018）
+- **页面**：重写 `web/apps/web-ipam/src/views/dhcp/ledger/{v4,v6,assets}.vue`，三页统一 `PageHeader` + 4 张 KPI + `ipam-subnets-layout` + `ipam-toolbar` + `ipam-summary`。IPv4：地址容量 / 已用（利用率进度 / 在线数）/ 静态绑定 / 可分配余量 + 网段上下文条（网关·DNS·地址池）+ 在线租约关键字与到期窗口筛选（已过期 / 24h / 7d，到期列双行「时间 + 剩余/已过期」）。IPv6：网段 / 在线 / PD 委派池 / 当前网段在线 + 子网关键字与类型筛选 + 行选中联动租约 + 游标翻页拉全量在线租约（20×500）。资产：资产总数 / 已归属含进度 / 使用人 / 标签覆盖 + 归属范围筛选 + CSV 导出（当前筛选、含完整组织路径、BOM）+ 组织路径列。
+- **交互与信息密度**：`org-filter-card.vue` 升级为「搜索 + 全部组织 + Tree 点选/再点取消 + 范围提示 + 重置 + 空状态」；表格合并低价值列（IPv4 去掉租用时间、IPv6 名称并入 CIDR/DUID 并入地址、资产备注并入终端、部门并入使用人）消除 1280 下横向滚动；`ip-plan-map.vue` 增加摘要统计条、统一工具条、状态图例与底部提示，`STATUS_DISABLED` 改 `Set`。
+- **样式**：`styles/index.css` 追加 M4-018 段（组织树侧栏、行选中、双行单元格/副标题、图例、摘要圆点、组织路径左对齐）；`:has()` 在 ≥961px 保持左树右内容，修复 1280 断点侧栏独占一行的大片留白；摘要条列宽下调使 7 项在 1280 单行展示。
+- **验证**：`vue-tsc` 0 error；eslint / oxlint / stylelint 0 issue；`pnpm --filter @vben/web-ipam build` 成功（✓ built in 10.04s）。Playwright：三页 1280/1440/1600 页面级无横向滚动且表格 `scrollWidth == clientWidth`；浅色与深色主题截图核对通过；资产页实测登记 2 条 → 未归属筛选 1 条 → 关键字 1 条 → CSV 导出内容正确 → 删除清理至 0。
+- **遗留**：工作区仍混有 `internal/logquery/*`、`api/openapi/*`、`api/gen/*`、compose 与多个前端页的跨任务未提交改动；M4-018 与 M2-048 / M4-015 / M4-017 等的提交范围待与用户确认后按任务号选择性提交。
+
+
 ## 2026-10-10 · DHCP 权威应答持久化（M2-046）+ M5-032 五路代理收口
 - **M2-046 持久化（代码修复）**：`internal/engine/kea/config.go` `defaultBaseConfig()` 增加顶层 `"authoritative": true`，使 control-plane 任意写操作经 `BuildConfigFull` 全量重推后不再抹掉权威应答（此前为运行态手工热修，易失）；新增单测 `TestBuildConfig_权威应答`。`IPAM_KEA_TPL` 覆盖路径确认未被部署引用，默认配置即生效。
 - **M5-032 五路代理全部完成并入树**：① coherence HTTP 共享 client（`lease_http.go`，IdleConnTimeout 60s）；② `main.go` pgxpool 显式参数 + `signal.NotifyContext` 可取消；③ 审计表清理 + `DefaultClient` 超时退场；④ Kea/Unbound 日志轮转（`lfc-interval/maxsize/maxver` + unbound logrotate entrypoint；Kea 版本选项经核对 2.2/2.4 均支持）；⑤ 认证加固（stateless refresh token 轮换、登录限流 5/min、黑名单运行期清理、随机 JWT 密钥回退）。

@@ -1,27 +1,22 @@
 <script setup lang="ts">
+import type { LedgerRow, OrgTreeNode, Subnet } from '#/api/ipam';
+
 import { computed, onMounted, ref } from 'vue';
-import { useVbenModal } from '@vben/common-ui';
 import { useRoute } from 'vue-router';
 
-import { Card, Table, Input, message } from 'ant-design-vue';
+import { useVbenModal } from '@vben/common-ui';
+import { IconifyIcon } from '@vben/icons';
 
-const showTotal = (t: number) => `共 ${t} 条`;
+import { Button, Card, Input, message, Select, Space, Table, Tag } from 'ant-design-vue';
 
+import { bindStatic, listLedger, listOrgTree, listSubnets, releaseAddress, reserveAddress } from '#/api/ipam';
 import IpPlanMap from '#/components/ip-plan-map.vue';
 import OrgFilterCard from '#/components/org-filter-card.vue';
-
-import {
-  bindStatic,
-  listLedger,
-  listOrgTree,
-  listSubnets,
-  releaseAddress,
-  reserveAddress,
-  type OrgTreeNode,
-  type Subnet,
-  type LedgerRow,
-} from '#/api/ipam';
+import PageHeader from '#/components/page-header.vue';
+import StatCard from '#/components/stat-card.vue';
 import { normalizeMacInput } from '#/utils/mac';
+
+const showTotal = (t: number) => `共 ${t} 条`;
 
 // ── 组织筛选 ──
 const orgTree = ref<OrgTreeNode[]>([]);
@@ -39,18 +34,21 @@ const v4Subnets = computed(() => subnets.value.filter((s) => s.family === 4));
 const selectedCidr = ref<string>('');
 
 async function loadSubnets() {
-  subnets.value = (await listSubnets(selectedOrgId.value || undefined)).items ?? [];
-  if (v4Subnets.value.length) {
+  const res = await listSubnets(selectedOrgId.value || undefined);
+  subnets.value = res.items ?? [];
+  const first = v4Subnets.value[0];
+  if (first) {
     const cur = v4Subnets.value.find((s) => s.cidr === selectedCidr.value);
-    selectedCidr.value = (cur ?? v4Subnets.value[0]!).cidr;
+    selectedCidr.value = (cur ?? first).cidr;
     await loadMap();
   } else {
     cells.value = [];
+    onlineRows.value = [];
     selectedCidr.value = '';
   }
 }
 
-// ── 地址地图数据（IPv4 逐地址）──
+// ── 地址矩阵数据（IPv4 逐地址）──
 interface MapCell {
   ip: string;
   host: number;
@@ -70,20 +68,73 @@ const onlineRows = ref<Partial<LedgerRow>[]>([]);
 const mapLoading = ref(false);
 const currentSubnet = computed(() => v4Subnets.value.find((s) => s.cidr === selectedCidr.value));
 
+/** 当前网段地址矩阵统计（网络/广播地址不计入可用容量） */
+const stats = computed(() => {
+  let available = 0;
+  let conflict = 0;
+  let online = 0;
+  let reserved = 0;
+  let staticCount = 0;
+  let usable = 0;
+  for (const c of cells.value) {
+    if (c.status === 'network' || c.status === 'broadcast') continue;
+    usable += 1;
+    if (c.status === 'available') available += 1;
+    if (c.status === 'reserved') reserved += 1;
+    if (c.status === 'static') staticCount += 1;
+    if ((c.overlays ?? []).includes('online')) online += 1;
+    if ((c.overlays ?? []).includes('conflict')) conflict += 1;
+  }
+  const used = Math.max(0, usable - available);
+  const utilization = usable > 0 ? Math.round((used / usable) * 1000) / 10 : 0;
+  return {
+    available,
+    conflict,
+    online,
+    reserved,
+    staticCount,
+    total: cells.value.length,
+    usable,
+    used,
+    utilization,
+  };
+});
+
+/** 地址池摘要（当前子网） */
+const poolText = computed(() => {
+  const ps = currentSubnet.value?.pools ?? [];
+  const first = ps[0];
+  if (!first) return '未配置地址池';
+  const one = `${first.startAddr} — ${first.endAddr ?? ''}`;
+  return ps.length > 1 ? `${one} +${ps.length - 1}` : one;
+});
+
 /** ledger 状态 → 地图状态/叠加 */
-function mapState(state: string): { status: string; overlays: string[] } {
+function mapState(state: string): { overlays: string[]; status: string } {
   switch (state) {
-    case 'online': return { status: 'dynamic', overlays: ['online'] };
-    case 'grace': return { status: 'dynamic', overlays: [] };
-    case 'conflict': return { status: 'dynamic', overlays: ['conflict'] };
-    default: return { status: state, overlays: [] }; // available/static/reserved 直通
+    case 'conflict': {
+      return { status: 'dynamic', overlays: ['conflict'] };
+    }
+    case 'grace': {
+      return { status: 'dynamic', overlays: [] };
+    }
+    case 'online': {
+      return { status: 'dynamic', overlays: ['online'] };
+    }
+    default: {
+      return { status: state, overlays: [] };
+    } // available/static/reserved 直通
   }
 }
+
+/** 在线租约的“现在”基准，随每次刷新更新，避免长时间停留后到期提示失真 */
+const nowTs = ref(Date.now());
 
 async function loadMap() {
   const sub = currentSubnet.value;
   if (!sub) {
     cells.value = [];
+    onlineRows.value = [];
     return;
   }
   mapLoading.value = true;
@@ -96,13 +147,14 @@ async function loadMap() {
       grid.push({
         ip,
         host: n,
-        status: n === 0 ? 'network' : n === hostCount - 1 ? 'broadcast' : 'available',
+        status: n === 0 ? 'network' : (n === hostCount - 1 ? 'broadcast' : 'available'),
         overlays: [],
       });
     }
     // 2) 覆盖台账状态（按 host 定位）
     const page = await listLedger({ subnetId: sub.id, family: 4, pageSize: 500 });
     onlineRows.value = (page.items ?? []).filter((r) => r.state === 'online');
+    nowTs.value = Date.now();
     for (const row of page.items ?? []) {
       const host = ipToInt(row.address) - network;
       if (host < 0 || host >= hostCount) continue;
@@ -119,7 +171,7 @@ async function loadMap() {
         leaseEnd: row.leaseExpiry ? new Date(row.leaseExpiry).toLocaleString() : '',
         leaseStatus: row.state === 'online' ? '已分配' : '',
         purpose: row.state === 'reserved' ? '保留' : '',
-        remark: row.state === 'conflict' ? 'IP 冲突' : row.state === 'grace' ? '租约宽限' : '',
+        remark: row.state === 'conflict' ? 'IP 冲突' : (row.state === 'grace' ? '租约宽限' : ''),
       };
     }
     cells.value = grid;
@@ -128,18 +180,81 @@ async function loadMap() {
   }
 }
 
+// ── 在线租约：关键字 / 到期窗口筛选 ──
+const onlineKeyword = ref('');
+type ExpiryFilter = '7d' | '24h' | 'all' | 'expired';
+const expiryFilter = ref<ExpiryFilter>('all');
+const expiryOptions = [
+  { label: '全部到期状态', value: 'all' },
+  { label: '已过期', value: 'expired' },
+  { label: '24 小时内到期', value: '24h' },
+  { label: '7 天内到期', value: '7d' },
+];
+
+function remainingMs(row: Partial<LedgerRow>): null | number {
+  if (!row.leaseExpiry) return null;
+  const t = new Date(row.leaseExpiry).getTime();
+  return Number.isNaN(t) ? null : t - nowTs.value;
+}
+
+function expiryTone(row: Partial<LedgerRow>): string {
+  const ms = remainingMs(row);
+  if (ms === null) return 'muted';
+  if (ms < 0) return 'red';
+  if (ms < 86_400_000) return 'amber';
+  if (ms < 7 * 86_400_000) return 'cyan';
+  return 'green';
+}
+
+function fmtDuration(ms: number): string {
+  const mins = Math.max(1, Math.round(Math.abs(ms) / 60_000));
+  if (mins < 60) return `${mins} 分钟`;
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return `${hours} 小时`;
+  return `${Math.round(hours / 24)} 天`;
+}
+
+function expiryText(row: Partial<LedgerRow>): string {
+  const ms = remainingMs(row);
+  if (ms === null) return '无租期';
+  return ms < 0 ? `已过期 ${fmtDuration(ms)}` : `剩余 ${fmtDuration(ms)}`;
+}
+
+function fmtTime(v?: string): string {
+  return v ? new Date(v).toLocaleString() : '—';
+}
+
+const filteredOnlineRows = computed(() => {
+  const kw = onlineKeyword.value.trim().toLowerCase();
+  return onlineRows.value.filter((row) => {
+    const ms = remainingMs(row);
+    if (expiryFilter.value === 'expired' && (!(ms !== null && ms < 0))) return false;
+    if (expiryFilter.value === '24h' && (!(ms !== null && ms >= 0 && ms <= 86_400_000))) return false;
+    if (expiryFilter.value === '7d' && (!(ms !== null && ms >= 0 && ms <= 7 * 86_400_000))) return false;
+    if (!kw) return true;
+    return [row.address, row.mac, row.hostname, row.owner].some((v) =>
+      String(v ?? '').toLowerCase().includes(kw),
+    );
+  });
+});
+
+function resetOnlineFilters() {
+  onlineKeyword.value = '';
+  expiryFilter.value = 'all';
+}
+
 // ── IP 工具（与 IpPlanMap 同源）──
 function ipToInt(ip: string): number {
-  return ip.split('.').reduce((acc, o) => ((acc << 8) >>> 0) + parseInt(o, 10), 0) >>> 0;
+  return ip.split('.').reduce((acc, o) => ((acc << 8) >>> 0) + Number.parseInt(o, 10), 0) >>> 0;
 }
 function intToIp(n: number): string {
   return [n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.');
 }
-function parseCidr(cidr: string): { network: number; broadcast: number; hostCount: number } {
+function parseCidr(cidr: string): { broadcast: number; hostCount: number; network: number } {
   const parts = String(cidr).split('/');
-  const bits = parseInt(parts[1] || '32', 10);
+  const bits = Number.parseInt(parts[1] || '32', 10);
   const ipInt = ipToInt(parts[0] || '0.0.0.0');
-  const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
+  const mask = bits === 0 ? 0 : (0xFF_FF_FF_FF << (32 - bits)) >>> 0;
   const network = (ipInt & mask) >>> 0;
   const broadcast = (network | (~mask >>> 0)) >>> 0;
   return { network, broadcast, hostCount: broadcast - network + 1 };
@@ -147,6 +262,8 @@ function parseCidr(cidr: string): { network: number; broadcast: number; hostCoun
 
 function onSubnetChange(cidr: string) {
   selectedCidr.value = cidr;
+  onlineKeyword.value = '';
+  expiryFilter.value = 'all';
   void loadMap();
 }
 
@@ -167,9 +284,10 @@ async function onMapAction(action: string, ips: MapCell[]) {
   try {
     if (action === 'toReserve') {
       if (ips.length === 1) {
-        await reserveAddress(sub.id, ips[0]!.ip);
+        await reserveAddress(sub.id, first.ip);
       } else {
-        const res = await (await import('#/api/ipam')).bulkReservations({
+        const { bulkReservations } = await import('#/api/ipam');
+        const res = await bulkReservations({
           subnetId: sub.id,
           entries: ips.map((c) => ({ address: c.ip, kind: 'reserve' })),
         });
@@ -188,14 +306,14 @@ async function onMapAction(action: string, ips: MapCell[]) {
           failed.push(c.ip);
         }
       }
-      if (failed.length) {
-        message.warning(`已释放 ${ips.length - failed.length} 个，失败（无保留记录）：${failed.join('、')}`);
+      if (failed.length > 0) {
+        message.warning(`已释放 ${ips.length - failed.length} 个，失败（无预留记录）：${failed.join('、')}`);
       } else {
         message.success(`已释放 ${ips.length} 个地址，回归可下发池`);
       }
     }
-  } catch (e) {
-    message.error(e instanceof Error ? e.message : '操作失败');
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '操作失败');
   }
   void loadMap();
 }
@@ -212,8 +330,8 @@ async function confirmBind() {
     message.success(`${bindModal.value.address} 已静态绑定 ${normMac}`);
     bindModalApi.close();
     void loadMap();
-  } catch (e) {
-    message.error(e instanceof Error ? e.message : '绑定失败');
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '绑定失败');
   }
 }
 
@@ -232,66 +350,190 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="p-4">
-  <div class="flex gap-4">
-    <OrgFilterCard
-      :org-tree="orgTree"
-      :selected-org-id="selectedOrgId"
-      @select="onSelectOrg"
-    />
+  <div class="ipam-page">
+    <PageHeader
+      eyebrow="DHCP Service"
+      icon="lucide:map"
+      title="IPv4 地址台账"
+      description="按地址矩阵查看 IPv4 分配状态，支持单点/区间选择、保留、静态绑定与释放；下方在线租约支持检索与到期提醒。"
+    >
+      <template #actions>
+        <span class="ipam-page-header__meta">
+          <IconifyIcon icon="lucide:layers" class="size-3.5" />
+          {{ v4Subnets.length }} 个 IPv4 网段 · 当前 {{ selectedCidr || '未选择' }}
+        </span>
+        <Button size="small" :loading="mapLoading" :disabled="!selectedCidr" @click="loadMap">
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />
+          刷新
+        </Button>
+      </template>
+    </PageHeader>
 
-    <div class="min-w-0 flex-1">
-      <IpPlanMap
-        v-if="v4Subnets.length"
-        :cidr="selectedCidr"
-        :ips="cells"
-        :subnets="v4Subnets.map((s) => ({ cidr: s.cidr, name: s.name }))"
-        @subnet-change="onSubnetChange"
-        @action="onMapAction"
-        @save="(_t: unknown, _v: unknown) => message.info('台账信息由 DHCP 租约 / 资产登记驱动，此处仅展示')"
+    <div class="ipam-subnets-layout">
+      <OrgFilterCard
+        :org-tree="orgTree"
+        :selected-org-id="selectedOrgId"
+        @select="onSelectOrg"
       />
 
-      <div v-if="!v4Subnets.length" class="rounded border border-dashed py-16 text-center text-gray-400">
-        请先在左侧选择组织；或该组织暂无 IPv4 网段
-      </div>
+      <div class="ipam-subnets-main">
+        <div v-if="v4Subnets.length === 0" class="ipam-empty">
+          <div class="ipam-empty__icon">
+            <IconifyIcon icon="lucide:map" class="size-5" />
+          </div>
+          <div class="ipam-empty__title">暂无 IPv4 网段</div>
+          <div class="ipam-empty__desc">请先在左侧选择组织，或前往「子网管理」创建 IPv4 网段。</div>
+        </div>
 
-      <Card class="mt-4" :title="`在线地址 · ${selectedCidr || '未选择网段'}（${onlineRows.length}）`">
-        <template #extra>
-          <span class="text-xs text-muted-foreground">DHCP 租约活跃的地址，随租约实时更新</span>
+        <template v-else>
+          <div class="ipam-stat-grid">
+            <StatCard
+              label="地址容量"
+              :value="stats.usable"
+              unit="个"
+              icon="lucide:hash"
+              tone="blue"
+              :hint="`含网络/广播共 ${stats.total} 个地址`"
+            />
+            <StatCard
+              label="已用地址"
+              :value="stats.used"
+              unit="个"
+              icon="lucide:pie-chart"
+              tone="green"
+              :progress="stats.utilization"
+              :hint="`利用率 ${stats.utilization}% · 在线 ${stats.online} 个`"
+            />
+            <StatCard
+              label="静态绑定"
+              :value="stats.staticCount"
+              unit="个"
+              icon="lucide:pin"
+              tone="cyan"
+              :hint="`保留 ${stats.reserved} 个地址`"
+            />
+            <StatCard
+              label="可分配余量"
+              :value="stats.available"
+              unit="个"
+              icon="lucide:circle-dashed"
+              :tone="stats.conflict > 0 ? 'amber' : 'violet'"
+              :hint="stats.conflict > 0 ? `${stats.conflict} 个地址存在冲突` : '当前网段无冲突'"
+            />
+          </div>
+
+          <div class="ipam-toolbar">
+            <span class="ipam-field">
+              <span class="ipam-field__label">当前网段</span>
+              <Tag color="blue" class="m-0">{{ selectedCidr }}</Tag>
+              <span class="ipam-hint">{{ currentSubnet?.name || '未命名网段' }}</span>
+            </span>
+            <span class="ipam-field">
+              <span class="ipam-field__label">网关</span>
+              <span class="ipam-mono">{{ currentSubnet?.gateway || '未配置' }}</span>
+            </span>
+            <span class="ipam-field">
+              <span class="ipam-field__label">DNS</span>
+              <span class="ipam-mono">{{ currentSubnet?.dnsServers || '未配置' }}</span>
+            </span>
+            <span class="ipam-field">
+              <span class="ipam-field__label">地址池</span>
+              <span class="ipam-mono">{{ poolText }}</span>
+            </span>
+            <div class="ipam-toolbar__spacer"></div>
+            <span class="ipam-hint">在地址矩阵中选中地址后可批量转静态 / 保留 / 释放</span>
+          </div>
+
+          <IpPlanMap
+            :cidr="selectedCidr"
+            :ips="cells"
+            :subnets="v4Subnets.map((s) => ({ cidr: s.cidr, name: s.name }))"
+            @subnet-change="onSubnetChange"
+            @action="onMapAction"
+            @save="(_t: unknown, _v: unknown) => message.info('台账信息由 DHCP 租约 / 资产登记驱动，此处仅展示')"
+          />
+
+          <Card>
+            <template #title>
+              <span class="ipam-card-title">
+                <IconifyIcon icon="lucide:radio-tower" />
+                在线租约
+                <em class="ipam-card-sub">
+                  {{ selectedCidr || '未选择网段' }} · {{ filteredOnlineRows.length }} /
+                  {{ onlineRows.length }} 条
+                </em>
+              </span>
+            </template>
+            <template #extra>
+              <Space :size="6" wrap>
+                <Tag v-if="stats.conflict > 0" color="red" class="m-0">冲突 {{ stats.conflict }}</Tag>
+                <span class="ipam-hint">随 DHCP 租约实时更新</span>
+              </Space>
+            </template>
+
+            <div class="ipam-toolbar mb-3">
+              <div class="ipam-field">
+                <span class="ipam-field__label">关键字</span>
+                <Input
+                  v-model:value="onlineKeyword"
+                  allow-clear
+                  placeholder="IP / MAC / 主机名 / 使用人"
+                  style="width: 240px"
+                />
+              </div>
+              <div class="ipam-field">
+                <span class="ipam-field__label">到期</span>
+                <Select
+                  v-model:value="expiryFilter"
+                  :options="expiryOptions"
+                  style="width: 150px"
+                />
+              </div>
+              <Button size="small" @click="resetOnlineFilters">重置</Button>
+              <div class="ipam-toolbar__spacer"></div>
+              <span class="ipam-hint">到期时间按浏览器本地时区显示</span>
+            </div>
+
+            <Table
+              :data-source="filteredOnlineRows"
+              :loading="mapLoading"
+              :columns="[
+                { title: '在线地址', dataIndex: 'address', width: 130, sorter: (a: any, b: any) => ipToInt(a.address) - ipToInt(b.address) },
+                { title: 'MAC', dataIndex: 'mac', width: 160 },
+                { title: '主机名', dataIndex: 'hostname', width: 140 },
+                { title: '使用人', dataIndex: 'owner', width: 100 },
+                { title: '到期时间', dataIndex: 'leaseExpiry', width: 220 },
+              ]"
+              :locale="{ emptyText: onlineKeyword || expiryFilter !== 'all' ? '没有匹配的在线租约' : '当前网段暂无在线租约' }"
+              :pagination="{ pageSize: 20, showSizeChanger: true, showTotal }"
+              row-key="address"
+              size="small"
+            >
+              <template #bodyCell="{ column, record }">
+                <template v-if="column.dataIndex === 'address'">
+                  <span class="ipam-mono">{{ record.address }}</span>
+                </template>
+                <template v-else-if="column.dataIndex === 'mac'">
+                  <span v-if="record.mac" class="ipam-mono">{{ record.mac }}</span>
+                  <span v-else class="text-gray-400">—</span>
+                </template>
+                <template v-else-if="column.dataIndex === 'hostname'">{{ record.hostname || '—' }}</template>
+                <template v-else-if="column.dataIndex === 'owner'">{{ record.owner || '—' }}</template>
+                <template v-else-if="column.dataIndex === 'leaseExpiry'">
+                  <div class="ipam-cell-stack">
+                    <span class="ipam-hint">{{ fmtTime(record.leaseExpiry) }}</span>
+                    <span class="ipam-chip" :data-tone="expiryTone(record)">{{ expiryText(record) }}</span>
+                  </div>
+                </template>
+              </template>
+            </Table>
+          </Card>
         </template>
-        <Table
-          :data-source="onlineRows"
-          :columns="[
-            { title: '在线地址', dataIndex: 'address' },
-            { title: 'MAC', dataIndex: 'mac' },
-            { title: '主机名', dataIndex: 'hostname' },
-            { title: '租用时间', dataIndex: 'leaseStart' },
-            { title: '到期时间', dataIndex: 'leaseExpiry' },
-          ]"
-          row-key="address"
-          size="small"
-          :pagination="{ pageSize: 20, showSizeChanger: true, showTotal }"
-        >
-          <template #bodyCell="{ column, record }">
-            <template v-if="column.dataIndex === 'mac'">
-              <span v-if="record.mac" class="font-mono">{{ record.mac }}</span>
-              <span v-else>-</span>
-            </template>
-            <template v-else-if="column.dataIndex === 'hostname'">{{ record.hostname || '-' }}</template>
-            <template v-else-if="column.dataIndex === 'leaseStart'">
-              {{ record.leaseStart ? new Date(record.leaseStart).toLocaleString() : '-' }}
-            </template>
-            <template v-else-if="column.dataIndex === 'leaseExpiry'">
-              {{ record.leaseExpiry ? new Date(record.leaseExpiry).toLocaleString() : '-' }}
-            </template>
-          </template>
-        </Table>
-      </Card>
+      </div>
     </div>
-  </div>
 
-  <BindModal>
-    <Input v-model:value="bindModal.mac" placeholder="MAC 如 aa:bb:cc:dd:ee:01" @pressEnter="confirmBind" />
-  </BindModal>
+    <BindModal>
+      <Input v-model:value="bindModal.mac" placeholder="MAC 如 aa:bb:cc:dd:ee:01" @press-enter="confirmBind" />
+    </BindModal>
   </div>
 </template>
