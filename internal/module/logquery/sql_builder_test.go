@@ -21,9 +21,12 @@ func TestBuildWhereAlignment(t *testing.T) {
 		{From: from},
 		{From: from, Type: "dhcp"},
 		{From: from, MAC: "aa:bb:cc:dd:ee:01"},
+		{From: from, MAC: "ee"}, // 部分 MAC 子串
 		{From: from, IP: "10.61.172.0/24"},
 		{From: from, IP: "10.61.172.10"},
 		{From: from, IP: "2001:db8::/32"},
+		{From: from, SIP: "10.61.172"}, // 来源 IP 子串
+		{From: from, Keyword: "corp.local"}, // 单框关键字（5 列 OR）
 		{From: from, Domain: "corp.local", Action: "blocked"},
 	}
 	for _, c := range cases {

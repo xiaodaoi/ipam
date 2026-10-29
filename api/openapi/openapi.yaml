@@ -198,6 +198,35 @@ paths:
                     ready: true
         '500':
           $ref: '#/components/responses/Problem'
+  /system/metrics:
+    get:
+      operationId: getSystemMetrics
+      tags: [platform]
+      summary: 查询宿主主机资源使用率
+      description: |
+        返回宿主主机（非容器）CPU/内存/磁盘使用率快照，供仪表盘「主机资源」卡片展示。
+        数据来源：宿主 /proc（stat/meminfo/loadavg/uptime/mounts）+ 数据盘 statfs，
+        容器经只读挂载读取（IPAM_HOST_PROC/IPAM_HOST_SYS/IPAM_HOST_ROOT）。
+        所需权限：dash:read。
+      responses:
+        '200':
+          description: 主机资源快照
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostMetrics'
+              examples:
+                ok:
+                  summary: 正常运行
+                  value:
+                    ts: '2026-10-16T03:30:00Z'
+                    uptimeSec: 1234567
+                    cpu: { usagePct: 12.5, cores: 8, load1: 0.42, load5: 0.55, load15: 0.6 }
+                    memory: { totalBytes: 16777216000, usedBytes: 8388608000, availableBytes: 8388608000, usedPct: 50 }
+                    disks:
+                      - { mount: '/', device: '/dev/mapper/ubuntu--vg-ubuntu--lv', fsType: ext4, totalBytes: 105000000000, usedBytes: 39000000000, availableBytes: 66000000000, usedPct: 37.1 }
+        '503':
+          $ref: '#/components/responses/Problem'
 components:
   securitySchemes:
     bearerAuth:
@@ -226,6 +255,58 @@ components:
         ready:
           type: boolean
           description: 关键依赖（PostgreSQL）可达则为 true；false 时仪表盘服务健康亮黄
+    HostMetrics:
+      type: object
+      required: [ts, cpu, memory, disks]
+      properties:
+        ts:
+          type: string
+          format: date-time
+          description: 采样时刻（UTC，RFC3339）
+        uptimeSec:
+          type: number
+          description: 宿主开机时长（秒，取自 /proc/uptime）
+        cpu:
+          $ref: '#/components/schemas/HostCpu'
+        memory:
+          $ref: '#/components/schemas/HostMemory'
+        disks:
+          type: array
+          description: 宿主块设备文件系统使用率（含根分区与数据盘）
+          items:
+            $ref: '#/components/schemas/HostDisk'
+    HostCpu:
+      type: object
+      required: [usagePct, cores]
+      properties:
+        usagePct:
+          type: number
+          description: CPU 整体使用率（%，两次采样差值；首次调用可能为 0）
+        cores:
+          type: integer
+          description: 逻辑 CPU 核数
+        load1: { type: number, description: 1 分钟平均负载 }
+        load5: { type: number, description: 5 分钟平均负载 }
+        load15: { type: number, description: 15 分钟平均负载 }
+    HostMemory:
+      type: object
+      required: [totalBytes, usedBytes, availableBytes, usedPct]
+      properties:
+        totalBytes: { type: integer, format: int64, description: 物理内存总量 }
+        usedBytes: { type: integer, format: int64, description: 已用（总量 - 可用） }
+        availableBytes: { type: integer, format: int64, description: 可用（MemAvailable） }
+        usedPct: { type: number, description: 内存使用率（%） }
+    HostDisk:
+      type: object
+      required: [mount, totalBytes, usedBytes, availableBytes, usedPct]
+      properties:
+        mount: { type: string, description: 挂载点（宿主路径） }
+        device: { type: string, description: 设备名（如 /dev/mapper/...） }
+        fsType: { type: string, description: 文件系统类型（如 ext4/xfs） }
+        totalBytes: { type: integer, format: int64, description: 总容量 }
+        usedBytes: { type: integer, format: int64, description: 已用容量 }
+        availableBytes: { type: integer, format: int64, description: 可用容量（非 root 可见） }
+        usedPct: { type: number, description: 使用率（%） }
     OrgNode:
       $ref: './components/schemas/org.yaml#/OrgNode'
     OrgTreeNode:

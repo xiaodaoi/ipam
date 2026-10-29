@@ -16,6 +16,7 @@
   "dhcp": {
     "title": "DHCP Service",
     "ledger": "Address Ledger",
+    "assets": "Asset Registry",
     "subnets": "Subnets",
     "dualstack": "Dual-stack",
     "options": "Options & Classes",

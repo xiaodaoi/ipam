@@ -24,7 +24,8 @@ import (
 // domainOf 路径 → 权限域（/api/v1 前缀已含；空=放行）。
 func domainOf(fullPath string) string {
 	switch {
-	case strings.HasPrefix(fullPath, "/api/v1/system/info"):
+	case strings.HasPrefix(fullPath, "/api/v1/system/info"),
+		strings.HasPrefix(fullPath, "/api/v1/system/metrics"):
 		return "dash"
 	case strings.HasPrefix(fullPath, "/api/v1/dashboard"):
 		return "dash"
@@ -32,8 +33,12 @@ func domainOf(fullPath string) string {
 		return "logs"
 	case strings.HasPrefix(fullPath, "/api/v1/subnets"), strings.HasPrefix(fullPath, "/api/v1/dhcp"),
 		strings.HasPrefix(fullPath, "/api/v1/reservations"), strings.HasPrefix(fullPath, "/api/v1/ledger"),
-		strings.HasPrefix(fullPath, "/api/v1/assets"), strings.HasPrefix(fullPath, "/api/v1/dualstack"):
+		strings.HasPrefix(fullPath, "/api/v1/dualstack"):
 		return "dhcp"
+	// M2-048：资产登记独立权限域（assets:read|write），与角色管理的 6 域模型一致；
+	// 早前误并入 dhcp 域会导致仅持 assets:* 的角色无法读写 /assets。
+	case strings.HasPrefix(fullPath, "/api/v1/assets"):
+		return "assets"
 	case strings.HasPrefix(fullPath, "/api/v1/upstreams"), strings.HasPrefix(fullPath, "/api/v1/forward-rules"),
 		strings.HasPrefix(fullPath, "/api/v1/dns"):
 		return "dns"

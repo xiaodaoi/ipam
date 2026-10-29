@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -19,6 +21,7 @@ import (
 	"github.com/xiaodaoi/ipam/internal/module/ipam"
 	"github.com/xiaodaoi/ipam/internal/module/logmanager"
 	logq "github.com/xiaodaoi/ipam/internal/module/logquery"
+	"github.com/xiaodaoi/ipam/internal/pkg/hostmetrics"
 )
 
 // logsAPI 组合用命名包装（与 cmd/control-plane/main.go 同法，避开 Handler 字段名冲突）。
@@ -107,6 +110,35 @@ func TestGetSystemInfo_OK(t *testing.T) {
 	}
 	if info.Name != "ipam-control-plane" || info.Version != "9.9.9-test" || !info.Ready || info.GoVersion == "" {
 		t.Fatalf("unexpected info: %+v", info)
+	}
+}
+
+func TestGetSystemMetrics_OK(t *testing.T) {
+	dir := t.TempDir()
+	proc := filepath.Join(dir, "proc")
+	if err := os.MkdirAll(proc, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_ = os.WriteFile(filepath.Join(proc, "stat"), []byte("cpu  10 0 10 80 0 0 0 0 0 0\ncpu0 10 0 10 80 0 0 0 0 0 0\n"), 0o600)
+	_ = os.WriteFile(filepath.Join(proc, "loadavg"), []byte("0.10 0.20 0.30 1/1 1\n"), 0o600)
+	_ = os.WriteFile(filepath.Join(proc, "meminfo"), []byte("MemTotal: 2000 kB\nMemAvailable: 500 kB\n"), 0o600)
+	_ = os.WriteFile(filepath.Join(proc, "uptime"), []byte("42.0 1.0\n"), 0o600)
+	_ = os.WriteFile(filepath.Join(proc, "mounts"), []byte(""), 0o600)
+
+	h := NewHandler("9.9.9-test")
+	h.SetHostMetrics(hostmetrics.New(proc, "", dir))
+
+	w := httptest.NewRecorder()
+	newTestRouter(h).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/system/metrics", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	var m apigen.HostMetrics
+	if err := json.Unmarshal(w.Body.Bytes(), &m); err != nil {
+		t.Fatalf("body not json: %v", err)
+	}
+	if m.Cpu.Cores != 1 || m.Memory.TotalBytes != 2000*1024 || m.Memory.UsedBytes != 1500*1024 {
+		t.Fatalf("unexpected metrics: %+v", m)
 	}
 }
 

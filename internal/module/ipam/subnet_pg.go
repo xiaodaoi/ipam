@@ -550,12 +550,14 @@ func (r *PgAssetRepo) List(ctx context.Context, orgID, q string) ([]Asset, error
 }
 
 func (r *PgAssetRepo) Upsert(ctx context.Context, a Asset) error {
+	// tags 列为 NOT NULL DEFAULT '{}'：显式传 nil 会被编码为 NULL 覆盖默认值而报错，统一规整为空数组。
+	tags := normalizeTags(a.Tags)
 	_, err := r.pool.Exec(ctx,
 		`INSERT INTO asset(mac, org_id, owner, dept, note, tags, updated_at)
 		 VALUES($1,$2,$3,$4,$5,$6,now())
 		 ON CONFLICT (mac) DO UPDATE SET org_id=EXCLUDED.org_id, owner=EXCLUDED.owner,
 		   dept=EXCLUDED.dept, note=EXCLUDED.note, tags=EXCLUDED.tags, updated_at=now()`,
-		a.MAC, nullStr(a.OrgID), a.Owner, nullStr(a.Dept), nullStr(a.Note), a.Tags)
+		a.MAC, nullStr(a.OrgID), a.Owner, nullStr(a.Dept), nullStr(a.Note), tags)
 	return err
 }
 

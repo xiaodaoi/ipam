@@ -33,7 +33,76 @@
 - **验证**：`vue-tsc` 0 error；eslint / oxlint / stylelint 0 issue；`pnpm --filter @vben/web-ipam build` 成功（✓ built in 10.04s）。Playwright：三页 1280/1440/1600 页面级无横向滚动且表格 `scrollWidth == clientWidth`；浅色与深色主题截图核对通过；资产页实测登记 2 条 → 未归属筛选 1 条 → 关键字 1 条 → CSV 导出内容正确 → 删除清理至 0。
 - **遗留**：工作区仍混有 `internal/logquery/*`、`api/openapi/*`、`api/gen/*`、compose 与多个前端页的跨任务未提交改动；M4-018 与 M2-048 / M4-015 / M4-017 等的提交范围待与用户确认后按任务号选择性提交。
 
+## 2026-10-28 · 子网管理页双栈分离与组织下钻重构（M4-017）
+- **页面**：重写 `web/apps/web-ipam/src/views/dhcp/subnets/index.vue`：`PageHeader` + 4 张 KPI 卡（IPv4 子网 / IPv6 子网 / 在线租约 / Kea 下发覆盖）→ 左侧组织树面板 + 右侧「双族切换卡（IPv4 逐地址规划 / IPv6 前缀·PD 委派）→ 族专属摘要条 → 6 列精简表」；IPv6 页签追加 Kea 实时租约区（NA/PD 计数）。族（`?family=6`）与组织（`?org=<id>`）同步到 URL。
+- **信息架构**：IPv4/IPv6 由「同表混排」改为「族切换 + 族摘要」，组织由「下拉框」改为「树形下钻」（搜索、全部组织、节点子网数/在线数徽标含子孙汇总、面包屑范围提示、再点取消）；组织 CRUD 收进右侧抽屉复用 `org-manage-card.vue`，关闭后自动刷新。
+- **数据补齐**：表格新增容量列与在线/利用率列（进度条 + 阈值配色）；容量前端精确计算——IPv4 动态池 `end-start+1`、IPv6 PD `2^(delegated-prefix)`、IPv6 动态池 BigInt 区间，PD-only 子网利用率显示 `—`；在线数由 `GET /ledger?state=online` 按 `subnetId` 全量聚合（原先只取首 100 条）。
+- **样式**：`styles/index.css` 追加 M4-017 段约 480 行（布局/组织树/族切换卡/摘要条/单元格/利用率/操作组），补 `ipam-chip` 的 blue/cyan/violet/muted 与 `ipam-progress` 的 green/amber/red 色调。
+- **窄屏修复**：≤1400px 组织面板全宽置顶（卡体 `max-height:300px` 滚动）且 `align-items:stretch`（原 `flex-start` 在 column 方向按内容撑宽，导致 820px 页面级横向溢出 916px）；主区与卡体 `min-width:0 / max-width:100%`、vxe 根节点限宽，溢出只落在大表内部滚动；族切换卡改 `auto-fit minmax(238px,1fr)`。
+- **组件修复**：`org-manage-card.vue` 的 ant `Tree` 由废弃的 `#titleRender` 改为 `#title="node"`（插槽参数为合并后的节点数据），修复抽屉内节点渲染与 `node.org` 读取报错。
+- **构建**：`web/apps/web-ipam/vite.config.ts` 设 `build.target: 'es2020'`——IPv6 容量依赖 BigInt（2^128），默认 es2015 会对 BigInt 字面量报降级警告，改后构建零警告。
+- **验证**：`vue-tsc` 0 error；eslint / stylelint 0 issue；`pnpm --filter @vben/web-ipam build` 成功；Playwright 实测 1920/1600/1280/820 四档、深色主题、IPv6 页签、组织下钻（信息公司 → 1 v4 / 1 v6）、空组织空表、组织管理抽屉均正常；820px `scrollWidth === clientWidth === 820`。
+- **遗留**：未重建 control-plane 镜像（8443 容器内嵌仍为旧产物）；工作区含其他任务未提交改动，本次未 commit。
+## 2026-10-28 · 仪表盘数据可视化重构（M4-016）
+- **页面**：重写 `web/apps/web-ipam/src/views/dashboard/ipam/index.vue`：KPI 4 卡（活跃终端 / 5 分钟 QPS 带迷你趋势线、服务健康进度、今日拦截）+ 活跃终端柱状趋势（峰值标注、今日新增/离线/小时均值/双栈联动成功率）+ 服务健康环（4/4）+ DNS 查询量折线面积图（1h/6h/24h 分段切换）+ 热门查询域名 Top5 + 主机资源环形（CPU/内存/根分区、磁盘条、1/5/15 分钟负载）+ 地址池利用率 Top5 排名列表；首屏 Skeleton 占位。
+- **新组件**：`components/trend-chart.vue`（纯 SVG 折线/柱状图：Y 轴刻度、虚线网格、均值/峰值参考线、单调三次插值、面积渐变、末端脉冲点、悬浮十字线 + 气泡提示，宽度实测防拉伸）；`components/metric-ring.vue`（环形指标，支持空值占位）。`components/stat-card.vue` 扩展 `spark` 迷你趋势线并把提示行贴底对齐。
+- **数据口径**：剔除末尾「进行中」分桶（终端按小时、QPS 按当前 `intervalSec`），消除趋势尾部假下跌；QPS 平均/峰值速率统一折算为「次/分」。
+- **新增数据源**：复用既有 `GET /logs/top?by=domain`（近 1 小时 Top5），无 spec 变更、无新端点。
+- **样式**：`styles/index.css` 追加图表/环形/榜单/磁盘/分段控件等约 400 行，全部使用 Vben 主题变量，明暗自适应。
+- **验证**：`vue-tsc` 0 error；改动文件 eslint / oxlint / stylelint 0 issue；`pnpm --filter @vben/web-ipam build` 成功；Playwright 实测 1600/1280/820 三档断点、深色主题、柱/折线悬浮气泡、24 小时区间切换均正常（截图核对）。
+- **遗留**：未重建 control-plane 镜像——当前容器内嵌前端为上游 Vben 旧产物，需 `build:ipam` + 重建镜像后才在 8443 生效；工作区含其他任务未提交改动，本次未 commit。
+## 2026-10-19 · 资产登记页与 assets 权限域修复（M2-048）
+- **页面**：新增 `web/apps/web-ipam/src/views/dhcp/ledger/assets.vue`（地址台账「资产登记」页签）：组织树侧栏 + 关键字（MAC/使用人/部门）工具条 + 资产表格（使用人/部门/所属组织/标签/备注）+ `useVbenModal` 登记/编辑表单（MAC 归一化、编辑态只读）；接入统一页头/卡片/工具条视觉。
+- **路由与文案**：`router/routes/modules/dhcp.ts` 新增 `DhcpLedgerAssets`（`/dhcp/ledger/assets`，authority `assets:read`）挂到地址台账父路由，形成 IPv4 / IPv6 / 资产登记 三页签；补齐 zh-CN/en-US `page.dhcp.assets`。
+- **API 客户端**：`api/ipam.ts` 扩展 `listAssets({orgId,q})` 并新增 `upsertAsset` / `deleteAsset` 与 `AssetUpsert` 类型（复用 M2-004 既有 `/assets` 端点，无需改 spec）。
+- **后端修复①（rbac 权限域）**：`domainOf` 原把 `/api/v1/assets` 并入 `dhcp` 域，使角色管理的 `assets:read|write` 权限点形同虚设、仅持 assets 的自定义角色读写 `/assets` 会 403；改为独立 `assets` 域，并补 `TestDomainOf_资产域独立` 与 `TestRBAC_资产域按assets权限拦截`。
+- **后端修复②（tags 非空列）**：`PgAssetRepo.Upsert` 在标签缺省时把 nil 直传驱动，被编码为 NULL 覆盖 `asset.tags NOT NULL DEFAULT '{}'` 报错；服务层新增 `normalizeTags`（nil → 空数组），前端亦恒传数组，补 `TestAssetUpsert_无标签规整为空数组`。
+- **验证**：`go build ./...`、`go vet` 0 错，`go test ./...` 全绿；`vue-tsc` 0 error，改动 vue 文件 eslint 0 issue / oxlint 0，`pnpm --filter @vben/web-ipam build` 成功；接口实测 `PUT/GET(q)/DELETE /assets` 正常；Playwright 登录后实测 登记→编辑→删除 全链路通过（PUT 200 / PUT 200 / DELETE 204）并截图核对。
+- **看板收口**：将已入 main 的 `M2-046`（commit `35f5122`）、`M5-032`（commit `397f218`）从 doing 移至 review 并置状态，doing 列清空；`go test ./...` 全绿（原 M5-032 遗留的 TestQps 失败已修复）。
+- **遗留**：两处后端修复需重建 control-plane 镜像方可生效（线上控制面仍为旧码；前端恒传 tags 数组，旧后端下功能亦可正常）；未执行部署与 commit（工作区含其他任务改动，避免混提）。
 
+<!-- 已归档旧条目 -->
+## 2026-10-19 · 全站主菜单界面视觉统一与商业软件化（M4-015）
+- **视觉层**：新增 `web/apps/web-ipam/src/styles/index.css`，统一页面骨架（`ipam-page`）、页头、Ant Card、表格、工具条、Tabs、指标块、健康状态、空状态、进度条与滚动条；全部使用 Vben `--background/--card/--border/--primary` 变量，明暗主题自适应。
+- **可复用组件**：新增 `PageHeader`（图标/标题/描述/操作区）与 `StatCard`（数值/单位/提示/趋势/进度）；移除试做后未使用的 `PanelCard`，避免与 Ant Card 双轨。
+- **仪表盘重构**：4 个核心指标卡（活跃终端、DNS QPS、服务健康、今日拦截）+ 活跃终端趋势 + 服务健康明细 + DNS 查询量面积图 + DNS 概览 + 主机资源 + 地址池 TopN；修复 Ant Progress 百分比重叠/精度问题，改为自绘进度条。
+- **各主菜单页面**：DHCP（子网、v4/v6 台账、保留绑定、选项、双栈）、DNS（上游、转发、记录、缓存、安全、封禁）、日志（检索、实时流、审计）、系统（用户、角色、设置、关于）统一页头、卡片标题/extra、筛选工具条与主从侧栏宽度；关于页改为产品信息/核心能力/技术栈。
+- **登录与全局**：登录页移除演示账号、手机号/扫码/第三方/注册入口，固定「登录管理平台」文案；清除通知中心假数据与用户下拉假邮箱/Pro 标签；默认头像改本地 `/avatar.svg`；默认浅色 + 企业蓝，关闭 Ant 按钮中文自动空格。
+- **开发环境**：`vite.config.ts` dev 代理目标补 `/api/v1`，修复本地登录与用户信息请求落到未注册 `/api/*`。
+- **验证**：`vue-tsc` 0 error；改动文件 eslint/oxlint 0 issue；`stylelint` 0；`pnpm --filter @vben/web-ipam build` 成功；Playwright 以 admin 登录后逐页截图核对（1600×1000 浅色）。
+- **遗留**：`views/dhcp/ledger/index.vue` 历史未挂路由页未纳入；仅构建前端产物，未重建/部署 control-plane 镜像。
+- **子网管理**（`views/dhcp/subnets/index.vue`）：分族切换按钮显「族·子网数/在线数」；单表格按族切数据（去重复槽位）；新增「地址池」摘要列（首池 + 其余数量 / PD 前缀）；CIDR 加族标签；表单用 Divider 分区（基本信息/地址池/网关与 DNS/DHCP 选项）；修复未导入 `Switch` 致 CSV 开关不渲染。
+- **IPv4 台账**（`ledger/v4.vue`）：当前子网网关/DNS/池摘要标签；在线表增「使用人」列 + 地址可排序 + 等宽；空状态。
+- **IPv6 台账**（`ledger/v6.vue`）：概览标签（网段数/在线总数）；子网表增「类型/地址池/DNS」列与选中行高亮（bg-blue-50）；在线表列优化与空状态。
+- **门禁**：`vue-tsc` 0 error；三文件 oxlint + eslint 均 0 issue（两 linter 的 import 排序冲突已手工调和）。
+- **部署**：`build:ipam` → `sync-webui` → 宿主 `go build`（re-embed dist）→ 覆盖镜像 → `compose up -d --force-recreate --no-deps --no-build control-plane`；容器二进制 MD5 一致。
+- **遗留**：`views/dhcp/ledger/index.vue`（历史未挂路由）未纳入。
+## 2026-10-16 · 仪表盘「主机资源」卡片（M4-013）+ 部署
+- **需求**：获取宿主主机 CPU/内存/磁盘使用率并在仪表盘展示。控制面在容器内，默认只见自身 cgroup → 采用**只读挂载宿主 `/proc`、`/sys`、`/`（递归含数据盘）** + env `IPAM_HOST_*`。
+- **Spec 先行**：新增 `GET /system/metrics`（`HostMetrics/HostCpu/HostMemory/HostDisk`），`make gen` 再生；RBAC 归 `dash`（`dash:read`）。
+- **采集器** `internal/pkg/hostmetrics`：CPU 差值/核数/负载、MemAvailable、`<proc>/1/mounts` 宿主挂载表 + `syscall.Statfs` 按设备去重（关键：`/proc/mounts`=`self` 会误报容器挂载）。新增单测（fake /proc + 端点 200）。
+- **前端**：`getSystemMetrics()` + 仪表盘「主机资源」卡片（CPU/负载、内存、开机时长、文件系统表），10s 轮询。
+- **部署**：前端 `build:ipam`+`sync-webui`；后端宿主 `go build` → 覆盖镜像；`compose up -d --force-recreate --no-deps --no-build control-plane`（应用新增挂载）。
+- **验证**：`/system/metrics` → 12 核、CPU≈3.2%、内存 7.78G、磁盘 `/`(45.6%)/`/boot`(15.5%)；`go test ./...` 绿、vue-tsc 0 error。
+- **遗留**：同盘多挂载点会按设备合并；历史文件既有 eslint 告警未处理。
+## 2026-10-16 · 日志检索单框模糊（M4-011 续）+ 日志采集中断修复（M4-012）+ 重新部署
+- **M4-011 单框模糊**：新增 `q` 关键字参数（域名/客户端MAC/客户端IP/来源IP/应答IP 任一子串），spec→`make gen`→backend（buildWhere 5 列 OR、mem_store、handler/tail）→前端检索页合并为单个「关键字模糊搜索」输入框（移除 4 个分项框）。`go test ./...` 绿、`vue-tsc` 0 error。
+- **M4-012 日志无记录根因**：`ipam.logs` 最新行停在约 1 天前，前端默认近 6h 窗口恒空。定位 Vector→ClickHouse `HTTP 500`，`system.errors` code **632 UNEXPECTED_DATA_AFTER_PARSED_VALUE**（`fe80::…%ens160` zone 后缀无法解析为 IPv6，`json_each_row` 整批失败→无限重试）。修复：`config/vector/vector.toml` 的 `normalize` 对 `client_ip`/`sip`/`answer_ip` 用 `replace(..., r'%[^%]*$', "")` 剥离 zone；`vector validate` 通过 → 重启 Vector → sink 恢复 200。
+- **部署**：宿主 `pnpm build:ipam` → `sync-webui.sh` → `CGO_ENABLED=0 go build` → `COPY` 覆盖 `ipam/control-plane:0.1.0-dev` → `compose up -d --force-recreate --no-deps --no-build control-plane`；Vector `restart`。容器二进制 MD5 与宿主一致。
+- **验证**：`GET /api/v1/logs?from=-6h` `total≈1.44e6`（此前 0）；`q=corp` 命中 3 条；下发 `search-*.js` 为单框关键字版。
+- **遗留**：历史文件既有 eslint 告警未处理；Dockerfile Go 工具链下载本环境不可用。
+## 2026-10-16 · 地址规划分页标签（M4-010）+ 日志模糊检索（M4-011）+ 前端重新部署
+- **M4-010 地址规划矩阵**：`/23` 第二页格子编号 256–511 → 改为 `host % 256` 展示（每页 /24 回到 0–255），`host` 原值仍供选择/Shift 区间；分页条左侧新增当前页 `/24` 提示（如 `10.61.67.0/24`）。改动 `components/ip-plan-map.vue`。
+- **M4-011 日志中心模糊检索（spec 先行）**：新增 `sip`（来源 IP 子串）参数并接入 `listLogs`/`exportLogs`/`streamLogTail`；`mac` 由精确改为子串匹配（`domain`/`answerIp` 维持子串）；CH 与内存 Store 语义对齐，handler 三端点透传。前端检索页新增「客户端MAC（模糊）」「来源IP（模糊）」输入，查询/导出带 `mac`/`sip`。`make gen` 再生 api/gen + schema.d.ts。
+- **测试修复**：`logquery_test.go` 硬编码 `2026-08-26` 已超 31 天窗口致整包红——改为滚动锚定时间并新增 `TestMatchLogFuzzy`；`go test ./...` 到齐全绿。
+- **前端重新部署（关键）**：线上 `http://10.61.40.50:8443` 由 `ipam-control-plane-1` 内嵌 `go:embed` 产物提供，源码改动需重建镜像。Docker 构建因 `go.dev`/`golang.google.cn` 工具链下载被 reset、且无镜像暴露 `/dl/` 路径而失败；改用**宿主构建**——`pnpm build:ipam` → `sync-webui.sh` → `CGO_ENABLED=0 go build`（静态）→ 以既有运行时镜像为基底 `COPY` 新二进制重建 `ipam/control-plane:0.1.0-dev` → `compose up -d --force-recreate --no-deps --no-build control-plane`。
+- **验证**：服务端实际下发的 `bootstrap-*.js` 含 `SystemAbout`、无 `VbenProject`/`AntDesignDemos`（M4-009 生效）；`search-*.js` 含「来源IP（模糊）」（M4-011 生效）；容器日志 `startup converge ok`。
+- **遗留**：Dockerfile 的 Go 工具链下载在本网络环境不可用（需 `GO_DL` 指向含 `/dl/` 的可用镜像或预置）；`ip-plan-map.vue` 等历史文件仍有既有 eslint 告警。
+## 2026-10-16 · 前端导航精简（M4-009）
+- **诉求**：清理 Vben 底座自带演示内容，主导航与个人中心只留 IPAM 实际功能。
+- **改动**：① 删「演示」「项目」菜单及内容——移除 `router/routes/modules/demos.ts`、`views/demos/**`、两端 `demos.json`，`vben.ts` 仅保留隐藏的 `Profile` 路由并清理无用导入；② 「关于」迁入「系统管理」二级菜单（`/system/about`，新增 locale `page.system.about`）；③ `layouts/basic.vue` 个人中心下拉仅保留「个人中心」，去掉文档/GitHub/问题&帮助及关联导入。
+- **验证**：`pnpm --filter @vben/web-ipam typecheck` 0 error；`npx oxlint` 改动文件 0 issue；全局 grep 无残留引用。
+- **遗留**：`views/dashboard/workspace/index.vue` 为未挂路由的历史演示页（含指向已删 `/demos/*` 的失效链接），不可达，未纳入本次范围。
 ## 2026-10-10 · DHCP 权威应答持久化（M2-046）+ M5-032 五路代理收口
 - **M2-046 持久化（代码修复）**：`internal/engine/kea/config.go` `defaultBaseConfig()` 增加顶层 `"authoritative": true`，使 control-plane 任意写操作经 `BuildConfigFull` 全量重推后不再抹掉权威应答（此前为运行态手工热修，易失）；新增单测 `TestBuildConfig_权威应答`。`IPAM_KEA_TPL` 覆盖路径确认未被部署引用，默认配置即生效。
 - **M5-032 五路代理全部完成并入树**：① coherence HTTP 共享 client（`lease_http.go`，IdleConnTimeout 60s）；② `main.go` pgxpool 显式参数 + `signal.NotifyContext` 可取消；③ 审计表清理 + `DefaultClient` 超时退场；④ Kea/Unbound 日志轮转（`lfc-interval/maxsize/maxver` + unbound logrotate entrypoint；Kea 版本选项经核对 2.2/2.4 均支持）；⑤ 认证加固（stateless refresh token 轮换、登录限流 5/min、黑名单运行期清理、随机 JWT 密钥回退）。

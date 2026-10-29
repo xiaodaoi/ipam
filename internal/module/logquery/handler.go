@@ -45,6 +45,9 @@ func (h *Handler) ListLogs(c *gin.Context, params apigen.ListLogsParams) {
 	if params.Ip != nil {
 		f.IP = string(*params.Ip)
 	}
+	if params.Sip != nil {
+		f.SIP = string(*params.Sip)
+	}
 	if params.Domain != nil {
 		f.Domain = string(*params.Domain)
 	}
@@ -53,6 +56,9 @@ func (h *Handler) ListLogs(c *gin.Context, params apigen.ListLogsParams) {
 	}
 	if params.AnswerIp != nil {
 		f.AnswerIP = string(*params.AnswerIp)
+	}
+	if params.Q != nil {
+		f.Keyword = string(*params.Q)
 	}
 	if params.Page != nil {
 		f.Page = int(*params.Page)
@@ -157,6 +163,9 @@ func (h *Handler) ExportLogs(c *gin.Context, params apigen.ExportLogsParams) {
 	if params.Ip != nil {
 		f.IP = string(*params.Ip)
 	}
+	if params.Sip != nil {
+		f.SIP = string(*params.Sip)
+	}
 	if params.Domain != nil {
 		f.Domain = string(*params.Domain)
 	}
@@ -165,6 +174,9 @@ func (h *Handler) ExportLogs(c *gin.Context, params apigen.ExportLogsParams) {
 	}
 	if params.AnswerIp != nil {
 		f.AnswerIP = string(*params.AnswerIp)
+	}
+	if params.Q != nil {
+		f.Keyword = string(*params.Q)
 	}
 	if params.Page != nil {
 		f.Page = int(*params.Page)
@@ -268,11 +280,17 @@ func (h *Handler) StreamLogTail(c *gin.Context, params apigen.StreamLogTailParam
 	if params.Ip != nil {
 		f.IP = *params.Ip
 	}
+	if params.Sip != nil {
+		f.SIP = *params.Sip
+	}
 	if params.Domain != nil {
 		f.Domain = *params.Domain
 	}
 	if params.Action != nil {
 		f.Action = *params.Action
+	}
+	if params.Q != nil {
+		f.Keyword = *params.Q
 	}
 	if params.OrgId != nil {
 		f.OrgID = params.OrgId.String()
@@ -322,8 +340,8 @@ func (h *Handler) serveSSE(c *gin.Context, f LogFilter, resumeKey string, poll, 
 			flusher.Flush()
 		case <-pollT.C:
 			batch, err := h.svc.Query(ctx, LogFilter{
-				From: windowFrom, Type: f.Type, MAC: f.MAC, IP: f.IP,
-				Domain: f.Domain, Action: f.Action, OrgID: f.OrgID,
+				From: windowFrom, Type: f.Type, MAC: f.MAC, IP: f.IP, SIP: f.SIP,
+				Domain: f.Domain, Action: f.Action, Keyword: f.Keyword, OrgID: f.OrgID,
 				Cursor: "", PageSize: tailBatch,
 			})
 			if err != nil {

@@ -35,6 +35,27 @@ func TestAssetUpsert_非法MAC拒绝(t *testing.T) {
 	}
 }
 
+func TestAssetUpsert_无标签规整为空数组(t *testing.T) {
+	// 回归 M2-048：PG tags 列 NOT NULL，服务层须把 nil 规整为空数组，避免显式 NULL 覆盖默认值。
+	repo := NewMemAssetRepo()
+	svc := NewAssetService(repo, NewMemOrgStore())
+	saved, err := svc.Upsert(context.Background(), Asset{MAC: "AA:BB:CC:DD:EE:09", Owner: "赵六"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Tags == nil {
+		t.Fatal("无标签时应规整为空数组，而非 nil")
+	}
+	if len(saved.Tags) != 0 {
+		t.Fatalf("tags 应为空数组: %+v", saved.Tags)
+	}
+	// 显式标签原样保留
+	saved2, _ := svc.Upsert(context.Background(), Asset{MAC: "aa:bb:cc:dd:ee:0a", Owner: "钱七", Tags: []string{"研发"}})
+	if len(saved2.Tags) != 1 || saved2.Tags[0] != "研发" {
+		t.Fatalf("显式标签被破坏: %+v", saved2.Tags)
+	}
+}
+
 func TestAssetList_过滤(t *testing.T) {
 	repo := NewMemAssetRepo()
 	svc := NewAssetService(repo, NewMemOrgStore())

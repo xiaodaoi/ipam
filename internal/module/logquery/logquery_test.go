@@ -13,7 +13,9 @@ func mkRow(ts time.Time, typ, mac, ip, domain, action string) LogRow {
 
 func base(t *testing.T) (*MemStore, time.Time) {
 	t.Helper()
-	now := time.Date(2026, 8, 26, 8, 0, 0, 0, time.UTC)
+	// 锚定到「过去某小时的 :30」：既落在 validateWindow 的 31 天窗口内（硬编码日期会随
+	// 时间推移失效），又保证 6 行同处一个整点，满足 TestQps 单桶断言。
+	now := time.Now().UTC().Add(-90 * time.Minute).Truncate(time.Hour).Add(30 * time.Minute)
 	m := NewMemStore()
 	m.Append(
 		mkRow(now.Add(-10*time.Minute), "dns", "", "10.61.172.10", "api.corp.local.", "resolve"),
@@ -192,6 +194,39 @@ func TestOrgScopeFilter(t *testing.T) {
 	}
 	if len(page.Items) != 5 {
 		t.Fatalf("CIDR 展开应命中 5 行（排除 10.61.173.20）, got %d", len(page.Items))
+	}
+}
+
+func TestMatchLogFuzzy(t *testing.T) {
+	now := time.Now().UTC()
+	dns := LogRow{TS: now, Type: "dns", SIP: "10.61.172.10", Domain: "api.corp.local.", AnswerIP: "203.0.113.7", Action: "resolve"}
+	dhcp := LogRow{TS: now, Type: "dhcp", ClientMAC: "aabbccddee01", ClientIP: "10.61.172.11", Action: "lease_commit"}
+
+	cases := []struct {
+		name string
+		row  LogRow
+		f    LogFilter
+		want bool
+	}{
+		{"MAC 后缀子串命中", dhcp, LogFilter{From: now.Add(-time.Minute), MAC: "ee01"}, true},
+		{"MAC 前缀子串命中", dhcp, LogFilter{From: now.Add(-time.Minute), MAC: "aabb"}, true},
+		{"MAC 不命中", dhcp, LogFilter{From: now.Add(-time.Minute), MAC: "ffff"}, false},
+		{"来源 IP 子串命中", dns, LogFilter{From: now.Add(-time.Minute), SIP: "10.61.172"}, true},
+		{"来源 IP 不命中", dns, LogFilter{From: now.Add(-time.Minute), SIP: "10.61.9"}, false},
+		{"应答 IP 子串命中", dns, LogFilter{From: now.Add(-time.Minute), AnswerIP: "203.0.113"}, true},
+		{"关键字命中域名", dns, LogFilter{From: now.Add(-time.Minute), Keyword: "corp.local"}, true},
+		{"关键字命中来源 IP", dns, LogFilter{From: now.Add(-time.Minute), Keyword: "10.61.172"}, true},
+		{"关键字命中应答 IP", dns, LogFilter{From: now.Add(-time.Minute), Keyword: "203.0.113"}, true},
+		{"关键字命中客户端 MAC", dhcp, LogFilter{From: now.Add(-time.Minute), Keyword: "ee01"}, true},
+		{"关键字命中客户端 IP", dhcp, LogFilter{From: now.Add(-time.Minute), Keyword: "10.61.172.11"}, true},
+		{"关键字不命中", dhcp, LogFilter{From: now.Add(-time.Minute), Keyword: "nomatch"}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := matchLog(tc.row, tc.f, OrgScope{}); got != tc.want {
+				t.Fatalf("matchLog = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 

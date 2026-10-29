@@ -59,9 +59,11 @@ type cond struct {
 	Type     string
 	MAC      string
 	IP       string
+	SIP      string
 	Domain   string
 	Action   string
 	AnswerIP string
+	Keyword  string
 	Scope    OrgScope
 }
 
@@ -81,12 +83,18 @@ func buildWhere(c cond) (string, []any) {
 		args = append(args, c.Type)
 	}
 	if c.MAC != "" {
-		w = append(w, "client_mac = ?")
+		// 子串（模糊）匹配：归一化后 client_mac 为 12-hex 小写，兼容输入部分 MAC
+		w = append(w, "positionCaseInsensitive(client_mac, ?) > 0")
 		args = append(args, NormalizeMAC(c.MAC))
 	}
 	if c.IP != "" {
 		w = append(w, "("+ipRangeClause(filterToRanges(c.IP), "client_ip", "sip")+")")
 		args = appendRangeArgs(args, filterToRanges(c.IP), "client_ip", "sip")
+	}
+	if c.SIP != "" {
+		// 来源 IP 子串（模糊）匹配：toString(sip) 为 IPv6 文本（IPv4 落成 ::ffff:a.b.c.d），兼容两种形态
+		w = append(w, "positionCaseInsensitive(toString(sip), ?) > 0")
+		args = append(args, c.SIP)
 	}
 	if c.Domain != "" {
 		w = append(w, "positionCaseInsensitive(domain, ?) > 0")
@@ -100,6 +108,16 @@ func buildWhere(c cond) (string, []any) {
 		// toString(answer_ip) 为 IPv6 文本（IPv4 落成 ::ffff:a.b.c.d），子串匹配兼容两种形态
 		w = append(w, "positionCaseInsensitive(toString(answer_ip), ?) > 0")
 		args = append(args, c.AnswerIP)
+	}
+	if c.Keyword != "" {
+		// 单框模糊：域名 / 客户端 MAC / 客户端 IP / 来源 IP / 应答 IP 任一子串命中
+		cols := []string{"domain", "client_mac", "toString(client_ip)", "toString(sip)", "toString(answer_ip)"}
+		parts := make([]string, 0, len(cols))
+		for _, col := range cols {
+			parts = append(parts, "positionCaseInsensitive("+col+", ?) > 0")
+			args = append(args, c.Keyword)
+		}
+		w = append(w, "("+strings.Join(parts, " OR ")+")")
 	}
 	scopeSQL, scopeArgs := buildScopeWhere(c.Scope)
 	if scopeSQL != "" {
@@ -173,8 +191,8 @@ func dedupNonEmpty(in []string) []string {
 // Query 组合过滤 + 元组游标分页 + 同条件精确 total。
 func (s *ChStore) Query(ctx context.Context, f LogFilter, scope OrgScope) (Page, error) {
 	where, args := buildWhere(cond{
-		From: f.From, To: f.To, Type: f.Type, MAC: f.MAC, IP: f.IP,
-		Domain: f.Domain, Action: f.Action, AnswerIP: f.AnswerIP, Scope: scope,
+		From: f.From, To: f.To, Type: f.Type, MAC: f.MAC, IP: f.IP, SIP: f.SIP,
+		Domain: f.Domain, Action: f.Action, AnswerIP: f.AnswerIP, Keyword: f.Keyword, Scope: scope,
 	})
 
 	countSQL := "SELECT count() FROM " + s.table() + " WHERE " + where

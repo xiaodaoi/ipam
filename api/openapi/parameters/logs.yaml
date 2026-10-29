@@ -33,7 +33,7 @@ LogMac:
   in: query
   schema:
     type: string
-  description: 客户端 MAC 过滤（冒号分隔或 12 位 hex，服务端归一化后匹配）
+  description: 客户端 MAC 模糊过滤（冒号分隔或 12 位 hex，服务端归一化后按子串匹配）
 
 LogIp:
   name: ip
@@ -41,6 +41,20 @@ LogIp:
   schema:
     type: string
   description: 客户端 IP 过滤：精确地址或 CIDR（对 client_ip/sip 任一命中）
+
+LogSip:
+  name: sip
+  in: query
+  schema:
+    type: string
+  description: 来源 IP 模糊过滤（子串匹配，兼容 IPv4/IPv6 文本形态；DNS 事件按查询发起方 IP 反查）
+
+LogKeyword:
+  name: q
+  in: query
+  schema:
+    type: string
+  description: 关键字模糊过滤（不区分大小写子串）：域名 / 客户端 MAC / 客户端 IP / 来源 IP / 应答 IP 任一命中
 
 LogDomain:
   name: domain
@@ -124,7 +138,7 @@ LogAnswerIp:
   in: query
   schema:
     type: string
-  description: 应答 IP 过滤（DNS 事件；反查「某 IP 解析过哪些域名」，威胁排查）
+  description: 应答 IP 模糊过滤（子串匹配；DNS 事件，反查「某 IP 解析过哪些域名」，威胁排查）
 
 LogPageNo:
   name: page

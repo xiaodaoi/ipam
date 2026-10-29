@@ -1,35 +1,27 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
-
 import type { VxeGridProps } from '@vben/plugins/vxe-table';
 
-import { useVbenModal } from '@vben/common-ui';
+import type { LedgerRow, ReservationBulkEntryIn, ReservationBulkResult, Subnet } from '#/api/ipam';
 
-import { useVbenVxeGrid } from '#/adapter/vxe-table';
+import { computed, onMounted, reactive, ref } from 'vue';
+
+import { useVbenModal } from '@vben/common-ui';
+import { IconifyIcon } from '@vben/icons';
 
 import {
   Button,
   Card,
   Input,
+  message,
   Modal,
   RadioGroup,
   Select,
   Tag,
-  message,
 } from 'ant-design-vue';
 
-import {
-  bindStatic,
-  bulkReservations,
-  listLedger,
-  type LedgerRow,
-  listSubnets,
-  releaseAddress,
-  type ReservationBulkEntryIn,
-  type ReservationBulkResult,
-  type Subnet,
-  updateBinding,
-} from '#/api/ipam';
+import { useVbenVxeGrid } from '#/adapter/vxe-table';
+import { bindStatic, bulkReservations, listLedger, listSubnets, releaseAddress, updateBinding } from '#/api/ipam';
+import PageHeader from '#/components/page-header.vue';
 import { normalizeMacInput } from '#/utils/mac';
 
 const subnets = ref<Subnet[]>([]);
@@ -102,7 +94,7 @@ async function submitBulk() {
   const macRej = entries.value.findIndex(
     (r) => r.kind === 'bind' && !normalizeMacInput(r.mac),
   );
-  if (macRej >= 0) {
+  if (macRej !== -1) {
     message.warning(
       `第 ${macRej + 1} 行 MAC 格式不合法（支持 C4-3D-1A-07-EB-2B / C43D1A07EB2B / 冒号分隔，大小写均可）`,
     );
@@ -126,8 +118,8 @@ async function submitBulk() {
     } else {
       message.error('存在失败行，整体已回滚');
     }
-  } catch (e) {
-    message.error(e instanceof Error ? e.message : '提交失败');
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '提交失败');
   } finally {
     submitting.value = false;
   }
@@ -165,8 +157,8 @@ async function releaseRow(row: LedgerRow) {
       try {
         await releaseAddress(row.address);
         message.success(`${row.address} 已释放`);
-      } catch (e) {
-        message.error(e instanceof Error ? e.message : '释放失败');
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : '释放失败');
       } finally {
         await loadLists();
       }
@@ -217,8 +209,8 @@ async function confirmEdit() {
     }
     message.success(`${addr} 绑定已更新（${normMac}）`);
     editModalApi.close();
-  } catch (e) {
-    message.error(e instanceof Error ? e.message : '更新失败');
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '更新失败');
   } finally {
     await loadLists();
   }
@@ -227,10 +219,26 @@ async function confirmEdit() {
 </script>
 
 <template>
-  <div class="grid grid-cols-1 gap-4 p-4">
-    <Card title="批量创建（CSV 语义，事务性：任一失败整体回滚）">
-      <div class="mb-3 flex flex-wrap items-center gap-2">
-        <span class="text-xs text-gray-400">目标子网</span>
+  <div class="ipam-page">
+    <PageHeader
+      eyebrow="DHCP Service"
+      icon="lucide:pin"
+      title="保留与绑定"
+      description="批量维护保留地址与静态绑定，提交具备事务性：任一行失败则整体回滚。"
+    >
+      <template #actions>
+        <Button size="small" @click="loadLists()">
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1" />刷新
+        </Button>
+      </template>
+    </PageHeader>
+
+    <Card title="批量创建">
+      <template #extra>
+        <span class="ipam-hint">CSV 语义 · 事务性提交</span>
+      </template>
+      <div class="ipam-toolbar mb-4">
+        <span class="ipam-field__label">目标子网</span>
         <Select
           v-model:value="selectedSubnet"
           :options="subnetOptions"
@@ -266,7 +274,10 @@ async function confirmEdit() {
     </Card>
 
     <Card title="保留与绑定列表">
-      <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <template #extra>
+        <span class="ipam-hint">共 {{ listRows.length }} 条记录</span>
+      </template>
+      <div class="ipam-toolbar mb-4">
         <RadioGroup
           v-model:value="familyTab"
           option-type="button"

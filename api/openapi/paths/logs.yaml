@@ -7,7 +7,8 @@ LogsCollection:
     tags: [logs]
     summary: 查询日志（组合过滤+游标分页）
     description: |
-      日志中心检索（FR-E-04）：时间窗必填，type/mac/ip/domain/action 组合过滤；
+      日志中心检索（FR-E-04）：时间窗必填，type/mac/ip/domain/action/sip/answerIp 组合过滤；
+      其中 mac/domain/sip/answerIp 为不区分大小写的子串（模糊）匹配；
       orgId 按组织维度展开（子树 CIDR ∪ 组内资产 MAC，§13.4 关联链）。
       游标分页：cursor 取自上一页 nextCursor，排序键 (ts, client_mac, domain) 保证确定性。
       数据源 ClickHouse logs 宽表（§6）。
@@ -18,9 +19,11 @@ LogsCollection:
       - $ref: '../parameters/logs.yaml#/LogType'
       - $ref: '../parameters/logs.yaml#/LogMac'
       - $ref: '../parameters/logs.yaml#/LogIp'
+      - $ref: '../parameters/logs.yaml#/LogSip'
       - $ref: '../parameters/logs.yaml#/LogDomain'
       - $ref: '../parameters/logs.yaml#/LogAction'
       - $ref: '../parameters/logs.yaml#/LogAnswerIp'
+      - $ref: '../parameters/logs.yaml#/LogKeyword'
       - $ref: '../parameters/logs.yaml#/LogOrgId'
       - $ref: '../parameters/logs.yaml#/LogCursor'
       - $ref: '../parameters/logs.yaml#/LogPageNo'
@@ -148,9 +151,11 @@ LogsExport:
       - $ref: '../parameters/logs.yaml#/LogType'
       - $ref: '../parameters/logs.yaml#/LogMac'
       - $ref: '../parameters/logs.yaml#/LogIp'
+      - $ref: '../parameters/logs.yaml#/LogSip'
       - $ref: '../parameters/logs.yaml#/LogDomain'
       - $ref: '../parameters/logs.yaml#/LogAction'
       - $ref: '../parameters/logs.yaml#/LogAnswerIp'
+      - $ref: '../parameters/logs.yaml#/LogKeyword'
       - $ref: '../parameters/logs.yaml#/LogOrgId'
       - $ref: '../parameters/logs.yaml#/LogPageNo'
       - $ref: '../parameters/logs.yaml#/LogExportLimit'
@@ -188,8 +193,10 @@ LogsTail:
       - $ref: '../parameters/logs.yaml#/LogType'
       - $ref: '../parameters/logs.yaml#/LogMac'
       - $ref: '../parameters/logs.yaml#/LogIp'
+      - $ref: '../parameters/logs.yaml#/LogSip'
       - $ref: '../parameters/logs.yaml#/LogDomain'
       - $ref: '../parameters/logs.yaml#/LogAction'
+      - $ref: '../parameters/logs.yaml#/LogKeyword'
       - $ref: '../parameters/logs.yaml#/LogOrgId'
     responses:
       '200':

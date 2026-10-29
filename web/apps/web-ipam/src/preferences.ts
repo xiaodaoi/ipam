@@ -18,10 +18,23 @@ interface WebAntdPreferencesExtension {
 export const overridesPreferences = defineOverridesPreferences({
   // overrides
   app: {
+    // 商业版默认头像走本地资源，避免内网离线环境出现外链请求
+    defaultAvatar: '/avatar.svg',
     name: import.meta.env.VITE_APP_TITLE,
     // 上游默认 /analytics 为演示页，本项目无此路由：登录后与根路径重定向均落 404。
     // 指向真实首页（后端 /user/info 的 homePath 同值），保证根路径/守卫回落不再命中空路由。
     defaultHomePath: '/overview',
+  },
+  copyright: {
+    // 底部不再展示上游 Vben 演示版权
+    enable: false,
+  },
+  theme: {
+    // 更稳重的企业蓝，主色同时驱动按钮、选中态与图表强调色
+    colorPrimary: 'hsl(221 83% 53%)',
+    // 默认使用浅色主题，用户仍可在右上角切换深色
+    mode: 'light',
+    radius: '0.625',
   },
 });
 

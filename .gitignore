@@ -36,3 +36,6 @@ web/apps/web-ipam/.env.*
 
 # unbound 渲染产物（运行时生成，不入库）
 config/unbound/unbound-rendered.conf
+
+# 本地根目录 go build 产物
+/control-plane

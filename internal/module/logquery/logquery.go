@@ -30,11 +30,13 @@ type LogFilter struct {
 	From     time.Time // 必填；窗口上限 31 天由 service 校验
 	To       time.Time // 零值=当前时间
 	Type     string    // dhcp|dns，空=不过滤
-	MAC      string    // 12-hex 或冒号分隔，service 归一化后传入
+	MAC      string    // 12-hex 或冒号分隔，service 归一化后传入（子串匹配）
 	IP       string    // 精确地址或 CIDR（client_ip/sip 任一命中）
+	SIP      string    // 来源 IP 子串（不区分大小写，toString(sip) 模糊匹配）
 	Domain   string    // 子串（不区分大小写）
 	Action   string
 	AnswerIP string // 应答 IP 过滤（toString(answer_ip) 子串）
+	Keyword  string // 关键字：域名/客户端 MAC/客户端 IP/来源 IP/应答 IP 任一子串命中
 	OrgID    string // 组织过滤（service 展开为 OrgScope 后传给 Store）
 	Cursor   string
 	Page     int // 页码（1 起，offset 分页；与 Cursor 二选一）

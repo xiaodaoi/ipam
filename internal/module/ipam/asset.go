@@ -27,6 +27,15 @@ type AssetRepo interface {
 // ErrAssetNotFound 资产不存在（404）。
 var ErrAssetNotFound = errors.New("ASSET_NOT_FOUND")
 
+// normalizeTags 规整标签数组：nil → 空数组。
+// PG asset.tags 为 NOT NULL DEFAULT '{}'，但显式传 nil 会被驱动编码为 NULL 覆盖默认值而报错（M2-048）。
+func normalizeTags(tags []string) []string {
+	if tags == nil {
+		return []string{}
+	}
+	return tags
+}
+
 // AssetService 校验 MAC 归一化与 org 存在性。
 type AssetService struct {
 	repo AssetRepo
@@ -49,6 +58,7 @@ func (s *AssetService) Upsert(ctx context.Context, a Asset) (Asset, error) {
 		}
 	}
 	a.MAC = norm
+	a.Tags = normalizeTags(a.Tags)
 	if err := s.repo.Upsert(ctx, a); err != nil {
 		return Asset{}, err
 	}

@@ -59,12 +59,20 @@ services:
       IPAM_MIGRATIONS_DIR: "/srv/migrations"
       IPAM_UNBOUND_CONF: "/etc/unbound-ctl/unbound.conf"
       IPAM_LOG_EXPORT_DIR: "/srv/log-exports"
+      # 宿主资源采集（仪表盘「主机资源」卡片）：容器经只读挂载读取宿主 /proc、/sys 与文件系统
+      IPAM_HOST_PROC: "/host/proc"
+      IPAM_HOST_SYS: "/host/sys"
+      IPAM_HOST_ROOT: "/host/root"
     volumes:
       - ipam-run:/run/ipam
       - ../../db/postgresql/migrations:/srv/migrations:ro
       - ../../config/unbound:/etc/unbound-ctl:ro
       - ../../config/unbound:/etc/unbound-rendered
       - ch-exports:/srv/log-exports
+      # 宿主只读挂载（宿主整机 CPU/内存/磁盘；默认递归绑定含数据盘挂载点）
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/root:ro
     ports:
       - "${IPAM_PORT:-8443}:8443"
     restart: unless-stopped

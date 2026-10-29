@@ -665,7 +665,8 @@ export interface paths {
         };
         /**
          * 查询日志（组合过滤+游标分页）
-         * @description 日志中心检索（FR-E-04）：时间窗必填，type/mac/ip/domain/action 组合过滤；
+         * @description 日志中心检索（FR-E-04）：时间窗必填，type/mac/ip/domain/action/sip/answerIp 组合过滤；
+         *     其中 mac/domain/sip/answerIp 为不区分大小写的子串（模糊）匹配；
          *     orgId 按组织维度展开（子树 CIDR ∪ 组内资产 MAC，§13.4 关联链）。
          *     游标分页：cursor 取自上一页 nextCursor，排序键 (ts, client_mac, domain) 保证确定性。
          *     数据源 ClickHouse logs 宽表（§6）。
@@ -1525,6 +1526,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/system/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查询宿主主机资源使用率
+         * @description 返回宿主主机（非容器）CPU/内存/磁盘使用率快照，供仪表盘「主机资源」卡片展示。
+         *     数据来源：宿主 /proc（stat/meminfo/loadavg/uptime/mounts）+ 数据盘 statfs，
+         *     容器经只读挂载读取（IPAM_HOST_PROC/IPAM_HOST_SYS/IPAM_HOST_ROOT）。
+         *     所需权限：dash:read。
+         */
+        get: operations["getSystemMetrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1543,6 +1567,75 @@ export interface components {
             now: string;
             /** @description 关键依赖（PostgreSQL）可达则为 true；false 时仪表盘服务健康亮黄 */
             ready: boolean;
+        };
+        HostMetrics: {
+            /**
+             * Format: date-time
+             * @description 采样时刻（UTC，RFC3339）
+             */
+            ts: string;
+            /** @description 宿主开机时长（秒，取自 /proc/uptime） */
+            uptimeSec?: number;
+            cpu: components["schemas"]["HostCpu"];
+            memory: components["schemas"]["HostMemory"];
+            /** @description 宿主块设备文件系统使用率（含根分区与数据盘） */
+            disks: components["schemas"]["HostDisk"][];
+        };
+        HostCpu: {
+            /** @description CPU 整体使用率（%，两次采样差值；首次调用可能为 0） */
+            usagePct: number;
+            /** @description 逻辑 CPU 核数 */
+            cores: number;
+            /** @description 1 分钟平均负载 */
+            load1?: number;
+            /** @description 5 分钟平均负载 */
+            load5?: number;
+            /** @description 15 分钟平均负载 */
+            load15?: number;
+        };
+        HostMemory: {
+            /**
+             * Format: int64
+             * @description 物理内存总量
+             */
+            totalBytes: number;
+            /**
+             * Format: int64
+             * @description 已用（总量 - 可用）
+             */
+            usedBytes: number;
+            /**
+             * Format: int64
+             * @description 可用（MemAvailable）
+             */
+            availableBytes: number;
+            /** @description 内存使用率（%） */
+            usedPct: number;
+        };
+        HostDisk: {
+            /** @description 挂载点（宿主路径） */
+            mount: string;
+            /** @description 设备名（如 /dev/mapper/...） */
+            device?: string;
+            /** @description 文件系统类型（如 ext4/xfs） */
+            fsType?: string;
+            /**
+             * Format: int64
+             * @description 总容量
+             */
+            totalBytes: number;
+            /**
+             * Format: int64
+             * @description 已用容量
+             */
+            usedBytes: number;
+            /**
+             * Format: int64
+             * @description 可用容量（非 root 可见）
+             */
+            availableBytes: number;
+            /** @description 使用率（%） */
+            usedPct: number;
         };
         /** @description 组织分组节点（多级自定义树，主数据，§13.4）。 */
         OrgNode: {
@@ -2850,16 +2943,20 @@ export interface components {
         LogTo: string;
         /** @description 事件来源过滤 */
         LogType: "dhcp" | "dns";
-        /** @description 客户端 MAC 过滤（冒号分隔或 12 位 hex，服务端归一化后匹配） */
+        /** @description 客户端 MAC 模糊过滤（冒号分隔或 12 位 hex，服务端归一化后按子串匹配） */
         LogMac: string;
         /** @description 客户端 IP 过滤：精确地址或 CIDR（对 client_ip/sip 任一命中） */
         LogIp: string;
+        /** @description 来源 IP 模糊过滤（子串匹配，兼容 IPv4/IPv6 文本形态；DNS 事件按查询发起方 IP 反查） */
+        LogSip: string;
         /** @description 域名子串过滤（不区分大小写；DNS 事件） */
         LogDomain: string;
         /** @description 动作过滤（lease_commit / resolve / blocked…） */
         LogAction: string;
-        /** @description 应答 IP 过滤（DNS 事件；反查「某 IP 解析过哪些域名」，威胁排查） */
+        /** @description 应答 IP 模糊过滤（子串匹配；DNS 事件，反查「某 IP 解析过哪些域名」，威胁排查） */
         LogAnswerIp: string;
+        /** @description 关键字模糊过滤（不区分大小写子串）：域名 / 客户端 MAC / 客户端 IP / 来源 IP / 应答 IP 任一命中 */
+        LogKeyword: string;
         /** @description 组织过滤：展开该节点子树全部 CIDR ∪ 组内资产 MAC 后查询（§13.4 关联链） */
         LogOrgId: string;
         /** @description 分页游标（取自上一页 nextCursor） */
@@ -3916,16 +4013,20 @@ export interface operations {
                 to?: components["parameters"]["LogTo"];
                 /** @description 事件来源过滤 */
                 type?: components["parameters"]["LogType"];
-                /** @description 客户端 MAC 过滤（冒号分隔或 12 位 hex，服务端归一化后匹配） */
+                /** @description 客户端 MAC 模糊过滤（冒号分隔或 12 位 hex，服务端归一化后按子串匹配） */
                 mac?: components["parameters"]["LogMac"];
                 /** @description 客户端 IP 过滤：精确地址或 CIDR（对 client_ip/sip 任一命中） */
                 ip?: components["parameters"]["LogIp"];
+                /** @description 来源 IP 模糊过滤（子串匹配，兼容 IPv4/IPv6 文本形态；DNS 事件按查询发起方 IP 反查） */
+                sip?: components["parameters"]["LogSip"];
                 /** @description 域名子串过滤（不区分大小写；DNS 事件） */
                 domain?: components["parameters"]["LogDomain"];
                 /** @description 动作过滤（lease_commit / resolve / blocked…） */
                 action?: components["parameters"]["LogAction"];
-                /** @description 应答 IP 过滤（DNS 事件；反查「某 IP 解析过哪些域名」，威胁排查） */
+                /** @description 应答 IP 模糊过滤（子串匹配；DNS 事件，反查「某 IP 解析过哪些域名」，威胁排查） */
                 answerIp?: components["parameters"]["LogAnswerIp"];
+                /** @description 关键字模糊过滤（不区分大小写子串）：域名 / 客户端 MAC / 客户端 IP / 来源 IP / 应答 IP 任一命中 */
+                q?: components["parameters"]["LogKeyword"];
                 /** @description 组织过滤：展开该节点子树全部 CIDR ∪ 组内资产 MAC 后查询（§13.4 关联链） */
                 orgId?: components["parameters"]["LogOrgId"];
                 /** @description 分页游标（取自上一页 nextCursor） */
@@ -3961,14 +4062,18 @@ export interface operations {
                 from?: string;
                 /** @description 事件来源过滤 */
                 type?: components["parameters"]["LogType"];
-                /** @description 客户端 MAC 过滤（冒号分隔或 12 位 hex，服务端归一化后匹配） */
+                /** @description 客户端 MAC 模糊过滤（冒号分隔或 12 位 hex，服务端归一化后按子串匹配） */
                 mac?: components["parameters"]["LogMac"];
                 /** @description 客户端 IP 过滤：精确地址或 CIDR（对 client_ip/sip 任一命中） */
                 ip?: components["parameters"]["LogIp"];
+                /** @description 来源 IP 模糊过滤（子串匹配，兼容 IPv4/IPv6 文本形态；DNS 事件按查询发起方 IP 反查） */
+                sip?: components["parameters"]["LogSip"];
                 /** @description 域名子串过滤（不区分大小写；DNS 事件） */
                 domain?: components["parameters"]["LogDomain"];
                 /** @description 动作过滤（lease_commit / resolve / blocked…） */
                 action?: components["parameters"]["LogAction"];
+                /** @description 关键字模糊过滤（不区分大小写子串）：域名 / 客户端 MAC / 客户端 IP / 来源 IP / 应答 IP 任一命中 */
+                q?: components["parameters"]["LogKeyword"];
                 /** @description 组织过滤：展开该节点子树全部 CIDR ∪ 组内资产 MAC 后查询（§13.4 关联链） */
                 orgId?: components["parameters"]["LogOrgId"];
             };
@@ -4123,16 +4228,20 @@ export interface operations {
                 to?: components["parameters"]["LogTo"];
                 /** @description 事件来源过滤 */
                 type?: components["parameters"]["LogType"];
-                /** @description 客户端 MAC 过滤（冒号分隔或 12 位 hex，服务端归一化后匹配） */
+                /** @description 客户端 MAC 模糊过滤（冒号分隔或 12 位 hex，服务端归一化后按子串匹配） */
                 mac?: components["parameters"]["LogMac"];
                 /** @description 客户端 IP 过滤：精确地址或 CIDR（对 client_ip/sip 任一命中） */
                 ip?: components["parameters"]["LogIp"];
+                /** @description 来源 IP 模糊过滤（子串匹配，兼容 IPv4/IPv6 文本形态；DNS 事件按查询发起方 IP 反查） */
+                sip?: components["parameters"]["LogSip"];
                 /** @description 域名子串过滤（不区分大小写；DNS 事件） */
                 domain?: components["parameters"]["LogDomain"];
                 /** @description 动作过滤（lease_commit / resolve / blocked…） */
                 action?: components["parameters"]["LogAction"];
-                /** @description 应答 IP 过滤（DNS 事件；反查「某 IP 解析过哪些域名」，威胁排查） */
+                /** @description 应答 IP 模糊过滤（子串匹配；DNS 事件，反查「某 IP 解析过哪些域名」，威胁排查） */
                 answerIp?: components["parameters"]["LogAnswerIp"];
+                /** @description 关键字模糊过滤（不区分大小写子串）：域名 / 客户端 MAC / 客户端 IP / 来源 IP / 应答 IP 任一命中 */
+                q?: components["parameters"]["LogKeyword"];
                 /** @description 组织过滤：展开该节点子树全部 CIDR ∪ 组内资产 MAC 后查询（§13.4 关联链） */
                 orgId?: components["parameters"]["LogOrgId"];
                 /** @description 页码（1 起，offset=(page-1)*pageSize）；与 cursor 二选一，页面翻页用 page */
@@ -5664,6 +5773,27 @@ export interface operations {
                 };
             };
             500: components["responses"]["Problem"];
+        };
+    };
+    getSystemMetrics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 主机资源快照 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostMetrics"];
+                };
+            };
+            503: components["responses"]["Problem"];
         };
     };
 }

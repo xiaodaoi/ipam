@@ -1,19 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { useVbenModal } from '@vben/common-ui';
+import type { OrgTreeNode } from '#/api/ipam';
 
+import { computed, onMounted, ref } from 'vue';
+
+import { useVbenModal } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Button, Card, Input, Popconfirm, Tag, Tree, message } from 'ant-design-vue';
+import { Button, Card, Input, message, Popconfirm, Tag, Tree } from 'ant-design-vue';
 
-import {
-  createOrg,
-  deleteOrg,
-  listOrgTree,
-  reorderOrgs,
-  updateOrg,
-  type OrgTreeNode,
-} from '#/api/ipam';
+import { createOrg, deleteOrg, listOrgTree, reorderOrgs, updateOrg } from '#/api/ipam';
 
 const tree = ref<OrgTreeNode[]>([]);
 const selected = ref<OrgTreeNode>();
@@ -87,11 +82,11 @@ function onSelect(_keys: unknown[], info: unknown) {
 }
 
 // ── 同级拖拽排序 ──
-function findChildrenOf(nodes: OrgTreeNode[], parentId: string | null): OrgTreeNode[] | null {
+function findChildrenOf(nodes: OrgTreeNode[], parentId: null | string): null | OrgTreeNode[] {
   if (parentId === null || parentId === undefined || parentId === '') {
     return nodes;
   }
-  const walk = (ns: OrgTreeNode[]): OrgTreeNode[] | null => {
+  const walk = (ns: OrgTreeNode[]): null | OrgTreeNode[] => {
     for (const n of ns) {
       if (n.id === parentId) return n.children ?? [];
       const hit = walk(n.children ?? []);
@@ -137,7 +132,7 @@ async function onDrop(info: any) {
   const arr = siblings.map((n) => n.id);
   const from = arr.indexOf(dragOrg.id);
   const to = arr.indexOf(dropOrg.id);
-  if (from < 0 || to < 0 || from === to) {
+  if (from === -1 || to === -1 || from === to) {
     await load();
     return;
   }
@@ -157,8 +152,8 @@ async function onDrop(info: any) {
   try {
     await reorderOrgs(parentId, arr);
     message.success('排序已更新');
-  } catch (e) {
-    message.error(e instanceof Error ? e.message : '排序失败');
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '排序失败');
   }
   await load();
 }
@@ -184,8 +179,8 @@ async function confirmName() {
   if (!action) return;
   try {
     await action(name);
-  } catch (e) {
-    message.error(e instanceof Error ? e.message : '操作失败');
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '操作失败');
   }
 }
 
@@ -218,7 +213,7 @@ async function remove() {
     await deleteOrg(selected.value.id);
     selected.value = undefined;
     await load(false);
-  } catch (e) {
+  } catch {
     await load();
   }
 }
@@ -226,7 +221,7 @@ onMounted(() => load(false));
 </script>
 
 <template>
-  <Card title="组织管理（全局主数据 ★）">
+  <Card title="组织架构">
       <template #extra>
         <div class="flex flex-wrap items-center justify-end gap-2">
           <Button type="primary" size="small" @click="addRoot">
@@ -253,10 +248,10 @@ onMounted(() => load(false));
       </template>
 
       <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div class="text-xs text-muted-foreground">
-          多级自定义树（公司→部门→…）；被引用或含子节点时删除会被 409 拒绝。
-          <span class="mx-1 font-medium text-primary">拖动节点可同级排序</span>（禁止拖入节点内部）。
-          此处是全部页面「组织下拉/树筛选」的单一数据源（§13.4 主数据原则）。
+        <div class="ipam-hint">
+          多级组织树（公司 → 部门 → …），被引用或含子节点时不可删除；
+          <span class="mx-1 font-medium text-primary">拖动节点可同级排序</span>。
+          所有页面的组织筛选均以此处数据为准。
         </div>
         <div class="flex shrink-0 items-center gap-2">
           <Tag color="blue" class="m-0">{{ totalCount }} 个组织</Tag>
@@ -266,7 +261,7 @@ onMounted(() => load(false));
       </div>
 
       <Tree
-        v-if="antTreeData.length"
+        v-if="antTreeData.length > 0"
         class="org-tree"
         :tree-data="antTreeData"
         :selected-keys="selected ? [selected.id] : []"
@@ -281,7 +276,7 @@ onMounted(() => load(false));
         @drop="onDrop"
         @expand="(keys: (string | number)[]) => (expandedKeys = keys as string[])"
       >
-        <template #titleRender="{ node }">
+        <template #title="node">
           <div
             class="flex items-center gap-1.5 py-0.5"
             :class="dragId === node.org?.id ? 'opacity-60' : ''"
@@ -310,7 +305,7 @@ onMounted(() => load(false));
           placeholder="请输入组织名称"
           autofocus
           class="flex-1"
-          @pressEnter="confirmName"
+          @press-enter="confirmName"
         />
       </div>
     </NameModal>

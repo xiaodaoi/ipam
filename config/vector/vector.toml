@@ -122,17 +122,34 @@ source = '''
   if .rtype != "dhcp" && .rtype != "dns" {
     abort
   }
-  ip_v = if .address == "" { null } else { .address }
+  # IPv6 链路本地地址常携带 zone 后缀（如 fe80::13ee:ace7:ccb7:97fc%ens160），
+  # ClickHouse IPv6 解析会整批失败（错误 632 UNEXPECTED_DATA_AFTER_PARSED_VALUE）→ 入库前剥离 %zone。
+  ip_v = null
+  if .address != null && .address != "" {
+    ip_s, ip_e = replace(.address, r'%[^%]*$', "")
+    if ip_e == null {
+      ip_v = ip_s
+    }
+  }
   mac_v = if .client_mac == "" { "" } else { downcase!(.client_mac) }
-  sip_v = if .sip == "" || .sip == null { null } else { .sip }
+  sip_v = null
+  if .sip != null && .sip != "" {
+    sip_s, sip_e = replace(.sip, r'%[^%]*$', "")
+    if sip_e == null {
+      sip_v = sip_s
+    }
+  }
   # DHCP 行无 rcode（undefined→null），CH rcode 为非空列必须落空串
   rcode_v = ""
   if .rcode != null {
     rcode_v = .rcode
   }
   answer_v = null
-  if .answer_ip != null {
-    answer_v = .answer_ip
+  if .answer_ip != null && .answer_ip != "" {
+    ans_s, ans_e = replace(.answer_ip, r'%[^%]*$', "")
+    if ans_e == null {
+      answer_v = ans_s
+    }
   }
   . = {
     "ts": format_timestamp!(.timestamp, "%F %T%.3f"),

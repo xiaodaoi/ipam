@@ -163,10 +163,13 @@ func matchLog(r LogRow, f LogFilter, scope OrgScope) bool {
 	if f.Type != "" && r.Type != f.Type {
 		return false
 	}
-	if f.MAC != "" && r.ClientMAC != f.MAC {
+	if f.MAC != "" && !strings.Contains(strings.ToLower(r.ClientMAC), strings.ToLower(f.MAC)) {
 		return false
 	}
 	if f.IP != "" && !matchIP(r, f.IP) {
+		return false
+	}
+	if f.SIP != "" && !strings.Contains(strings.ToLower(r.SIP), strings.ToLower(f.SIP)) {
 		return false
 	}
 	if f.Domain != "" && !strings.Contains(strings.ToLower(r.Domain), strings.ToLower(f.Domain)) {
@@ -177,6 +180,16 @@ func matchLog(r LogRow, f LogFilter, scope OrgScope) bool {
 	}
 	if f.AnswerIP != "" && r.AnswerIP != f.AnswerIP && !strings.Contains(strings.ToLower(r.AnswerIP), strings.ToLower(f.AnswerIP)) {
 		return false
+	}
+	if f.Keyword != "" {
+		q := strings.ToLower(f.Keyword)
+		if !strings.Contains(strings.ToLower(r.Domain), q) &&
+			!strings.Contains(strings.ToLower(r.ClientMAC), q) &&
+			!strings.Contains(strings.ToLower(r.ClientIP), q) &&
+			!strings.Contains(strings.ToLower(r.SIP), q) &&
+			!strings.Contains(strings.ToLower(r.AnswerIP), q) {
+			return false
+		}
 	}
 	return true
 }

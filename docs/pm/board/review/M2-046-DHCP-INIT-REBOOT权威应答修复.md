@@ -3,7 +3,7 @@
 | 字段 | 内容 |
 |---|---|
 | ID | M2-046 |
-| 状态 | doing |
+| 状态 | review |
 | 来源 | 生产现象：客户端持续 INIT-REBOOT 无应答；2026-10-10 会话定位 |
 | 负责 | opencode(backend) |
 | 创建 | 2026-10-10 |
@@ -65,3 +65,9 @@
 - **验证**：`go build ./...` 0 错；`go test ./internal/engine/kea/... -count=1` 绿（含新用例，`-v` 确认 PASS）。
 - **部署与实测**：control-plane 镜像重建、容器重启；启动 `[dhcp-apply] converge ok` 以新代码推送配置，`config-get` 实测顶层 `authoritative: true`、subnet16 预留 16 条保留 → 持久化修复**已生效**（不再依赖运行态手工热修）。
 - **注**：重建时镜像层一度占满磁盘致 PG 短暂不可用，已 `docker builder prune` 释放空间恢复。
+
+### 2026-10-19 · 看板收口
+
+- **做了**：代码已随 commit `35f5122`（`fix(kea): [M2-046] 渲染 authoritative...`）入 main；本次仅做看板归档：从 doing 移至 review，状态置 review，等待人工验收。
+- **验证**：`go test ./...` 全绿；`go test ./internal/engine/kea/ -count=1` 绿（含 `TestBuildConfig_权威应答`）。
+- **遗留**：DoD 复选框待验收人逐条确认；线上已在会话2完成部署。

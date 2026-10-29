@@ -34,6 +34,7 @@ import (
 	"github.com/xiaodaoi/ipam/internal/module/logmanager"
 	logq "github.com/xiaodaoi/ipam/internal/module/logquery"
 	"github.com/xiaodaoi/ipam/internal/module/platform"
+	"github.com/xiaodaoi/ipam/internal/pkg/hostmetrics"
 	"github.com/xiaodaoi/ipam/internal/pkg/migrator"
 )
 
@@ -138,6 +139,9 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	r.Use(gin.Recovery())
 
 	h := platform.NewHandler(version)
+	// 宿主资源采集：容器经只读挂载读宿主 /proc 等（env 未设则回落本机 /proc、/）。
+	h.SetHostMetrics(hostmetrics.New(
+		os.Getenv("IPAM_HOST_PROC"), os.Getenv("IPAM_HOST_SYS"), os.Getenv("IPAM_HOST_ROOT")))
 
 	// 仓储装配：IPAM_DB_DSN 存在则走 PG（生产/compose），否则内存 PoC。
 	var orgStore ipam.OrgStore = ipam.NewMemOrgStore()

@@ -162,3 +162,60 @@ func TestRBAC_改密后旧会话版本令牌401(t *testing.T) {
 		t.Fatalf("Bump 后旧令牌应 401: %d", w.Code)
 	}
 }
+
+// TestDomainOf_资产域独立 校验路径→权限域映射：/assets 归 assets 域，其余 DHCP 域不变（M2-048）。
+func TestDomainOf_资产域独立(t *testing.T) {
+	cases := []struct {
+		path string
+		want string
+	}{
+		{"/api/v1/assets", "assets"},
+		{"/api/v1/assets/aa:bb:cc:dd:ee:ff", "assets"},
+		{"/api/v1/ledger", "dhcp"},
+		{"/api/v1/subnets", "dhcp"},
+		{"/api/v1/dualstack", "dhcp"},
+		{"/api/v1/upstreams", "dns"},
+		{"/api/v1/nope", ""},
+	}
+	for _, c := range cases {
+		if got := domainOf(c.path); got != c.want {
+			t.Fatalf("domainOf(%q)=%q want %q", c.path, got, c.want)
+		}
+	}
+}
+
+// TestRBAC_资产域按assets权限拦截 仅持 assets:read 的自定义角色可读 /assets，
+// 但不能读 /ledger（dhcp 域）——回归 assets 从 dhcp 域拆出的修复（M2-048）。
+func TestRBAC_资产域按assets权限拦截(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	store := NewMemUserStore()
+	bl := NewTokenBlacklist()
+	if _, err := store.Create(context.Background(), UserCreateInput{
+		Username: "asset-only", Password: "x", Roles: []string{"asset-only"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	lookup := func(_ context.Context, role string) ([]string, bool) {
+		if role == "asset-only" {
+			return []string{"assets:read"}, true
+		}
+		return nil, false
+	}
+	r := gin.New()
+	r.Use(NewRBACMiddleware(store, bl, lookup))
+	r.GET("/api/v1/assets", func(c *gin.Context) { c.Status(200) })
+	r.GET("/api/v1/ledger", func(c *gin.Context) { c.Status(200) })
+
+	u, ok, _ := store.GetByUsername(context.Background(), "asset-only")
+	if !ok {
+		t.Fatal("用户未创建")
+	}
+	// 直接以自定义角色签发令牌：中间件权限判定取 claims.Roles（DB 存储会收敛未知角色）
+	tok := tokenFor(u.Username, "user", "asset-only")
+	if w := do(r, http.MethodGet, "/api/v1/assets", tok); w.Code != 200 {
+		t.Fatalf("assets:read 读 /assets 应 200，got %d", w.Code)
+	}
+	if w := do(r, http.MethodGet, "/api/v1/ledger", tok); w.Code != http.StatusForbidden {
+		t.Fatalf("仅 assets:read 读 /ledger 应 403，got %d", w.Code)
+	}
+}
