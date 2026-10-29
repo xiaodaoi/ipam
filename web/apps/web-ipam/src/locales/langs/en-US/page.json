@@ -23,9 +23,11 @@
   },
   "logs": {
     "title": "Log Center",
+    "overview": "Overview",
     "search": "Search",
     "audit": "Audit",
-    "tail": "Live Tail"
+    "tail": "Live Tail",
+    "storage": "Storage & Archive"
   },
   "dns": {
     "title": "DNS Service",

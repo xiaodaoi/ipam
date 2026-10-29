@@ -12,6 +12,7 @@ export type OrgTreeNode = components['schemas']['OrgTreeNode'];
 export type Subnet = components['schemas']['Subnet'];
 export type SubnetOption = components['schemas']['SubnetOption'];
 export type Asset = components['schemas']['Asset'];
+export type AssetUpsert = components['schemas']['AssetUpsert'];
 
 const BASE = (import.meta.env.VITE_GLOB_API_URL as string) || '/api/v1';
 
@@ -64,16 +65,32 @@ export const releaseAddress = (address: string) =>
 export const listSubnets = (orgId?: string) =>
   req<{ items: Subnet[] }>(`/subnets${orgId ? `?orgId=${orgId}` : ''}`);
 
-export const listAssets = (orgId?: string) =>
-  req<{ items: Asset[] }>(`/assets${orgId ? `?orgId=${orgId}` : ''}`);
+export const listAssets = (params?: { orgId?: string; q?: string }) => {
+  const qs = new URLSearchParams();
+  if (params?.orgId) qs.set('orgId', params.orgId);
+  if (params?.q) qs.set('q', params.q);
+  const s = qs.toString();
+  return req<{ items: Asset[]; total?: number }>(`/assets${s ? `?${s}` : ''}`);
+};
+export const upsertAsset = (b: AssetUpsert) =>
+  req<Asset>('/assets', { method: 'PUT', body: JSON.stringify(b) });
+export const deleteAsset = (mac: string) =>
+  req<void>(`/assets/${encodeURIComponent(mac)}`, { method: 'DELETE' });
 export type DashboardOverview = components['schemas']['DashboardOverview'];
 export type PoolUtilization = components['schemas']['PoolUtilization'];
 
 export const getDashboard = (poolTopN?: number) =>
   req<DashboardOverview>(`/dashboard${poolTopN ? `?poolTopN=${poolTopN}` : ''}`);
 
+export type HostMetrics = components['schemas']['HostMetrics'];
+export const getSystemMetrics = () => req<HostMetrics>('/system/metrics');
+
 export type TopList = components['schemas']['TopList'];
+export type TopEntry = components['schemas']['TopEntry'];
 export type QpsSeries = components['schemas']['QpsSeries'];
+export type QpsPoint = components['schemas']['QpsPoint'];
+export type LogRow = components['schemas']['LogRow'];
+export type LogPage = components['schemas']['LogPage'];
 export type AuditEntry = components['schemas']['AuditEntry'];
 export type AuditPage = components['schemas']['AuditPage'];
 
@@ -85,7 +102,7 @@ const qsOf = (o: Record<string, string | number | undefined>) => {
 };
 
 export interface LogQuery {
-  from: string; to?: string; type?: string; mac?: string; ip?: string; answerIp?: string; page?: number;
+  from: string; to?: string; type?: string; mac?: string; ip?: string; sip?: string; answerIp?: string; q?: string; page?: number;
   domain?: string; action?: string; cursor?: string; pageSize?: number;
 }
 export const listLogs = (q: LogQuery) =>
@@ -107,7 +124,15 @@ export const listAudits = (q: AuditQuery) =>
 // SSE live-tail：原生 EventSource 无法携带 Authorization（RBAC 401 → 重连循环），
 // 改 fetch+ReadableStream 流式解析（M2-036 修复）。
 export function openLogTail(
-  params: { from?: string; type?: string; domain?: string; action?: string },
+  params: {
+    action?: string;
+    domain?: string;
+    from?: string;
+    ip?: string;
+    mac?: string;
+    sip?: string;
+    type?: string;
+  },
   handlers: { onRow: (row: any) => void; onOpen?: () => void; onError?: (e: Event) => void },
 ): { close: () => void } {
   const qs = new URLSearchParams();

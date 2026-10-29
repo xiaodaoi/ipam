@@ -13,6 +13,12 @@ const routes: RouteRecordRaw[] = [
     path: '/logs-center',
     children: [
       {
+        name: 'LogOverview',
+        path: '/logs-center/overview',
+        component: () => import('#/views/logs/overview/index.vue'),
+        meta: { icon: 'lucide:layout-dashboard', title: $t('page.logs.overview'), authority: ['logs:read'] },
+      },
+      {
         name: 'LogSearch',
         path: '/logs-center/search',
         component: () => import('#/views/logs/search/index.vue'),
@@ -29,6 +35,12 @@ const routes: RouteRecordRaw[] = [
         path: '/logs-center/audit',
         component: () => import('#/views/logs/audit/index.vue'),
         meta: { icon: 'lucide:shield-check', title: $t('page.logs.audit'), authority: ['logs:read'] },
+      },
+      {
+        name: 'LogStorage',
+        path: '/logs-center/storage',
+        component: () => import('#/views/logs/storage/index.vue'),
+        meta: { icon: 'lucide:database', title: $t('page.logs.storage'), authority: ['system:read'] },
       },
     ],
   },

@@ -2213,3 +2213,452 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ==========================================================================
+   日志中心（M4-020）：筛选栅格 / 明细抽屉 / 终端流 / 分布条 / 归档分区
+   ========================================================================== */
+
+/* 命名化过滤字段：默认四列，1180px 两列，640px 单列 */
+.ipam-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px 14px;
+  min-width: 0;
+}
+
+@media (max-width: 1180px) {
+  .ipam-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .ipam-filter-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.ipam-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ipam-filter-field--wide {
+  grid-column: span 2;
+}
+
+@media (max-width: 640px) {
+  .ipam-filter-field--wide {
+    grid-column: auto;
+  }
+}
+
+.ipam-filter-field__label {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  font-weight: 550;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+}
+
+/* 时间单元格：时分秒为主，日期为次 */
+.ipam-log-time {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+}
+
+.ipam-log-time b {
+  font-size: 12.5px;
+  font-weight: 550;
+  color: hsl(var(--foreground) / 90%);
+}
+
+.ipam-log-time span {
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+}
+
+.ipam-log-domain {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+/* 可点击行（日志明细 / 审计） */
+.ipam-page .ant-table-tbody > tr.ipam-row-link {
+  cursor: pointer;
+}
+
+/* ── 明细抽屉 ─────────────────────────────────────────────────────────── */
+.ipam-detail-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: hsl(var(--muted) / 45%);
+  border: 1px solid hsl(var(--border) / 75%);
+  border-radius: 10px;
+}
+
+.ipam-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  background: hsl(var(--border) / 70%);
+  border: 1px solid hsl(var(--border) / 70%);
+  border-radius: 10px;
+}
+
+@media (max-width: 640px) {
+  .ipam-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.ipam-detail-item {
+  min-width: 0;
+  padding: 9px 12px;
+  background: hsl(var(--card));
+}
+
+.ipam-detail-item--wide {
+  grid-column: 1 / -1;
+}
+
+.ipam-detail-item__label {
+  margin-bottom: 2px;
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+}
+
+.ipam-detail-item__value {
+  font-size: 12.5px;
+  line-height: 19px;
+  color: hsl(var(--foreground) / 88%);
+  word-break: break-all;
+}
+
+/* ── 实时终端 ─────────────────────────────────────────────────────────── */
+.ipam-tail {
+  overflow: hidden;
+  background: #0b1220;
+  border: 1px solid hsl(220deg 39% 20%);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 hsl(0deg 0% 100% / 4%);
+}
+
+.ipam-tail__head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  font-family: var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11px;
+  color: #94a3b8;
+  background: rgb(148 163 184 / 7%);
+  border-bottom: 1px solid rgb(148 163 184 / 14%);
+}
+
+.ipam-tail__dots {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.ipam-tail__dots i {
+  width: 8px;
+  height: 8px;
+  background: #475569;
+  border-radius: 50%;
+}
+
+.ipam-tail__dots i:nth-child(1) {
+  background: #ef4444;
+}
+
+.ipam-tail__dots i:nth-child(2) {
+  background: #f59e0b;
+}
+
+.ipam-tail__dots i:nth-child(3) {
+  background: #22c55e;
+}
+
+.ipam-tail__title {
+  color: #cbd5e1;
+}
+
+.ipam-tail__meta {
+  font-family: var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  color: #64748b;
+}
+
+.ipam-tail__live {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  color: #34d399;
+}
+
+.ipam-tail__live-dot {
+  width: 6px;
+  height: 6px;
+  background: #34d399;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgb(52 211 153 / 16%);
+}
+
+.ipam-tail__body {
+  height: 460px;
+  padding: 6px 0;
+  overflow: auto;
+  font-family: var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12px;
+  line-height: 20px;
+  color: #cbd5e1;
+}
+
+.ipam-tail__body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ipam-tail__body::-webkit-scrollbar-thumb {
+  background: rgb(148 163 184 / 26%);
+  background-clip: content-box;
+  border: 2px solid transparent;
+  border-radius: 999px;
+}
+
+.ipam-tail__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 9px;
+  align-items: baseline;
+  padding: 2px 12px;
+  border-left: 2px solid transparent;
+}
+
+.ipam-tail__row:hover {
+  background: rgb(148 163 184 / 8%);
+}
+
+.ipam-tail__row[data-type='dns'] {
+  border-left-color: rgb(56 189 248 / 55%);
+}
+
+.ipam-tail__row[data-type='dhcp'] {
+  border-left-color: rgb(45 212 191 / 55%);
+}
+
+.ipam-tail__row[data-action='blocked'] {
+  background: rgb(239 68 68 / 9%);
+  border-left-color: rgb(248 113 113 / 80%);
+}
+
+.ipam-tail__time {
+  flex: none;
+  min-width: 92px;
+  color: #64748b;
+}
+
+.ipam-tail__badge {
+  flex: none;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-transform: uppercase;
+  border-radius: 4px;
+}
+
+.ipam-tail__badge[data-type='dns'] {
+  color: #7dd3fc;
+  background: rgb(56 189 248 / 14%);
+}
+
+.ipam-tail__badge[data-type='dhcp'] {
+  color: #5eead4;
+  background: rgb(45 212 191 / 14%);
+}
+
+.ipam-tail__domain {
+  color: #6ee7b7;
+}
+
+.ipam-tail__ip {
+  color: #7dd3fc;
+}
+
+.ipam-tail__mac {
+  color: #fcd34d;
+}
+
+.ipam-tail__rcode {
+  color: #c4b5fd;
+}
+
+.ipam-tail__action {
+  color: #cbd5e1;
+}
+
+.ipam-tail__detail {
+  max-width: 56ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.ipam-tail__body mark {
+  padding: 0 1px;
+  color: #0b1220;
+  background: #fbbf24;
+  border-radius: 2px;
+}
+
+.ipam-tail__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 32px 16px;
+  font-family: var(--font-family-sans, ui-sans-serif, system-ui, sans-serif);
+  font-size: 12px;
+  color: #64748b;
+  text-align: center;
+}
+
+/* ── 流量构成 ─────────────────────────────────────────────────────────── */
+.ipam-compose {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .ipam-compose {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.ipam-dist {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 11px;
+  min-width: 0;
+}
+
+.ipam-dist__head {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+}
+
+.ipam-dist__head span:last-child {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground) / 88%);
+}
+
+.ipam-dist__bar {
+  height: 7px;
+  overflow: hidden;
+  background: hsl(var(--muted));
+  border-radius: 999px;
+}
+
+.ipam-dist__bar i {
+  display: block;
+  height: 100%;
+  background: hsl(var(--ipam-tone-blue));
+  border-radius: inherit;
+  transition: width 0.4s ease;
+}
+
+.ipam-dist__bar i[data-tone='cyan'] {
+  background: hsl(var(--ipam-tone-cyan));
+}
+
+.ipam-dist__bar i[data-tone='green'] {
+  background: hsl(var(--ipam-tone-green));
+}
+
+.ipam-dist__bar i[data-tone='red'] {
+  background: hsl(var(--ipam-tone-red));
+}
+
+.ipam-dist__bar i[data-tone='amber'] {
+  background: hsl(var(--ipam-tone-amber));
+}
+
+/* ── 归档：按月分区卡片 ───────────────────────────────────────────────── */
+.ipam-partition-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(186px, 1fr));
+  gap: 8px;
+}
+
+.ipam-partition {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 9px 10px;
+  text-align: left;
+  cursor: pointer;
+  background: hsl(var(--muted) / 35%);
+  border: 1px solid hsl(var(--border) / 70%);
+  border-radius: 8px;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.ipam-partition:hover {
+  background: hsl(var(--primary) / 6%);
+  border-color: hsl(var(--primary) / 30%);
+}
+
+.ipam-partition--active {
+  background: hsl(var(--primary) / 8%);
+  border-color: hsl(var(--primary) / 40%);
+}
+
+.ipam-partition__month {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: hsl(var(--foreground) / 90%);
+}
+
+.ipam-partition__meta {
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+}
+
+.ipam-partition__bar {
+  height: 4px;
+  margin-top: 3px;
+}
