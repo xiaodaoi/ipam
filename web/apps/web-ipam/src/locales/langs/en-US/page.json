@@ -45,6 +45,9 @@
     "users": "Accounts",
     "about": "About",
     "roles": "Roles",
-    "settings": "Settings"
+    "settings": "Settings",
+    "security": "Account Security",
+    "branding": "Branding",
+    "runtime": "Runtime"
   }
 }

@@ -45,6 +45,9 @@
     "users": "账号管理",
     "about": "关于平台",
     "roles": "角色管理",
-    "settings": "系统设置"
+    "settings": "系统设置",
+    "security": "账号安全",
+    "branding": "站点品牌",
+    "runtime": "服务与运行"
   }
 }

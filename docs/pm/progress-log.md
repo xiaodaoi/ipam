@@ -3,6 +3,11 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-10-29 · 系统管理二级菜单拆分（M6-013）
+- **背景**：M6-001 后「系统设置」同时承载组织、品牌、账号安全、服务运行、日志存储，页面过长。
+- **拆分**：新增 `/system/orgs`（组织管理）、`/system/security`（账号安全：强制改密开关+口令策略）、`/system/branding`（站点品牌：名称/图标/实时预览）、`/system/runtime`（服务与运行：端口/版本/依赖/宿主资源/重启）；账号/角色/关于保留。
+- **导航**：系统管理二级菜单变为 7 项（组织→账号→角色→账号安全→站点品牌→服务与运行→关于）；旧 `/system/settings` 隐藏重定向到 `/system/orgs`，书签不失效；日志存储保留 `/logs-center/storage` 入口。
+- **验证**：Playwright 4 个新页 1280 浅色无横向滚动、控制台 0 error；旧路由重定向正确；`vue-tsc` 0 error、目标 eslint/stylelint 通过、`pnpm build` 成功。
 ## 2026-10-29 · 安全基线（M6-001）
 - **传输与部署**：控制面支持内置 TLS（`IPAM_TLS_CERT/KEY` 必须成对，TLS1.2+），HTTPS 时下发 HSTS；统一安全头（nosniff/frame/referrer/permissions/COOP）；`/healthz`、`/readyz` 放在 RBAC 前供编排探活。`install.sh` 自动生成 PG 口令、`IPAM_JWT_SECRET`、自签证书，HTTPS 冒烟；compose 注入密钥、挂载证书、healthcheck，control-plane/coherence/vector 启用 `no-new-privileges + cap_drop ALL`（PG/CH 保留初始化所需 caps）。
 - **初始口令与策略**：空库随机 24 位初始口令，写 `/run/ipam/initial-admin-password`（0600）并打印一次；移除 `admin123` 兜底。**按用户反馈，强制首次改密默认关闭**，改为「系统管理 → 系统设置 → 账号安全」开关（`security_settings.force_password_change`，默认 false）；开启后仅对之后的新建/重置账号生效，不踢出已有会话。口令策略统一为 ≥10 位、≤128 位、至少 3 类字符、不含用户名、拒绝常见弱口令。
