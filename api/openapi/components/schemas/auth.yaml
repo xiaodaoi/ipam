@@ -2,7 +2,7 @@
 
 AuthLoginResult:
   type: object
-  required: [accessToken, refreshToken]
+  required: [accessToken, refreshToken, mustChangePassword]
   properties:
     accessToken:
       type: string
@@ -10,6 +10,9 @@ AuthLoginResult:
     refreshToken:
       type: string
       description: 刷新令牌（HS256 JWT，kind=refresh，uid+jti+exp，7d TTL，M5-032）
+    mustChangePassword:
+      type: boolean
+      description: true=系统已开启强制改密且该账号被标记（首次登录/管理员重置）；前端据此弹出不可关闭的改密弹窗。默认策略关闭
 
 AuthRefreshRequest:
   type: object
@@ -31,6 +34,21 @@ AuthRefreshResult:
       type: string
       description: 新刷新令牌（7d TTL；旧刷新令牌 jti 已轮换入黑名单）
 
+AuthChangePasswordRequest:
+  type: object
+  required: [oldPassword, newPassword]
+  properties:
+    oldPassword:
+      type: string
+      description: 当前口令（用于确认身份；错误返回 401）
+    newPassword:
+      type: string
+      minLength: 10
+      maxLength: 128
+      description: |
+        新口令。策略：10–128 位，至少包含小写/大写/数字/符号中的 3 类，
+        不得包含用户名，且不得与旧口令相同（M6-001）。
+
 AuthLogoutRequest:
   type: object
   properties:
@@ -47,11 +65,11 @@ AuthLoginRequest:
       description: 账号（PoC 仅 admin）
     password:
       type: string
-      description: 口令（环境变量 IPAM_POC_PASSWORD，缺省 admin123）
+      description: 登录口令（bcrypt 校验；首次启动随机生成，必须修改后才能继续使用）
 
 UserInfo:
   type: object
-  required: [userId, username, realName, roles, homePath]
+  required: [userId, username, realName, roles, homePath, mustChangePassword]
   properties:
     userId:
       type: string
@@ -76,6 +94,9 @@ UserInfo:
     homePath:
       type: string
       description: 登录后默认跳转（仪表盘总览 /overview）
+    mustChangePassword:
+      type: boolean
+      description: 当前是否需强制修改口令（M6-001：系统策略开启且账号被标记时为 true）
     token:
       type: string
 

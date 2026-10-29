@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"io/fs"
@@ -137,6 +138,14 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
+	r.Use(platform.SecurityHeaders())
+	rateLimit := 600
+	if v := os.Getenv("IPAM_RATE_LIMIT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			rateLimit = n
+		}
+	}
+	r.Use(platform.APIRateLimit(rateLimit))
 
 	h := platform.NewHandler(version)
 	// 宿主资源采集：容器经只读挂载读宿主 /proc 等（env 未设则回落本机 /proc、/）。
@@ -395,6 +404,10 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	if err := platform.EnsureBootstrap(context.Background(), userStore); err != nil {
 		log.Printf("user bootstrap: %v", err)
 	}
+	var secStore platform.SecuritySettingsStore = platform.NewMemSecuritySettingsStore()
+	if pool != nil {
+		secStore = platform.NewPgSecuritySettingsStore(pool)
+	}
 	bl := platform.NewTokenBlacklist() // M5-011：登出黑名单（AuthHandler/RBAC 共用）
 	if pool != nil {
 		if err := bl.AttachDB(context.Background(), pool); err != nil {
@@ -592,9 +605,25 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		*dnsmodule.SettingsHandler
 		*platform.RolesHandler
 		*platform.WebuiHandler
+		*platform.SecuritySettingsHandler
 		*logmanager.LogHandler
 		*confApplier
-	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore, bl, permLookup), platform.NewUserHandler(userStore), &dhcpAPI{dhcpH}, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, logMgrH, applier}
+	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore, bl, permLookup, secStore), platform.NewUserHandler(userStore, secStore), &dhcpAPI{dhcpH}, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, platform.NewSecuritySettingsHandler(secStore), logMgrH, applier}
+	// 健康探针放在 RBAC 之前：容器编排/负载均衡无需令牌即可探活（M6-001）。
+	r.GET("/healthz", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+	r.GET("/readyz", func(c *gin.Context) {
+		if pool != nil {
+			ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+			defer cancel()
+			if err := pool.Ping(ctx); err != nil {
+				c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not-ready", "postgres": "down"})
+				return
+			}
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "ready"})
+	})
 	// RBAC 写权限拦截（M5-003）先于审计：被 403 的请求不入账。
 	// 操作审计（M4-003+M5-002）：actor 从 JWT claims 解析（human/bot 区分 §12.3）。
 	r.Use(platform.NewRBACMiddleware(userStore, bl, permLookup)) // M5-003/M5-010/M5-011/M2-035：认证+授权+吊销+域权限
@@ -669,12 +698,38 @@ func main() {
 	if addr == "" {
 		addr = dbListenAddr()
 	}
-	log.Printf("control-plane %s listening on %s", version, addr)
+	certFile, keyFile := os.Getenv("IPAM_TLS_CERT"), os.Getenv("IPAM_TLS_KEY")
+	if (certFile == "") != (keyFile == "") {
+		log.Fatal("IPAM_TLS_CERT 与 IPAM_TLS_KEY 必须同时设置（只设置一个会拒绝启动，避免误用明文）")
+	}
+	tlsEnabled := certFile != "" && keyFile != ""
+	scheme := "http"
+	if tlsEnabled {
+		scheme = "https"
+	}
+	log.Printf("control-plane %s listening on %s (%s)", version, addr, scheme)
+	if !tlsEnabled {
+		log.Printf("⚠️  未配置 IPAM_TLS_CERT/IPAM_TLS_KEY：当前为明文 HTTP，仅允许开发/受控内网使用")
+	}
 
-	srv := &http.Server{Addr: addr, Handler: newEngine(version, rootCtx)}
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           newEngine(version, rootCtx),
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       2 * time.Minute,
+	}
+	if tlsEnabled {
+		srv.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
 	go func() {
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("http serve: %v", err)
+		var err error
+		if tlsEnabled {
+			err = srv.ListenAndServeTLS(certFile, keyFile)
+		} else {
+			err = srv.ListenAndServe()
+		}
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("serve: %v", err)
 		}
 	}()
 	<-rootCtx.Done()

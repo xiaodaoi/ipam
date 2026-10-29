@@ -4,8 +4,14 @@ import type { VbenFormSchema } from '#/adapter/form';
 import { computed } from 'vue';
 
 import { ProfilePasswordSetting, z } from '@vben/common-ui';
+import { useAccessStore, useUserStore } from '@vben/stores';
 
 import { message } from 'ant-design-vue';
+
+import { changePasswordApi } from '#/api';
+
+const accessStore = useAccessStore();
+const userStore = useUserStore();
 
 const formSchema = computed((): VbenFormSchema[] => {
   return [
@@ -16,6 +22,7 @@ const formSchema = computed((): VbenFormSchema[] => {
       componentProps: {
         placeholder: '请输入旧密码',
       },
+      rules: z.string().min(1, { message: '请输入旧密码' }),
     },
     {
       fieldName: 'newPassword',
@@ -23,8 +30,12 @@ const formSchema = computed((): VbenFormSchema[] => {
       component: 'VbenInputPassword',
       componentProps: {
         passwordStrength: true,
-        placeholder: '请输入新密码',
+        placeholder: '≥10 位，至少 3 类字符',
       },
+      rules: z
+        .string()
+        .min(10, { message: '新密码至少 10 位' })
+        .max(128, { message: '新密码最长 128 位' }),
     },
     {
       fieldName: 'confirmPassword',
@@ -50,8 +61,27 @@ const formSchema = computed((): VbenFormSchema[] => {
   ];
 });
 
-function handleSubmit() {
-  message.success('密码修改成功');
+async function handleSubmit(values: Record<string, any>) {
+  try {
+    const result = await changePasswordApi({
+      newPassword: values.newPassword,
+      oldPassword: values.oldPassword,
+    });
+    if (result.accessToken) {
+      accessStore.setAccessToken(result.accessToken);
+    }
+    if (userStore.userInfo) {
+      userStore.setUserInfo({
+        ...userStore.userInfo,
+        mustChangePassword: false,
+      });
+    }
+    message.success('密码修改成功，其他设备上的会话已失效');
+  } catch (error) {
+    message.error(
+      error instanceof Error ? error.message : '密码修改失败，请稍后重试',
+    );
+  }
 }
 </script>
 <template>

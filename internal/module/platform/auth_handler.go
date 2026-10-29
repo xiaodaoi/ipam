@@ -21,11 +21,28 @@ type AuthHandler struct {
 	bl         *TokenBlacklist
 	permLookup func(ctx context.Context, role string) ([]string, bool)
 	loginLimit *loginRateLimiter
+	sec        SecuritySettingsStore
 }
 
-func NewAuthHandler(users UserStore, bl *TokenBlacklist, permLookup func(ctx context.Context, role string) ([]string, bool)) *AuthHandler {
-	return &AuthHandler{users: users, bl: bl, permLookup: permLookup,
+func NewAuthHandler(users UserStore, bl *TokenBlacklist, permLookup func(ctx context.Context, role string) ([]string, bool), sec ...SecuritySettingsStore) *AuthHandler {
+	var store SecuritySettingsStore
+	if len(sec) > 0 {
+		store = sec[0]
+	}
+	return &AuthHandler{users: users, bl: bl, permLookup: permLookup, sec: store,
 		loginLimit: newLoginRateLimiter(func() time.Time { return timeNowUTC() })}
+}
+
+// forcePasswordChange 读取全局策略；默认关闭，读取失败时按关闭处理（可用性优先）。
+func (h *AuthHandler) forcePasswordChange(ctx context.Context) bool {
+	if h.sec == nil {
+		return false
+	}
+	s, err := h.sec.Get(ctx)
+	if err != nil {
+		return false
+	}
+	return s.ForcePasswordChange
 }
 
 // AuthLogin POST /auth/login
@@ -48,11 +65,16 @@ func (h *AuthHandler) AuthLogin(c *gin.Context) {
 		return
 	}
 	if !ok || !rec.Enabled || !CheckPassword(rec.PasswordHash, body.Password) {
+		SetAuditMeta(c, "login", body.Username, "failed")
 		writeAuthErr(c, http.StatusUnauthorized, "BAD_CREDENTIALS", "账号或口令错误")
 		return
 	}
+	SetAuditMeta(c, "login", rec.Username, "success")
 	access, refresh := issueAuthPair(rec)
-	c.JSON(http.StatusOK, apigen.AuthLoginResult{AccessToken: access, RefreshToken: refresh})
+	c.JSON(http.StatusOK, apigen.AuthLoginResult{
+		AccessToken: access, RefreshToken: refresh,
+		MustChangePassword: rec.MustChangePassword && h.forcePasswordChange(c.Request.Context()),
+	})
 }
 
 // issueAuthPair 签发访问+刷新令牌对（M5-032）。
@@ -157,6 +179,66 @@ func (h *AuthHandler) refreshUser(c *gin.Context, claims JWTClaims) (UserRecord,
 	return rec, true
 }
 
+// ChangeAuthPassword POST /auth/password（M6-001：自助改密）
+// 校验旧口令 → 口令策略 → 更新散列 → 清除 must-change → token_version+1 → 颁发新令牌对。
+func (h *AuthHandler) ChangeAuthPassword(c *gin.Context) {
+	claims, err := ParseJWT(bearerOf(c.GetHeader("Authorization")))
+	if err != nil {
+		writeAuthErr(c, http.StatusUnauthorized, "TOKEN_INVALID", err.Error())
+		return
+	}
+	rec, ok, err := h.users.GetByID(c.Request.Context(), claims.UID)
+	if err != nil {
+		WriteProblem(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	if !ok || !rec.Enabled {
+		writeAuthErr(c, http.StatusUnauthorized, "TOKEN_REVOKED", "账号不可用")
+		return
+	}
+	var body apigen.AuthChangePasswordRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		badRequest(c, "BAD_REQUEST", err.Error())
+		return
+	}
+	if !CheckPassword(rec.PasswordHash, body.OldPassword) {
+		SetAuditMeta(c, "password_change", rec.Username, "old_password_mismatch")
+		writeAuthErr(c, http.StatusUnauthorized, "BAD_CREDENTIALS", "当前口令不正确")
+		return
+	}
+	if body.NewPassword == body.OldPassword {
+		badRequest(c, "SAME_PASSWORD", "新口令不能与当前口令相同")
+		return
+	}
+	if err := ValidatePassword(rec.Username, body.NewPassword); err != nil {
+		badRequest(c, "WEAK_PASSWORD", err.Error())
+		return
+	}
+	clearMustChange := false
+	if _, err := h.users.Update(c.Request.Context(), rec.ID, UserUpdateInput{
+		Password: &body.NewPassword, MustChangePassword: &clearMustChange,
+	}); err != nil {
+		WriteProblem(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	// 会话版本 +1：其他设备/旧令牌立即失效；当前请求用新版本重新签发令牌对。
+	if err := h.users.BumpTokenVersion(c.Request.Context(), rec.ID); err != nil {
+		WriteProblem(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	fresh, ok, err := h.users.GetByID(c.Request.Context(), rec.ID)
+	if err != nil || !ok {
+		WriteProblem(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", "读取更新后的账号失败")
+		return
+	}
+	SetAuditMeta(c, "password_change", rec.Username, "success")
+	access, refresh := issueAuthPair(fresh)
+	c.JSON(http.StatusOK, apigen.AuthLoginResult{
+		AccessToken: access, RefreshToken: refresh,
+		MustChangePassword: false,
+	})
+}
+
 // GetAuthUserInfo GET /auth/user/info
 func (h *AuthHandler) GetAuthUserInfo(c *gin.Context) {
 	claims, err := ParseJWT(bearerOf(c.GetHeader("Authorization")))
@@ -165,8 +247,12 @@ func (h *AuthHandler) GetAuthUserInfo(c *gin.Context) {
 		return
 	}
 	realName := claims.Sub
-	if rec, ok, lerr := h.users.GetByID(c.Request.Context(), claims.UID); lerr == nil && ok && rec.DisplayName != "" {
-		realName = rec.DisplayName
+	mustChange := false
+	if rec, ok, lerr := h.users.GetByID(c.Request.Context(), claims.UID); lerr == nil && ok {
+		mustChange = rec.MustChangePassword && h.forcePasswordChange(c.Request.Context())
+		if rec.DisplayName != "" {
+			realName = rec.DisplayName
+		}
 	}
 	// M2-035：权限点集合（hasPerm 逐点过滤，含自定义角色 permLookup）
 	perms := make([]string, 0, len(allPermList))
@@ -176,13 +262,14 @@ func (h *AuthHandler) GetAuthUserInfo(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, apigen.UserInfo{
-		UserId:      claims.UID,
-		Username:    claims.Sub,
-		RealName:    realName,
-		Roles:       claims.Roles,
-		Permissions: &perms,
-		Desc:        strPtr("IPAM 控制面账号"),
-		HomePath:    "/overview",
+		UserId:             claims.UID,
+		Username:           claims.Sub,
+		RealName:           realName,
+		Roles:              claims.Roles,
+		Permissions:        &perms,
+		Desc:               strPtr("IPAM 控制面账号"),
+		HomePath:           "/overview",
+		MustChangePassword: mustChange,
 	})
 }
 
@@ -209,6 +296,7 @@ func (h *AuthHandler) LogoutAuth(c *gin.Context) {
 	ok := true
 	if tok := bearerOf(c.GetHeader("Authorization")); tok != "" {
 		if claims, perr := ParseJWT(tok); perr == nil {
+			SetAuditMeta(c, "logout", claims.Sub, "success")
 			h.bl.Add(blacklistKey(claims, tok), time.Unix(claims.Exp, 0))
 		}
 	}

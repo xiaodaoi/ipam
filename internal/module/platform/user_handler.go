@@ -15,9 +15,30 @@ import (
 
 // UserHandler 实现 apigen.ServerInterface 中 platform 域用户端点（M5-004，§13.4 系统管理）。
 // 读操作任何已认证用户可用；写操作由 RBAC 中间件（M5-003）限制为 admin。
-type UserHandler struct{ store UserStore }
+type UserHandler struct {
+	store UserStore
+	sec   SecuritySettingsStore
+}
 
-func NewUserHandler(store UserStore) *UserHandler { return &UserHandler{store: store} }
+func NewUserHandler(store UserStore, sec ...SecuritySettingsStore) *UserHandler {
+	var s SecuritySettingsStore
+	if len(sec) > 0 {
+		s = sec[0]
+	}
+	return &UserHandler{store: store, sec: s}
+}
+
+// forcePasswordChange 新建/重置时是否要求首次登录改密（默认关闭）。
+func (h *UserHandler) forcePasswordChange(ctx context.Context) bool {
+	if h.sec == nil {
+		return false
+	}
+	s, err := h.sec.Get(ctx)
+	if err != nil {
+		return false
+	}
+	return s.ForcePasswordChange
+}
 
 var usernameRe = regexp.MustCompile(`^[a-zA-Z0-9_.-]{2,64}$`)
 
@@ -47,6 +68,7 @@ func toGenUser(u User) apigen.User {
 	return apigen.User{
 		Id: id, Username: u.Username, DisplayName: u.DisplayName,
 		Roles: roles, Enabled: u.Enabled, CreatedAt: u.CreatedAt,
+		MustChangePassword: u.MustChangePassword,
 	}
 }
 
@@ -79,8 +101,8 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		badRequest(c, "BAD_REQUEST", "用户名须为 2-64 位字母数字与 _.- 组合")
 		return
 	}
-	if len(body.Password) < 8 {
-		badRequest(c, "BAD_REQUEST", "口令至少 8 位")
+	if err := ValidatePassword(body.Username, body.Password); err != nil {
+		badRequest(c, "WEAK_PASSWORD", err.Error())
 		return
 	}
 	var roles []string
@@ -95,6 +117,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	}
 	created, err := h.store.Create(c.Request.Context(), UserCreateInput{
 		Username: body.Username, DisplayName: displayName, Password: body.Password, Roles: roles,
+		MustChangePassword: h.forcePasswordChange(c.Request.Context()),
 	})
 	if errors.Is(err, ErrUsernameTaken) {
 		badRequest(c, "USERNAME_TAKEN", err.Error())
@@ -163,11 +186,17 @@ func (h *UserHandler) UpdateUser(c *gin.Context, userId rtypes.UUID) {
 		badRequest(c, "LAST_ADMIN", err.Error())
 		return
 	}
-	if body.Password != nil && len(*body.Password) < 8 {
-		badRequest(c, "BAD_REQUEST", "口令至少 8 位")
-		return
+	if body.Password != nil {
+		if err := ValidatePassword(target.Username, *body.Password); err != nil {
+			badRequest(c, "WEAK_PASSWORD", err.Error())
+			return
+		}
 	}
 	in := UserUpdateInput{DisplayName: body.DisplayName, Password: body.Password, Enabled: body.Enabled}
+	if body.Password != nil {
+		mustChange := h.forcePasswordChange(c.Request.Context())
+		in.MustChangePassword = &mustChange
+	}
 	if body.Roles != nil {
 		rs := make([]string, 0, len(*body.Roles))
 		for _, r := range *body.Roles {

@@ -2,6 +2,8 @@ name: ipam
 
 services:
   postgresql:
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "127.0.0.1:${IPAM_PG_PORT:-5432}:5432"
     logging:
@@ -46,6 +48,16 @@ services:
         condition: service_healthy
       clickhouse:
         condition: service_started
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8443/healthz >/dev/null"]
+      interval: 10s
+      timeout: 4s
+      retries: 12
+      start_period: 10s
     environment:
       IPAM_DB_DSN: "postgres://${POSTGRES_USER:-ipam}:${POSTGRES_PASSWORD}@postgresql:5432/${POSTGRES_DB:-ipam}?sslmode=disable"
       IPAM_CH_ADDR: "clickhouse:9000"
@@ -63,12 +75,20 @@ services:
       IPAM_HOST_PROC: "/host/proc"
       IPAM_HOST_SYS: "/host/sys"
       IPAM_HOST_ROOT: "/host/root"
+      # M6-001：TLS 与密钥（由 install.sh 生成；路径为空=开发态 HTTP）
+      IPAM_TLS_CERT: "${IPAM_TLS_CERT:-}"
+      IPAM_TLS_KEY: "${IPAM_TLS_KEY:-}"
+      IPAM_JWT_SECRET: "${IPAM_JWT_SECRET:?set IPAM_JWT_SECRET in .env (install.sh 会自动生成)}"
+      IPAM_RATE_LIMIT: "${IPAM_RATE_LIMIT:-600}"
+      # 首次启动的一次性 admin 口令写入该目录（0600）
+      IPAM_RUN_DIR: "/run/ipam"
     volumes:
       - ipam-run:/run/ipam
       - ../../db/postgresql/migrations:/srv/migrations:ro
       - ../../config/unbound:/etc/unbound-ctl:ro
       - ../../config/unbound:/etc/unbound-rendered
       - ch-exports:/srv/log-exports
+      - ${IPAM_CERTS_DIR:-./certs}:/certs:ro
       # 宿主只读挂载（宿主整机 CPU/内存/磁盘；默认递归绑定含数据盘挂载点）
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
@@ -78,6 +98,10 @@ services:
     restart: unless-stopped
 
   coherence-daemon:
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     build:
       context: ../..
       dockerfile: deploy/images/coherence-daemon/Dockerfile
@@ -101,6 +125,8 @@ services:
     restart: unless-stopped
 
   clickhouse:
+    security_opt:
+      - no-new-privileges:true
     logging:
       driver: json-file
       options:
@@ -121,6 +147,10 @@ services:
     restart: unless-stopped
 
   vector:
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     logging:
       driver: json-file
       options:

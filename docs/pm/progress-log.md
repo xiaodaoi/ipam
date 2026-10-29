@@ -3,6 +3,15 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-10-29 · 安全基线（M6-001）
+- **传输与部署**：控制面支持内置 TLS（`IPAM_TLS_CERT/KEY` 必须成对，TLS1.2+），HTTPS 时下发 HSTS；统一安全头（nosniff/frame/referrer/permissions/COOP）；`/healthz`、`/readyz` 放在 RBAC 前供编排探活。`install.sh` 自动生成 PG 口令、`IPAM_JWT_SECRET`、自签证书，HTTPS 冒烟；compose 注入密钥、挂载证书、healthcheck，control-plane/coherence/vector 启用 `no-new-privileges + cap_drop ALL`（PG/CH 保留初始化所需 caps）。
+- **初始口令与策略**：空库随机 24 位初始口令，写 `/run/ipam/initial-admin-password`（0600）并打印一次；移除 `admin123` 兜底。**按用户反馈，强制首次改密默认关闭**，改为「系统管理 → 系统设置 → 账号安全」开关（`security_settings.force_password_change`，默认 false）；开启后仅对之后的新建/重置账号生效，不踢出已有会话。口令策略统一为 ≥10 位、≤128 位、至少 3 类字符、不含用户名、拒绝常见弱口令。
+- **自助改密**：新增 `POST /auth/password`（校验旧口令→策略→更新→清标记→token_version+1→新令牌对）；个人中心“修改密码”接真实接口；强制改密弹窗仅在策略开启且账号被标记时出现；登录/`user/info` 返回有效 must-change。
+- **审计与限流**：登录成功/失败/登出写入 `login`/`logout` action 与用户名；通用 `/api/v1` 限流默认 600/min/IP（可关），登录保留 5/min。
+- **修复**：prebuilt 镜像补 `libpython3.10`/`libexpat`（unbound-checkconf 依赖）。
+- **验证**：`go test ./...`、`go vet ./...`、`gen-check`、`docker compose config` 通过；`vue-tsc` 0 error、目标 eslint/stylelint 0 issue、`pnpm build` 成功；TLS/安全头/HTTPS 冒烟实测；浏览器实测默认策略无弹窗、开启策略后新账号弹窗→改密→旧口令 401、个人中心改密生效、设置开关持久化；测试数据已删除。
+- **遗留**：证书自动续期/到期监控（M6-005）、LDAP/2FA（M6-007）、限流多实例共享（M6-003）、PG/CH 只读根文件系统与 secret 文件（M6-003）。
+
 ## 2026-10-29 · 系统管理二级页体验优化（M4-021）
 - **页面**：重写系统管理下 4 页，统一 `PageHeader` + 4 KPI + `ipam-toolbar` + 空状态。`账号管理`（原「用户与角色」，避免与角色页重名）：账号/启用（含启用率进度）/管理员/只读 4 KPI，关键字+角色+状态筛选，账号列首字母头像+登录名+显示名+当前登录标记，状态开关直接启停并保护当前账号，创建/编辑/重置口令三弹窗带校验，15s 自动刷新。`角色管理`：角色/内置/自定义/权限点覆盖 4 KPI，关键字+类型筛选，权限覆盖 N/12 进度与 6 域读/写 chips，内置角色仅「查看」，弹窗支持全选/仅只读/清空、N/12 计数与「编辑自动含查看」联动，查看模式隐藏取消。`系统设置`：端口/组织节点/日志保留/运行模式 4 KPI，组织架构与站点品牌并排，品牌卡新增页签+侧栏 Logo 实时预览，重启收进红色危险操作区保留二次确认，日志存储复用 `<LogStoragePanel />`。`关于平台`：产品版本/控制面状态/连续运行/CPU 4 KPI，产品信息补控制面版本、Go、运行模式、服务端时间，宿主资源沿用环图+磁盘+负载，新增「复制诊断信息」。
 - **修复**：`api/ipam.ts` 的 `updateRole` 误用 POST 请求 `/roles/{id}`（后端与 spec 均为 PATCH），导致自定义角色编辑一直返回「未知 API 路由」，已改为 `patch()`；运行模式 Tag 使用 antd 非预设色导致文字不可见，改显式 `green`/`orange`。

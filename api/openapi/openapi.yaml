@@ -70,10 +70,14 @@ paths:
     $ref: './paths/auth.yaml#/AuthLogout'
   /auth/refresh:
     $ref: './paths/auth.yaml#/AuthRefresh'
+  /auth/password:
+    $ref: './paths/auth.yaml#/AuthChangePassword'
   /system/webui-settings:
     $ref: "./paths/webui.yaml#/WebuiSettingsCollection"
   /system/restart:
     $ref: "./paths/webui.yaml#/RestartControlPlane"
+  /system/security-settings:
+    $ref: "./paths/security.yaml#/SecuritySettingsCollection"
   /public/branding:
     $ref: "./paths/public.yaml#/PublicBranding"
   /system/log-settings:

@@ -67,6 +67,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		*dnsmodule.SettingsHandler
 		*RolesHandler
 		*WebuiHandler
+		*SecuritySettingsHandler
 		*logmanager.LogHandler
 		*stubApplier
 	}{h,
@@ -88,6 +89,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		dnsmodule.NewSettingsHandler(dnsmodule.NewSettingsService(dnsmodule.NewMemSettingsRepo(), fakeUnbound{}, "/tmp/unbound.conf", nil), dnsmodule.NewMemSettingsRepo()),
 		NewRolesHandler(NewMemRoleStore()),
 		NewWebuiHandler(NewMemWebuiRepo()),
+		NewSecuritySettingsHandler(NewMemSecuritySettingsStore()),
 		logmanager.NewLogHandler(logmanager.NewMemSettingsRepo(), logmanager.NewMemArchiveRepo(), nil, "/tmp/log-exports"),
 		&stubApplier{},
 	}

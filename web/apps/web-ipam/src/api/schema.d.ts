@@ -348,6 +348,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 修改当前账号口令
+         * @description 校验旧口令后更新为新口令，并清除 mustChangePassword 标记。
+         *     成功后 token_version+1（其他设备/旧令牌立即失效），返回新的访问/刷新令牌对。
+         *     新口令遵循 M6-001 口令策略：10–128 位、至少 3 类字符、不得含用户名、不得与旧口令相同。
+         */
+        post: operations["changeAuthPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/system/webui-settings": {
         parameters: {
             query?: never;
@@ -386,6 +408,31 @@ export interface paths {
          * @description 优雅退出进程（容器 restart 策略自动拉起）；端口/设置修改在重启后生效。scope 为 system:write。
          */
         post: operations["restartControlPlane"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/system/security-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取账号安全策略
+         * @description 返回首次登录/管理员重置口令后是否强制修改口令。默认关闭，便于调试与平滑上线；
+         *     开启后仅影响此后的新建账号与重置口令（已登录用户不被强制踢出）。
+         */
+        get: operations["getSecuritySettings"];
+        /**
+         * 更新账号安全策略
+         * @description 仅 system:write 可写。修改后对新建账号/重置口令立即生效，不影响已有会话。
+         */
+        put: operations["updateSecuritySettings"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2329,11 +2376,13 @@ export interface components {
             accessToken: string;
             /** @description 刷新令牌（HS256 JWT，kind=refresh，uid+jti+exp，7d TTL，M5-032） */
             refreshToken: string;
+            /** @description true=系统已开启强制改密且该账号被标记（首次登录/管理员重置）；前端据此弹出不可关闭的改密弹窗。默认策略关闭 */
+            mustChangePassword: boolean;
         };
         AuthLoginRequest: {
             /** @description 账号（PoC 仅 admin） */
             username: string;
-            /** @description 口令（环境变量 IPAM_POC_PASSWORD，缺省 admin123） */
+            /** @description 登录口令（bcrypt 校验；首次启动随机生成，必须修改后才能继续使用） */
             password: string;
         };
         UserInfo: {
@@ -2350,6 +2399,8 @@ export interface components {
             desc?: string;
             /** @description 登录后默认跳转（仪表盘总览 /overview） */
             homePath: string;
+            /** @description 当前是否需强制修改口令（M6-001：系统策略开启且账号被标记时为 true） */
+            mustChangePassword: boolean;
             token?: string;
         };
         /** @description 权限码集合（与 OpenAPI scope 同源预留；PoC 空=按钮级权限不启用） */
@@ -2370,6 +2421,8 @@ export interface components {
             enabled: boolean;
             /** Format: date-time */
             createdAt: string;
+            /** @description 是否被标记为需改密（M6-001：系统策略开启时新建/重置为 true；实际是否强制由全局策略决定） */
+            mustChangePassword: boolean;
         };
         UserList: {
             items: components["schemas"]["User"][];
@@ -2378,7 +2431,7 @@ export interface components {
             /** @description 登录名（唯一，字母数字与 _.- ） */
             username: string;
             displayName?: string;
-            /** @description 明文仅请求期接收，bcrypt 落库 */
+            /** @description 初始口令（10–128 位，至少 3 类字符；新建账号首次登录须修改）。明文仅请求期接收，bcrypt 落库 */
             password: string;
             /**
              * @default [
@@ -2618,6 +2671,15 @@ export interface components {
             /** @description 新刷新令牌（7d TTL；旧刷新令牌 jti 已轮换入黑名单） */
             refreshToken: string;
         };
+        AuthChangePasswordRequest: {
+            /** @description 当前口令（用于确认身份；错误返回 401） */
+            oldPassword: string;
+            /**
+             * @description 新口令。策略：10–128 位，至少包含小写/大写/数字/符号中的 3 类，
+             *     不得包含用户名，且不得与旧口令相同（M6-001）。
+             */
+            newPassword: string;
+        };
         WebuiSettings: {
             /** @description 站点名称（浏览器页签/侧栏显示） */
             siteName: string;
@@ -2636,6 +2698,22 @@ export interface components {
             logoUrl?: string;
             /** @description 监听端口（1-65535），重启后生效 */
             serverPort?: number;
+        };
+        SecuritySettings: {
+            /**
+             * @description 首次登录/管理员重置口令后是否强制修改口令（M6-001）。
+             *     默认 false（便于调试）；开启后仅影响新建账号与后续重置，不主动踢出已有会话。
+             */
+            forcePasswordChange: boolean;
+            /**
+             * Format: date-time
+             * @description 最近更新时间（只读）
+             */
+            updatedAt?: string;
+        };
+        SecuritySettingsUpdate: {
+            /** @description true=启用强制改密；false=关闭 */
+            forcePasswordChange: boolean;
         };
         PublicBranding: {
             /** @description 站点名称（登录页与浏览器标题） */
@@ -3536,6 +3614,48 @@ export interface operations {
             };
         };
     };
+    changeAuthPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthChangePasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description 修改成功并颁发新令牌对 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthLoginResult"];
+                };
+            };
+            /** @description 新口令不满足策略 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description 未认证或旧口令错误 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     getWebuiSettings: {
         parameters: {
             query?: never;
@@ -3595,6 +3715,70 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    getSecuritySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 账号安全策略 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecuritySettings"];
+                };
+            };
+            401: components["responses"]["AuthUnauthorized"];
+        };
+    };
+    updateSecuritySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SecuritySettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description 更新后的策略 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecuritySettings"];
+                };
+            };
+            /** @description 参数非法 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            401: components["responses"]["AuthUnauthorized"];
+            /** @description 无 system:write 权限 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
             };
         };
     };

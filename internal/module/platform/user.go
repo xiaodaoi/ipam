@@ -17,13 +17,14 @@ import (
 
 // User 用户投影（不含口令散列，对外返回）。
 type User struct {
-	ID           string    `json:"id"`
-	Username     string    `json:"username"`
-	DisplayName  string    `json:"displayName"`
-	Roles        []string  `json:"roles"`
-	Enabled      bool      `json:"enabled"`
-	CreatedAt    time.Time `json:"createdAt"`
-	TokenVersion int       `json:"-"`
+	ID                 string    `json:"id"`
+	Username           string    `json:"username"`
+	DisplayName        string    `json:"displayName"`
+	Roles              []string  `json:"roles"`
+	Enabled            bool      `json:"enabled"`
+	CreatedAt          time.Time `json:"createdAt"`
+	MustChangePassword bool      `json:"mustChangePassword"`
+	TokenVersion       int       `json:"-"`
 }
 
 // UserRecord 含口令散列的内部行（登录校验专用，禁止出 API）。
@@ -34,18 +35,20 @@ type UserRecord struct {
 
 // UserCreateInput 新建入参；Password 明文仅在此层内 bcrypt。
 type UserCreateInput struct {
-	Username    string
-	DisplayName string
-	Password    string
-	Roles       []string
+	Username           string
+	DisplayName        string
+	Password           string
+	Roles              []string
+	MustChangePassword bool
 }
 
 // UserUpdateInput PATCH 语义，nil 字段不改。
 type UserUpdateInput struct {
-	DisplayName *string
-	Password    *string
-	Roles       *[]string
-	Enabled     *bool
+	DisplayName        *string
+	Password           *string
+	Roles              *[]string
+	Enabled            *bool
+	MustChangePassword *bool
 }
 
 var ErrUsernameTaken = errors.New("USERNAME_TAKEN")
@@ -83,10 +86,16 @@ func EnsureBootstrap(ctx context.Context, s UserStore) error {
 	if n > 0 {
 		return nil
 	}
+	pw, generated := bootstrapPassword()
 	_, err = s.Create(ctx, UserCreateInput{
-		Username: pocUsername, DisplayName: "管理员", Password: pocPassword(), Roles: []string{"admin"},
+		Username: pocUsername, DisplayName: "管理员", Password: pw,
+		Roles: []string{"admin"}, MustChangePassword: false,
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	logBootstrapPassword(pw, generated)
+	return nil
 }
 
 // extraRoles 自定义角色注册（M2-035：roleStore.Create 时注册；启动时从 roles 表加载）。
@@ -166,7 +175,7 @@ func (s *MemUserStore) Create(_ context.Context, in UserCreateInput) (User, erro
 		User: User{
 			ID: uuid.NewString(), Username: in.Username, DisplayName: in.DisplayName,
 			Roles: normalizeRoles(in.Roles), Enabled: true, CreatedAt: timeNowUTC(),
-			TokenVersion: 1,
+			MustChangePassword: in.MustChangePassword, TokenVersion: 1,
 		},
 		PasswordHash: hash,
 	}
@@ -203,6 +212,9 @@ func (s *MemUserStore) Update(_ context.Context, id string, in UserUpdateInput) 
 	}
 	if in.Enabled != nil {
 		rec.Enabled = *in.Enabled
+	}
+	if in.MustChangePassword != nil {
+		rec.MustChangePassword = *in.MustChangePassword
 	}
 	s.m[found] = rec
 	return rec.User, nil
@@ -247,7 +259,7 @@ type PgUserStore struct{ pool *pgxpool.Pool }
 
 func NewPgUserStore(pool *pgxpool.Pool) *PgUserStore { return &PgUserStore{pool: pool} }
 
-const userCols = `id::text, username, display_name, roles, enabled, created_at, token_version`
+const userCols = `id::text, username, display_name, roles, enabled, created_at, token_version, must_change_password`
 
 func (s *PgUserStore) List(ctx context.Context) ([]User, error) {
 	rows, err := s.pool.Query(ctx, `SELECT `+userCols+` FROM users ORDER BY username`)
@@ -258,7 +270,7 @@ func (s *PgUserStore) List(ctx context.Context) ([]User, error) {
 	out := []User{}
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Roles, &u.Enabled, &u.CreatedAt, &u.TokenVersion); err != nil {
+		if err := rows.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Roles, &u.Enabled, &u.CreatedAt, &u.TokenVersion, &u.MustChangePassword); err != nil {
 			return nil, err
 		}
 		out = append(out, u)
@@ -278,7 +290,7 @@ func (s *PgUserStore) getBy(ctx context.Context, cond, arg string) (UserRecord, 
 	r := UserRecord{}
 	err := s.pool.QueryRow(ctx,
 		`SELECT `+userCols+`, password_hash FROM users WHERE `+cond, arg).
-		Scan(&r.ID, &r.Username, &r.DisplayName, &r.Roles, &r.Enabled, &r.CreatedAt, &r.TokenVersion, &r.PasswordHash)
+		Scan(&r.ID, &r.Username, &r.DisplayName, &r.Roles, &r.Enabled, &r.CreatedAt, &r.TokenVersion, &r.MustChangePassword, &r.PasswordHash)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return UserRecord{}, false, nil
 	}
@@ -296,12 +308,13 @@ func (s *PgUserStore) Create(ctx context.Context, in UserCreateInput) (User, err
 	u := User{
 		Username: in.Username, DisplayName: in.DisplayName,
 		Roles: normalizeRoles(in.Roles), Enabled: true, CreatedAt: timeNowUTC(),
+		MustChangePassword: in.MustChangePassword,
 	}
 	u.TokenVersion = 1
 	err = s.pool.QueryRow(ctx,
-		`INSERT INTO users(username, display_name, password_hash, roles)
-		 VALUES($1,$2,$3,$4) RETURNING id::text, created_at`,
-		u.Username, u.DisplayName, hash, u.Roles).Scan(&u.ID, &u.CreatedAt)
+		`INSERT INTO users(username, display_name, password_hash, roles, must_change_password)
+		 VALUES($1,$2,$3,$4,$5) RETURNING id::text, created_at`,
+		u.Username, u.DisplayName, hash, u.Roles, u.MustChangePassword).Scan(&u.ID, &u.CreatedAt)
 	if err != nil && strings.Contains(err.Error(), "duplicate key") {
 		return User{}, fmt.Errorf("%w: %s", ErrUsernameTaken, in.Username)
 	}
@@ -334,12 +347,17 @@ func (s *PgUserStore) Update(ctx context.Context, id string, in UserUpdateInput)
 	if in.Enabled != nil {
 		enabled = *in.Enabled
 	}
+	mustChange := cur.MustChangePassword
+	if in.MustChangePassword != nil {
+		mustChange = *in.MustChangePassword
+	}
 	var u User
 	err = s.pool.QueryRow(ctx,
-		`UPDATE users SET display_name=$2, password_hash=$3, roles=$4, enabled=$5, updated_at=now()
+		`UPDATE users SET display_name=$2, password_hash=$3, roles=$4, enabled=$5,
+		   must_change_password=$6, updated_at=now()
 		 WHERE id::text=$1 RETURNING `+userCols,
-		id, displayName, hash, roles, enabled).
-		Scan(&u.ID, &u.Username, &u.DisplayName, &u.Roles, &u.Enabled, &u.CreatedAt, &u.TokenVersion)
+		id, displayName, hash, roles, enabled, mustChange).
+		Scan(&u.ID, &u.Username, &u.DisplayName, &u.Roles, &u.Enabled, &u.CreatedAt, &u.TokenVersion, &u.MustChangePassword)
 	return u, err
 }
 

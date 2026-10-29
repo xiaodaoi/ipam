@@ -2,7 +2,7 @@
 
 User:
   type: object
-  required: [id, username, displayName, roles, enabled, createdAt]
+  required: [id, username, displayName, roles, enabled, createdAt, mustChangePassword]
   properties:
     id: { type: string, format: uuid }
     username:
@@ -21,6 +21,9 @@ User:
     createdAt:
       type: string
       format: date-time
+    mustChangePassword:
+      type: boolean
+      description: 是否被标记为需改密（M6-001：系统策略开启时新建/重置为 true；实际是否强制由全局策略决定）
 
 UserList:
   type: object
@@ -47,8 +50,8 @@ UserCreate:
     password:
       type: string
       maxLength: 128
-      minLength: 8
-      description: 明文仅请求期接收，bcrypt 落库
+      minLength: 10
+      description: 初始口令（10–128 位，至少 3 类字符；新建账号首次登录须修改）。明文仅请求期接收，bcrypt 落库
     roles:
       type: array
       items: { type: string, enum: [admin, user] }

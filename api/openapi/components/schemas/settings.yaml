@@ -44,3 +44,25 @@ FlushResult:
   properties:
     flushed: { type: string, description: all | <zone> }
     command: { type: string, description: 如 unbound-control flush_zone corp.local. }
+
+SecuritySettings:
+  type: object
+  required: [forcePasswordChange]
+  properties:
+    forcePasswordChange:
+      type: boolean
+      description: |
+        首次登录/管理员重置口令后是否强制修改口令（M6-001）。
+        默认 false（便于调试）；开启后仅影响新建账号与后续重置，不主动踢出已有会话。
+    updatedAt:
+      type: string
+      format: date-time
+      description: 最近更新时间（只读）
+
+SecuritySettingsUpdate:
+  type: object
+  required: [forcePasswordChange]
+  properties:
+    forcePasswordChange:
+      type: boolean
+      description: true=启用强制改密；false=关闭

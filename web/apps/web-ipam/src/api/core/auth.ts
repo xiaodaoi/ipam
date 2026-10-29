@@ -11,6 +11,8 @@ export namespace AuthApi {
   export interface LoginResult {
     accessToken: string;
     refreshToken: string;
+    /** M6-001：首次登录/管理员重置后必须修改口令 */
+    mustChangePassword?: boolean;
   }
 
   /** 刷新令牌接口返回值（M5-032：baseRequestClient 为 raw 响应，data 体对齐 AuthRefreshResult） */
@@ -28,6 +30,17 @@ export namespace AuthApi {
  */
 export async function loginApi(data: AuthApi.LoginParams) {
   return requestClient.post<AuthApi.LoginResult>('/auth/login', data);
+}
+
+/**
+ * 修改当前账号口令（M6-001）
+ * 成功后返回新的令牌对；旧令牌因 token_version 递增立即失效。
+ */
+export async function changePasswordApi(data: {
+  newPassword: string;
+  oldPassword: string;
+}) {
+  return requestClient.post<AuthApi.LoginResult>('/auth/password', data);
 }
 
 /**

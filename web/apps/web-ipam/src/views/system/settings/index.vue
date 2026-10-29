@@ -12,11 +12,18 @@ import {
   InputNumber,
   message,
   Popconfirm,
+  Switch,
   Tag,
   Upload,
 } from 'ant-design-vue';
 
-import { getLogSettings, getSystemInfo, listOrgTree } from '#/api/ipam';
+import {
+  getLogSettings,
+  getSecuritySettings,
+  getSystemInfo,
+  listOrgTree,
+  updateSecuritySettings,
+} from '#/api/ipam';
 import { requestClient } from '#/api/request';
 import LogStoragePanel from '#/components/log-storage-panel.vue';
 import OrgManageCard from '#/components/org-manage-card.vue';
@@ -31,6 +38,8 @@ const loading = ref(false);
 const orgCount = ref(0);
 const retentionDays = ref<number>();
 const info = ref<SystemInfo>();
+const security = reactive({ forcePasswordChange: false });
+const savingSecurity = ref(false);
 
 const mode = import.meta.env.MODE === 'production' ? '生产环境' : '开发环境';
 const modeTone = import.meta.env.MODE === 'production' ? 'green' : 'amber';
@@ -50,11 +59,12 @@ function countOrgs(nodes: OrgTreeNode[]): number {
 
 async function load() {
   loading.value = true;
-  const [web, orgs, logSettings, sysInfo] = await Promise.allSettled([
+  const [web, orgs, logSettings, sysInfo, sec] = await Promise.allSettled([
     requestClient.get('/system/webui-settings'),
     listOrgTree(),
     getLogSettings(),
     getSystemInfo(),
+    getSecuritySettings(),
   ]);
   if (web.status === 'fulfilled') {
     const v = web.value as {
@@ -73,6 +83,8 @@ async function load() {
   retentionDays.value =
     logSettings.status === 'fulfilled' ? logSettings.value.retentionDays : undefined;
   info.value = sysInfo.status === 'fulfilled' ? sysInfo.value : undefined;
+  security.forcePasswordChange =
+    sec.status === 'fulfilled' ? Boolean(sec.value.forcePasswordChange) : false;
   loading.value = false;
 }
 
@@ -135,6 +147,23 @@ async function restart() {
     message.error(error instanceof Error ? error.message : '重启请求失败');
   } finally {
     restarting.value = false;
+  }
+}
+
+async function saveSecurity() {
+  savingSecurity.value = true;
+  try {
+    const saved = await updateSecuritySettings(security.forcePasswordChange);
+    security.forcePasswordChange = Boolean(saved.forcePasswordChange);
+    message.success(
+      saved.forcePasswordChange
+        ? '已开启：新建账号与重置口令后首次登录须改密'
+        : '已关闭：首次登录不再强制改密（便于调试）',
+    );
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '保存失败');
+  } finally {
+    savingSecurity.value = false;
   }
 }
 
@@ -277,6 +306,44 @@ onMounted(load);
         </div>
       </Card>
     </div>
+
+    <Card>
+      <template #title>
+        <span class="ipam-card-title">
+          <IconifyIcon icon="lucide:shield-check" />账号安全
+        </span>
+      </template>
+      <template #extra>
+        <span class="ipam-hint">仅影响新建账号与后续重置，不踢出已有会话</span>
+      </template>
+      <div class="ipam-form-grid">
+        <div class="ipam-form-field">
+          <span class="ipam-form-field__label">首次登录 / 重置口令后强制改密</span>
+          <div class="flex h-8 items-center gap-2">
+            <Switch v-model:checked="security.forcePasswordChange" size="small" />
+            <span class="ipam-hint">
+              {{ security.forcePasswordChange ? '已启用' : '已关闭（便于调试）' }}
+            </span>
+          </div>
+        </div>
+        <div class="ipam-form-field">
+          <span class="ipam-form-field__label">口令策略（固定）</span>
+          <div class="ipam-service-value">
+            <span>≥10 位 · 至少 3 类字符 · 不含用户名</span>
+          </div>
+        </div>
+        <div class="ipam-form-hint ipam-form-field--wide">
+          关闭后，新建账号/重置口令仍会记录“需改密”状态，但不会强制弹窗；开启后仅对之后的新建/重置立即生效。
+        </div>
+      </div>
+      <div class="ipam-toolbar ipam-toolbar--plain mt-3">
+        <span class="ipam-hint">调试期建议关闭；对外交付前建议开启</span>
+        <span class="ipam-toolbar__spacer"></span>
+        <Button type="primary" :loading="savingSecurity" @click="saveSecurity">
+          <IconifyIcon icon="lucide:save" class="mr-1 size-3.5" />保存账号策略
+        </Button>
+      </div>
+    </Card>
 
     <Card>
       <template #title>

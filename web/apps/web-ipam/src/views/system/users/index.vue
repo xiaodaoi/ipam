@@ -142,8 +142,8 @@ async function add() {
     message.warning('登录名需 2–64 位，仅允许字母、数字与 _ . -');
     return;
   }
-  if (createForm.password.length < 8) {
-    message.warning('初始口令至少 8 位');
+  if (createForm.password.length < 10) {
+    message.warning('初始口令至少 10 位，且需包含至少 3 类字符');
     return;
   }
   try {
@@ -211,8 +211,8 @@ function openReset(row: UserRow) {
   reset.open = true;
 }
 async function doReset() {
-  if (reset.password.length < 8) {
-    message.warning('新口令至少 8 位');
+  if (reset.password.length < 10) {
+    message.warning('新口令至少 10 位，且需包含至少 3 类字符');
     return;
   }
   try {
@@ -398,6 +398,7 @@ onBeforeUnmount(() => clearInterval(timer));
                 <div class="ipam-account__line">
                   <span class="ipam-account__name ipam-mono">{{ record.username }}</span>
                   <Tag v-if="isSelf(record.username)" class="m-0" color="blue">当前登录</Tag>
+                  <Tag v-if="record.mustChangePassword" class="m-0" color="orange">需改密</Tag>
                 </div>
                 <span class="ipam-cell-meta">
                   {{ record.displayName || '未设置显示名' }}
@@ -484,7 +485,7 @@ onBeforeUnmount(() => clearInterval(timer));
           <span class="ipam-form-field__label">初始口令</span>
           <Input.Password
             v-model:value="createForm.password"
-            placeholder="至少 8 位"
+            placeholder="≥10 位，至少 3 类字符"
           />
         </div>
         <div class="ipam-form-field">
@@ -533,7 +534,7 @@ onBeforeUnmount(() => clearInterval(timer));
     >
       <div class="ipam-form-grid">
         <div class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">新口令（≥8 位）</span>
+          <span class="ipam-form-field__label">新口令（≥10 位，至少 3 类字符）</span>
           <Input.Password
             v-model:value="reset.password"
             placeholder="输入新口令"

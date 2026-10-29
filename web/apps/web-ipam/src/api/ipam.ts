@@ -88,6 +88,16 @@ export const getSystemMetrics = () => req<HostMetrics>('/system/metrics');
 export type SystemInfo = components['schemas']['SystemInfo'];
 export const getSystemInfo = () => req<SystemInfo>('/system/info');
 
+// ── 账号安全策略（M6-001）──
+export type SecuritySettings = components['schemas']['SecuritySettings'];
+export const getSecuritySettings = () =>
+  req<SecuritySettings>('/system/security-settings');
+export const updateSecuritySettings = (forcePasswordChange: boolean) =>
+  req<SecuritySettings>('/system/security-settings', {
+    method: 'PUT',
+    body: JSON.stringify({ forcePasswordChange }),
+  });
+
 export type TopList = components['schemas']['TopList'];
 export type TopEntry = components['schemas']['TopEntry'];
 export type QpsSeries = components['schemas']['QpsSeries'];

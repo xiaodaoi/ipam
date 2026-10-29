@@ -210,3 +210,64 @@ UserAliasInfo:
                   homePath: "/overview"
       '401':
         $ref: '../components/responses/auth.yaml#/AuthUnauthorized'
+
+AuthChangePassword:
+  post:
+    operationId: changeAuthPassword
+    tags: [auth]
+    summary: 修改当前账号口令
+    description: |
+      校验旧口令后更新为新口令，并清除 mustChangePassword 标记。
+      成功后 token_version+1（其他设备/旧令牌立即失效），返回新的访问/刷新令牌对。
+      新口令遵循 M6-001 口令策略：10–128 位、至少 3 类字符、不得含用户名、不得与旧口令相同。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/auth.yaml#/AuthChangePasswordRequest'
+    responses:
+      '200':
+        description: 修改成功并颁发新令牌对
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/auth.yaml#/AuthLoginResult'
+            examples:
+              ok:
+                summary: 修改成功
+                value:
+                  accessToken: "eyJhbGciOiJIUzI1NiIs...sig"
+                  refreshToken: "eyJhbGciOiJIUzI1NiIs...sig"
+                  mustChangePassword: false
+      '400':
+        description: 新口令不满足策略
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Problem'
+            examples:
+              weak:
+                summary: 口令过弱
+                value:
+                  type: 'https://ipam.local/problems/bad-request'
+                  title: Bad Request
+                  status: 400
+                  code: WEAK_PASSWORD
+                  detail: 口令至少 10 位，且需包含小写/大写/数字/符号中的 3 类
+      '401':
+        description: 未认证或旧口令错误
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Problem'
+            examples:
+              badOld:
+                summary: 旧口令错误
+                value:
+                  type: 'https://ipam.local/problems/unauthorized'
+                  title: Unauthorized
+                  status: 401
+                  code: BAD_CREDENTIALS
+                  detail: 当前口令不正确

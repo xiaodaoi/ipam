@@ -154,6 +154,7 @@ jobs:
       contents: write
     env:
       POSTGRES_PASSWORD: ci-smoke-password
+      IPAM_JWT_SECRET: ci-smoke-jwt-secret-0123456789abcdef
     steps:
       - uses: actions/checkout@v4
       - name: download webui dist

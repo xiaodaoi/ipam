@@ -6,6 +6,7 @@ import { preferences, usePreferences } from '@vben/preferences';
 
 import { App, ConfigProvider, theme } from 'ant-design-vue';
 
+import ForcePasswordChange from '#/components/force-password-change.vue';
 import { antdLocale } from '#/locales';
 
 defineOptions({ name: 'App' });
@@ -38,6 +39,7 @@ const tokenTheme = computed(() => {
   >
     <App>
       <RouterView />
+      <ForcePasswordChange />
     </App>
   </ConfigProvider>
 </template>

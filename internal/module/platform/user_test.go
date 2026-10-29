@@ -157,7 +157,7 @@ func TestCreateUserValidation(t *testing.T) {
 	if w := doJSON(r, http.MethodPost, "/api/v1/users", token, `{"username":"op02","password":"123"}`); w.Code != http.StatusBadRequest {
 		t.Fatalf("短口令应 400: %d", w.Code)
 	}
-	w := doJSON(r, http.MethodPost, "/api/v1/users", token, `{"username":"op02","password":"12345678","roles":["user"]}`)
+	w := doJSON(r, http.MethodPost, "/api/v1/users", token, `{"username":"op02","password":"Qa-Passw0rd!23","roles":["user"]}`)
 	if w.Code != http.StatusCreated {
 		t.Fatalf("正常创建应 201: %d %s", w.Code, w.Body.String())
 	}

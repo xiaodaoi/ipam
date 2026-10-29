@@ -23,6 +23,8 @@ FROM ubuntu:jammy
 COPY --from=unbound-layer /usr/sbin/unbound /usr/local/sbin/unbound
 COPY --from=unbound-layer /usr/sbin/unbound-checkconf /usr/local/sbin/unbound-checkconf
 COPY --from=unbound-layer /usr/lib/x86_64-linux-gnu/libunbound.so* /usr/lib/x86_64-linux-gnu/
+# unbound 的 python 模块依赖 libpython（confApplier 调 unbound-checkconf 时需要）
+COPY --from=unbound-layer /usr/lib/x86_64-linux-gnu/libpython3.10.so* /usr/lib/x86_64-linux-gnu/
 RUN mkdir -p /var/log/unbound /run/ipam /var/lib/unbound \
     && ln -s /usr/local/sbin/unbound /usr/local/bin/unbound \
     && ln -s /usr/local/sbin/unbound-checkconf /usr/local/bin/unbound-checkconf
