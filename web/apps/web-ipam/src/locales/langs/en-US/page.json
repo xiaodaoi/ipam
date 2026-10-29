@@ -48,6 +48,7 @@
     "settings": "Settings",
     "security": "Account Security",
     "branding": "Branding",
-    "runtime": "Runtime"
+    "runtime": "Runtime",
+    "backup": "Backup & Restore"
   }
 }

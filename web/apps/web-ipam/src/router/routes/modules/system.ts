@@ -49,6 +49,12 @@ const routes: RouteRecordRaw[] = [
         meta: { icon: 'lucide:server-cog', title: $t('page.system.runtime'), authority: ['system:read'] },
       },
       {
+        name: 'SystemBackup',
+        path: '/system/backup',
+        component: () => import('#/views/system/backup/index.vue'),
+        meta: { icon: 'lucide:archive-restore', title: $t('page.system.backup'), authority: ['system:read'] },
+      },
+      {
         name: 'SystemAbout',
         path: '/system/about',
         component: () => import('#/views/_core/about/index.vue'),

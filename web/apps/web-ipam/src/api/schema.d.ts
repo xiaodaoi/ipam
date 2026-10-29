@@ -439,6 +439,116 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/system/backups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 备份列表
+         * @description 返回最近备份记录（含进行中/失败）。scope 为 system:read。
+         */
+        get: operations["listBackups"];
+        put?: never;
+        /**
+         * 创建备份
+         * @description 异步创建完整备份：PostgreSQL custom dump + 配置目录 tar + ClickHouse 日志按月 Parquet。
+         *     返回 running 记录，前端轮询列表获取结果。scope 为 system:write。
+         */
+        post: operations["createBackup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/system/backups/{backupId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                backupId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * 删除备份
+         * @description 删除备份记录与磁盘文件；进行中的备份不可删除。scope 为 system:write。
+         */
+        delete: operations["deleteBackup"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/system/backups/{backupId}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                backupId: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * 下载备份归档
+         * @description 将备份目录打包为 tar.gz 下载（含 manifest、PG dump、配置、日志 Parquet）。scope 为 system:read。
+         */
+        get: operations["downloadBackup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/system/backups/{backupId}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                backupId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 从备份恢复
+         * @description **危险操作**：先恢复 PostgreSQL（pg_restore --clean），再清空并重放 ClickHouse 日志 Parquet。
+         *     必须在维护窗口执行；恢复期间管理页面可能短暂不可用。scope 为 system:write。
+         */
+        post: operations["restoreBackup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/system/backup-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 备份策略读取 */
+        get: operations["getBackupSettings"];
+        /** 备份策略保存 */
+        put: operations["updateBackupSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/public/branding": {
         parameters: {
             query?: never;
@@ -2715,6 +2825,65 @@ export interface components {
             /** @description true=启用强制改密；false=关闭 */
             forcePasswordChange: boolean;
         };
+        /**
+         * @description manual=手动；auto=定时；pre_upgrade=升级前快照
+         * @enum {string}
+         */
+        BackupKind: "manual" | "auto" | "pre_upgrade";
+        /**
+         * @description running=进行中；success=成功；failed=失败；restoring=恢复中
+         * @enum {string}
+         */
+        BackupStatus: "running" | "success" | "failed" | "restoring";
+        Backup: {
+            /** Format: uuid */
+            id: string;
+            kind: components["schemas"]["BackupKind"];
+            status: components["schemas"]["BackupStatus"];
+            /** @description 备注 */
+            note?: string;
+            /**
+             * Format: int64
+             * @description 备份总大小（PG dump + 配置 + 日志 Parquet）
+             */
+            sizeBytes?: number;
+            /** @description PostgreSQL dump 的 SHA256（用于完整性校验） */
+            checksum?: string;
+            /** @description 已备份的日志月份（YYYY-MM） */
+            months?: string[];
+            /** @description 失败原因（成功时为空） */
+            error?: string;
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            finishedAt?: string;
+        };
+        BackupList: {
+            items: components["schemas"]["Backup"][];
+        };
+        BackupCreate: {
+            /** @description 备注（可选） */
+            note?: string;
+        };
+        BackupRestoreRequest: {
+            /** @description 必须为 true；恢复会覆盖当前 PG 数据与 ClickHouse 日志 */
+            confirm: boolean;
+        };
+        BackupSettings: {
+            /** @description 是否启用每日自动备份 */
+            enabled: boolean;
+            /** @description 每日执行小时（UTC，默认 3） */
+            scheduleHour: number;
+            /** @description 保留最近 N 份自动/手动备份（默认 7） */
+            retentionCount: number;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        BackupSettingsUpdate: {
+            enabled: boolean;
+            scheduleHour: number;
+            retentionCount: number;
+        };
         PublicBranding: {
             /** @description 站点名称（登录页与浏览器标题） */
             siteName: string;
@@ -3778,6 +3947,210 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    listBackups: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 备份列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupList"];
+                };
+            };
+            401: components["responses"]["AuthUnauthorized"];
+        };
+    };
+    createBackup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["BackupCreate"];
+            };
+        };
+        responses: {
+            /** @description 已受理 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Backup"];
+                };
+            };
+            401: components["responses"]["AuthUnauthorized"];
+            /** @description 无 system:write 权限 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    deleteBackup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                backupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已删除 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 进行中不可删除 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description 不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    downloadBackup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                backupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description tar.gz 流 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/gzip": string;
+                };
+            };
+            /** @description 不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    restoreBackup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                backupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BackupRestoreRequest"];
+            };
+        };
+        responses: {
+            /** @description 恢复完成 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Backup"];
+                };
+            };
+            /** @description 未确认或备份不可恢复 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            401: components["responses"]["AuthUnauthorized"];
+        };
+    };
+    getBackupSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 备份策略 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupSettings"];
+                };
+            };
+        };
+    };
+    updateBackupSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BackupSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description 已保存 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupSettings"];
                 };
             };
         };

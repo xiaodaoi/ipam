@@ -1,0 +1,81 @@
+# 备份与恢复（M6-002）：PG + 配置 + ClickHouse 日志 Parquet。
+BackupKind:
+  type: string
+  enum: [manual, auto, pre_upgrade]
+  description: manual=手动；auto=定时；pre_upgrade=升级前快照
+
+BackupStatus:
+  type: string
+  enum: [running, success, failed, restoring]
+  description: running=进行中；success=成功；failed=失败；restoring=恢复中
+
+Backup:
+  type: object
+  required: [id, kind, status, startedAt]
+  properties:
+    id: { type: string, format: uuid }
+    kind: { $ref: '#/BackupKind' }
+    status: { $ref: '#/BackupStatus' }
+    note: { type: string, description: 备注 }
+    sizeBytes:
+      type: integer
+      format: int64
+      description: 备份总大小（PG dump + 配置 + 日志 Parquet）
+    checksum:
+      type: string
+      description: PostgreSQL dump 的 SHA256（用于完整性校验）
+    months:
+      type: array
+      items: { type: string }
+      description: 已备份的日志月份（YYYY-MM）
+    error:
+      type: string
+      description: 失败原因（成功时为空）
+    startedAt: { type: string, format: date-time }
+    finishedAt: { type: string, format: date-time }
+
+BackupList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items: { $ref: '#/Backup' }
+
+BackupCreate:
+  type: object
+  properties:
+    note: { type: string, maxLength: 200, description: 备注（可选） }
+
+BackupRestoreRequest:
+  type: object
+  required: [confirm]
+  properties:
+    confirm:
+      type: boolean
+      description: 必须为 true；恢复会覆盖当前 PG 数据与 ClickHouse 日志
+
+BackupSettings:
+  type: object
+  required: [enabled, scheduleHour, retentionCount]
+  properties:
+    enabled: { type: boolean, description: 是否启用每日自动备份 }
+    scheduleHour:
+      type: integer
+      minimum: 0
+      maximum: 23
+      description: 每日执行小时（UTC，默认 3）
+    retentionCount:
+      type: integer
+      minimum: 1
+      maximum: 90
+      description: 保留最近 N 份自动/手动备份（默认 7）
+    updatedAt: { type: string, format: date-time }
+
+BackupSettingsUpdate:
+  type: object
+  required: [enabled, scheduleHour, retentionCount]
+  properties:
+    enabled: { type: boolean }
+    scheduleHour: { type: integer, minimum: 0, maximum: 23 }
+    retentionCount: { type: integer, minimum: 1, maximum: 90 }

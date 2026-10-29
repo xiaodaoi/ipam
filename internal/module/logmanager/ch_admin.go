@@ -198,3 +198,63 @@ func (a *ChAdmin) ExportMonth(ctx context.Context, month, dir string) (int64, in
 	}
 	return rowCount, n, hex.EncodeToString(h.Sum(nil)), nil
 }
+
+// Months 返回 logs 表存在数据的月份（升序）。
+func (a *ChAdmin) Months(ctx context.Context) ([]string, error) {
+	_, _, _, parts, err := a.Stats(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p.RowCount > 0 {
+			out = append(out, p.Month)
+		}
+	}
+	return out, nil
+}
+
+func (a *ChAdmin) httpQuery(ctx context.Context, query string, body io.Reader) error {
+	if a.httpAddr == "" {
+		return fmt.Errorf("clickhouse HTTP 地址未配置")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, a.httpAddr, body)
+	if err != nil {
+		return err
+	}
+	q := req.URL.Query()
+	q.Set("query", query)
+	req.URL.RawQuery = q.Encode()
+	if a.user != "" {
+		req.SetBasicAuth(a.user, a.password)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		return fmt.Errorf("clickhouse HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
+	}
+	return nil
+}
+
+// Reset 清空日志表与 TopN 物化视图（恢复前调用）。
+func (a *ChAdmin) Reset(ctx context.Context) error {
+	if err := a.httpQuery(ctx, "TRUNCATE TABLE "+a.db+".logs", nil); err != nil {
+		return err
+	}
+	// MV 的存储表名由 ClickHouse 生成，TRUNCATE MV 本身即可清空其内表。
+	return a.httpQuery(ctx, "TRUNCATE TABLE "+a.db+".logs_topn_hourly", nil)
+}
+
+// RestoreMonth 将 Parquet 文件追加写入 logs 表。
+func (a *ChAdmin) RestoreMonth(ctx context.Context, file string) error {
+	f, err := os.Open(file)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return a.httpQuery(ctx, "INSERT INTO "+a.db+".logs FORMAT Parquet", f)
+}

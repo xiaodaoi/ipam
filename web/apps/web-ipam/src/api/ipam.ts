@@ -89,6 +89,34 @@ export type SystemInfo = components['schemas']['SystemInfo'];
 export const getSystemInfo = () => req<SystemInfo>('/system/info');
 
 // ── 账号安全策略（M6-001）──
+// ── 备份与恢复（M6-002）──
+export type BackupRecord = components['schemas']['Backup'];
+export type BackupSettings = components['schemas']['BackupSettings'];
+export const listBackups = () => req<{ items: BackupRecord[] }>('/system/backups');
+export const createBackup = (note?: string) =>
+  req<BackupRecord>('/system/backups', {
+    method: 'POST',
+    body: JSON.stringify({ note }),
+  });
+export const deleteBackup = (id: string) =>
+  req<void>(`/system/backups/${id}`, { method: 'DELETE' });
+export const restoreBackup = (id: string) =>
+  req<BackupRecord>(`/system/backups/${id}/restore`, {
+    method: 'POST',
+    body: JSON.stringify({ confirm: true }),
+  });
+export const getBackupSettings = () =>
+  req<BackupSettings>('/system/backup-settings');
+export const updateBackupSettings = (s: {
+  enabled: boolean;
+  retentionCount: number;
+  scheduleHour: number;
+}) =>
+  req<BackupSettings>('/system/backup-settings', {
+    method: 'PUT',
+    body: JSON.stringify(s),
+  });
+
 export type SecuritySettings = components['schemas']['SecuritySettings'];
 export const getSecuritySettings = () =>
   req<SecuritySettings>('/system/security-settings');

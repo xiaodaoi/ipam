@@ -1,0 +1,165 @@
+BackupsCollection:
+  get:
+    operationId: listBackups
+    tags: [platform]
+    summary: 备份列表
+    description: 返回最近备份记录（含进行中/失败）。scope 为 system:read。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: 备份列表
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/backup.yaml#/BackupList'
+      '401':
+        $ref: '../components/responses/auth.yaml#/AuthUnauthorized'
+  post:
+    operationId: createBackup
+    tags: [platform]
+    summary: 创建备份
+    description: |
+      异步创建完整备份：PostgreSQL custom dump + 配置目录 tar + ClickHouse 日志按月 Parquet。
+      返回 running 记录，前端轮询列表获取结果。scope 为 system:write。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/backup.yaml#/BackupCreate'
+    responses:
+      '202':
+        description: 已受理
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/backup.yaml#/Backup'
+      '401':
+        $ref: '../components/responses/auth.yaml#/AuthUnauthorized'
+      '403':
+        description: 无 system:write 权限
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Problem'
+
+BackupItem:
+  parameters:
+    - name: backupId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  delete:
+    operationId: deleteBackup
+    tags: [platform]
+    summary: 删除备份
+    description: 删除备份记录与磁盘文件；进行中的备份不可删除。scope 为 system:write。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '204': { description: 已删除 }
+      '400':
+        description: 进行中不可删除
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Problem'
+      '404':
+        description: 不存在
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Problem'
+
+BackupDownload:
+  parameters:
+    - name: backupId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  get:
+    operationId: downloadBackup
+    tags: [platform]
+    summary: 下载备份归档
+    description: 将备份目录打包为 tar.gz 下载（含 manifest、PG dump、配置、日志 Parquet）。scope 为 system:read。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: tar.gz 流
+        content:
+          application/gzip:
+            schema: { type: string, format: binary }
+      '404':
+        description: 不存在
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Problem'
+
+BackupRestore:
+  parameters:
+    - name: backupId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  post:
+    operationId: restoreBackup
+    tags: [platform]
+    summary: 从备份恢复
+    description: |
+      **危险操作**：先恢复 PostgreSQL（pg_restore --clean），再清空并重放 ClickHouse 日志 Parquet。
+      必须在维护窗口执行；恢复期间管理页面可能短暂不可用。scope 为 system:write。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/backup.yaml#/BackupRestoreRequest'
+    responses:
+      '200':
+        description: 恢复完成
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/backup.yaml#/Backup'
+      '400':
+        description: 未确认或备份不可恢复
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Problem'
+      '401':
+        $ref: '../components/responses/auth.yaml#/AuthUnauthorized'
+
+BackupSettingsCollection:
+  get:
+    operationId: getBackupSettings
+    tags: [platform]
+    summary: 备份策略读取
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: 备份策略
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/backup.yaml#/BackupSettings'
+  put:
+    operationId: updateBackupSettings
+    tags: [platform]
+    summary: 备份策略保存
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/backup.yaml#/BackupSettingsUpdate'
+    responses:
+      '200':
+        description: 已保存
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/backup.yaml#/BackupSettings'

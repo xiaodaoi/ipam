@@ -78,6 +78,16 @@ paths:
     $ref: "./paths/webui.yaml#/RestartControlPlane"
   /system/security-settings:
     $ref: "./paths/security.yaml#/SecuritySettingsCollection"
+  /system/backups:
+    $ref: "./paths/backup.yaml#/BackupsCollection"
+  /system/backups/{backupId}:
+    $ref: "./paths/backup.yaml#/BackupItem"
+  /system/backups/{backupId}/download:
+    $ref: "./paths/backup.yaml#/BackupDownload"
+  /system/backups/{backupId}/restore:
+    $ref: "./paths/backup.yaml#/BackupRestore"
+  /system/backup-settings:
+    $ref: "./paths/backup.yaml#/BackupSettingsCollection"
   /public/branding:
     $ref: "./paths/public.yaml#/PublicBranding"
   /system/log-settings:

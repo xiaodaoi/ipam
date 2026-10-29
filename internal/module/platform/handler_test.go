@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	apigen "github.com/xiaodaoi/ipam/api/gen/go"
+	backupmodule "github.com/xiaodaoi/ipam/internal/module/backup"
 	"github.com/xiaodaoi/ipam/internal/module/dashboard"
 	dhcpmodule "github.com/xiaodaoi/ipam/internal/module/dhcp"
 	dnsmodule "github.com/xiaodaoi/ipam/internal/module/dns"
@@ -69,6 +70,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		*WebuiHandler
 		*SecuritySettingsHandler
 		*logmanager.LogHandler
+		*backupmodule.APIHandler
 		*stubApplier
 	}{h,
 		ipam.NewOrgHandler(ipam.NewOrgService(orgStore)),
@@ -91,6 +93,9 @@ func newTestRouter(h *Handler) *gin.Engine {
 		NewWebuiHandler(NewMemWebuiRepo()),
 		NewSecuritySettingsHandler(NewMemSecuritySettingsStore()),
 		logmanager.NewLogHandler(logmanager.NewMemSettingsRepo(), logmanager.NewMemArchiveRepo(), nil, "/tmp/log-exports"),
+		backupmodule.NewAPIHandler(
+			backupmodule.NewService(backupmodule.NewMemRepo(), backupmodule.NewMemSettings(), nil, nil, "/tmp/backups", nil),
+			backupmodule.NewMemSettings()),
 		&stubApplier{},
 	}
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})

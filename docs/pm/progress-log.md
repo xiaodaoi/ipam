@@ -3,6 +3,13 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-10-29 · 备份恢复与升级回滚（M6-002）
+- **备份**：新增 backup 模块，备份 PG（pg_dump 16 custom）、配置目录 tar、ClickHouse 日志按月 Parquet；manifest/checksum/size/状态落 `backup_record`，策略落 `backup_settings`。
+- **接口/页面**：`/system/backups` 列表/创建/删除/下载/恢复，`/system/backup-settings` 策略；前端新增「备份与恢复」二级菜单，含 4 KPI、状态轮询、创建/下载/恢复/删除与自动策略。
+- **调度**：每日 UTC 小时自动备份，保留 N 份清理；升级前可创建 `pre_upgrade` 快照。
+- **部署**：control-plane 安装 PostgreSQL 16 客户端；prebuilt 镜像补 pg 客户端、`USER ipam`、unbound-control；compose 增加 volume-init 修正 ch-exports 权限。
+- **验证**：真实创建约 1 GB 备份成功、下载 200/gzip、策略读写成功；单测覆盖创建/恢复/保留；`go test ./...`、`vue-tsc`/eslint/build、gen-check、compose config 通过；页面 1280 浅/深色无横向滚动。
+- **遗留**：恢复需维护窗口；仅恢复 CH 日志表；备份未加密；大文件下载无断点续传。
 ## 2026-10-29 · 可观测与告警（M6-005）
 - **指标**：新增 `GET /metrics`（Prometheus 文本）：构建/运行时长、HTTP 请求计数与耗时、PG/CH/Kea 组件 up、宿主 CPU/内存/磁盘/运行时长、TLS 证书到期；`/metrics` 无需 Bearer，且不计入自身请求统计；未配置组件按 down(0) 输出。
 - **监控栈**：`observability/` 提供 Prometheus 抓取、6 条告警规则、Alertmanager 邮件/Webhook/钉钉示例、Grafana 数据源与「IPAM 概览」面板、可选 compose profile。

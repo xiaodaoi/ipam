@@ -26,6 +26,7 @@ import (
 	"github.com/xiaodaoi/ipam/cmd/control-plane/webui"
 	keaengine "github.com/xiaodaoi/ipam/internal/engine/kea"
 	unboundengine "github.com/xiaodaoi/ipam/internal/engine/unbound"
+	backupmodule "github.com/xiaodaoi/ipam/internal/module/backup"
 	"github.com/xiaodaoi/ipam/internal/module/coherence"
 	"github.com/xiaodaoi/ipam/internal/module/dashboard"
 	dhcpmodule "github.com/xiaodaoi/ipam/internal/module/dhcp"
@@ -574,6 +575,37 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		log.Printf("log export dir %s: %v", logExportDir, err)
 	}
 	logMgrH := logmanager.NewLogHandler(logSettingsRepo, logArchiveRepo, chAdmin, logExportDir)
+
+	// 备份恢复（M6-002）：PG + 配置 + ClickHouse 日志 Parquet
+	backupDir := os.Getenv("IPAM_BACKUP_DIR")
+	if backupDir == "" {
+		backupDir = filepath.Join(logExportDir, "backups")
+	}
+	configDirs := []string{"/etc/unbound-ctl"}
+	if v := os.Getenv("IPAM_BACKUP_CONFIG_DIRS"); v != "" {
+		configDirs = strings.Split(v, ",")
+	}
+	var backupRepo backupmodule.Repo = backupmodule.NewMemRepo()
+	var backupSettingsRepo backupmodule.SettingsRepo = backupmodule.NewMemSettings()
+	if pool != nil {
+		backupRepo = backupmodule.NewPgRepo(pool)
+		backupSettingsRepo = backupmodule.NewPgSettings(pool)
+	}
+	var pgRunner backupmodule.PgRunner
+	if dsn := os.Getenv("IPAM_DB_DSN"); dsn != "" {
+		pr, err := backupmodule.NewPgCommandRunner(dsn)
+		if err != nil {
+			log.Printf("[backup] pg runner 未启用: %v", err)
+		} else {
+			pgRunner = pr
+		}
+	}
+	var backupLogs backupmodule.LogStore
+	if chAdmin != nil {
+		backupLogs = chAdmin
+	}
+	backupSvc := backupmodule.NewService(backupRepo, backupSettingsRepo, pgRunner, backupLogs, backupDir, configDirs)
+	backupH := backupmodule.NewAPIHandler(backupSvc, backupSettingsRepo)
 	permLookup := func(ctx context.Context, role string) ([]string, bool) {
 		if pool == nil {
 			return nil, false
@@ -608,8 +640,9 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		*platform.WebuiHandler
 		*platform.SecuritySettingsHandler
 		*logmanager.LogHandler
+		*backupmodule.APIHandler
 		*confApplier
-	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore, bl, permLookup, secStore), platform.NewUserHandler(userStore, secStore), &dhcpAPI{dhcpH}, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, platform.NewSecuritySettingsHandler(secStore), logMgrH, applier}
+	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore, bl, permLookup, secStore), platform.NewUserHandler(userStore, secStore), &dhcpAPI{dhcpH}, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, platform.NewSecuritySettingsHandler(secStore), logMgrH, backupH, applier}
 	// Prometheus 指标（M6-005）：放在 RBAC 之前供抓取；中间件只统计其后的 /api/v1 路由。
 	metricsH := platform.NewMetricsHandler(platform.MetricsSources{
 		Version: version,
@@ -660,6 +693,7 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	// spec servers.url=/api/v1 → 统一前缀注册
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 	logmanager.StartScheduler(rootCtx, logMgrH, chAdmin)
+	backupmodule.StartScheduler(rootCtx, backupSvc)
 
 	dist, err := webuiFS()
 	if err != nil {
