@@ -21,7 +21,8 @@
     "dualstack": "Dual-stack",
     "options": "Options & Classes",
     "reservations": "Reservations & Bindings",
-    "leases": "Leases"
+    "leases": "Leases",
+    "utilization": "Utilization"
   },
   "logs": {
     "title": "Log Center",

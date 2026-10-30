@@ -412,6 +412,7 @@ export type DhcpOptionRow = components['schemas']['DhcpOption'];
 export type DhcpLease6Row = components['schemas']['DhcpLease6'];
 export type DhcpLease4Row = components['schemas']['DhcpLease4'];
 export type DhcpLease4Update = components['schemas']['DhcpLease4Update'];
+export type SubnetUtilizationPoint = components['schemas']['SubnetUtilizationPoint'];
 export type DhcpClassRow = components['schemas']['DhcpClass'];
 export type DhcpClassOptionIn = { optionCode: number; name: string; data: string };
 export const listDhcpOptions = () => req<{ items: DhcpOptionRow[] }>('/dhcp/options');
@@ -423,6 +424,12 @@ export const deleteDhcpLease4 = (ip: string) =>
   req<void>(`/dhcp/leases4/${encodeURIComponent(ip)}`, del);
 export const deleteDhcpLease6 = (ip: string, leaseType: 'IA_NA' | 'IA_PD') =>
   req<void>(`/dhcp/leases6/${encodeURIComponent(ip)}?leaseType=${leaseType}`, del);
+export const listSubnetUtilization = () =>
+  req<{ items: SubnetUtilizationPoint[] }>('/dhcp/utilization');
+export const getSubnetUtilization = (subnetId: string, hours = 24) =>
+  req<{ cidr?: string; points: SubnetUtilizationPoint[]; subnetId: string; subnetName?: string }>(
+    `/dhcp/utilization/${subnetId}?hours=${hours}`,
+  );
 export const createDhcpOption = (b: { optionCode: number; name: string; data: string; enabled?: boolean }) =>
   req<DhcpOptionRow>('/dhcp/options', j(b));
 export const updateDhcpOption = (id: string, b: { optionCode?: number; name?: string; data?: string; enabled?: boolean }) =>

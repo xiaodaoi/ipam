@@ -139,6 +139,12 @@ async function main() {
       await waitText(page, 'MAC');
     });
 
+    await step('利用率分析', async () => {
+      await page.goto(urlFor('/dhcp/utilization'), { waitUntil: 'domcontentloaded' });
+      await waitText(page, '利用率分析');
+      await page.locator('.ant-table, .ant-progress, [class*="empty"]').first().waitFor({ timeout: 15_000 });
+    });
+
     await step('DNS 解析记录', async () => {
       await page.goto(urlFor('/dns-service/records'), { waitUntil: 'domcontentloaded' });
       await waitText(page, '解析记录');

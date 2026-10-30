@@ -73,3 +73,23 @@ groups:
         annotations:
           summary: "IPAM API 5xx 速率 > 1/s"
           description: "请检查 control-plane 日志与依赖（PG/CH/Kea）。"
+
+      - alert: IpamSubnetUtilizationHigh
+        expr: ipam_subnet_utilization_percent > 85
+        for: 15m
+        labels:
+          severity: warning
+          team: ipam
+        annotations:
+          summary: "子网 {{ $labels.subnet }}（{{ $labels.cidr }}）利用率 > 85%"
+          description: "当前 {{ $value | printf \"%.1f\" }}%，请扩容地址池或清理闲置保留。"
+
+      - alert: IpamSubnetUtilizationCritical
+        expr: ipam_subnet_utilization_percent > 95
+        for: 5m
+        labels:
+          severity: critical
+          team: ipam
+        annotations:
+          summary: "子网 {{ $labels.subnet }}（{{ $labels.cidr }}）利用率 > 95%"
+          description: "地址池即将耗尽，请立即扩容。"

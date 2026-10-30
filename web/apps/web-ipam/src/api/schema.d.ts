@@ -286,6 +286,46 @@ export interface paths {
         patch: operations["updateDhcpLease4"];
         trace?: never;
     };
+    "/dhcp/utilization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 子网池利用率最新快照
+         * @description 返回每个 IPv4 子网最近一次采样（默认 5 分钟一次，保留 90 天）。scope 为 dhcp:read。
+         */
+        get: operations["listSubnetUtilization"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dhcp/utilization/{subnetId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 单子网利用率历史
+         * @description 返回指定时间窗内的采样序列（用于趋势图）。scope 为 dhcp:read。
+         */
+        get: operations["getSubnetUtilization"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/login": {
         parameters: {
             query?: never;
@@ -3045,6 +3085,28 @@ export interface components {
             hwAddress?: string;
             hostname?: string;
         };
+        /** @description 子网 IPv4 池利用率采样点（M6-010B）。 */
+        SubnetUtilizationPoint: {
+            /** Format: uuid */
+            subnetId: string;
+            subnetName?: string;
+            cidr?: string;
+            /** Format: date-time */
+            ts: string;
+            used: number;
+            capacity: number;
+            pct: number;
+        };
+        SubnetUtilizationList: {
+            items: components["schemas"]["SubnetUtilizationPoint"][];
+        };
+        SubnetUtilizationSeries: {
+            /** Format: uuid */
+            subnetId: string;
+            subnetName?: string;
+            cidr?: string;
+            points: components["schemas"]["SubnetUtilizationPoint"][];
+        };
         AuthLogoutRequest: {
             /** @description 随登出一并吊销的刷新令牌（M5-032：登出同时吊销访问/刷新双令牌 jti） */
             refreshToken?: string;
@@ -4123,6 +4185,50 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    listSubnetUtilization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 最新快照列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubnetUtilizationList"];
+                };
+            };
+        };
+    };
+    getSubnetUtilization: {
+        parameters: {
+            query?: {
+                hours?: number;
+            };
+            header?: never;
+            path: {
+                subnetId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 历史序列 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubnetUtilizationSeries"];
                 };
             };
         };

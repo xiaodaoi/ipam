@@ -21,7 +21,8 @@
     "dualstack": "双栈管理",
     "options": "选项与类匹配",
     "reservations": "保留与绑定",
-    "leases": "租约管理"
+    "leases": "租约管理",
+    "utilization": "利用率分析"
   },
   "logs": {
     "title": "日志中心",

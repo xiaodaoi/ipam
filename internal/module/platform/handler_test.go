@@ -23,6 +23,7 @@ import (
 	"github.com/xiaodaoi/ipam/internal/module/logexport"
 	"github.com/xiaodaoi/ipam/internal/module/logmanager"
 	logq "github.com/xiaodaoi/ipam/internal/module/logquery"
+	"github.com/xiaodaoi/ipam/internal/module/utilization"
 	"github.com/xiaodaoi/ipam/internal/pkg/hostmetrics"
 )
 
@@ -63,6 +64,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		*UserHandler
 		*dhcpAPI
 		*dhcpmodule.LeaseHandler
+		*utilization.UtilHandler
 		*dnsmodule.DnsHandler
 		*dnsmodule.ForwardHandler
 		*dnsmodule.ZoneHandler
@@ -89,6 +91,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		NewUserHandler(NewMemUserStore()),
 		&dhcpAPI{dhcpmodule.NewHandler(dhcpmodule.NewMemStore(), nil, nil)},
 		dhcpmodule.NewLeaseHandler(nil),
+		utilization.NewUtilHandler(utilization.NewService(utilization.NewMemRepo(), utilization.Sources{})),
 		dnsmodule.NewDnsHandler(dnsSvc, nil),
 		dnsmodule.NewForwardHandler(dnsmodule.NewForwardService(dnsmodule.NewMemForwardRuleRepo(), dnsmodule.NewMemUpstreamRepo(), fakeUnbound{})),
 		dnsmodule.NewZoneHandler(dnsmodule.NewZoneService(dnsmodule.NewMemZoneRepo(), fakeUnbound{}), nil),

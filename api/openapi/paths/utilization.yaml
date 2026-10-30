@@ -1,0 +1,38 @@
+SubnetUtilizationCollection:
+  get:
+    operationId: listSubnetUtilization
+    tags: [dhcp]
+    summary: 子网池利用率最新快照
+    description: 返回每个 IPv4 子网最近一次采样（默认 5 分钟一次，保留 90 天）。scope 为 dhcp:read。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: 最新快照列表
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/utilization.yaml#/SubnetUtilizationList'
+
+SubnetUtilizationItem:
+  get:
+    operationId: getSubnetUtilization
+    tags: [dhcp]
+    summary: 单子网利用率历史
+    description: 返回指定时间窗内的采样序列（用于趋势图）。scope 为 dhcp:read。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: subnetId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: hours
+        in: query
+        required: false
+        schema: { type: integer, minimum: 1, maximum: 720, default: 24 }
+    responses:
+      '200':
+        description: 历史序列
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/utilization.yaml#/SubnetUtilizationSeries'

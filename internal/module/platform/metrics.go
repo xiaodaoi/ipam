@@ -14,6 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/xiaodaoi/ipam/internal/module/utilization"
 	"github.com/xiaodaoi/ipam/internal/pkg/hostmetrics"
 )
 
@@ -26,6 +27,7 @@ type MetricsSources struct {
 	Kea         func(context.Context) error
 	Unbound     func(context.Context) error
 	Host        *hostmetrics.Collector
+	Utilization func(context.Context) ([]utilization.Point, error)
 	TLSCertFile string
 }
 
@@ -114,6 +116,18 @@ func (h *MetricsHandler) Serve(c *gin.Context) {
 				}
 			}
 		}
+	}
+
+	if h.src.Utilization != nil {
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 1500*time.Millisecond)
+		if points, err := h.src.Utilization(ctx); err == nil {
+			fmt.Fprintf(&b, "# HELP ipam_subnet_utilization_percent 子网 IPv4 池利用率（%%）\n# TYPE ipam_subnet_utilization_percent gauge\n")
+			for _, p := range points {
+				fmt.Fprintf(&b, "ipam_subnet_utilization_percent{subnet_id=%q,subnet=%q,cidr=%q} %.2f\n",
+					p.SubnetID, p.SubnetName, p.CIDR, p.Pct)
+			}
+		}
+		cancel()
 	}
 
 	if h.src.Host != nil {

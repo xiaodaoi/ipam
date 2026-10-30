@@ -37,6 +37,7 @@ import (
 	"github.com/xiaodaoi/ipam/internal/module/logmanager"
 	logq "github.com/xiaodaoi/ipam/internal/module/logquery"
 	"github.com/xiaodaoi/ipam/internal/module/platform"
+	"github.com/xiaodaoi/ipam/internal/module/utilization"
 	"github.com/xiaodaoi/ipam/internal/pkg/hostmetrics"
 	"github.com/xiaodaoi/ipam/internal/pkg/migrator"
 )
@@ -200,6 +201,30 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	if pool != nil {
 		resRepo = ipam.NewPgReservationRepo(pool)
 	}
+	// 子网利用率采样（M6-010B）：默认每 5 分钟，保留 90 天
+	var utilRepo utilization.Repo = utilization.NewMemRepo()
+	if pool != nil {
+		utilRepo = utilization.NewPgRepo(pool)
+	}
+	utilSvc := utilization.NewService(utilRepo, utilization.Sources{
+		Subnets:      func(ctx context.Context) ([]ipam.Subnet, error) { return subRepo.List(ctx, "", 0) },
+		Reservations: func(ctx context.Context) ([]ipam.Reservation, error) { return resRepo.List(ctx) },
+		Bindings: func(ctx context.Context) ([]ipam.LedgerBinding, error) {
+			if pool == nil {
+				return nil, nil
+			}
+			return ipam.LoadLedgerBindings(ctx, pool)
+		},
+	})
+	utilInterval := 5 * time.Minute
+	if v := os.Getenv("IPAM_UTIL_SAMPLE_INTERVAL"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d >= time.Minute {
+			utilInterval = d
+		}
+	}
+	go utilSvc.Run(rootCtx, utilInterval, log.Printf)
+	utilH := utilization.NewUtilHandler(utilSvc)
+
 	ledgerSrc := func(ctx context.Context) ipam.LedgerSource {
 		bindings := []ipam.LedgerBinding{}
 		if pool != nil {
@@ -659,6 +684,7 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		*platform.UserHandler
 		*dhcpAPI
 		*dhcpmodule.LeaseHandler
+		*utilization.UtilHandler
 		*dnsmodule.DnsHandler
 		*dnsmodule.ForwardHandler
 		*dnsmodule.ZoneHandler
@@ -672,10 +698,11 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		*logexport.LogExportHandler
 		*backupmodule.APIHandler
 		*confApplier
-	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore, bl, permLookup, secStore), platform.NewUserHandler(userStore, secStore), &dhcpAPI{dhcpH}, leaseH, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, platform.NewSecuritySettingsHandler(secStore), licenseH, logMgrH, exportH, backupH, applier}
+	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore, bl, permLookup, secStore), platform.NewUserHandler(userStore, secStore), &dhcpAPI{dhcpH}, leaseH, utilH, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, platform.NewSecuritySettingsHandler(secStore), licenseH, logMgrH, exportH, backupH, applier}
 	// Prometheus 指标（M6-005）：放在 RBAC 之前供抓取；中间件只统计其后的 /api/v1 路由。
 	metricsH := platform.NewMetricsHandler(platform.MetricsSources{
-		Version: version,
+		Version:     version,
+		Utilization: utilSvc.Latest,
 		Postgres: func(ctx context.Context) error {
 			if pool == nil {
 				return nil

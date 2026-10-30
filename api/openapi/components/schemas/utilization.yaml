@@ -1,0 +1,33 @@
+SubnetUtilizationPoint:
+  type: object
+  description: 子网 IPv4 池利用率采样点（M6-010B）。
+  required: [subnetId, ts, used, capacity, pct]
+  properties:
+    subnetId: { type: string, format: uuid }
+    subnetName: { type: string }
+    cidr: { type: string }
+    ts: { type: string, format: date-time }
+    used: { type: integer, minimum: 0 }
+    capacity: { type: integer, minimum: 0 }
+    pct: { type: number, minimum: 0, maximum: 100 }
+
+SubnetUtilizationList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: 'utilization.yaml#/SubnetUtilizationPoint'
+
+SubnetUtilizationSeries:
+  type: object
+  required: [subnetId, points]
+  properties:
+    subnetId: { type: string, format: uuid }
+    subnetName: { type: string }
+    cidr: { type: string }
+    points:
+      type: array
+      items:
+        $ref: 'utilization.yaml#/SubnetUtilizationPoint'

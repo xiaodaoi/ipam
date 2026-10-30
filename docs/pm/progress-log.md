@@ -3,6 +3,13 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-10-30 · 子网利用率历史与告警（M6-010B1）
+- **采样**：每 5 分钟统计 IPv4 池容量/已用（绑定+预留去重），写 `subnet_utilization`，保留 90 天；启动即采一次。
+- **API**：`GET /dhcp/utilization`（最新）、`GET /dhcp/utilization/{subnetId}?hours=`（历史）。
+- **指标/告警**：`ipam_subnet_utilization_percent`；>85% warning / >95% critical。
+- **页面**：DHCP 服务 → 利用率分析（快照表 + 24h/3d/7d/30d 趋势）。
+- **验证**：utilization/platform 单测；真实 PG 采样、series、/metrics 实测；E2E 10/10。
+- **遗留**：010B2（RA/option82/冲突探测/发现/CSV/VLAN）。
 ## 2026-10-30 · 工程质量与发布流水线（M6-011）
 - **单测/覆盖率**：Vitest + v8 coverage，新增 MAC/租约工具用例；阈值 lines/statements/functions ≥80%、branches ≥70%；根 `pnpm test` 限定业务应用。
 - **E2E**：Playwright 登录+8 条主链路，兼容 hash 路由；完整栈与内存模式均 9/9 通过，失败留截图/result.json；CI 新增 e2e job。

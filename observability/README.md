@@ -46,3 +46,13 @@ docker compose -f observability/compose.observability.yaml --profile observabili
 
 - `/metrics` 与 `/healthz` 位于 RBAC 之前，建议仅对监控网开放；
 - 默认只暴露进程/HTTP/组件/宿主聚合指标，不含账号、IP、域名等业务明细。
+
+## 子网利用率
+
+控制面每 5 分钟采样 IPv4 池利用率，暴露：
+
+```
+ipam_subnet_utilization_percent{subnet_id="...",subnet="办公",cidr="10.0.0.0/24"} 42.50
+```
+
+告警：`IpamSubnetUtilizationHigh`（>85%，15m）、`IpamSubnetUtilizationCritical`（>95%，5m）。

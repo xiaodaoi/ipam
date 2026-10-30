@@ -3,7 +3,7 @@
 | 字段 | 内容 |
 |---|---|
 | ID | M6-010 |
-| 状态 | 010A review；010B backlog |
+| 状态 | 010A + 010B1 review；其余 010B backlog |
 | 里程碑 | M6 商业化就绪 |
 | 优先级 | P1 |
 | 依赖 | M6-001 |
@@ -24,12 +24,21 @@
 - **校验**：MAC 格式、租约时长 60–31536000 秒、hostname 长度、leaseType 枚举。
 - **测试**：Kea 客户端单测（list/get/update/delete 参数）、handler 单测（排序/校验/404/204）；真实 Kea 环境端到端验证延期→改绑→释放→v6 释放。
 
-## 010B 未完成（backlog）
+## 010B1 已完成：利用率历史与阈值告警
+
+- **采样**：每 5 分钟（`IPAM_UTIL_SAMPLE_INTERVAL`）统计每个 IPv4 子网池的容量与已用地址（coherence 绑定 + 预留，池内去重），写入 `subnet_utilization`，保留 90 天。
+- **API**：
+  - `GET /dhcp/utilization` 最新快照；
+  - `GET /dhcp/utilization/{subnetId}?hours=1..720` 历史序列。
+- **指标/告警**：`ipam_subnet_utilization_percent{subnet,cidr}`；>85% warning（15m）、>95% critical（5m）。
+- **页面**：DHCP 服务 → 利用率分析；最新快照表 + 状态着色 + 24h/3d/7d/30d 趋势图。
+- **测试**：Compute 去重/池外排除/容量；MemRepo 最新/序列/保留清理；真实 PG 采样与指标实测。
+
+## 010B 其余未完成（backlog）
 
 - RA 联动（M/O/PIO）配置与状态；
 - option82 展示与基于 circuit-id 的选池策略；
 - Ping/ARP 冲突探测与自动隔离；
-- 子网/池利用率历史采样与阈值告警（当前仅仪表盘实时 TopN）；
 - 新终端发现/影子资产；
 - CSV 导入导出、VLAN/站点/负责人、逐 IP 备注标签。
 
@@ -39,7 +48,8 @@
 - [x] 页面可用且刷新后状态一致；
 - [x] 单测/lint/typecheck/build/gen-check 通过；
 - [x] 真实 Kea 环境端到端验证；
-- [ ] 010B 项（RA/option82/冲突/利用率历史/发现/CSV/VLAN）。
+- [x] 利用率历史采样、趋势页、85/95% 告警指标；
+- [ ] 010B 其余项（RA/option82/冲突/发现/CSV/VLAN）。
 
 ## 涉及文件
 
@@ -49,6 +59,8 @@
 - `internal/module/dhcp/lease_handler.go`、`lease_handler_test.go`
 - `cmd/control-plane/main.go`、`internal/module/platform/handler_test.go`
 - `web/apps/web-ipam/src/views/dhcp/leases/index.vue`、`api/ipam.ts`、路由/文案
+- `internal/module/utilization/**`、`db/postgresql/migrations/0033_subnet_utilization.sql`
+- `observability/alerts.yml`、`web/.../views/dhcp/utilization/index.vue`
 - 文档：本卡、实现说明、用户指南、进度日志
 
 ## 实施记录
@@ -60,3 +72,10 @@
 - 新增「租约管理」页，v4/v6 分页签、搜索、延期/改绑/释放。
 - 实测：合成租约 10.61.40.251 延期 600→1800、改绑 MAC、释放后 Kea result=3；IPv6 合成租约释放成功。
 - 验证：go test（dhcp/kea/platform）、go build、gen-check、vue-tsc、eslint、前端 build 通过。
+
+### 2026-10-30（010B1）
+
+- 新增采样服务、PG/内存仓储、迁移 0033；启动即采一次、每 5 分钟一次、保留 90 天。
+- 指标接入 `/metrics`，新增 85%/95% 告警规则。
+- 新增「利用率分析」页与 E2E 步骤；真实环境验证 latest/series/metrics。
+- 验证：utilization/platform 单测、go build、gen-check、vue-tsc、eslint、E2E 10/10。

@@ -64,6 +64,10 @@ paths:
     $ref: './paths/dhcpoption.yaml#/DhcpLeases4Collection'
   /dhcp/leases4/{ipAddress}:
     $ref: './paths/dhcpoption.yaml#/DhcpLease4Item'
+  /dhcp/utilization:
+    $ref: './paths/utilization.yaml#/SubnetUtilizationCollection'
+  /dhcp/utilization/{subnetId}:
+    $ref: './paths/utilization.yaml#/SubnetUtilizationItem'
   /auth/login:
     $ref: './paths/auth.yaml#/AuthLogin'
   /auth/user/info:
