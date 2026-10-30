@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-10-30 · 审计合规强化（M6-006）
+- **审计内容**：变更请求记录脱敏 JSON body（≤8KB，password/token/secret/license 等打码），不改变 handler 读取；登录/登出动作沿用 M6-001。
+- **防篡改**：新增 prev_hash/chain_hash，PG 事务 + advisory lock 串行写入；新增 `GET /audits/verify` 与前端“完整性校验”，校验单条哈希与相邻链接；抽屉展示脱敏请求体/链哈希。
+- **保留/导出**：沿用 M5-032 180 天惰性清理与审计 CSV 导出。
+- **验证**：单测覆盖链校验/篡改检测/脱敏/请求体恢复；go test、vue-tsc/eslint/build、gen-check 通过。
+- **遗留**：实体级 before 快照、WORM/外部只读存储、保留天数 UI 可配置。
 ## 2026-10-30 · License 与版本分级（M6-004）
 - **License**：Ed25519 离线授权文件（payload+signature），支持版本/客户/能力/终端上限/到期/宽限期；`IPAM_LICENSE_PUBKEY`（base64/PEM）+ `IPAM_LICENSE_FILE` 配置，未激活回退 community。
 - **接口/页面**：`GET/PUT/DELETE /system/license`；前端新增 License 页（4 KPI、授权信息、能力标签、激活/移除）。

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -21,6 +22,10 @@ func (m *memAuditStore) Append(_ context.Context, e AuditEntry) (AuditEntry, err
 
 func (m *memAuditStore) Query(context.Context, AuditFilter) (AuditPage, error) {
 	return AuditPage{Items: m.items, Total: len(m.items)}, nil
+}
+
+func (m *memAuditStore) Verify(context.Context, time.Time, time.Time) (int, int64, error) {
+	return len(m.items), 0, nil
 }
 
 func TestAuditRecorderUsesContextMeta(t *testing.T) {

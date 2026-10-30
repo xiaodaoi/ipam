@@ -32,6 +32,9 @@ type AuditEntry struct {
 	Resource  string
 	Status    int
 	Detail    string
+	Payload   string
+	PrevHash  string
+	ChainHash string
 }
 
 // AuditFilter /audits 过滤条件。
@@ -56,6 +59,7 @@ type AuditPage struct {
 type AuditStore interface {
 	Append(ctx context.Context, e AuditEntry) (AuditEntry, error)
 	Query(ctx context.Context, f AuditFilter) (AuditPage, error)
+	Verify(ctx context.Context, from, to time.Time) (checked int, brokenID int64, err error)
 }
 
 // EncodeAuditCursor 游标："{tsUnixMilli}:{id}"。
@@ -113,9 +117,14 @@ func (m *MemAuditStore) Append(_ context.Context, e AuditEntry) (AuditEntry, err
 	if e.TS.IsZero() {
 		e.TS = time.Now().UTC()
 	}
+	e.TS = e.TS.UTC().Truncate(time.Microsecond)
 	if e.Actor == "" {
 		e.Actor = "anonymous"
 	}
+	if len(m.rows) > 0 {
+		e.PrevHash = m.rows[len(m.rows)-1].ChainHash
+	}
+	e.ChainHash = auditChainHash(e, e.PrevHash)
 	m.rows = append(m.rows, e)
 	return e, nil
 }
@@ -175,4 +184,26 @@ func auditMatch(r AuditEntry, f AuditFilter) bool {
 			strings.Contains(strings.ToLower(r.Path), needle)
 	}
 	return true
+}
+
+// Verify 校验时间窗内（仅带链哈希的记录）的完整性。
+func (m *MemAuditStore) Verify(_ context.Context, from, to time.Time) (int, int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var checked int
+	var prev string
+	for _, r := range m.rows {
+		if r.ChainHash == "" || r.TS.Before(from) || (!to.IsZero() && r.TS.After(to)) {
+			continue
+		}
+		if r.ChainHash != auditChainHash(r, r.PrevHash) {
+			return checked, r.ID, nil
+		}
+		if prev != "" && r.PrevHash != prev {
+			return checked, r.ID, nil
+		}
+		prev = r.ChainHash
+		checked++
+	}
+	return checked, 0, nil
 }

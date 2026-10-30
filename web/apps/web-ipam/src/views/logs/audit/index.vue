@@ -20,7 +20,7 @@ import {
   Tag,
 } from 'ant-design-vue';
 
-import { listAudits } from '#/api/ipam';
+import { listAudits, verifyAudits } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
 
@@ -239,6 +239,8 @@ function watchAutoRefresh(on: boolean) {
 
 // ── CSV 导出（跟随当前过滤，最多 5000 条）──
 const exporting = ref(false);
+const verifying = ref(false);
+const verified = ref<null | { checked: number; message: string; valid: boolean }>(null);
 
 function csvCell(v: unknown): string {
   const s = v === undefined || v === null ? '' : String(v);
@@ -298,6 +300,27 @@ async function exportCsv() {
   }
 }
 
+async function verifyChain() {
+  verifying.value = true;
+  try {
+    const res = await verifyAudits(window.value.from, window.value.to || undefined);
+    verified.value = {
+      checked: res.checked,
+      valid: res.valid,
+      message: res.message ?? (res.valid ? '审计链完整' : '审计链异常'),
+    };
+    if (res.valid) {
+      message.success(`审计链完整（校验 ${res.checked} 条）`);
+    } else {
+      message.error(`${res.message ?? '审计链异常'}（ID ${res.brokenId ?? '?'}）`);
+    }
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '完整性校验失败');
+  } finally {
+    verifying.value = false;
+  }
+}
+
 // ── 详情抽屉 ──
 const detail = ref<AuditEntry>();
 const [DetailDrawer, detailDrawerApi] = useVbenDrawer({
@@ -317,6 +340,16 @@ function rowProps(record: AuditEntry) {
 
 const prettyDetail = computed(() => {
   const raw = detail.value?.detail;
+  if (!raw) return '';
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2);
+  } catch {
+    return raw;
+  }
+});
+
+const prettyPayload = computed(() => {
+  const raw = detail.value?.payload;
   if (!raw) return '';
   try {
     return JSON.stringify(JSON.parse(raw), null, 2);
@@ -368,8 +401,14 @@ onBeforeUnmount(() => {
           <IconifyIcon icon="lucide:clock" class="size-3.5" />
           {{ window.label }} · 共 {{ fmtInt(total) }} 条
         </span>
+        <Tag v-if="verified" class="m-0" :color="verified.valid ? 'green' : 'red'">
+          {{ verified.valid ? `链完整 ${verified.checked}` : '链异常' }}
+        </Tag>
         <Button size="small" :loading="loading" @click="query">
           <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />刷新
+        </Button>
+        <Button size="small" :loading="verifying" @click="verifyChain">
+          <IconifyIcon icon="lucide:shield-check" class="mr-1 size-3.5" />完整性校验
         </Button>
         <Button size="small" type="primary" :loading="exporting" @click="exportCsv">
           <IconifyIcon icon="lucide:download" class="mr-1 size-3.5" />导出 CSV
@@ -611,9 +650,20 @@ onBeforeUnmount(() => {
             <div class="ipam-detail-item__value">{{ detail.resource }}</div>
           </div>
           <div class="ipam-detail-item ipam-detail-item--wide">
-            <div class="ipam-detail-item__label">变更内容</div>
+            <div class="ipam-detail-item__label">补充说明</div>
             <pre v-if="prettyDetail" class="ipam-code-block mt-1">{{ prettyDetail }}</pre>
             <div v-else class="ipam-detail-item__value">—</div>
+          </div>
+          <div class="ipam-detail-item ipam-detail-item--wide">
+            <div class="ipam-detail-item__label">脱敏请求体</div>
+            <pre v-if="prettyPayload" class="ipam-code-block mt-1">{{ prettyPayload }}</pre>
+            <div v-else class="ipam-detail-item__value">—</div>
+          </div>
+          <div class="ipam-detail-item ipam-detail-item--wide">
+            <div class="ipam-detail-item__label">完整性链哈希</div>
+            <div class="ipam-detail-item__value ipam-mono break-all">
+              {{ detail.chainHash || '历史记录未生成链哈希' }}
+            </div>
           </div>
         </div>
       </template>

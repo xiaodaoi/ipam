@@ -1,6 +1,9 @@
 package logquery
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"log"
 	"strings"
 
@@ -29,6 +32,10 @@ func NewAuditRecorder(store AuditStore, provider ...ActorProvider) gin.HandlerFu
 		}
 	}
 	return func(c *gin.Context) {
+		var payload string
+		if isMutating(c.Request.Method) {
+			payload = capturePayload(c)
+		}
 		c.Next()
 
 		switch c.Request.Method {
@@ -57,8 +64,59 @@ func NewAuditRecorder(store AuditStore, provider ...ActorProvider) gin.HandlerFu
 			Resource: resource,
 			Status:   c.Writer.Status(),
 			Detail:   detail,
+			Payload:  payload,
 		}); err != nil {
 			log.Printf("[audit] append %s %s: %v", c.Request.Method, c.Request.URL.Path, err)
 		}
 	}
+}
+
+func isMutating(method string) bool {
+	return method == "POST" || method == "PATCH" || method == "DELETE" || method == "PUT"
+}
+
+// capturePayload 读取并恢复请求体，返回脱敏后的 JSON（≤8KB，仅 JSON）。
+func capturePayload(c *gin.Context) string {
+	if c.Request.Body == nil {
+		return ""
+	}
+	const maxBody = 8 * 1024
+	orig := c.Request.Body
+	buf, err := io.ReadAll(io.LimitReader(orig, maxBody+1))
+	c.Request.Body = io.NopCloser(io.MultiReader(bytes.NewReader(buf), orig))
+	if err != nil || len(buf) == 0 || len(buf) > maxBody {
+		return ""
+	}
+	var v any
+	if err := json.Unmarshal(buf, &v); err != nil {
+		return ""
+	}
+	redactSensitive(v)
+	out, err := json.Marshal(v)
+	if err != nil {
+		return ""
+	}
+	return string(out)
+}
+
+func redactSensitive(v any) any {
+	switch t := v.(type) {
+	case map[string]any:
+		for k, val := range t {
+			lk := strings.ToLower(k)
+			if strings.Contains(lk, "password") || strings.Contains(lk, "token") ||
+				strings.Contains(lk, "secret") || strings.Contains(lk, "license") ||
+				strings.Contains(lk, "private") || strings.Contains(lk, "authorization") ||
+				strings.Contains(lk, "cookie") {
+				t[k] = "***"
+				continue
+			}
+			t[k] = redactSensitive(val)
+		}
+	case []any:
+		for i := range t {
+			t[i] = redactSensitive(t[i])
+		}
+	}
+	return v
 }

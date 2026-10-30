@@ -39,6 +39,15 @@ AuditEntry:
     detail:
       type: string
       description: 补充说明（RFC9457 code 等）
+    payload:
+      type: string
+      description: 脱敏后的请求体 JSON（密码/令牌/密钥/License 等敏感字段已替换为 ***）
+    prevHash:
+      type: string
+      description: 上一条审计的链哈希（首条为空）
+    chainHash:
+      type: string
+      description: 本条审计的 SHA256 链哈希；用于完整性校验
 
 AuditPage:
   type: object
@@ -54,3 +63,19 @@ AuditPage:
     total:
       type: integer
       description: 满足过滤的总条数
+
+AuditVerifyResult:
+  type: object
+  required: [checked, valid]
+  properties:
+    checked:
+      type: integer
+      description: 校验的记录数
+    valid:
+      type: boolean
+      description: 是否全部通过
+    brokenId:
+      type: integer
+      description: 首个校验失败的审计 ID（valid=true 时为空）
+    message:
+      type: string

@@ -124,6 +124,8 @@ paths:
     $ref: './paths/logs.yaml#/LogsQps'
   /audits:
     $ref: './paths/audit.yaml#/AuditsCollection'
+  /audits/verify:
+    $ref: './paths/audit.yaml#/AuditVerify'
   /logs/export:
     $ref: './paths/logs.yaml#/LogsExport'
   /dns/conf/apply:

@@ -97,3 +97,31 @@ AuditsCollection:
                   detail: 时间窗超过 31 天上限
                   code: INVALID_FILTER
                   instance: '/api/v1/audits'
+
+AuditVerify:
+  get:
+    operationId: verifyAudits
+    tags: [logs]
+    summary: 审计完整性校验
+    description: |
+      对指定时间窗内的审计记录重算 SHA256 链哈希，校验是否被篡改/断链。
+      迁移前的历史记录（无链哈希）不参与校验。scope 为 logs:read。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: from
+        in: query
+        required: true
+        schema: { type: string, format: date-time }
+      - name: to
+        in: query
+        required: false
+        schema: { type: string, format: date-time }
+    responses:
+      '200':
+        description: 校验结果
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/audit.yaml#/AuditVerifyResult'
+      '401':
+        $ref: '../components/responses/auth.yaml#/AuthUnauthorized'

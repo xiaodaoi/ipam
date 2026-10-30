@@ -171,6 +171,13 @@ export interface AuditQuery {
 export const listAudits = (q: AuditQuery) =>
   req<AuditPage>(`/audits${qsOf(q as never)}`);
 
+export type AuditVerifyResult = components['schemas']['AuditVerifyResult'];
+export const verifyAudits = (from: string, to?: string) => {
+  const qs = new URLSearchParams({ from });
+  if (to) qs.set('to', to);
+  return req<AuditVerifyResult>(`/audits/verify?${qs.toString()}`);
+};
+
 // SSE live-tail（M4-003 /logs/tail）：EventSource 原生断线重连
 // （同源 Cookie/Authorization 由 URL from 参数+无鉴权读端点决定，PoC 免头）
 // SSE live-tail：原生 EventSource 无法携带 Authorization（RBAC 401 → 重连循环），

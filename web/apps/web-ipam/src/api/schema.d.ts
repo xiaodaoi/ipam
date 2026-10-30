@@ -953,6 +953,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/audits/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 审计完整性校验
+         * @description 对指定时间窗内的审计记录重算 SHA256 链哈希，校验是否被篡改/断链。
+         *     迁移前的历史记录（无链哈希）不参与校验。scope 为 logs:read。
+         */
+        get: operations["verifyAudits"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/logs/export": {
         parameters: {
             query?: never;
@@ -2445,6 +2466,12 @@ export interface components {
             status: number;
             /** @description 补充说明（RFC9457 code 等） */
             detail?: string;
+            /** @description 脱敏后的请求体 JSON（密码/令牌/密钥/License 等敏感字段已替换为 ***） */
+            payload?: string;
+            /** @description 上一条审计的链哈希（首条为空） */
+            prevHash?: string;
+            /** @description 本条审计的 SHA256 链哈希；用于完整性校验 */
+            chainHash?: string;
         };
         AuditPage: {
             items: components["schemas"]["AuditEntry"][];
@@ -3046,6 +3073,15 @@ export interface components {
          * @enum {string}
          */
         HealthLight: "up" | "down" | "unknown";
+        AuditVerifyResult: {
+            /** @description 校验的记录数 */
+            checked: number;
+            /** @description 是否全部通过 */
+            valid: boolean;
+            /** @description 首个校验失败的审计 ID（valid=true 时为空） */
+            brokenId?: number;
+            message?: string;
+        };
         DnsRecordUpdate: {
             name?: string;
             /** @enum {string} */
@@ -4909,6 +4945,30 @@ export interface operations {
                     };
                 };
             };
+        };
+    };
+    verifyAudits: {
+        parameters: {
+            query: {
+                from: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 校验结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditVerifyResult"];
+                };
+            };
+            401: components["responses"]["AuthUnauthorized"];
         };
     };
     exportLogs: {

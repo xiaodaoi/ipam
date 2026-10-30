@@ -3,6 +3,7 @@ package logquery
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -71,7 +72,40 @@ func toGenAudit(e AuditEntry) apigen.AuditEntry {
 		Resource:  e.Resource,
 		Status:    e.Status,
 		Detail:    optStr(e.Detail),
+		Payload:   optStr(e.Payload),
+		PrevHash:  optStr(e.PrevHash),
+		ChainHash: optStr(e.ChainHash),
 	}
+}
+
+// VerifyOperationAudits GET /audits/verify（M6-006）。
+func (h *AuditHandler) VerifyAudits(c *gin.Context, params apigen.VerifyAuditsParams) {
+	to := time.Now().UTC()
+	if params.To != nil {
+		to = *params.To
+	}
+	if params.From.IsZero() || to.Before(params.From) || to.Sub(params.From) > MaxWindow {
+		problem.Write(c, http.StatusBadRequest,
+			"https://ipam.local/problems/bad-request", "INVALID_FILTER", "时间窗非法或超过 31 天")
+		return
+	}
+	checked, broken, err := h.store.Verify(c.Request.Context(), params.From, to)
+	if err != nil {
+		problem.Write(c, http.StatusServiceUnavailable,
+			"https://ipam.local/problems/audit-store-down", "AUDIT_DOWN", "审计存储暂不可达")
+		return
+	}
+	out := apigen.AuditVerifyResult{Checked: checked, Valid: broken == 0}
+	if broken != 0 {
+		id := int(broken)
+		msg := "检测到审计链断链或内容被篡改"
+		out.BrokenId = &id
+		out.Message = &msg
+	} else {
+		msg := "审计链完整"
+		out.Message = &msg
+	}
+	c.JSON(http.StatusOK, out)
 }
 
 // ActionForMethod 变更方法 → 归一动作（特殊端点由调用方在 detail 补充语义）。
