@@ -13,6 +13,7 @@ export type Subnet = components['schemas']['Subnet'];
 export type SubnetOption = components['schemas']['SubnetOption'];
 export type Asset = components['schemas']['Asset'];
 export type AssetUpsert = components['schemas']['AssetUpsert'];
+export type DiscoveredTerminal = components['schemas']['DiscoveredTerminal'];
 
 const BASE = (import.meta.env.VITE_GLOB_API_URL as string) || '/api/v1';
 
@@ -76,6 +77,8 @@ export const upsertAsset = (b: AssetUpsert) =>
   req<Asset>('/assets', { method: 'PUT', body: JSON.stringify(b) });
 export const deleteAsset = (mac: string) =>
   req<void>(`/assets/${encodeURIComponent(mac)}`, { method: 'DELETE' });
+export const listDiscoveredTerminals = () =>
+  req<{ items: DiscoveredTerminal[] }>('/assets/discovered');
 export type DashboardOverview = components['schemas']['DashboardOverview'];
 export type PoolUtilization = components['schemas']['PoolUtilization'];
 

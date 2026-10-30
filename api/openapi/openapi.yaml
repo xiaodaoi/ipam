@@ -192,6 +192,8 @@ paths:
     $ref: './paths/reservation.yaml#/ReservationsBulk'
   /assets:
     $ref: './paths/asset.yaml#/AssetsCollection'
+  /assets/discovered:
+    $ref: './paths/asset.yaml#/DiscoveredTerminals'
   /assets/{mac}:
     $ref: './paths/asset.yaml#/AssetItem'
   /ledger:

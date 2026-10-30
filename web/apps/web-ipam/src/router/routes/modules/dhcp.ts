@@ -54,6 +54,12 @@ const routes: RouteRecordRaw[] = [
             meta: { icon: 'lucide:network', title: 'IPv6 台账', authority: ['dhcp:read'] },
           },
           {
+            name: 'DhcpLedgerDiscovered',
+            path: '/dhcp/ledger/discovered',
+            component: () => import('#/views/dhcp/ledger/discovered.vue'),
+            meta: { icon: 'lucide:radar', title: $t('page.dhcp.discovered'), authority: ['assets:read'] },
+          },
+          {
             name: 'DhcpLedgerAssets',
             path: '/dhcp/ledger/assets',
             component: () => import('#/views/dhcp/ledger/assets.vue'),

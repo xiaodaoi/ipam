@@ -65,3 +65,18 @@ AssetItem:
         description: 已删除
       '404':
         description: 资产不存在
+
+DiscoveredTerminals:
+  get:
+    operationId: listDiscoveredTerminals
+    tags: [asset]
+    summary: 未登记终端（影子资产）
+    description: 联动绑定中有租约、但资产表未登记的 MAC；用于发现并登记。scope 为 assets:read。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: 未登记终端列表
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/asset.yaml#/DiscoveredTerminalList'

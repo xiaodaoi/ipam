@@ -370,6 +370,12 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		assetRepo = ipam.NewPgAssetRepo(pool)
 	}
 	assetH := ipam.NewAssetHandler(ipam.NewAssetService(assetRepo, orgStore))
+	assetH.SetBindingSource(func(ctx context.Context) ([]ipam.LedgerBinding, error) {
+		if pool == nil {
+			return nil, nil
+		}
+		return ipam.LoadLedgerBindings(ctx, pool)
+	})
 
 	// 日志检索（M4-002，FR-E-04）：配置 IPAM_CH_ADDR 走 ClickHouse，否则内存 PoC；
 	// 组织展开：PG 子树（org_group.path）或内存节点遍历。

@@ -75,3 +75,22 @@ func TestAssetList_过滤(t *testing.T) {
 		t.Fatalf("delete failed: %+v", list)
 	}
 }
+
+func TestDiscoverUnregistered(t *testing.T) {
+	repo := NewMemAssetRepo()
+	ctx := context.Background()
+	_ = repo.Upsert(ctx, Asset{MAC: "aa:bb:cc:dd:ee:01", Owner: "已登记"})
+	svc := NewAssetService(repo, NewMemOrgStore())
+	got, err := svc.Discover(ctx, []LedgerBinding{
+		{MAC: "AA-BB-CC-DD-EE-01", IPv4: "10.0.0.1", State: "active"},
+		{MAC: "aa:bb:cc:dd:ee:02", IPv4: "10.0.0.2", IPv6: "fd00::2", Hostname: "new-host", State: "active", Cltt: 1700000000},
+		{MAC: "aa:bb:cc:dd:ee:02", IPv4: "10.0.0.2", State: "active"},
+		{MAC: "aa:bb:cc:dd:ee:03", IPv4: "10.0.0.3", State: "inactive"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].MAC != "aa:bb:cc:dd:ee:02" || got[0].Hostname != "new-host" || got[0].IPv6 != "fd00::2" {
+		t.Fatalf("got=%+v", got)
+	}
+}

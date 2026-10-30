@@ -3,6 +3,11 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-10-30 · 未登记终端发现（M6-010B2）
+- **API**：`GET /assets/discovered`，从 coherence 绑定筛出 asset 未登记 MAC（active/grace/conflict，去重，按最近活动倒序）。
+- **页面**：DHCP 服务 → 未登记终端；KPI/搜索/状态；一键登记（使用人必填、组织可选）后从列表移除。
+- **验证**：Discover 单测；真实租约发现→登记→列表清零→删除恢复；E2E 11/11。
+- **遗留**：010B3（RA/option82/冲突探测/CSV/VLAN）。
 ## 2026-10-30 · 子网利用率历史与告警（M6-010B1）
 - **采样**：每 5 分钟统计 IPv4 池容量/已用（绑定+预留去重），写 `subnet_utilization`，保留 90 天；启动即采一次。
 - **API**：`GET /dhcp/utilization`（最新）、`GET /dhcp/utilization/{subnetId}?hours=`（历史）。

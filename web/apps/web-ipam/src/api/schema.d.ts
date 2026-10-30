@@ -1727,6 +1727,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/assets/discovered": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 未登记终端（影子资产）
+         * @description 联动绑定中有租约、但资产表未登记的 MAC；用于发现并登记。scope 为 assets:read。
+         */
+        get: operations["listDiscoveredTerminals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/assets/{mac}": {
         parameters: {
             query?: never;
@@ -3434,6 +3454,20 @@ export interface components {
             kind?: "auth" | "local";
             /** @description 启用/停用区域（停用即不再渲染解析） */
             enabled?: boolean;
+        };
+        /** @description 未登记终端（有 DHCP 绑定/租约，但 asset 表无记录）。 */
+        DiscoveredTerminal: {
+            mac: string;
+            ipv4?: string;
+            ipv6?: string;
+            hostname?: string;
+            /** @description active/grace/conflict */
+            state?: string;
+            /** Format: date-time */
+            lastSeen?: string;
+        };
+        DiscoveredTerminalList: {
+            items: components["schemas"]["DiscoveredTerminal"][];
         };
         UpdateBindingRequest: {
             /** @description 已存在静态绑定的地址 */
@@ -6752,6 +6786,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Asset"];
+                };
+            };
+        };
+    };
+    listDiscoveredTerminals: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 未登记终端列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscoveredTerminalList"];
                 };
             };
         };

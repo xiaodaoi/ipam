@@ -22,7 +22,8 @@
     "options": "Options & Classes",
     "reservations": "Reservations & Bindings",
     "leases": "Leases",
-    "utilization": "Utilization"
+    "utilization": "Utilization",
+    "discovered": "Discovered"
   },
   "logs": {
     "title": "Log Center",

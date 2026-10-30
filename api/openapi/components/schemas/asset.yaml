@@ -43,3 +43,24 @@ AssetList:
       items:
         $ref: 'asset.yaml#/Asset'
     total: { type: integer }
+
+DiscoveredTerminal:
+  type: object
+  description: 未登记终端（有 DHCP 绑定/租约，但 asset 表无记录）。
+  required: [mac]
+  properties:
+    mac: { type: string }
+    ipv4: { type: string }
+    ipv6: { type: string }
+    hostname: { type: string }
+    state: { type: string, description: active/grace/conflict }
+    lastSeen: { type: string, format: date-time }
+
+DiscoveredTerminalList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: 'asset.yaml#/DiscoveredTerminal'

@@ -128,6 +128,12 @@ async function main() {
       await page.locator('.ant-table, .ipam-empty, [class*="empty"]').first().waitFor({ timeout: 15_000 });
     });
 
+    await step('未登记终端发现', async () => {
+      await page.goto(urlFor('/dhcp/ledger/discovered'), { waitUntil: 'domcontentloaded' });
+      await waitText(page, '未登记终端');
+      await page.locator('.ant-table, [class*="empty"]').first().waitFor({ timeout: 15_000 });
+    });
+
     await step('租约管理 v4/v6 切换', async () => {
       await page.goto(urlFor('/dhcp/leases'), { waitUntil: 'domcontentloaded' });
       await waitText(page, '租约管理');

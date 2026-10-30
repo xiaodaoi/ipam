@@ -3,7 +3,7 @@
 | 字段 | 内容 |
 |---|---|
 | ID | M6-010 |
-| 状态 | 010A + 010B1 review；其余 010B backlog |
+| 状态 | 010A + 010B1 + 发现 review；其余 010B backlog |
 | 里程碑 | M6 商业化就绪 |
 | 优先级 | P1 |
 | 依赖 | M6-001 |
@@ -34,12 +34,18 @@
 - **页面**：DHCP 服务 → 利用率分析；最新快照表 + 状态着色 + 24h/3d/7d/30d 趋势图。
 - **测试**：Compute 去重/池外排除/容量；MemRepo 最新/序列/保留清理；真实 PG 采样与指标实测。
 
+## 010B2 已完成：未登记终端发现
+
+- **API**：`GET /assets/discovered`，从 coherence 绑定中筛出 asset 表未登记的 MAC（active/grace/conflict），按最近活动倒序。
+- **页面**：DHCP 服务 → 未登记终端；KPI、搜索、状态着色；「登记」弹窗预填 MAC，填写使用人/部门/组织/备注后写入资产表。
+- **闭环**：登记成功后该终端从发现列表移除，可在资产页继续维护标签/组织。
+- **测试**：`Discover` 单测（去重、inactive 过滤、IPv6/主机名）；真实环境发现→登记→列表移除→删除验证。
+
 ## 010B 其余未完成（backlog）
 
 - RA 联动（M/O/PIO）配置与状态；
 - option82 展示与基于 circuit-id 的选池策略；
 - Ping/ARP 冲突探测与自动隔离；
-- 新终端发现/影子资产；
 - CSV 导入导出、VLAN/站点/负责人、逐 IP 备注标签。
 
 ## 验收
@@ -49,7 +55,8 @@
 - [x] 单测/lint/typecheck/build/gen-check 通过；
 - [x] 真实 Kea 环境端到端验证；
 - [x] 利用率历史采样、趋势页、85/95% 告警指标；
-- [ ] 010B 其余项（RA/option82/冲突/发现/CSV/VLAN）。
+- [x] 未登记终端发现与一键登记；
+- [ ] 010B 其余项（RA/option82/冲突/CSV/VLAN）。
 
 ## 涉及文件
 
@@ -61,6 +68,7 @@
 - `web/apps/web-ipam/src/views/dhcp/leases/index.vue`、`api/ipam.ts`、路由/文案
 - `internal/module/utilization/**`、`db/postgresql/migrations/0033_subnet_utilization.sql`
 - `observability/alerts.yml`、`web/.../views/dhcp/utilization/index.vue`
+- `internal/module/ipam/{asset,asset_handler}.go`、`web/.../views/dhcp/ledger/discovered.vue`
 - 文档：本卡、实现说明、用户指南、进度日志
 
 ## 实施记录
@@ -79,3 +87,10 @@
 - 指标接入 `/metrics`，新增 85%/95% 告警规则。
 - 新增「利用率分析」页与 E2E 步骤；真实环境验证 latest/series/metrics。
 - 验证：utilization/platform 单测、go build、gen-check、vue-tsc、eslint、E2E 10/10。
+
+### 2026-10-30（010B2）
+
+- 新增 `AssetService.Discover` 与 `GET /assets/discovered`；main 注入 coherence 绑定源。
+- 新增「未登记终端」页：搜索、状态、登记弹窗（使用人必填、组织可选）。
+- 实测：真实租约 `00:0c:29:29:11:4f` 出现在发现列表；登记后列表为 0；删除资产后恢复。
+- 验证：ipam 单测、go build、gen-check、vue-tsc、eslint、E2E 11/11。

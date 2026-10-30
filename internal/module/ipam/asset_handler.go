@@ -1,6 +1,7 @@
 package ipam
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
@@ -12,10 +13,60 @@ import (
 
 // AssetHandler 实现 apigen.ServerInterface 中 asset 域端点。
 type AssetHandler struct {
-	svc *AssetService
+	svc      *AssetService
+	bindings func(context.Context) ([]LedgerBinding, error)
 }
 
 func NewAssetHandler(svc *AssetService) *AssetHandler { return &AssetHandler{svc: svc} }
+
+// SetBindingSource 注入联动绑定数据源（未登记终端发现用；nil 时返回空列表）。
+func (h *AssetHandler) SetBindingSource(fn func(context.Context) ([]LedgerBinding, error)) {
+	h.bindings = fn
+}
+
+// ListDiscoveredTerminals GET /assets/discovered
+func (h *AssetHandler) ListDiscoveredTerminals(c *gin.Context) {
+	if h.bindings == nil {
+		c.JSON(http.StatusOK, apigen.DiscoveredTerminalList{Items: []apigen.DiscoveredTerminal{}})
+		return
+	}
+	bindings, err := h.bindings(c.Request.Context())
+	if err != nil {
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	list, err := h.svc.Discover(c.Request.Context(), bindings)
+	if err != nil {
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	items := make([]apigen.DiscoveredTerminal, 0, len(list))
+	for _, d := range list {
+		item := apigen.DiscoveredTerminal{Mac: d.MAC}
+		if d.IPv4 != "" {
+			v := d.IPv4
+			item.Ipv4 = &v
+		}
+		if d.IPv6 != "" {
+			v := d.IPv6
+			item.Ipv6 = &v
+		}
+		if d.Hostname != "" {
+			v := d.Hostname
+			item.Hostname = &v
+		}
+		if d.State != "" {
+			v := d.State
+			item.State = &v
+		}
+		if !d.LastSeen.IsZero() {
+			v := d.LastSeen
+			item.LastSeen = &v
+		}
+		items = append(items, item)
+	}
+	c.JSON(http.StatusOK, apigen.DiscoveredTerminalList{Items: items})
+}
 
 func (h *AssetHandler) ListAssets(c *gin.Context, params apigen.ListAssetsParams) {
 	orgID := ""
