@@ -249,6 +249,9 @@ func writeLogErr(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ErrMissingFrom), errors.Is(err, ErrInvalidCursor), errors.Is(err, ErrWindowTooLarge):
 		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "INVALID_FILTER", err.Error())
+	case errors.Is(err, ErrPageTooDeep):
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "PAGE_TOO_DEEP",
+			"日志分页最多浏览前 1 万条；请缩小时间范围、增加过滤条件，或使用日志导出")
 	case errors.Is(err, ErrOrgNotFound):
 		problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "ORG_NOT_FOUND", err.Error())
 	case isQueryTimeout(err):

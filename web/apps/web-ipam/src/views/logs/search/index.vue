@@ -233,6 +233,12 @@ const total = ref(0);
 const loading = ref(false);
 const page = ref(1);
 const pageSize = ref(50);
+// 深分页护栏（M6-015）：后端最多允许 offset 1 万，前端同步收敛页码并提示。
+const MAX_OFFSET = 10_000;
+const reachableTotal = computed(() =>
+  Math.min(total.value, Math.floor(MAX_OFFSET / pageSize.value) * pageSize.value),
+);
+const deepPagingLimited = computed(() => total.value > reachableTotal.value);
 
 async function fetchRows() {
   loading.value = true;
@@ -658,7 +664,11 @@ onBeforeUnmount(() => timer && clearInterval(timer));
       </template>
       <template #extra>
         <span class="ipam-hint">
-          点击任意行查看完整字段 · 每 {{ pageSize }} 条一页
+          点击任意行查看完整字段 · 每 {{ pageSize }} 条一页{{
+            deepPagingLimited
+              ? ' · 仅可浏览前 1 万条，更早数据请缩小时间窗或导出 CSV'
+              : ''
+          }}
         </span>
       </template>
 
@@ -672,7 +682,7 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             :pagination="{
               current: page,
               pageSize,
-              total,
+              total: reachableTotal,
               position: ['bottomLeft'],
               showSizeChanger: true,
               pageSizeOptions: ['20', '50', '100', '200'],

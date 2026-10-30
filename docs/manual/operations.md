@@ -65,6 +65,7 @@ docker compose -f observability/compose.observability.yaml --profile observabili
 - 在线保留 180–365 天；多年合规留存用按月 Parquet 归档；
 - Vector 使用 1GB 有界磁盘缓冲，CH 故障超过缓冲会丢弃最新日志（优先保宿主稳定）；
 - 查询超时先缩小时间窗/加 type/domain 过滤；重复分页有 15s total 缓存；
+- 翻页超过 1 万条会返回 `PAGE_TOO_DEEP`，请缩小时间窗/增过滤条件或导出 CSV（避免深 offset 扫描）；
 - 不要把 `read_from` 长期设为 `beginning`。
 
 ## 日志查询慢 / “日志存储暂不可达”

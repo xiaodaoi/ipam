@@ -131,6 +131,13 @@ func TestServiceWindowValidation(t *testing.T) {
 	if _, err := s.Query(context.Background(), LogFilter{From: now.Add(-40 * 24 * time.Hour), To: now}); !errors.Is(err, ErrWindowTooLarge) {
 		t.Fatalf("want ErrWindowTooLarge, got %v", err)
 	}
+	// 深分页护栏：offset > MaxOffset 拒绝，边界内放行（M6-015）
+	if _, err := s.Query(context.Background(), LogFilter{From: now.Add(-time.Hour), To: now, Page: 101, PageSize: 100}); !errors.Is(err, ErrPageTooDeep) {
+		t.Fatalf("want ErrPageTooDeep, got %v", err)
+	}
+	if _, err := s.Query(context.Background(), LogFilter{From: now.Add(-time.Hour), To: now, Page: 100, PageSize: 100}); err != nil {
+		t.Fatalf("边界内分页不应报错: %v", err)
+	}
 }
 
 func TestTop(t *testing.T) {

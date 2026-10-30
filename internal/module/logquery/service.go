@@ -13,6 +13,9 @@ const (
 	DefaultLimit  = 10
 	DefaultBucket = 60
 	MaxPage       = 500
+	// MaxOffset 深分页上限：offset 翻页在 ClickHouse 上需扫描并丢弃前 N 行，
+	// 深翻页会放大 IO/内存。超过后要求缩小时间窗或导出 CSV。
+	MaxOffset = 10_000
 )
 
 var (
@@ -20,6 +23,7 @@ var (
 	ErrInvalidCursor  = errors.New("游标格式非法")
 	ErrMissingFrom    = errors.New("from 时间参数必填")
 	ErrOrgNotFound    = errors.New("组织不存在")
+	ErrPageTooDeep    = errors.New("页码过深，请缩短时间范围或使用导出")
 )
 
 // Service 日志检索编排：校验 → 组织展开 → Store。
@@ -48,6 +52,9 @@ func (s *Service) Query(ctx context.Context, f LogFilter) (Page, error) {
 	}
 	if f.Page < 0 {
 		f.Page = 0
+	}
+	if f.Cursor == "" && f.Page > 1 && (f.Page-1)*f.PageSize >= MaxOffset {
+		return Page{}, ErrPageTooDeep
 	}
 	if f.Cursor != "" {
 		cts, _, _ := ParseCursor(f.Cursor)
