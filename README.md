@@ -90,7 +90,9 @@ IPAM_LICENSE_PRIVATE_KEY=<base64> go run ./cmd/licensegen \
 make doctor   # 工具链自检
 make dev      # 宿主跑控制面 + 容器依赖
 make dev-web  # 前端 Vite HMR
-make test     # go test + web 单测
+make test     # go test + web 单测（含覆盖率门禁）
+make e2e      # Playwright 主链路（需先启动控制面）
+make load-test # API 压测（隔离环境建议 IPAM_RATE_LIMIT=0）
 make lint     # golangci-lint + eslint/oxlint
 make gen      # 从 api/openapi 再生 api/gen（禁止手改）
 make build    # 构建二进制 + 前端

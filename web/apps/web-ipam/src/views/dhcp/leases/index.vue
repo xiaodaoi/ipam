@@ -27,6 +27,7 @@ import {
 } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import { filterLeases, formatLeaseRemaining } from '#/utils/lease';
 
 defineOptions({ name: 'DhcpLeases' });
 
@@ -48,25 +49,8 @@ const rebindSaving = ref(false);
 
 const now = ref(Math.floor(Date.now() / 1000));
 
-const v4Filtered = computed(() => {
-  const kw = keyword.value.trim().toLowerCase();
-  if (!kw) return v4.value;
-  return v4.value.filter((r) =>
-    [r.ipAddress, r.hwAddress, r.hostname, String(r.subnetId ?? '')]
-      .filter(Boolean)
-      .some((v) => String(v).toLowerCase().includes(kw)),
-  );
-});
-
-const v6Filtered = computed(() => {
-  const kw = keyword.value.trim().toLowerCase();
-  if (!kw) return v6.value;
-  return v6.value.filter((r) =>
-    [r.ipAddress, r.hwAddress, r.duid, r.leaseType]
-      .filter(Boolean)
-      .some((v) => String(v).toLowerCase().includes(kw)),
-  );
-});
+const v4Filtered = computed(() => filterLeases(v4.value, keyword.value));
+const v6Filtered = computed(() => filterLeases(v6.value, keyword.value));
 
 const declined = computed(() => v4.value.filter((r) => (r.state ?? 0) !== 0).length);
 const pdCount = computed(() => v6.value.filter((r) => r.leaseType === 'IA_PD').length);
@@ -77,12 +61,7 @@ function fmtTime(ts?: number) {
 }
 
 function remaining(row: { cltt?: number; validLifetime?: number }) {
-  if (!row.cltt || !row.validLifetime) return '—';
-  const left = row.cltt + row.validLifetime - now.value;
-  if (left <= 0) return '已过期';
-  if (left < 3600) return `${Math.ceil(left / 60)} 分钟`;
-  if (left < 24 * 3600) return `${(left / 3600).toFixed(1)} 小时`;
-  return `${(left / (24 * 3600)).toFixed(1)} 天`;
+  return formatLeaseRemaining(row, now.value);
 }
 
 async function load() {

@@ -44,3 +44,7 @@ deploy/compose/certs/
 
 # 本地构建的 licensegen 工具
 /licensegen
+
+# E2E/压测产物
+tests/e2e/artifacts/
+web/coverage/

@@ -3,6 +3,13 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-10-30 · 工程质量与发布流水线（M6-011）
+- **单测/覆盖率**：Vitest + v8 coverage，新增 MAC/租约工具用例；阈值 lines/statements/functions ≥80%、branches ≥70%；根 `pnpm test` 限定业务应用。
+- **E2E**：Playwright 登录+8 条主链路，兼容 hash 路由；完整栈与内存模式均 9/9 通过，失败留截图/result.json；CI 新增 e2e job。
+- **压测**：`tests/load` Go 工具，内存模式 20 并发基线（subnets 18.6k RPS/p95 2.7ms，dashboard 16.5k/p95 3.0ms）。
+- **安全**：周度 govulncheck/gosec(SARIF)/pnpm audit/trivy 工作流。
+- **发布**：tag 触发多架构构建、SBOM/provenance、cosign keyless、Release Notes。
+- **边界**：GitHub runner 实跑、全链路压测、hook fuzz、组件覆盖率待后续。
 ## 2026-10-30 · 租约管理 010A（M6-010）
 - **API**：`GET /dhcp/leases4`、`PATCH/DELETE /dhcp/leases4/{ip}`、`DELETE /dhcp/leases6/{ip}?leaseType=`；延期/改绑/释放直接走 Kea lease_cmds。
 - **前端**：DHCP 服务 → 租约管理，v4/v6 分页签、KPI、搜索、延期/改绑/释放。

@@ -52,7 +52,8 @@
     "test:e2e": "turbo run test:e2e",
     "update:deps": "npx taze -r -w",
     "version": "pnpm exec changeset version && pnpm install --no-frozen-lockfile",
-    "catalog": "pnpx codemod pnpm/catalog"
+    "catalog": "pnpx codemod pnpm/catalog",
+    "test": "vitest run --coverage apps/web-ipam"
   },
   "devDependencies": {
     "@changesets/changelog-github": "catalog:",
@@ -71,6 +72,7 @@
     "@vben/vsh": "workspace:*",
     "@vitejs/plugin-vue": "catalog:",
     "@vitejs/plugin-vue-jsx": "catalog:",
+    "@vitest/coverage-v8": "4.1.7",
     "cross-env": "catalog:",
     "cspell": "catalog:",
     "happy-dom": "catalog:",

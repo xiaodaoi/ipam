@@ -91,6 +91,7 @@ jobs:
           set -o pipefail
           { pnpm install --frozen-lockfile \
             && pnpm --filter @vben/web-ipam run typecheck \
+            && pnpm test \
             && pnpm run build:ipam; } 2>&1 | tee /tmp/web-build.log
       - name: upload web build log
         if: failure()
@@ -232,3 +233,56 @@ jobs:
           cp deploy/compose/diag.txt diag-latest.txt
           git add diag-latest.txt && git commit -m "ci diag ${GITHUB_RUN_ID}"
           git push -f origin "HEAD:refs/heads/ci-diag"
+
+  # ── 主链路 E2E（M6-011）：web-ci 产物 + 内存模式控制面，真实 Chromium ──
+  e2e:
+    needs: web-ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.0"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: download webui dist
+        uses: actions/download-artifact@v4
+        with:
+          name: webui-dist
+          path: cmd/control-plane/webui/dist/
+      - name: build control-plane
+        run: go build -o bin/control-plane ./cmd/control-plane
+      - name: start control-plane（内存模式）
+        run: |
+          IPAM_HTTP_ADDR=:8443 \
+          IPAM_POC_PASSWORD=admin123 \
+          IPAM_JWT_SECRET=ci-e2e-jwt-secret-0123456789abcdef \
+          nohup ./bin/control-plane > /tmp/control-plane.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8443/healthz >/dev/null 2>&1 && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8443/healthz
+      - name: install web deps & chromium
+        working-directory: web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+      - name: run E2E
+        env:
+          IPAM_E2E_BASE_URL: http://127.0.0.1:8443
+          IPAM_E2E_PASSWORD: admin123
+        run: node tests/e2e/run.mjs
+      - name: upload E2E artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts
+          path: tests/e2e/artifacts/
+          retention-days: 7
