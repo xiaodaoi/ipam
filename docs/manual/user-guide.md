@@ -28,6 +28,12 @@ DHCP 服务 → 租约管理：
 
 > 延期/改绑只影响当前租约；长期固定地址请在「保留与绑定」创建 host reservation。
 
+### DNS 内网域与 rebind 保护
+
+- 条件转发域与本地权威域会自动加入 unbound `private-domain` 白名单；
+- 允许内网权威/转发返回 RFC1918 地址，避免被默认 rebind protection 拦截；
+- 公网域仍受 unbound 默认保护。
+
 ### option82 中继信息
 
 租约管理 → IPv4 列表新增「option82（circuit / remote）」列：

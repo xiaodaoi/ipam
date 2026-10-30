@@ -56,6 +56,31 @@ func BuildConf(in ConfInput) string {
 	// interface/access-control/logfile 等静态身份段归主 conf（include 展开）——
 	// 渲染产物重复 interface 会触发 unbound fatal（同端口双绑定，M3-009）
 
+	// 内网域白名单：条件转发/本地权威域允许返回 RFC1918 地址，
+	// 避免 unbound 默认 rebind protection 把内网 DNS 应答判为 rebind 攻击（M6-009B）。
+	seen := map[string]bool{}
+	var private []string
+	addPrivate := func(d string) {
+		d = strings.TrimSpace(d)
+		if d == "" || d == "." || seen[d] {
+			return
+		}
+		seen[d] = true
+		private = append(private, d)
+	}
+	for _, r := range in.Rules {
+		addPrivate(r.Domain)
+	}
+	for _, z := range in.AuthZones {
+		addPrivate(z.Name)
+	}
+	if len(private) > 0 {
+		sb.WriteString("server:\n")
+		for _, d := range private {
+			fmt.Fprintf(&sb, "  private-domain: %s\n", quoteName(d))
+		}
+	}
+
 	// 默认转发（forward-zone "."）
 	writeForward(&sb, ".", in.DefaultFwd)
 

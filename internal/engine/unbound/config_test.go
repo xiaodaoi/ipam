@@ -27,6 +27,7 @@ func TestBuildConf_五源合成(t *testing.T) {
 		"  cache-min-ttl: 0",
 		"  serve-expired: yes",
 		"forward-zone:\n  name: \".\"\n  forward-addr: 223.5.5.5@53",
+		"  private-domain: \"corp.local.\"",
 		"forward-zone:\n  name: \"corp.local.\"\n  forward-addr: 10.0.0.53@53",
 		"local-zone: \"corp.local.\" static",
 		"  local-data: \"www.corp.local. 300 IN A 10.61.172.80\"",

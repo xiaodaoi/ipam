@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-10-30 · DNS rebind 白名单（M6-009B1）
+- 渲染 unbound 配置时，为条件转发域与本地权威域生成 `private-domain`（去重、跳过 "."）。
+- 避免内网 DNS 返回 RFC1918 地址被默认 rebind protection 拦截。
+- 实测：渲染文件包含 private-domain，`unbound-checkconf` 无错误，`smoke.corp.local` 解析正常。
+- 验证：unbound 单测、go build、真实容器应用。
+- 遗留：009B2（泛域名/DoT/提示页/时段/内置库/CSV/AXFR）。
 ## 2026-10-30 · option82 展示（M6-010B4 部分）
 - Kea 全局/子网启用 `store-extended-info`；租约模型/API/页面新增 circuit-id/remote-id。
 - 租约管理 v4 新增「option82（circuit / remote）」列；真实中继续约后可见，直连为空。
