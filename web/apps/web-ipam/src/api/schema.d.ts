@@ -702,6 +702,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/system/log-export-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 日志外发与采样策略
+         * @description 读取 Syslog/Kafka/Webhook sink 与采样模式；scope 为 system:read。
+         */
+        get: operations["getLogExportSettings"];
+        /**
+         * 保存日志外发与采样策略
+         * @description 保存后重新渲染 Vector 配置并触发热加载；scope 为 system:write。
+         *     抽样/仅异常会影响仓储与所有外发 sink，请评估后再切换。
+         */
+        put: operations["updateLogExportSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/system/log-archives": {
         parameters: {
             query?: never;
@@ -3095,6 +3120,31 @@ export interface components {
             archiveKeepMonths?: number;
             autoExport?: boolean;
         };
+        LogExportSettings: {
+            syslogEnabled: boolean;
+            /** @description host:port */
+            syslogAddress?: string;
+            /**
+             * @default tcp
+             * @enum {string}
+             */
+            syslogMode: "tcp" | "udp";
+            kafkaEnabled: boolean;
+            /** @description 逗号分隔的 broker 列表 */
+            kafkaBrokers?: string;
+            kafkaTopic?: string;
+            webhookEnabled: boolean;
+            webhookUrl?: string;
+            /**
+             * @description all=全量；sample=按比例抽样；errors=仅非 INFO
+             * @enum {string}
+             */
+            samplingMode: "all" | "sample" | "errors";
+            /** @description 抽样比例 1/N（仅 sample 模式） */
+            sampleRate: number;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
         LogArchive: {
             /**
              * @description 归档月份（YYYY-MM）
@@ -4590,6 +4640,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LogSettings"];
+                };
+            };
+        };
+    };
+    getLogExportSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前策略 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogExportSettings"];
+                };
+            };
+        };
+    };
+    updateLogExportSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LogExportSettings"];
+            };
+        };
+        responses: {
+            /** @description 已保存并渲染 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogExportSettings"];
+                };
+            };
+            /** @description 参数非法 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };

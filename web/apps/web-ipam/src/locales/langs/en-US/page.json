@@ -28,7 +28,8 @@
     "search": "Search",
     "audit": "Audit",
     "tail": "Live Tail",
-    "storage": "Storage & Archive"
+    "storage": "Storage & Archive",
+    "export": "Export & Sampling"
   },
   "dns": {
     "title": "DNS Service",

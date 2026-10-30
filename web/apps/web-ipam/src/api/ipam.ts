@@ -89,6 +89,16 @@ export type SystemInfo = components['schemas']['SystemInfo'];
 export const getSystemInfo = () => req<SystemInfo>('/system/info');
 
 // ── 账号安全策略（M6-001）──
+// ── 日志外发与采样（M6-008）──
+export type LogExportSettings = components['schemas']['LogExportSettings'];
+export const getLogExportSettings = () =>
+  req<LogExportSettings>('/system/log-export-settings');
+export const updateLogExportSettings = (s: LogExportSettings) =>
+  req<LogExportSettings>('/system/log-export-settings', {
+    method: 'PUT',
+    body: JSON.stringify(s),
+  });
+
 // ── License（M6-004）──
 export type LicenseStatus = components['schemas']['LicenseStatus'];
 export const getLicenseStatus = () => req<LicenseStatus>('/system/license');

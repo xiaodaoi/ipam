@@ -1,0 +1,22 @@
+LogExportSettings:
+  type: object
+  required: [syslogEnabled, kafkaEnabled, webhookEnabled, samplingMode, sampleRate]
+  properties:
+    syslogEnabled: { type: boolean }
+    syslogAddress: { type: string, description: "host:port" }
+    syslogMode: { type: string, enum: [tcp, udp], default: tcp }
+    kafkaEnabled: { type: boolean }
+    kafkaBrokers: { type: string, description: "逗号分隔的 broker 列表" }
+    kafkaTopic: { type: string }
+    webhookEnabled: { type: boolean }
+    webhookUrl: { type: string }
+    samplingMode:
+      type: string
+      enum: [all, sample, errors]
+      description: all=全量；sample=按比例抽样；errors=仅非 INFO
+    sampleRate:
+      type: integer
+      minimum: 1
+      maximum: 1000
+      description: 抽样比例 1/N（仅 sample 模式）
+    updatedAt: { type: string, format: date-time }

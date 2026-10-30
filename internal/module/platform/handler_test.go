@@ -20,6 +20,7 @@ import (
 	dnsmodule "github.com/xiaodaoi/ipam/internal/module/dns"
 	dualstack "github.com/xiaodaoi/ipam/internal/module/dualstack"
 	"github.com/xiaodaoi/ipam/internal/module/ipam"
+	"github.com/xiaodaoi/ipam/internal/module/logexport"
 	"github.com/xiaodaoi/ipam/internal/module/logmanager"
 	logq "github.com/xiaodaoi/ipam/internal/module/logquery"
 	"github.com/xiaodaoi/ipam/internal/pkg/hostmetrics"
@@ -71,6 +72,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		*SecuritySettingsHandler
 		*LicenseHandler
 		*logmanager.LogHandler
+		*logexport.LogExportHandler
 		*backupmodule.APIHandler
 		*stubApplier
 	}{h,
@@ -95,6 +97,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		NewSecuritySettingsHandler(NewMemSecuritySettingsStore()),
 		NewLicenseHandler(NewLicenseService("", "")),
 		logmanager.NewLogHandler(logmanager.NewMemSettingsRepo(), logmanager.NewMemArchiveRepo(), nil, "/tmp/log-exports"),
+		logexport.NewLogExportHandler(logexport.NewService(logexport.NewMemRepo(), "/tmp/vector-template.toml", "/tmp/vector-config.toml")),
 		backupmodule.NewAPIHandler(
 			backupmodule.NewService(backupmodule.NewMemRepo(), backupmodule.NewMemSettings(), nil, nil, "/tmp/backups", nil),
 			backupmodule.NewMemSettings()),

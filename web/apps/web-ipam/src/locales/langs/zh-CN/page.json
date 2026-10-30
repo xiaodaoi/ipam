@@ -28,7 +28,8 @@
     "search": "查询检索",
     "audit": "操作审计",
     "tail": "实时流",
-    "storage": "存储与归档"
+    "storage": "存储与归档",
+    "export": "外发与采样"
   },
   "dns": {
     "title": "DNS 服务",

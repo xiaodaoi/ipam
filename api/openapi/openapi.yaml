@@ -102,6 +102,8 @@ paths:
     $ref: "./paths/public.yaml#/PublicBranding"
   /system/log-settings:
     $ref: "./paths/logsettings.yaml#/LogSettingsCollection"
+  /system/log-export-settings:
+    $ref: "./paths/logexport.yaml#/LogExportSettingsCollection"
   /system/log-archives:
     $ref: "./paths/logsettings.yaml#/LogArchiveCollection"
   /system/log-archives/stats:

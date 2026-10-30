@@ -3,6 +3,13 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-10-30 · 日志外发与采样（M6-008）
+- **外发**：Syslog（RFC5424 TCP/UDP）、Kafka、Webhook（JSON）sink，可按需启用；配置由控制面渲染到 vector-config 卷，Vector `--watch-config` 热加载。
+- **采样**：全量 / 1/N / 仅异常（非 INFO），同时作用于 ClickHouse 入库与外发。
+- **页面**：日志中心 → 外发与采样，4 KPI、通道地址、采样比例、根分区水位提示。
+- **部署**：新增 vector-config 卷与 volume-init；Vector 模板只读、生成配置可写。
+- **验证**：`vector validate` 通过；真实渲染包含 log_out/sinks；单测、go test、前端构建/lint、compose config 通过。
+- **遗留**：磁盘 90% 自动降级、外发积压指标、TLS/SASL/鉴权头、测试发送。
 ## 2026-10-30 · 账号体系 007A（TOTP/角色/会话）
 - **TOTP**：新增 2FA setup/enable/disable；登录支持 totpCode，启用后强制动态口令；个人中心安全设置可启用/关闭。
 - **角色**：`User.roles` 改为字符串数组，账号页多选加载内置+自定义角色；后端白名单沿用。

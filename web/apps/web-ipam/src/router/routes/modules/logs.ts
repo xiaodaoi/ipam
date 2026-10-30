@@ -37,6 +37,12 @@ const routes: RouteRecordRaw[] = [
         meta: { icon: 'lucide:shield-check', title: $t('page.logs.audit'), authority: ['logs:read'] },
       },
       {
+        name: 'LogExport',
+        path: '/logs-center/export',
+        component: () => import('#/views/logs/export/index.vue'),
+        meta: { icon: 'lucide:send', title: $t('page.logs.export'), authority: ['system:read'] },
+      },
+      {
         name: 'LogStorage',
         path: '/logs-center/storage',
         component: () => import('#/views/logs/storage/index.vue'),

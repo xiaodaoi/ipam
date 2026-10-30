@@ -4,9 +4,10 @@ services:
   # 一次性初始化共享卷权限（ch-exports 默认 root，control-plane 以 10001 运行）
   volume-init:
     image: alpine:3.20
-    command: ["sh", "-c", "mkdir -p /exports/backups && chown 10001:10001 /exports /exports/backups && chmod 750 /exports"]
+    command: ["sh", "-c", "mkdir -p /exports/backups /vector-config && chown 10001:10001 /exports /exports/backups /vector-config && chmod 750 /exports && chmod 755 /vector-config"]
     volumes:
       - ch-exports:/exports
+      - vector-config:/vector-config
     restart: "no"
 
   postgresql:
@@ -84,6 +85,9 @@ services:
       # 备份与恢复（M6-002）：复用 ch-exports 卷（control-plane 已有写权限）
       IPAM_BACKUP_DIR: "/srv/log-exports/backups"
       IPAM_BACKUP_CONFIG_DIRS: "/etc/unbound-ctl"
+      # 日志外发/采样（M6-008）：模板只读，生成配置写入共享卷供 Vector 热加载
+      IPAM_VECTOR_TEMPLATE: "/etc/vector-template/vector.toml"
+      IPAM_VECTOR_CONFIG: "/etc/vector-config/vector.toml"
       # License（M6-004）：离线授权文件 + Ed25519 公钥（base64/PEM）
       IPAM_LICENSE_FILE: "/srv/log-exports/license.json"
       IPAM_LICENSE_PUBKEY: "${IPAM_LICENSE_PUBKEY:-}"
@@ -104,6 +108,8 @@ services:
       - ../../config/unbound:/etc/unbound-ctl:ro
       - ../../config/unbound:/etc/unbound-rendered
       - ch-exports:/srv/log-exports
+      - vector-config:/etc/vector-config
+      - ../../config/vector:/etc/vector-template:ro
       - ${IPAM_CERTS_DIR:-./certs}:/certs:ro
       # 宿主只读挂载（宿主整机 CPU/内存/磁盘；默认递归绑定含数据盘挂载点）
       - /proc:/host/proc:ro
@@ -173,7 +179,7 @@ services:
         max-size: "10m"
         max-file: "3"
     image: ghcr.io/vectordotdev/vector:0.46.1-alpine
-    command: ["--config", "/etc/vector/vector.toml", "--verbose"]
+    command: ["--config", "/etc/vector/vector.toml", "--watch-config", "--verbose"]
     environment:
       VECTOR_LOG: "debug"
     depends_on:
@@ -181,8 +187,10 @@ services:
         condition: service_started
       kea-dhcp4:
         condition: service_started
+      control-plane:
+        condition: service_started
     volumes:
-      - ../../config/vector/vector.toml:/etc/vector/vector.toml:ro
+      - vector-config:/etc/vector
       - kea-logs:/var/log/kea:ro
       - unbound-logs:/var/log/unbound:ro
     restart: unless-stopped
@@ -271,6 +279,7 @@ volumes:
   unbound-logs:
   ch-data:
   ch-exports:
+  vector-config:
 
 # unbound 日志经宿主文件（unbound.conf logfile 配置）→ 由 vector file source 读取；
 # unbound-logs 卷：unbound 服务读写挂载（root 容器写入），vector 服务只读挂载采集。

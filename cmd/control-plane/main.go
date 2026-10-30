@@ -33,6 +33,7 @@ import (
 	dnsmodule "github.com/xiaodaoi/ipam/internal/module/dns"
 	dualstack "github.com/xiaodaoi/ipam/internal/module/dualstack"
 	"github.com/xiaodaoi/ipam/internal/module/ipam"
+	"github.com/xiaodaoi/ipam/internal/module/logexport"
 	"github.com/xiaodaoi/ipam/internal/module/logmanager"
 	logq "github.com/xiaodaoi/ipam/internal/module/logquery"
 	"github.com/xiaodaoi/ipam/internal/module/platform"
@@ -607,6 +608,25 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	backupSvc := backupmodule.NewService(backupRepo, backupSettingsRepo, pgRunner, backupLogs, backupDir, configDirs)
 	licenseH := platform.NewLicenseHandler(platform.NewLicenseService(
 		os.Getenv("IPAM_LICENSE_FILE"), os.Getenv("IPAM_LICENSE_PUBKEY")))
+
+	// 日志外发/采样（M6-008）：启动时渲染 Vector 配置，保存后热加载
+	var exportRepo logexport.Repo = logexport.NewMemRepo()
+	if pool != nil {
+		exportRepo = logexport.NewPgRepo(pool)
+	}
+	vectorTemplate := os.Getenv("IPAM_VECTOR_TEMPLATE")
+	if vectorTemplate == "" {
+		vectorTemplate = "/etc/vector-template/vector.toml"
+	}
+	vectorConfig := os.Getenv("IPAM_VECTOR_CONFIG")
+	if vectorConfig == "" {
+		vectorConfig = "/etc/vector-config/vector.toml"
+	}
+	exportSvc := logexport.NewService(exportRepo, vectorTemplate, vectorConfig)
+	if err := exportSvc.Apply(rootCtx); err != nil {
+		log.Printf("[log-export] 渲染 Vector 配置失败（外发可能未生效）: %v", err)
+	}
+	exportH := logexport.NewLogExportHandler(exportSvc)
 	backupH := backupmodule.NewAPIHandler(backupSvc, backupSettingsRepo)
 	permLookup := func(ctx context.Context, role string) ([]string, bool) {
 		if pool == nil {
@@ -643,9 +663,10 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		*platform.SecuritySettingsHandler
 		*platform.LicenseHandler
 		*logmanager.LogHandler
+		*logexport.LogExportHandler
 		*backupmodule.APIHandler
 		*confApplier
-	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore, bl, permLookup, secStore), platform.NewUserHandler(userStore, secStore), &dhcpAPI{dhcpH}, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, platform.NewSecuritySettingsHandler(secStore), licenseH, logMgrH, backupH, applier}
+	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore, bl, permLookup, secStore), platform.NewUserHandler(userStore, secStore), &dhcpAPI{dhcpH}, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, platform.NewSecuritySettingsHandler(secStore), licenseH, logMgrH, exportH, backupH, applier}
 	// Prometheus 指标（M6-005）：放在 RBAC 之前供抓取；中间件只统计其后的 /api/v1 路由。
 	metricsH := platform.NewMetricsHandler(platform.MetricsSources{
 		Version: version,
