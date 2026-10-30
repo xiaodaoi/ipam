@@ -223,3 +223,32 @@ DnsZoneLinked:
                   items:
                     $ref: '../components/schemas/dnszone.yaml#/LinkedRecord'
               required: [items]
+
+HostsImport:
+  post:
+    operationId: importDnsHosts
+    tags: [dns]
+    summary: 导入 hosts 文件
+    description: |
+      按行解析 `IP name [alias...]`，为每个名称创建 A/AAAA 记录（TTL 300）；重复记录跳过。
+      scope 为 dns.write。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/dnszone.yaml#/HostsImportRequest'
+    responses:
+      '200':
+        description: 导入结果
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/dnszone.yaml#/HostsImportResult'
+      '400':
+        description: 参数/zone 非法
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Problem'

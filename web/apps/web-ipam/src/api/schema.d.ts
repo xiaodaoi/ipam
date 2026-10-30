@@ -1430,6 +1430,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/dns/hosts/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 导入 hosts 文件
+         * @description 按行解析 `IP name [alias...]`，为每个名称创建 A/AAAA 记录（TTL 300）；重复记录跳过。
+         *     scope 为 dns.write。
+         */
+        post: operations["importDnsHosts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dns/zones/{zoneId}": {
         parameters: {
             query?: never;
@@ -2281,7 +2302,7 @@ export interface components {
             /** @description 相对名（www）或 FQDN */
             name: string;
             /** @enum {string} */
-            recType: "A" | "AAAA" | "CNAME" | "PTR";
+            recType: "A" | "AAAA" | "CNAME" | "PTR" | "TXT" | "SRV" | "MX";
             ttl: number;
             /** @description 记录数据（A=IP/CNAME=目标/PTR=域名） */
             rdata: string;
@@ -2291,7 +2312,7 @@ export interface components {
         DnsRecordCreate: {
             name: string;
             /** @enum {string} */
-            recType: "A" | "AAAA" | "CNAME" | "PTR";
+            recType: "A" | "AAAA" | "CNAME" | "PTR" | "TXT" | "SRV" | "MX";
             /** @default 300 */
             ttl: number;
             rdata: string;
@@ -3236,10 +3257,21 @@ export interface components {
         DnsRecordUpdate: {
             name?: string;
             /** @enum {string} */
-            recType?: "A" | "AAAA" | "CNAME" | "PTR";
+            recType?: "A" | "AAAA" | "CNAME" | "PTR" | "TXT" | "SRV" | "MX";
             ttl?: number;
             rdata?: string;
             enabled?: boolean;
+        };
+        HostsImportRequest: {
+            /** Format: uuid */
+            zoneId: string;
+            /** @description hosts 文件内容（IP name [alias...]，# 注释；支持 IPv4/IPv6） */
+            content: string;
+        };
+        HostsImportResult: {
+            created: number;
+            skipped: number;
+            errors?: string[];
         };
         DnsZoneUpdate: {
             /** @description 重命名区域（尾点容错） */
@@ -5985,6 +6017,39 @@ export interface operations {
                     "application/json": {
                         items: components["schemas"]["LinkedRecord"][];
                     };
+                };
+            };
+        };
+    };
+    importDnsHosts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HostsImportRequest"];
+            };
+        };
+        responses: {
+            /** @description 导入结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostsImportResult"];
+                };
+            };
+            /** @description 参数/zone 非法 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };

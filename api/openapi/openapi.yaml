@@ -166,6 +166,8 @@ paths:
     $ref: './paths/dnszone.yaml#/DnsRecordItem'
   /dns/zones/{zoneId}/linked:
     $ref: './paths/dnszone.yaml#/DnsZoneLinked'
+  /dns/hosts/import:
+    $ref: './paths/dnszone.yaml#/HostsImport'
   /dns/zones/{zoneId}:
     $ref: './paths/dnszone.yaml#/DnsZoneItem'
   /forward-rules:

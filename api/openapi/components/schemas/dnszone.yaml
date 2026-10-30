@@ -30,7 +30,7 @@ DnsRecord:
     id: { type: string, format: uuid }
     zoneId: { type: string, format: uuid }
     name: { type: string, description: 相对名（www）或 FQDN }
-    recType: { type: string, enum: [A, AAAA, CNAME, PTR] }
+    recType: { type: string, enum: [A, AAAA, CNAME, PTR, TXT, SRV, MX] }
     ttl: { type: integer, minimum: 1, maximum: 86400 }
     rdata: { type: string, description: 记录数据（A=IP/CNAME=目标/PTR=域名） }
     enabled: { type: boolean, default: true }
@@ -40,7 +40,7 @@ DnsRecordCreate:
   required: [name, recType, rdata]
   properties:
     name: { type: string }
-    recType: { type: string, enum: [A, AAAA, CNAME, PTR] }
+    recType: { type: string, enum: [A, AAAA, CNAME, PTR, TXT, SRV, MX] }
     ttl: { type: integer, default: 300 }
     rdata: { type: string }
     enabled: { type: boolean, default: true }
@@ -49,7 +49,7 @@ DnsRecordUpdate:
   type: object
   properties:
     name: { type: string }
-    recType: { type: string, enum: [A, AAAA, CNAME, PTR] }
+    recType: { type: string, enum: [A, AAAA, CNAME, PTR, TXT, SRV, MX] }
     ttl: { type: integer, minimum: 1, maximum: 86400 }
     rdata: { type: string }
     enabled: { type: boolean }
@@ -77,3 +77,22 @@ DnsRecordList:
   properties:
     items: { type: array, items: { $ref: 'dnszone.yaml#/DnsRecord' } }
     total: { type: integer }
+
+HostsImportRequest:
+  type: object
+  required: [zoneId, content]
+  properties:
+    zoneId: { type: string, format: uuid }
+    content:
+      type: string
+      description: hosts 文件内容（IP name [alias...]，# 注释；支持 IPv4/IPv6）
+
+HostsImportResult:
+  type: object
+  required: [created, skipped]
+  properties:
+    created: { type: integer }
+    skipped: { type: integer }
+    errors:
+      type: array
+      items: { type: string }

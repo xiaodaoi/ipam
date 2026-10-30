@@ -21,14 +21,14 @@ import {
   Tag,
 } from 'ant-design-vue';
 
-import { createDnsRecord, createDnsZone, deleteDnsRecord, deleteDnsZone, listDnsRecords, listDnsZones, listLinkedRecords, updateDnsRecord, updateDnsZone } from '#/api/ipam';
+import { createDnsRecord, createDnsZone, deleteDnsRecord, deleteDnsZone, importDnsHosts, listDnsRecords, listDnsZones, listLinkedRecords, updateDnsRecord, updateDnsZone } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
 
-type RecType = 'A' | 'AAAA' | 'CNAME' | 'PTR';
+type RecType = 'A' | 'AAAA' | 'CNAME' | 'MX' | 'PTR' | 'SRV' | 'TXT';
 
 const showTotal = (t: number) => `共 ${t} 条`;
-const REC_TYPES: RecType[] = ['A', 'AAAA', 'CNAME', 'PTR'];
+const REC_TYPES: RecType[] = ['A', 'AAAA', 'CNAME', 'PTR', 'TXT', 'SRV', 'MX'];
 
 const zones = ref<DnsZone[]>([]);
 const zoneId = ref<string>();
@@ -298,6 +298,38 @@ const filteredZones = computed(() => {
 
 // ── 记录筛选 ──
 const recKeyword = ref('');
+const hostsOpen = ref(false);
+const hostsContent = ref('');
+const importing = ref(false);
+
+function openHostsImport() {
+  if (!zoneId.value) {
+    message.warning('请先选择区域');
+    return;
+  }
+  hostsContent.value = '';
+  hostsOpen.value = true;
+}
+
+async function submitHostsImport() {
+  if (!zoneId.value || !hostsContent.value.trim()) {
+    message.warning('请粘贴 hosts 内容');
+    return;
+  }
+  importing.value = true;
+  try {
+    const r = await importDnsHosts(zoneId.value, hostsContent.value);
+    message.success(`导入完成：新增 ${r.created}，跳过 ${r.skipped}`);
+    if (r.errors?.length) message.warning(r.errors.slice(0, 3).join('；'));
+    hostsOpen.value = false;
+    await loadRecords();
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '导入失败');
+  } finally {
+    importing.value = false;
+  }
+}
+
 const recTypeFilter = ref<'all' | RecType>('all');
 const recStatus = ref<'all' | 'disabled' | 'enabled'>('all');
 const typeOptions = [{ label: '全部类型', value: 'all' }, ...REC_TYPES.map((t) => ({ label: t, value: t }))];
@@ -332,7 +364,7 @@ function resetRecFilters() {
       eyebrow="DNS Service"
       icon="lucide:book-open"
       title="解析记录"
-      description="按区域维护 A / AAAA / CNAME / PTR 记录，并查看 DHCP 双栈联动自动生成的记录。"
+      description="按区域维护 A / AAAA / CNAME / PTR / TXT / SRV / MX 记录，并查看 DHCP 双栈联动自动生成的记录。"
     >
       <template #actions>
         <span class="ipam-page-header__meta">
@@ -344,6 +376,9 @@ function resetRecFilters() {
         </Button>
         <Button size="small" @click="openCreateZone">
           <IconifyIcon icon="lucide:folder-plus" class="mr-1" />新建区域
+        </Button>
+        <Button size="small" @click="openHostsImport">
+          <IconifyIcon icon="lucide:upload" class="mr-1" />导入 hosts
         </Button>
         <Button type="primary" size="small" @click="openAddRecord">
           <IconifyIcon icon="lucide:plus" class="mr-1" />新增记录
@@ -463,6 +498,9 @@ function resetRecFilters() {
               <span class="ipam-chip" data-tone="muted">AAAA {{ stats.typeCount.get('AAAA') ?? 0 }}</span>
               <span class="ipam-chip" data-tone="muted">CNAME {{ stats.typeCount.get('CNAME') ?? 0 }}</span>
               <span class="ipam-chip" data-tone="muted">PTR {{ stats.typeCount.get('PTR') ?? 0 }}</span>
+              <span class="ipam-chip" data-tone="muted">TXT {{ stats.typeCount.get('TXT') ?? 0 }}</span>
+              <span class="ipam-chip" data-tone="muted">SRV {{ stats.typeCount.get('SRV') ?? 0 }}</span>
+              <span class="ipam-chip" data-tone="muted">MX {{ stats.typeCount.get('MX') ?? 0 }}</span>
             </div>
           </div>
 
@@ -515,7 +553,7 @@ function resetRecFilters() {
                   </div>
                 </template>
                 <template v-else-if="column.dataIndex === 'recType'">
-                  <Tag class="m-0" :color="record.recType === 'AAAA' ? 'cyan' : record.recType === 'CNAME' ? 'purple' : 'blue'">
+                  <Tag class="m-0" :color="record.recType === 'AAAA' ? 'cyan' : record.recType === 'CNAME' ? 'purple' : record.recType === 'TXT' ? 'green' : record.recType === 'SRV' || record.recType === 'MX' ? 'orange' : 'blue'">
                     {{ record.recType }}
                   </Tag>
                 </template>
@@ -678,5 +716,29 @@ function resetRecFilters() {
         </div>
       </div>
     </ZoneModal>
+
+    <Modal
+      v-model:open="hostsOpen"
+      title="导入 hosts"
+      ok-text="开始导入"
+      cancel-text="取消"
+      :confirm-loading="importing"
+      @ok="submitHostsImport"
+    >
+      <div class="ipam-form-grid">
+        <div class="ipam-form-field ipam-form-field--wide">
+          <span class="ipam-form-field__label">hosts 内容（IP name [alias...]）</span>
+          <Input.TextArea
+            v-model:value="hostsContent"
+            :rows="10"
+            class="ipam-mono"
+            placeholder="# 注释&#10;10.0.0.10 app.corp.local app&#10;fd00::10 v6.corp.local"
+          />
+        </div>
+        <div class="ipam-form-hint ipam-form-field--wide">
+          每个名称创建 A/AAAA 记录（TTL 300）；重复记录自动跳过；导入后自动重渲染 zonefile。
+        </div>
+      </div>
+    </Modal>
   </div>
 </template>

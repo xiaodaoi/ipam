@@ -294,6 +294,12 @@ export const updateDnsRecord = (
   recordId: string,
   b: Partial<DnsRecord>,
 ) => req<DnsRecord>(`/dns/zones/${zoneId}/records/${recordId}`, patch(b));
+export const importDnsHosts = (zoneId: string, content: string) =>
+  req<{ created: number; errors?: string[]; skipped: number }>(
+    '/dns/hosts/import',
+    { method: 'POST', body: JSON.stringify({ zoneId, content }) },
+  );
+
 export const deleteDnsRecord = (zoneId: string, recordId: string) =>
   req<void>(`/dns/zones/${zoneId}/records/${recordId}`, del);
 export const listLinkedRecords = (zoneId: string) =>

@@ -71,6 +71,38 @@ func ValidateRecord(recType, rdata string) error {
 		if !strings.HasSuffix(rdata, ".") {
 			return fmt.Errorf("%w: %s 须为 FQDN（尾点）", ErrBadRdata, rdata)
 		}
+	case "TXT":
+		if strings.TrimSpace(rdata) == "" {
+			return fmt.Errorf("%w: TXT 内容不能为空", ErrBadRdata)
+		}
+	case "SRV":
+		parts := strings.Fields(rdata)
+		if len(parts) != 4 {
+			return fmt.Errorf("%w: SRV 须为 priority weight port target.", ErrBadRdata)
+		}
+		if _, err := strconv.Atoi(parts[0]); err != nil {
+			return fmt.Errorf("%w: SRV priority 非法", ErrBadRdata)
+		}
+		if _, err := strconv.Atoi(parts[1]); err != nil {
+			return fmt.Errorf("%w: SRV weight 非法", ErrBadRdata)
+		}
+		if _, err := strconv.Atoi(parts[2]); err != nil {
+			return fmt.Errorf("%w: SRV port 非法", ErrBadRdata)
+		}
+		if !strings.HasSuffix(parts[3], ".") {
+			return fmt.Errorf("%w: SRV target 须为 FQDN（尾点）", ErrBadRdata)
+		}
+	case "MX":
+		parts := strings.Fields(rdata)
+		if len(parts) != 2 {
+			return fmt.Errorf("%w: MX 须为 priority exchange.", ErrBadRdata)
+		}
+		if _, err := strconv.Atoi(parts[0]); err != nil {
+			return fmt.Errorf("%w: MX priority 非法", ErrBadRdata)
+		}
+		if !strings.HasSuffix(parts[1], ".") {
+			return fmt.Errorf("%w: MX exchange 须为 FQDN（尾点）", ErrBadRdata)
+		}
 	default:
 		return fmt.Errorf("%w: 未知类型 %s", ErrBadRdata, recType)
 	}
@@ -169,6 +201,65 @@ func (s *ZoneService) DeleteRecord(ctx context.Context, id string) error {
 	return nil
 }
 
+// ImportHosts 解析 hosts 内容并为每个名称创建 A/AAAA 记录（重复跳过）。
+func (s *ZoneService) ImportHosts(ctx context.Context, zoneID, content string) (created, skipped int, errs []string, err error) {
+	zones, err := s.repo.ListZones(ctx)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	var zone *Zone
+	for i := range zones {
+		if zones[i].ID == zoneID {
+			zone = &zones[i]
+			break
+		}
+	}
+	if zone == nil {
+		return 0, 0, nil, ErrZoneNotFound
+	}
+	for lineNo, line := range strings.Split(content, "\n") {
+		if i := strings.IndexByte(line, '#'); i >= 0 {
+			line = line[:i]
+		}
+		fields := strings.Fields(strings.TrimSpace(line))
+		if len(fields) == 0 {
+			continue
+		}
+		if len(fields) < 2 {
+			errs = append(errs, fmt.Sprintf("第 %d 行：缺少主机名", lineNo+1))
+			skipped++
+			continue
+		}
+		ip := net.ParseIP(fields[0])
+		if ip == nil {
+			errs = append(errs, fmt.Sprintf("第 %d 行：IP 非法 %q", lineNo+1, fields[0]))
+			skipped++
+			continue
+		}
+		recType := "A"
+		if ip.To4() == nil {
+			recType = "AAAA"
+		}
+		for _, name := range fields[1:] {
+			rec := Record{Name: name, RecType: recType, Rdata: fields[0], TTL: 300, Enabled: true, ZoneID: zone.ID}
+			if _, cerr := s.repo.CreateRecord(ctx, rec); cerr != nil {
+				if errors.Is(cerr, ErrRecordNameDup) {
+					skipped++
+					continue
+				}
+				errs = append(errs, fmt.Sprintf("第 %d 行 %s: %v", lineNo+1, name, cerr))
+				skipped++
+				continue
+			}
+			created++
+		}
+	}
+	if created > 0 {
+		s.apply(ctx)
+	}
+	return created, skipped, errs, nil
+}
+
 // ExportZonefile 组装 zonefile 文本（$ORIGIN + 记录行；auth_zone_reload 数据源）。
 func ExportZonefile(zone Zone, records []Record) string {
 	var sb strings.Builder
@@ -192,7 +283,11 @@ func ExportZonefile(zone Zone, records []Record) string {
 		if ttl <= 0 {
 			ttl = 300
 		}
-		fmt.Fprintf(&sb, "%s %d IN %s %s\n", name, ttl, r.RecType, r.Rdata)
+		rdata := r.Rdata
+		if r.RecType == "TXT" && !strings.HasPrefix(rdata, "\"") {
+			rdata = strconv.Quote(rdata)
+		}
+		fmt.Fprintf(&sb, "%s %d IN %s %s\n", name, ttl, r.RecType, rdata)
 	}
 	_ = origin
 	return sb.String()

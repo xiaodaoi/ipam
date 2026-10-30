@@ -3,6 +3,11 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-10-30 · DNS 功能补齐 009A（M6-009）
+- **记录类型**：新增 TXT/SRV/MX（校验 + zonefile 渲染 + 前端筛选/统计）。
+- **hosts 导入**：`POST /dns/hosts/import`，解析 IP/主机名/别名，自动建 A/AAAA，重复跳过，返回 created/skipped/errors；前端导入弹窗。
+- **验证**：dns 单测、前端 typecheck/lint、go test/gen-check 通过。
+- **遗留**：泛域名、DoT 真生效、rebind、提示页、时段、内置分类库、AXFR/Secondary（009B）。
 ## 2026-10-30 · 文档与交付 012A（M6-012）
 - **文档**：新增根 README、`docs/manual/{install,upgrade,operations,user-guide,api}.md`，覆盖安装、升级回滚、备份恢复、监控、外发、审计、单机 HA 边界、License。
 - **API**：控制面新增 `/openapi.json`（OpenAPI 3.1，无需令牌）。

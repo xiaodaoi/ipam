@@ -2,6 +2,7 @@ package dns
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -159,6 +160,25 @@ func (h *ZoneHandler) CreateDnsRecord(c *gin.Context, zoneId rtypes.UUID) {
 		return
 	}
 	c.JSON(http.StatusCreated, toGenRecord(saved))
+}
+
+// ImportDnsHosts POST /dns/hosts/import（M6-009）
+func (h *ZoneHandler) ImportDnsHosts(c *gin.Context) {
+	var body apigen.HostsImportRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "BAD_REQUEST", err.Error())
+		return
+	}
+	created, skipped, errs, err := h.svc.ImportHosts(c.Request.Context(), body.ZoneId.String(), body.Content)
+	if err != nil {
+		if errors.Is(err, ErrZoneNotFound) {
+			problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "ZONE_NOT_FOUND", "区域不存在")
+			return
+		}
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "INTERNAL", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, apigen.HostsImportResult{Created: created, Skipped: skipped, Errors: &errs})
 }
 
 func (h *ZoneHandler) ExportDnsZone(c *gin.Context, zoneId rtypes.UUID) {

@@ -80,3 +80,57 @@ func TestZoneService_非法记录拒绝且不触发Apply(t *testing.T) {
 		t.Fatal("invalid record must not trigger apply")
 	}
 }
+
+func TestValidateRecordNewTypes(t *testing.T) {
+	ok := []struct{ typ, rdata string }{
+		{"TXT", "v=spf1 -all"},
+		{"SRV", "10 5 443 app.example.com."},
+		{"MX", "10 mail.example.com."},
+	}
+	for _, c := range ok {
+		if err := ValidateRecord(c.typ, c.rdata); err != nil {
+			t.Fatalf("%s %q: %v", c.typ, c.rdata, err)
+		}
+	}
+	bad := []struct{ typ, rdata string }{
+		{"TXT", ""},
+		{"SRV", "10 5 443"},
+		{"MX", "mail.example.com."},
+	}
+	for _, c := range bad {
+		if err := ValidateRecord(c.typ, c.rdata); err == nil {
+			t.Fatalf("%s %q should fail", c.typ, c.rdata)
+		}
+	}
+}
+
+func TestExportZonefileTXT(t *testing.T) {
+	out := ExportZonefile(Zone{Name: "example.com."}, []Record{
+		{Name: "txt", RecType: "TXT", Rdata: "hello world", TTL: 60, Enabled: true},
+	})
+	if !strings.Contains(out, `IN TXT "hello world"`) {
+		t.Fatalf("TXT not quoted: %s", out)
+	}
+}
+
+func TestImportHosts(t *testing.T) {
+	repo := NewMemZoneRepo()
+	ctx := context.Background()
+	z, err := repo.CreateZone(ctx, Zone{Name: "corp.local.", Kind: "local", Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc := NewZoneService(repo, nil)
+	content := "# comment\n10.0.0.1 host1 alias1\nfd00::1 host2\nbad-line\n"
+	created, skipped, errs, err := svc.ImportHosts(ctx, z.ID, content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created != 3 || skipped != 1 || len(errs) != 1 {
+		t.Fatalf("created=%d skipped=%d errs=%v", created, skipped, errs)
+	}
+	recs, _ := repo.ListRecords(ctx, z.ID)
+	if len(recs) != 3 {
+		t.Fatalf("records=%d", len(recs))
+	}
+}
