@@ -69,6 +69,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		*RolesHandler
 		*WebuiHandler
 		*SecuritySettingsHandler
+		*LicenseHandler
 		*logmanager.LogHandler
 		*backupmodule.APIHandler
 		*stubApplier
@@ -92,6 +93,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		NewRolesHandler(NewMemRoleStore()),
 		NewWebuiHandler(NewMemWebuiRepo()),
 		NewSecuritySettingsHandler(NewMemSecuritySettingsStore()),
+		NewLicenseHandler(NewLicenseService("", "")),
 		logmanager.NewLogHandler(logmanager.NewMemSettingsRepo(), logmanager.NewMemArchiveRepo(), nil, "/tmp/log-exports"),
 		backupmodule.NewAPIHandler(
 			backupmodule.NewService(backupmodule.NewMemRepo(), backupmodule.NewMemSettings(), nil, nil, "/tmp/backups", nil),

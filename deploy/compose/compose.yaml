@@ -84,6 +84,9 @@ services:
       # 备份与恢复（M6-002）：复用 ch-exports 卷（control-plane 已有写权限）
       IPAM_BACKUP_DIR: "/srv/log-exports/backups"
       IPAM_BACKUP_CONFIG_DIRS: "/etc/unbound-ctl"
+      # License（M6-004）：离线授权文件 + Ed25519 公钥（base64/PEM）
+      IPAM_LICENSE_FILE: "/srv/log-exports/license.json"
+      IPAM_LICENSE_PUBKEY: "${IPAM_LICENSE_PUBKEY:-}"
       # 宿主资源采集（仪表盘「主机资源」卡片）：容器经只读挂载读取宿主 /proc、/sys 与文件系统
       IPAM_HOST_PROC: "/host/proc"
       IPAM_HOST_SYS: "/host/sys"

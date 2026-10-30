@@ -55,6 +55,12 @@ const routes: RouteRecordRaw[] = [
         meta: { icon: 'lucide:archive-restore', title: $t('page.system.backup'), authority: ['system:read'] },
       },
       {
+        name: 'SystemLicense',
+        path: '/system/license',
+        component: () => import('#/views/system/license/index.vue'),
+        meta: { icon: 'lucide:badge-check', title: $t('page.system.license'), authority: ['system:read'] },
+      },
+      {
         name: 'SystemAbout',
         path: '/system/about',
         component: () => import('#/views/_core/about/index.vue'),

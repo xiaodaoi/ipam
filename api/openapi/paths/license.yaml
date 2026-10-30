@@ -1,0 +1,53 @@
+LicenseCollection:
+  get:
+    operationId: getLicenseStatus
+    tags: [platform]
+    summary: License 状态
+    description: 校验签名/有效期并返回版本、授权能力、到期时间。scope 为 system:read。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: 当前授权状态
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/license.yaml#/LicenseStatus'
+      '401':
+        $ref: '../components/responses/auth.yaml#/AuthUnauthorized'
+  put:
+    operationId: activateLicense
+    tags: [platform]
+    summary: 激活 License
+    description: |
+      校验 Ed25519 签名后写入授权文件；需配置 `IPAM_LICENSE_PUBKEY`。
+      激活失败不会覆盖现有授权。scope 为 system:write。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/license.yaml#/LicenseActivateRequest'
+    responses:
+      '200':
+        description: 激活后的状态
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/license.yaml#/LicenseStatus'
+      '400':
+        description: 授权格式/签名/有效期错误
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Problem'
+      '401':
+        $ref: '../components/responses/auth.yaml#/AuthUnauthorized'
+  delete:
+    operationId: removeLicense
+    tags: [platform]
+    summary: 移除 License
+    description: 删除授权文件并回到 community；scope 为 system:write。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '204': { description: 已移除 }

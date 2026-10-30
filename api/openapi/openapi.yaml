@@ -88,6 +88,8 @@ paths:
     $ref: "./paths/backup.yaml#/BackupRestore"
   /system/backup-settings:
     $ref: "./paths/backup.yaml#/BackupSettingsCollection"
+  /system/license:
+    $ref: "./paths/license.yaml#/LicenseCollection"
   /public/branding:
     $ref: "./paths/public.yaml#/PublicBranding"
   /system/log-settings:

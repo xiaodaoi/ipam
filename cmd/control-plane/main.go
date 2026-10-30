@@ -605,6 +605,8 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		backupLogs = chAdmin
 	}
 	backupSvc := backupmodule.NewService(backupRepo, backupSettingsRepo, pgRunner, backupLogs, backupDir, configDirs)
+	licenseH := platform.NewLicenseHandler(platform.NewLicenseService(
+		os.Getenv("IPAM_LICENSE_FILE"), os.Getenv("IPAM_LICENSE_PUBKEY")))
 	backupH := backupmodule.NewAPIHandler(backupSvc, backupSettingsRepo)
 	permLookup := func(ctx context.Context, role string) ([]string, bool) {
 		if pool == nil {
@@ -639,10 +641,11 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		*platform.RolesHandler
 		*platform.WebuiHandler
 		*platform.SecuritySettingsHandler
+		*platform.LicenseHandler
 		*logmanager.LogHandler
 		*backupmodule.APIHandler
 		*confApplier
-	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore, bl, permLookup, secStore), platform.NewUserHandler(userStore, secStore), &dhcpAPI{dhcpH}, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, platform.NewSecuritySettingsHandler(secStore), logMgrH, backupH, applier}
+	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore, bl, permLookup, secStore), platform.NewUserHandler(userStore, secStore), &dhcpAPI{dhcpH}, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, platform.NewSecuritySettingsHandler(secStore), licenseH, logMgrH, backupH, applier}
 	// Prometheus 指标（M6-005）：放在 RBAC 之前供抓取；中间件只统计其后的 /api/v1 路由。
 	metricsH := platform.NewMetricsHandler(platform.MetricsSources{
 		Version: version,

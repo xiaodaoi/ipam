@@ -1,0 +1,46 @@
+# 离线 License（M6-004）：Ed25519 签名的 JSON 授权文件。
+LicenseStatus:
+  type: object
+  required: [licensed, edition, features, message]
+  properties:
+    licensed:
+      type: boolean
+      description: 是否已激活且签名/有效期校验通过
+    edition:
+      type: string
+      enum: [community, lite, standard, enterprise]
+      description: 版本（未激活时为 community）
+    licenseId: { type: string }
+    issuedTo:
+      type: string
+      description: 授权客户/项目
+    features:
+      type: array
+      items: { type: string }
+      description: 已授权能力（如 ha、ldap、siem、oem）
+    maxTerminals:
+      type: integer
+      minimum: 0
+      description: 管理终端上限（0=不限）
+    issuedAt: { type: string, format: date-time }
+    expiresAt:
+      type: string
+      format: date-time
+      description: 到期时间（空=永久）
+    daysRemaining:
+      type: integer
+      description: 剩余天数（永久/未知为 -1）
+    message:
+      type: string
+      description: 状态说明/失败原因
+    filePath:
+      type: string
+      description: 当前授权文件路径（只读）
+
+LicenseActivateRequest:
+  type: object
+  required: [license]
+  properties:
+    license:
+      type: string
+      description: 授权文件全文（JSON：payload + signature）

@@ -549,6 +549,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/system/license": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * License 状态
+         * @description 校验签名/有效期并返回版本、授权能力、到期时间。scope 为 system:read。
+         */
+        get: operations["getLicenseStatus"];
+        /**
+         * 激活 License
+         * @description 校验 Ed25519 签名后写入授权文件；需配置 `IPAM_LICENSE_PUBKEY`。
+         *     激活失败不会覆盖现有授权。scope 为 system:write。
+         */
+        put: operations["activateLicense"];
+        post?: never;
+        /**
+         * 移除 License
+         * @description 删除授权文件并回到 community；scope 为 system:write。
+         */
+        delete: operations["removeLicense"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/public/branding": {
         parameters: {
             query?: never;
@@ -2884,6 +2913,39 @@ export interface components {
             scheduleHour: number;
             retentionCount: number;
         };
+        LicenseStatus: {
+            /** @description 是否已激活且签名/有效期校验通过 */
+            licensed: boolean;
+            /**
+             * @description 版本（未激活时为 community）
+             * @enum {string}
+             */
+            edition: "community" | "lite" | "standard" | "enterprise";
+            licenseId?: string;
+            /** @description 授权客户/项目 */
+            issuedTo?: string;
+            /** @description 已授权能力（如 ha、ldap、siem、oem） */
+            features: string[];
+            /** @description 管理终端上限（0=不限） */
+            maxTerminals?: number;
+            /** Format: date-time */
+            issuedAt?: string;
+            /**
+             * Format: date-time
+             * @description 到期时间（空=永久）
+             */
+            expiresAt?: string;
+            /** @description 剩余天数（永久/未知为 -1） */
+            daysRemaining?: number;
+            /** @description 状态说明/失败原因 */
+            message: string;
+            /** @description 当前授权文件路径（只读） */
+            filePath?: string;
+        };
+        LicenseActivateRequest: {
+            /** @description 授权文件全文（JSON：payload + signature） */
+            license: string;
+        };
         PublicBranding: {
             /** @description 站点名称（登录页与浏览器标题） */
             siteName: string;
@@ -4152,6 +4214,79 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["BackupSettings"];
                 };
+            };
+        };
+    };
+    getLicenseStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前授权状态 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LicenseStatus"];
+                };
+            };
+            401: components["responses"]["AuthUnauthorized"];
+        };
+    };
+    activateLicense: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LicenseActivateRequest"];
+            };
+        };
+        responses: {
+            /** @description 激活后的状态 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LicenseStatus"];
+                };
+            };
+            /** @description 授权格式/签名/有效期错误 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            401: components["responses"]["AuthUnauthorized"];
+        };
+    };
+    removeLicense: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已移除 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

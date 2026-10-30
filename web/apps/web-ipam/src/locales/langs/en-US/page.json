@@ -49,6 +49,7 @@
     "security": "Account Security",
     "branding": "Branding",
     "runtime": "Runtime",
-    "backup": "Backup & Restore"
+    "backup": "Backup & Restore",
+    "license": "License"
   }
 }

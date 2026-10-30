@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-10-30 · License 与版本分级（M6-004）
+- **License**：Ed25519 离线授权文件（payload+signature），支持版本/客户/能力/终端上限/到期/宽限期；`IPAM_LICENSE_PUBKEY`（base64/PEM）+ `IPAM_LICENSE_FILE` 配置，未激活回退 community。
+- **接口/页面**：`GET/PUT/DELETE /system/license`；前端新增 License 页（4 KPI、授权信息、能力标签、激活/移除）。
+- **工具**：`cmd/licensegen` 支持 `-gen-key` 与签发；私钥由授权方保管，不入库。
+- **验证**：单测覆盖有效/篡改/过期/无公钥/激活/移除；`go test`、`vue-tsc`/eslint/build、gen-check 通过。
+- **遗留**：终端计量与超限软降级、能力位强制拦截、在线激活/试用 License。
 ## 2026-10-29 · 备份恢复与升级回滚（M6-002）
 - **备份**：新增 backup 模块，备份 PG（pg_dump 16 custom）、配置目录 tar、ClickHouse 日志按月 Parquet；manifest/checksum/size/状态落 `backup_record`，策略落 `backup_settings`。
 - **接口/页面**：`/system/backups` 列表/创建/删除/下载/恢复，`/system/backup-settings` 策略；前端新增「备份与恢复」二级菜单，含 4 KPI、状态轮询、创建/下载/恢复/删除与自动策略。

@@ -89,6 +89,17 @@ export type SystemInfo = components['schemas']['SystemInfo'];
 export const getSystemInfo = () => req<SystemInfo>('/system/info');
 
 // ── 账号安全策略（M6-001）──
+// ── License（M6-004）──
+export type LicenseStatus = components['schemas']['LicenseStatus'];
+export const getLicenseStatus = () => req<LicenseStatus>('/system/license');
+export const activateLicense = (license: string) =>
+  req<LicenseStatus>('/system/license', {
+    method: 'PUT',
+    body: JSON.stringify({ license }),
+  });
+export const removeLicense = () =>
+  req<void>('/system/license', { method: 'DELETE' });
+
 // ── 备份与恢复（M6-002）──
 export type BackupRecord = components['schemas']['Backup'];
 export type BackupSettings = components['schemas']['BackupSettings'];
