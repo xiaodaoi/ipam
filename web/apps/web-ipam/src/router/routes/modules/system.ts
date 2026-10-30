@@ -37,6 +37,12 @@ const routes: RouteRecordRaw[] = [
         meta: { icon: 'lucide:key-round', title: $t('page.system.security'), authority: ['system:read'] },
       },
       {
+        name: 'SystemDirectory',
+        path: '/system/directory',
+        component: () => import('#/views/system/directory/index.vue'),
+        meta: { icon: 'lucide:network', title: $t('page.system.directory'), authority: ['system:read'] },
+      },
+      {
         name: 'SystemBranding',
         path: '/system/branding',
         component: () => import('#/views/system/branding/index.vue'),

@@ -102,6 +102,31 @@ scripts/migrate-ch-logs.sh --yes
 
 > 不要将 Vector file source 的 `read_from` 长期设为 `beginning`；checkpoint 丢失会导致整文件重放。
 
+## LDAP / AD 目录登录（M6-007B）
+
+入口：系统管理 → 目录服务。
+
+1. 填写服务器地址（`ldap://`/`ldaps://`）、Base DN、用户过滤器；
+2. 目录不允许匿名搜索时填写服务账号 DN 与口令（口令也可用 `IPAM_LDAP_BIND_PASSWORD` 注入，建议生产使用该方式）；
+3. 配置组搜索 Base DN/过滤器与「组 → 角色」映射；
+4. 保存后用「连通性测试」验证一次真实 bind，再启用。
+
+常用过滤器：
+
+| 目录 | 用户过滤器 | 组过滤器 |
+|---|---|---|
+| OpenLDAP | `(uid={username})` | `(&(objectClass=groupOfNames)(member={dn}))` |
+| AD | `(sAMAccountName={username})` | `(&(objectClass=group)(member={dn}))` |
+
+行为说明：
+
+- 目录账号首次登录自动创建本地影子账号（`authSource=ldap`），角色按组映射，未匹配用默认角色；
+- 口令每次登录实时 bind，平台不保存目录口令；本地口令为随机值，不能使用；
+- 目录账号不能在本平台改密/重置口令，需在目录服务操作；
+- 修改组映射后，用户下次登录自动同步角色并吊销旧会话；
+- 目录不可达时，已绑定目录账号返回 503 `LDAP_UNAVAILABLE`，本地账号不受影响；
+- 根 CA 不在系统信任链时，可临时开启「跳过证书校验」排查，生产请安装 CA。
+
 ## 故障处理
 
 | 现象 | 排查 |

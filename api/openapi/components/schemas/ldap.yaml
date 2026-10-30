@@ -1,0 +1,48 @@
+LDAPSettings:
+  type: object
+  description: LDAP/AD 目录服务设置（M6-007B）；bindPassword 仅写入，读取时用 hasBindPassword 表示。
+  required: [enabled, serverUrl, baseDn, userFilter, roleMap, defaultRole]
+  properties:
+    enabled: { type: boolean }
+    serverUrl: { type: string, description: "ldap://host:389 或 ldaps://host:636" }
+    startTls: { type: boolean }
+    insecureSkipVerify: { type: boolean, description: "仅测试环境；生产应关闭" }
+    bindDn: { type: string }
+    bindPassword: { type: string, description: "写入时可填；留空表示保持原值" }
+    hasBindPassword: { type: boolean, description: "读取时是否已配置 bind 口令" }
+    baseDn: { type: string }
+    userFilter:
+      type: string
+      description: "用户搜索过滤器，{username} 占位符；如 (uid={username}) 或 (sAMAccountName={username})"
+    groupBaseDn: { type: string }
+    groupFilter:
+      type: string
+      description: "组搜索过滤器，{dn} 占位符；如 (&(objectClass=groupOfNames)(member={dn}))"
+    groupAttr: { type: string, description: "组名属性，默认 cn" }
+    roleMap:
+      type: object
+      additionalProperties: { type: string }
+      description: "组标识（DN/CN）→ 角色名（内置或自定义）"
+    defaultRole: { type: string, description: "未匹配组时角色；默认 user" }
+    updatedAt: { type: string, format: date-time }
+
+LDAPTestRequest:
+  type: object
+  required: [username, password]
+  properties:
+    username: { type: string }
+    password: { type: string }
+
+LDAPTestResult:
+  type: object
+  required: [username, displayName, roles, groups]
+  properties:
+    username: { type: string }
+    displayName: { type: string }
+    email: { type: string }
+    groups:
+      type: array
+      items: { type: string }
+    roles:
+      type: array
+      items: { type: string }

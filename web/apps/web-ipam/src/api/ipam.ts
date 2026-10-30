@@ -144,6 +144,17 @@ export const updateBackupSettings = (s: {
     body: JSON.stringify(s),
   });
 
+export type LDAPSettings = components['schemas']['LDAPSettings'];
+export type LDAPTestResult = components['schemas']['LDAPTestResult'];
+export const getLDAPSettings = () => req<LDAPSettings>('/system/ldap');
+export const updateLDAPSettings = (b: LDAPSettings) =>
+  req<LDAPSettings>('/system/ldap', { method: 'PUT', body: JSON.stringify(b) });
+export const testLDAPLogin = (username: string, password: string) =>
+  req<LDAPTestResult>('/system/ldap/test', {
+    method: 'POST',
+    body: JSON.stringify({ username, password }),
+  });
+
 export type SecuritySettings = components['schemas']['SecuritySettings'];
 export const getSecuritySettings = () =>
   req<SecuritySettings>('/system/security-settings');

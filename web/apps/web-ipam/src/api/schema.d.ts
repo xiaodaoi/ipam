@@ -832,6 +832,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/system/ldap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取 LDAP/AD 设置
+         * @description 不返回 bindPassword；用 hasBindPassword 表示已配置。scope 为 system:read。
+         */
+        get: operations["getLDAPSettings"];
+        /**
+         * 保存 LDAP/AD 设置
+         * @description bindPassword 留空保持原值；scope 为 system:write。
+         */
+        put: operations["updateLDAPSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/system/ldap/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 测试 LDAP 登录
+         * @description 用指定账号口令执行一次真实 bind，返回组与映射角色（不创建用户）。scope 为 system:write。
+         */
+        post: operations["testLDAPLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/system/log-archives": {
         parameters: {
             query?: never;
@@ -2874,6 +2918,11 @@ export interface components {
             mustChangePassword: boolean;
             /** @description 是否启用 TOTP 双因素认证（M6-007） */
             totpEnabled?: boolean;
+            /**
+             * @description 认证来源（M6-007B）；ldap 账号口令由目录服务管理，本地改密被拒绝
+             * @enum {string}
+             */
+            authSource?: "local" | "ldap";
         };
         UserList: {
             items: components["schemas"]["User"][];
@@ -3371,6 +3420,47 @@ export interface components {
             sampleRate: number;
             /** Format: date-time */
             updatedAt?: string;
+        };
+        /** @description LDAP/AD 目录服务设置（M6-007B）；bindPassword 仅写入，读取时用 hasBindPassword 表示。 */
+        LDAPSettings: {
+            enabled: boolean;
+            /** @description ldap://host:389 或 ldaps://host:636 */
+            serverUrl: string;
+            startTls?: boolean;
+            /** @description 仅测试环境；生产应关闭 */
+            insecureSkipVerify?: boolean;
+            bindDn?: string;
+            /** @description 写入时可填；留空表示保持原值 */
+            bindPassword?: string;
+            /** @description 读取时是否已配置 bind 口令 */
+            hasBindPassword?: boolean;
+            baseDn: string;
+            /** @description 用户搜索过滤器，{username} 占位符；如 (uid={username}) 或 (sAMAccountName={username}) */
+            userFilter: string;
+            groupBaseDn?: string;
+            /** @description 组搜索过滤器，{dn} 占位符；如 (&(objectClass=groupOfNames)(member={dn})) */
+            groupFilter?: string;
+            /** @description 组名属性，默认 cn */
+            groupAttr?: string;
+            /** @description 组标识（DN/CN）→ 角色名（内置或自定义） */
+            roleMap: {
+                [key: string]: string;
+            };
+            /** @description 未匹配组时角色；默认 user */
+            defaultRole: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        LDAPTestRequest: {
+            username: string;
+            password: string;
+        };
+        LDAPTestResult: {
+            username: string;
+            displayName: string;
+            email?: string;
+            groups: string[];
+            roles: string[];
         };
         LogArchive: {
             /**
@@ -5133,6 +5223,101 @@ export interface operations {
             };
             /** @description 参数非法 */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getLDAPSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前设置 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LDAPSettings"];
+                };
+            };
+        };
+    };
+    updateLDAPSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LDAPSettings"];
+            };
+        };
+        responses: {
+            /** @description 已保存 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LDAPSettings"];
+                };
+            };
+            /** @description 参数非法 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    testLDAPLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LDAPTestRequest"];
+            };
+        };
+        responses: {
+            /** @description 认证成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LDAPTestResult"];
+                };
+            };
+            /** @description 账号或口令错误 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description 目录服务不可达 */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

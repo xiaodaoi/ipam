@@ -26,6 +26,7 @@ type User struct {
 	MustChangePassword bool      `json:"mustChangePassword"`
 	TOTPSecret         string    `json:"-"`
 	TOTPEnabled        bool      `json:"totpEnabled"`
+	AuthSource         string    `json:"authSource"` // local | ldap
 	TokenVersion       int       `json:"-"`
 }
 
@@ -42,6 +43,7 @@ type UserCreateInput struct {
 	Password           string
 	Roles              []string
 	MustChangePassword bool
+	AuthSource         string // 空=local
 }
 
 // UserUpdateInput PATCH 语义，nil 字段不改。
@@ -175,11 +177,15 @@ func (s *MemUserStore) Create(_ context.Context, in UserCreateInput) (User, erro
 	if err != nil {
 		return User{}, err
 	}
+	source := in.AuthSource
+	if source == "" {
+		source = "local"
+	}
 	rec := UserRecord{
 		User: User{
 			ID: uuid.NewString(), Username: in.Username, DisplayName: in.DisplayName,
 			Roles: normalizeRoles(in.Roles), Enabled: true, CreatedAt: timeNowUTC(),
-			MustChangePassword: in.MustChangePassword, TokenVersion: 1,
+			MustChangePassword: in.MustChangePassword, AuthSource: source, TokenVersion: 1,
 		},
 		PasswordHash: hash,
 	}
@@ -269,7 +275,7 @@ type PgUserStore struct{ pool *pgxpool.Pool }
 
 func NewPgUserStore(pool *pgxpool.Pool) *PgUserStore { return &PgUserStore{pool: pool} }
 
-const userCols = `id::text, username, display_name, roles, enabled, created_at, token_version, must_change_password, totp_secret, totp_enabled`
+const userCols = `id::text, username, display_name, roles, enabled, created_at, token_version, must_change_password, totp_secret, totp_enabled, auth_source`
 
 func (s *PgUserStore) List(ctx context.Context) ([]User, error) {
 	rows, err := s.pool.Query(ctx, `SELECT `+userCols+` FROM users ORDER BY username`)
@@ -280,7 +286,7 @@ func (s *PgUserStore) List(ctx context.Context) ([]User, error) {
 	out := []User{}
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Roles, &u.Enabled, &u.CreatedAt, &u.TokenVersion, &u.MustChangePassword, &u.TOTPSecret, &u.TOTPEnabled); err != nil {
+		if err := rows.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Roles, &u.Enabled, &u.CreatedAt, &u.TokenVersion, &u.MustChangePassword, &u.TOTPSecret, &u.TOTPEnabled, &u.AuthSource); err != nil {
 			return nil, err
 		}
 		out = append(out, u)
@@ -300,7 +306,7 @@ func (s *PgUserStore) getBy(ctx context.Context, cond, arg string) (UserRecord, 
 	r := UserRecord{}
 	err := s.pool.QueryRow(ctx,
 		`SELECT `+userCols+`, password_hash FROM users WHERE `+cond, arg).
-		Scan(&r.ID, &r.Username, &r.DisplayName, &r.Roles, &r.Enabled, &r.CreatedAt, &r.TokenVersion, &r.MustChangePassword, &r.TOTPSecret, &r.TOTPEnabled, &r.PasswordHash)
+		Scan(&r.ID, &r.Username, &r.DisplayName, &r.Roles, &r.Enabled, &r.CreatedAt, &r.TokenVersion, &r.MustChangePassword, &r.TOTPSecret, &r.TOTPEnabled, &r.AuthSource, &r.PasswordHash)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return UserRecord{}, false, nil
 	}
@@ -315,16 +321,20 @@ func (s *PgUserStore) Create(ctx context.Context, in UserCreateInput) (User, err
 	if err != nil {
 		return User{}, err
 	}
+	source := in.AuthSource
+	if source == "" {
+		source = "local"
+	}
 	u := User{
 		Username: in.Username, DisplayName: in.DisplayName,
 		Roles: normalizeRoles(in.Roles), Enabled: true, CreatedAt: timeNowUTC(),
-		MustChangePassword: in.MustChangePassword,
+		MustChangePassword: in.MustChangePassword, AuthSource: source,
 	}
 	u.TokenVersion = 1
 	err = s.pool.QueryRow(ctx,
-		`INSERT INTO users(username, display_name, password_hash, roles, must_change_password)
-		 VALUES($1,$2,$3,$4,$5) RETURNING id::text, created_at`,
-		u.Username, u.DisplayName, hash, u.Roles, u.MustChangePassword).Scan(&u.ID, &u.CreatedAt)
+		`INSERT INTO users(username, display_name, password_hash, roles, must_change_password, auth_source)
+		 VALUES($1,$2,$3,$4,$5,$6) RETURNING id::text, created_at`,
+		u.Username, u.DisplayName, hash, u.Roles, u.MustChangePassword, u.AuthSource).Scan(&u.ID, &u.CreatedAt)
 	if err != nil && strings.Contains(err.Error(), "duplicate key") {
 		return User{}, fmt.Errorf("%w: %s", ErrUsernameTaken, in.Username)
 	}
@@ -375,7 +385,7 @@ func (s *PgUserStore) Update(ctx context.Context, id string, in UserUpdateInput)
 		   must_change_password=$6, totp_secret=$7, totp_enabled=$8, updated_at=now()
 		 WHERE id::text=$1 RETURNING `+userCols,
 		id, displayName, hash, roles, enabled, mustChange, totpSecret, totpEnabled).
-		Scan(&u.ID, &u.Username, &u.DisplayName, &u.Roles, &u.Enabled, &u.CreatedAt, &u.TokenVersion, &u.MustChangePassword, &u.TOTPSecret, &u.TOTPEnabled)
+		Scan(&u.ID, &u.Username, &u.DisplayName, &u.Roles, &u.Enabled, &u.CreatedAt, &u.TokenVersion, &u.MustChangePassword, &u.TOTPSecret, &u.TOTPEnabled, &u.AuthSource)
 	return u, err
 }
 

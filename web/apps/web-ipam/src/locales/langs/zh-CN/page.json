@@ -51,6 +51,7 @@
     "roles": "角色管理",
     "settings": "系统设置",
     "security": "账号安全",
+    "directory": "目录服务",
     "branding": "站点品牌",
     "runtime": "服务与运行",
     "backup": "备份与恢复",

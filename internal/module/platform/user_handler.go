@@ -62,10 +62,15 @@ func containsRole(rs []string, role string) bool {
 func toGenUser(u User) apigen.User {
 	id := guuid.MustParse(u.ID)
 	totp := u.TOTPEnabled
+	src := apigen.UserAuthSourceLocal
+	if u.AuthSource == "ldap" {
+		src = apigen.UserAuthSourceLdap
+	}
 	return apigen.User{
 		Id: id, Username: u.Username, DisplayName: u.DisplayName,
 		Roles: u.Roles, Enabled: u.Enabled, CreatedAt: u.CreatedAt,
 		MustChangePassword: u.MustChangePassword, TotpEnabled: &totp,
+		AuthSource: &src,
 	}
 }
 
@@ -181,6 +186,10 @@ func (h *UserHandler) UpdateUser(c *gin.Context, userId rtypes.UUID) {
 		}(), "admin"))
 	if err := h.lastAdminGuard(c.Request.Context(), target, losesAdmin); err != nil {
 		badRequest(c, "LAST_ADMIN", err.Error())
+		return
+	}
+	if body.Password != nil && target.AuthSource == "ldap" {
+		badRequest(c, "DIRECTORY_ACCOUNT", "目录账号的口令由 LDAP/AD 管理，不能在此重置")
 		return
 	}
 	if body.Password != nil {

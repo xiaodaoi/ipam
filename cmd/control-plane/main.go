@@ -596,6 +596,14 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	}
 	webuiH := platform.NewWebuiHandler(webuiRepo)
 
+	// LDAP/AD 目录服务（M6-007B）：设置单行存储；登录时实时 bind，不缓存口令。
+	var ldapRepo platform.LDAPRepo = platform.NewMemLDAPRepo()
+	if pool != nil {
+		ldapRepo = platform.NewPgLDAPRepo(pool)
+	}
+	ldapAuth := platform.NewLDAPAuthenticator(ldapRepo)
+	ldapH := platform.NewLDAPHandler(ldapRepo, ldapAuth)
+
 	var logSettingsRepo logmanager.SettingsRepo = logmanager.NewMemSettingsRepo()
 	var logArchiveRepo logmanager.ArchiveRepo = logmanager.NewMemArchiveRepo()
 	if pool != nil {
@@ -685,6 +693,9 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		_ = json.Unmarshal([]byte(perms), &out)
 		return out, true
 	}
+	authH := platform.NewAuthHandler(userStore, bl, permLookup, secStore)
+	authH.SetLDAP(ldapAuth)
+
 	full := struct {
 		*platform.Handler
 		*ipam.OrgHandler
@@ -698,6 +709,7 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		*dsAPI
 		*platform.AuthHandler
 		*platform.UserHandler
+		*platform.LDAPHandler
 		*dhcpAPI
 		*dhcpmodule.LeaseHandler
 		*utilization.UtilHandler
@@ -714,7 +726,7 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		*logexport.LogExportHandler
 		*backupmodule.APIHandler
 		*confApplier
-	}{h, orgH, subH, ledgerH, metaH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore, bl, permLookup, secStore), platform.NewUserHandler(userStore, secStore), &dhcpAPI{dhcpH}, leaseH, utilH, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, platform.NewSecuritySettingsHandler(secStore), licenseH, logMgrH, exportH, backupH, applier}
+	}{h, orgH, subH, ledgerH, metaH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, authH, platform.NewUserHandler(userStore, secStore), ldapH, &dhcpAPI{dhcpH}, leaseH, utilH, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, platform.NewSecuritySettingsHandler(secStore), licenseH, logMgrH, exportH, backupH, applier}
 	// Prometheus 指标（M6-005）：放在 RBAC 之前供抓取；中间件只统计其后的 /api/v1 路由。
 	var logStatsFn func(context.Context) (logmanager.LogStats, error)
 	if chAdmin != nil {

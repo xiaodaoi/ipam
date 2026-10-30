@@ -27,6 +27,10 @@ func domainOf(fullPath string) string {
 	case strings.HasPrefix(fullPath, "/api/v1/system/info"),
 		strings.HasPrefix(fullPath, "/api/v1/system/metrics"):
 		return "dash"
+	case strings.HasPrefix(fullPath, "/api/v1/system/"):
+		// 系统管理（安全策略/日志设置/备份/License/LDAP 等）统一归 system 域，
+		// 避免历史遗漏导致任意已认证用户可改系统配置（M6-007B 同批修复）。
+		return "system"
 	case strings.HasPrefix(fullPath, "/api/v1/dashboard"):
 		return "dash"
 	case strings.HasPrefix(fullPath, "/api/v1/logs"), strings.HasPrefix(fullPath, "/api/v1/audits"):
@@ -145,7 +149,8 @@ func NewRBACMiddleware(users UserStore, bl *TokenBlacklist, permLookup func(ctx 
 		// M2-035：域权限拦截（读 → <域>:read；写 → <域>:write）
 		if dom := domainOf(c.FullPath()); dom != "" {
 			need := dom + ":read"
-			if c.Request.Method == http.MethodPost || c.Request.Method == http.MethodPatch || c.Request.Method == http.MethodDelete {
+			if c.Request.Method == http.MethodPost || c.Request.Method == http.MethodPut ||
+				c.Request.Method == http.MethodPatch || c.Request.Method == http.MethodDelete {
 				need = dom + ":write"
 			}
 			if !hasPerm(claims, need, permLookup, c.Request.Context()) {

@@ -2,6 +2,8 @@ package platform
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"io"
 	"net/http"
@@ -12,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	apigen "github.com/xiaodaoi/ipam/api/gen/go"
+	"github.com/xiaodaoi/ipam/internal/pkg/problem"
 )
 
 // AuthHandler 实现 apigen.ServerInterface 中 auth 域端点（M5-004/M5-011：bcrypt 校验+登出吊销；
@@ -22,6 +25,12 @@ type AuthHandler struct {
 	permLookup func(ctx context.Context, role string) ([]string, bool)
 	loginLimit *loginRateLimiter
 	sec        SecuritySettingsStore
+	ldap       DirectoryAuthenticator
+}
+
+// DirectoryAuthenticator 目录认证抽象（M6-007B）；便于单测注入假实现。
+type DirectoryAuthenticator interface {
+	Authenticate(ctx context.Context, username, password string) (LDAPUser, error)
 }
 
 func NewAuthHandler(users UserStore, bl *TokenBlacklist, permLookup func(ctx context.Context, role string) ([]string, bool), sec ...SecuritySettingsStore) *AuthHandler {
@@ -32,6 +41,9 @@ func NewAuthHandler(users UserStore, bl *TokenBlacklist, permLookup func(ctx con
 	return &AuthHandler{users: users, bl: bl, permLookup: permLookup, sec: store,
 		loginLimit: newLoginRateLimiter(func() time.Time { return timeNowUTC() })}
 }
+
+// SetLDAP 注入目录认证（M6-007B）；未注入时仅本地账号登录。
+func (h *AuthHandler) SetLDAP(a DirectoryAuthenticator) { h.ldap = a }
 
 // forcePasswordChange 读取全局策略；默认关闭，读取失败时按关闭处理（可用性优先）。
 func (h *AuthHandler) forcePasswordChange(ctx context.Context) bool {
@@ -59,12 +71,47 @@ func (h *AuthHandler) AuthLogin(c *gin.Context) {
 		writeAuthErr(c, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 		return
 	}
+	// 空口令一律拒绝：LDAP 的 simple bind 对空口令可能返回成功（匿名 bind），
+	// 必须在进入目录认证前拦截。
+	if body.Password == "" {
+		SetAuditMeta(c, "login", body.Username, "failed")
+		writeAuthErr(c, http.StatusUnauthorized, "BAD_CREDENTIALS", "账号或口令错误")
+		return
+	}
 	rec, ok, err := h.users.GetByUsername(c.Request.Context(), body.Username)
 	if err != nil {
 		WriteProblem(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
 		return
 	}
-	if !ok || !rec.Enabled || !CheckPassword(rec.PasswordHash, body.Password) {
+	useLDAP := h.ldap != nil && (!ok || rec.AuthSource == "ldap")
+	if useLDAP {
+		lu, lerr := h.ldap.Authenticate(c.Request.Context(), body.Username, body.Password)
+		if lerr != nil {
+			switch {
+			case errors.Is(lerr, ErrLDAPUnavailable):
+				SetAuditMeta(c, "login", body.Username, "ldap_unavailable")
+				problem.Write(c, http.StatusServiceUnavailable, "https://ipam.local/problems/ldap-unavailable", "LDAP_UNAVAILABLE", "目录服务不可达")
+			case errors.Is(lerr, ErrLDAPDisabled):
+				// 未启用目录服务时按口令错误处理，避免暴露认证后端状态。
+				SetAuditMeta(c, "login", body.Username, "failed")
+				writeAuthErr(c, http.StatusUnauthorized, "BAD_CREDENTIALS", "账号或口令错误")
+			default:
+				SetAuditMeta(c, "login", body.Username, "failed")
+				writeAuthErr(c, http.StatusUnauthorized, "BAD_CREDENTIALS", "账号或口令错误")
+			}
+			return
+		}
+		rec, err = h.syncLDAPUser(c.Request.Context(), lu)
+		if err != nil {
+			WriteProblem(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+			return
+		}
+		if !rec.Enabled {
+			SetAuditMeta(c, "login", rec.Username, "disabled")
+			writeAuthErr(c, http.StatusUnauthorized, "ACCOUNT_DISABLED", "账号已停用")
+			return
+		}
+	} else if !ok || !rec.Enabled || !CheckPassword(rec.PasswordHash, body.Password) {
 		SetAuditMeta(c, "login", body.Username, "failed")
 		writeAuthErr(c, http.StatusUnauthorized, "BAD_CREDENTIALS", "账号或口令错误")
 		return
@@ -87,6 +134,75 @@ func (h *AuthHandler) AuthLogin(c *gin.Context) {
 		AccessToken: access, RefreshToken: refresh,
 		MustChangePassword: rec.MustChangePassword && h.forcePasswordChange(c.Request.Context()),
 	})
+}
+
+func randomShadowPassword() (string, error) {
+	b := make([]byte, 24)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
+}
+
+// syncLDAPUser 将目录用户同步为本地 shadow 用户（无本地口令登录能力）。
+// 首次登录创建；角色/显示名变化时更新并吊销旧会话。
+func (h *AuthHandler) syncLDAPUser(ctx context.Context, u LDAPUser) (UserRecord, error) {
+	rec, ok, err := h.users.GetByUsername(ctx, u.Username)
+	if err != nil {
+		return UserRecord{}, err
+	}
+	if !ok {
+		pw, err := randomShadowPassword()
+		if err != nil {
+			return UserRecord{}, err
+		}
+		if _, err := h.users.Create(ctx, UserCreateInput{
+			Username: u.Username, DisplayName: u.DisplayName, Password: pw,
+			Roles: u.Roles, AuthSource: "ldap",
+		}); err != nil {
+			return UserRecord{}, err
+		}
+		rec, ok, err = h.users.GetByUsername(ctx, u.Username)
+		if err != nil || !ok {
+			return UserRecord{}, err
+		}
+		return rec, nil
+	}
+	changed := rec.DisplayName != u.DisplayName || !sameRoles(rec.Roles, u.Roles)
+	if changed {
+		dn := u.DisplayName
+		roles := u.Roles
+		if _, err := h.users.Update(ctx, rec.ID, UserUpdateInput{DisplayName: &dn, Roles: &roles}); err != nil {
+			return UserRecord{}, err
+		}
+		if !sameRoles(rec.Roles, u.Roles) {
+			if err := h.users.BumpTokenVersion(ctx, rec.ID); err != nil {
+				return UserRecord{}, err
+			}
+		}
+		rec, _, err = h.users.GetByUsername(ctx, u.Username)
+		if err != nil {
+			return UserRecord{}, err
+		}
+	}
+	return rec, nil
+}
+
+func sameRoles(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	seen := map[string]int{}
+	for _, r := range a {
+		seen[r]++
+	}
+	for _, r := range b {
+		seen[r]--
+		if seen[r] < 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // issueAuthPair 签发访问+刷新令牌对（M5-032）。
@@ -316,6 +432,10 @@ func (h *AuthHandler) ChangeAuthPassword(c *gin.Context) {
 	var body apigen.AuthChangePasswordRequest
 	if err := c.ShouldBindJSON(&body); err != nil {
 		badRequest(c, "BAD_REQUEST", err.Error())
+		return
+	}
+	if rec.AuthSource == "ldap" {
+		badRequest(c, "DIRECTORY_ACCOUNT", "目录账号请在 LDAP/AD 中修改口令")
 		return
 	}
 	if !CheckPassword(rec.PasswordHash, body.OldPassword) {

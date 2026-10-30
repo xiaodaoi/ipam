@@ -51,6 +51,7 @@
     "roles": "Roles",
     "settings": "Settings",
     "security": "Account Security",
+    "directory": "Directory Service",
     "branding": "Branding",
     "runtime": "Runtime",
     "backup": "Backup & Restore",

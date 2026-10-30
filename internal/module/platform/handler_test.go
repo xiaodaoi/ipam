@@ -63,6 +63,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		*dsAPI
 		*AuthHandler
 		*UserHandler
+		*LDAPHandler
 		*dhcpAPI
 		*dhcpmodule.LeaseHandler
 		*utilization.UtilHandler
@@ -91,6 +92,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		&dsAPI{dualstack.NewHandler(dualstack.NewMemStore())},
 		NewAuthHandler(NewMemUserStore(), NewTokenBlacklist(), nil),
 		NewUserHandler(NewMemUserStore()),
+		NewLDAPHandler(NewMemLDAPRepo(), nil),
 		&dhcpAPI{dhcpmodule.NewHandler(dhcpmodule.NewMemStore(), nil, nil)},
 		dhcpmodule.NewLeaseHandler(nil),
 		utilization.NewUtilHandler(utilization.NewService(utilization.NewMemRepo(), utilization.Sources{})),

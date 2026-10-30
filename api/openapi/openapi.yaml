@@ -114,6 +114,10 @@ paths:
     $ref: "./paths/logsettings.yaml#/LogSettingsCollection"
   /system/log-export-settings:
     $ref: "./paths/logexport.yaml#/LogExportSettingsCollection"
+  /system/ldap:
+    $ref: "./paths/ldap.yaml#/LDAPSettings"
+  /system/ldap/test:
+    $ref: "./paths/ldap.yaml#/LDAPTest"
   /system/log-archives:
     $ref: "./paths/logsettings.yaml#/LogArchiveCollection"
   /system/log-archives/stats:

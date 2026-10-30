@@ -174,6 +174,14 @@ async function main() {
       await waitText(page, '账号管理');
       await page.locator('.ant-table').first().waitFor({ timeout: 15_000 });
     });
+
+    await step('目录服务设置', async () => {
+      await page.goto(urlFor('/system/directory'), { waitUntil: 'domcontentloaded' });
+      await waitText(page, '目录服务');
+      await waitText(page, '连通性测试');
+      const enabled = page.locator('.ant-switch').first();
+      await enabled.waitFor({ state: 'visible', timeout: 15_000 });
+    });
   } catch (error) {
     failed = true;
     const shot = join(artifactDir, `failure-${Date.now()}.png`);

@@ -27,6 +27,10 @@ User:
     totpEnabled:
       type: boolean
       description: 是否启用 TOTP 双因素认证（M6-007）
+    authSource:
+      type: string
+      enum: [local, ldap]
+      description: 认证来源（M6-007B）；ldap 账号口令由目录服务管理，本地改密被拒绝
 
 UserList:
   type: object

@@ -430,6 +430,9 @@ onBeforeUnmount(() => clearInterval(timer));
                   <Tag v-if="isSelf(record.username)" class="m-0" color="blue">当前登录</Tag>
                   <Tag v-if="record.mustChangePassword" class="m-0" color="orange">需改密</Tag>
                   <Tag v-if="record.totpEnabled" class="m-0" color="green">2FA</Tag>
+                  <Tag v-if="record.authSource === 'ldap'" class="m-0" color="geekblue">
+                    目录账号
+                  </Tag>
                 </div>
                 <span class="ipam-cell-meta">
                   {{ record.displayName || '未设置显示名' }}
@@ -475,9 +478,21 @@ onBeforeUnmount(() => clearInterval(timer));
               <Button size="small" @click="openEdit(record as UserRow)">
                 <IconifyIcon icon="lucide:pencil" class="mr-1 size-3.5" />编辑
               </Button>
-              <Button size="small" @click="openReset(record as UserRow)">
-                <IconifyIcon icon="lucide:key-round" class="mr-1 size-3.5" />重置口令
-              </Button>
+              <Tooltip
+                :title="
+                  record.authSource === 'ldap'
+                    ? '目录账号口令由 LDAP/AD 管理，请在目录服务中重置'
+                    : ''
+                "
+              >
+                <Button
+                  size="small"
+                  :disabled="record.authSource === 'ldap'"
+                  @click="openReset(record as UserRow)"
+                >
+                  <IconifyIcon icon="lucide:key-round" class="mr-1 size-3.5" />重置口令
+                </Button>
+              </Tooltip>
               <Popconfirm
                 title="确认删除该账号？"
                 description="删除后该账号立即失效且不可恢复。"

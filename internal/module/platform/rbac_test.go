@@ -35,6 +35,8 @@ func rbacRouter(t *testing.T) (*gin.Engine, UserStore, *TokenBlacklist) {
 	r.POST("/api/v1/orgs", func(c *gin.Context) { c.Status(201) })
 	r.DELETE("/api/v1/upstreams/:id", func(c *gin.Context) { c.Status(204) })
 	r.GET("/api/v1/dashboard", func(c *gin.Context) { c.Status(200) })
+	r.GET("/api/v1/system/ldap", func(c *gin.Context) { c.Status(200) })
+	r.PUT("/api/v1/system/ldap", func(c *gin.Context) { c.Status(200) })
 	authH := NewAuthHandler(store, bl, nil)
 	r.POST("/api/v1/auth/logout", authH.LogoutAuth)
 	return r, store, bl
@@ -103,6 +105,26 @@ func TestRBACUserWriteForbidden(t *testing.T) {
 	// 读端点不受限
 	if w := do(r, http.MethodGet, "/api/v1/dashboard", tok); w.Code != 200 {
 		t.Fatalf("user GET want 200, got %d", w.Code)
+	}
+}
+
+// TestRBAC_系统设置需system写权限 回归：/system/* 曾未归域，任意已认证用户可改系统配置；
+// PUT 也曾未计入写方法（M6-007B 同批修复）。
+func TestRBAC_系统设置需system写权限(t *testing.T) {
+	r, _, _ := rbacRouter(t)
+	guest := tokenFor("guest", "user", "user")
+	if w := do(r, http.MethodGet, "/api/v1/system/ldap", guest); w.Code != http.StatusForbidden {
+		t.Fatalf("user 读系统设置应 403，实际 %d", w.Code)
+	}
+	if w := do(r, http.MethodPut, "/api/v1/system/ldap", guest); w.Code != http.StatusForbidden {
+		t.Fatalf("user 改系统设置应 403，实际 %d", w.Code)
+	}
+	admin := tokenFor("admin", "user", "admin")
+	if w := do(r, http.MethodPut, "/api/v1/system/ldap", admin); w.Code != 200 {
+		t.Fatalf("admin PUT 应 200，实际 %d", w.Code)
+	}
+	if w := do(r, http.MethodGet, "/api/v1/system/ldap", admin); w.Code != 200 {
+		t.Fatalf("admin GET 应 200，实际 %d", w.Code)
 	}
 }
 
@@ -175,6 +197,10 @@ func TestDomainOf_资产域独立(t *testing.T) {
 		{"/api/v1/subnets", "dhcp"},
 		{"/api/v1/dualstack", "dhcp"},
 		{"/api/v1/upstreams", "dns"},
+		{"/api/v1/system/ldap", "system"},
+		{"/api/v1/system/security-settings", "system"},
+		{"/api/v1/system/log-settings", "system"},
+		{"/api/v1/system/info", "dash"},
 		{"/api/v1/nope", ""},
 	}
 	for _, c := range cases {
