@@ -693,6 +693,12 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		TLSCertFile: os.Getenv("IPAM_TLS_CERT"),
 	})
 	r.GET("/metrics", metricsH.Serve)
+	// OpenAPI 在线事实源（M6-012）：无需令牌，仅暴露接口契约，不含数据。
+	if swagger, err := apigen.GetSwagger(); err == nil {
+		r.GET("/openapi.json", func(c *gin.Context) {
+			c.JSON(http.StatusOK, swagger)
+		})
+	}
 	r.Use(metricsH.Middleware())
 
 	// 健康探针放在 RBAC 之前：容器编排/负载均衡无需令牌即可探活（M6-001）。

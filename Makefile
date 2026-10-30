@@ -38,3 +38,6 @@ clean: ## 清理构建产物
 
 gen-proto: ## 再生 proto/gen/coherence（插件版本钉于脚本注释）
 	@bash scripts/gen-proto.sh
+
+package-offline: ## 生成离线交付包（镜像 tar + 配置/文档 + SHA256）
+	@bash scripts/package-offline.sh

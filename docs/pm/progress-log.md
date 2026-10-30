@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-10-30 · 文档与交付 012A（M6-012）
+- **文档**：新增根 README、`docs/manual/{install,upgrade,operations,user-guide,api}.md`，覆盖安装、升级回滚、备份恢复、监控、外发、审计、单机 HA 边界、License。
+- **API**：控制面新增 `/openapi.json`（OpenAPI 3.1，无需令牌）。
+- **离线包**：`scripts/package-offline.sh` + `make package-offline`，导出镜像 tar.gz + 部署/配置/文档 + SHA256。
+- **边界**：Helm 012B 需 K8s 集群验证，暂不提供未验证 Chart；LDAP/双机 HA 同样受环境阻塞。
+- **验证**：go build + 相关测试通过；文档路径检查。
 ## 2026-10-30 · 日志外发与采样（M6-008）
 - **外发**：Syslog（RFC5424 TCP/UDP）、Kafka、Webhook（JSON）sink，可按需启用；配置由控制面渲染到 vector-config 卷，Vector `--watch-config` 热加载。
 - **采样**：全量 / 1/N / 仅异常（非 INFO），同时作用于 ClickHouse 入库与外发。
