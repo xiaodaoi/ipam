@@ -1,0 +1,8 @@
+[Unit]
+Description=IPAM watchdog (single-node resilience)
+After=ipam.service
+
+[Service]
+Type=oneshot
+Environment=IPAM_DIR=__IPAM_DIR__
+ExecStart=__IPAM_DIR__/deploy/systemd/ipam-watchdog.sh

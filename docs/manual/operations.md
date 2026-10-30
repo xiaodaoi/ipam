@@ -58,6 +58,16 @@ docker compose -f observability/compose.observability.yaml --profile observabili
 | DHCP 不下发 | Kea 日志；子网/池配置；中继 giaddr/option82 |
 | 日志无数据 | Vector 状态；ClickHouse 写入；`/metrics` 组件 up |
 
+## 单机韧性（systemd + 看门狗）
+
+```bash
+sudo bash scripts/install-systemd.sh
+```
+
+- `ipam.service`：开机 `docker compose up -d --wait`；
+- `ipam-watchdog.timer`：每分钟检查 `/healthz`，失败自动拉起；容器 unhealthy 自动 restart；
+- 不等同于 HA：宿主断电/内核/磁盘故障仍不可用。
+
 ## 单机 HA 边界
 
 单机不提供宿主故障自动接管；需要双机 HA 时按 `M6-003B` 增配第二节点（keepalived + Kea HA + config-replicate）。

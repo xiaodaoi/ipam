@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-10-30 · 单机韧性 003A（M6-003A）
+- **systemd**：`ipam.service` 开机自启 Compose（`up -d --wait`）。
+- **看门狗**：`ipam-watchdog.timer` 每分钟检查 `/healthz`，失败执行 `compose up -d`；容器 unhealthy 自动 restart。
+- **安装**：`scripts/install-systemd.sh`（root）替换路径、启用 unit。
+- **边界**：单机不承诺宿主整机故障自动接管；双机 HA 仍需 M6-003B（第二节点）。
+- **验证**：`bash -n` 通过；未在当前宿主安装 unit，避免影响开发环境。
 ## 2026-10-30 · DNS 功能补齐 009A（M6-009）
 - **记录类型**：新增 TXT/SRV/MX（校验 + zonefile 渲染 + 前端筛选/统计）。
 - **hosts 导入**：`POST /dns/hosts/import`，解析 IP/主机名/别名，自动建 A/AAAA，重复跳过，返回 created/skipped/errors；前端导入弹窗。

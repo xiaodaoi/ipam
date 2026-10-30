@@ -1,0 +1,11 @@
+[Unit]
+Description=Run IPAM watchdog every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+AccuracySec=10s
+Unit=ipam-watchdog.service
+
+[Install]
+WantedBy=timers.target
