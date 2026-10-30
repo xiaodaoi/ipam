@@ -28,6 +28,14 @@ DHCP 服务 → 租约管理：
 
 > 延期/改绑只影响当前租约；长期固定地址请在「保留与绑定」创建 host reservation。
 
+### option82 中继信息
+
+租约管理 → IPv4 列表新增「option82（circuit / remote）」列：
+
+- 需 Kea 启用 `store-extended-info`（已默认开启）；
+- 仅真实 DHCP 中继租约/续约后写入；直连客户端显示「—」；
+- 基于 circuit-id 的选池策略尚未开放。
+
 ### 逐 IP 台账信息
 
 IPv4 地址台账 → 选中地址 → 编辑：

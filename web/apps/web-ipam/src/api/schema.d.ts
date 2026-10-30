@@ -3121,6 +3121,10 @@ export interface components {
             state?: number;
             /** @description Kea subnet-id */
             subnetId?: number;
+            /** @description option82 circuit-id（需 store-extended-info；真实中继租约才有） */
+            circuitId?: string;
+            /** @description option82 remote-id（需 store-extended-info） */
+            remoteId?: string;
         };
         DhcpLease4List: {
             items: components["schemas"]["DhcpLease4"][];

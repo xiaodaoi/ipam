@@ -11,4 +11,7 @@ type Lease4 struct {
 	ValidLifetime uint32 `json:"valid-lft,omitempty"`
 	State         int    `json:"state"`
 	SubnetID      uint32 `json:"subnet-id,omitempty"`
+	// option82 中继信息（需 Kea store-extended-info；仅真实中继租约/续约后写入）
+	CircuitID string `json:"circuit-id,omitempty"`
+	RemoteID  string `json:"remote-id,omitempty"`
 }

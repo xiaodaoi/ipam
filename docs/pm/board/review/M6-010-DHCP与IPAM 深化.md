@@ -3,7 +3,7 @@
 | 字段 | 内容 |
 |---|---|
 | ID | M6-010 |
-| 状态 | 010A + 010B1 + 010B2 + 010B3 review；RA/option82/冲突 backlog |
+| 状态 | 010A + 010B1 + 010B2 + 010B3 + option82 展示 review；RA/选池/冲突 backlog |
 | 里程碑 | M6 商业化就绪 |
 | 优先级 | P1 |
 | 依赖 | M6-001 |
@@ -48,10 +48,17 @@
 - **页面**：IPv4 台账地址矩阵编辑弹窗新增站点/VLAN；保存后写库并刷新；页头「导出 CSV」导出当前网段全量地址。
 - **测试**：元数据回填/owner 覆盖、内存仓储过滤/删除；真实 PG 保存→查询→清理；E2E 11/11。
 
+## 010B4 部分完成：option82 展示
+
+- Kea 基础配置启用 `store-extended-info`（全局 + 子网），租约记录 circuit-id/remote-id；
+- 租约 API/页面新增 `circuitId/remoteId` 与「option82（circuit / remote）」列；
+- 仅真实中继租约/续约后写入，直连客户端为空；`lease4-add` 合成租约不会产生该字段（已实测）。
+- 基于 circuit-id 的选池（pool client-class）仍未实现，保留在 backlog。
+
 ## 010B 其余未完成（backlog）
 
 - RA 联动（M/O/PIO）配置与状态；
-- option82 展示与基于 circuit-id 的选池策略；
+- 基于 circuit-id 的选池策略（pool client-class）；
 - Ping/ARP 冲突探测与自动隔离。
 
 ## 验收
@@ -63,7 +70,8 @@
 - [x] 利用率历史采样、趋势页、85/95% 告警指标；
 - [x] 未登记终端发现与一键登记；
 - [x] 逐 IP VLAN/站点/使用人/用途/备注与 CSV 导出；
-- [ ] 010B 其余项（RA/option82/冲突探测）。
+- [x] option82 circuit-id/remote-id 展示（真实中继租约）；
+- [ ] 010B 其余项（RA/选池/冲突探测）。
 
 ## 涉及文件
 
@@ -78,6 +86,7 @@
 - `internal/module/ipam/{asset,asset_handler}.go`、`web/.../views/dhcp/ledger/discovered.vue`
 - `internal/module/ipam/{ledger_meta,ledger_meta_handler}.go`、`db/.../0034_ledger_meta.sql`
 - `web/.../components/ip-plan-map.vue`、`web/.../views/dhcp/ledger/v4.vue`
+- `internal/engine/kea/config.go`、`internal/engine/lease/lease.go`、`web/.../views/dhcp/leases/index.vue`
 - 文档：本卡、实现说明、用户指南、进度日志
 
 ## 实施记录
@@ -110,3 +119,9 @@
 - 地址地图编辑支持站点/VLAN，保存写库；新增当前网段 CSV 导出。
 - 实测 PUT/GET 元数据；修复 inet `::text` 带 /32 的键不一致（改 `host(address)`）。
 - 验证：ipam 单测、go build、gen-check、vue-tsc、eslint、前端 build、E2E 11/11。
+
+### 2026-10-30（010B4 部分）
+
+- Kea 启用 store-extended-info；租约模型/API/页面增加 circuit-id/remote-id 展示。
+- 实测 Kea 接受配置（startup converge ok）；合成租约不写 option82，需真实中继环境验证。
+- 验证：kea/dhcp 单测、go build、gen-check、vue-tsc、eslint、前端 build、E2E 11/11。

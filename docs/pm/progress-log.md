@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-10-30 · option82 展示（M6-010B4 部分）
+- Kea 全局/子网启用 `store-extended-info`；租约模型/API/页面新增 circuit-id/remote-id。
+- 租约管理 v4 新增「option82（circuit / remote）」列；真实中继续约后可见，直连为空。
+- 实测 Kea 接受配置；合成租约不写 option82，需真实中继环境验证。
+- 验证：kea/dhcp 单测、go build/gen-check、vue-tsc/eslint/build、E2E 11/11。
+- 遗留：RA、基于 circuit-id 选池、冲突探测（010B5）。
 ## 2026-10-30 · 逐 IP 台账元数据与 CSV 导出（M6-010B3）
 - **数据/API**：新增 ledger_meta（VLAN/站点/使用人/电话/用途/备注/自定义属性）与 `PUT /ledger/meta`；台账行回填元数据，user 优先于资产 owner。
 - **前端**：地址矩阵编辑支持站点/VLAN 并写库；页头新增当前网段 CSV 导出。

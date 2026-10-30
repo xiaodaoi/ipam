@@ -159,6 +159,7 @@ const v4Columns = [
   { title: 'IP 地址', dataIndex: 'ipAddress', key: 'ip', width: 150 },
   { title: 'MAC', dataIndex: 'hwAddress', key: 'mac', width: 160 },
   { title: '主机名', dataIndex: 'hostname', key: 'hostname', ellipsis: true },
+  { title: 'option82（circuit / remote）', key: 'relay', width: 220 },
   { title: 'Kea 子网', dataIndex: 'subnetId', key: 'subnet', width: 90 },
   { title: '最近事务', dataIndex: 'cltt', key: 'cltt', width: 170 },
   { title: '剩余', key: 'remaining', width: 100 },
@@ -233,12 +234,18 @@ onMounted(load);
         :data-source="v4Filtered"
         :loading="loading"
         :pagination="{ pageSize: 20, showSizeChanger: false }"
-        :scroll="{ x: 1100 }"
+        :scroll="{ x: 1320 }"
         row-key="ipAddress"
         size="small"
       >
         <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'cltt'">{{ fmtTime(record.cltt) }}</template>
+          <template v-if="column.key === 'relay'">
+            <span v-if="record.circuitId || record.remoteId" class="ipam-mono">
+              {{ record.circuitId || '—' }} / {{ record.remoteId || '—' }}
+            </span>
+            <span v-else class="text-gray-400">—</span>
+          </template>
+          <template v-else-if="column.key === 'cltt'">{{ fmtTime(record.cltt) }}</template>
           <template v-else-if="column.key === 'remaining'">
             <Tag :color="(record.cltt + (record.validLifetime ?? 0)) > now ? 'green' : 'default'" class="m-0">
               {{ remaining(record) }}

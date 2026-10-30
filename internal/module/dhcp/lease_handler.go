@@ -57,6 +57,14 @@ func toGenLease4(l lease.Lease4) apigen.DhcpLease4 {
 		v := int(l.SubnetID)
 		out.SubnetId = &v
 	}
+	if l.CircuitID != "" {
+		v := l.CircuitID
+		out.CircuitId = &v
+	}
+	if l.RemoteID != "" {
+		v := l.RemoteID
+		out.RemoteId = &v
+	}
 	return out
 }
 

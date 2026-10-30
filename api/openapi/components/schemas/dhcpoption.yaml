@@ -157,6 +157,12 @@ DhcpLease4:
     validLifetime: { type: integer }
     state: { type: integer, description: '0=default 1=declined' }
     subnetId: { type: integer, description: Kea subnet-id }
+    circuitId:
+      type: string
+      description: option82 circuit-id（需 store-extended-info；真实中继租约才有）
+    remoteId:
+      type: string
+      description: option82 remote-id（需 store-extended-info）
 
 DhcpLease4List:
   type: object

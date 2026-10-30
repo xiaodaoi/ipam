@@ -21,7 +21,7 @@ func TestLease4Lifecycle(t *testing.T) {
 		last = req.Arguments
 		switch req.Command {
 		case "lease4-get-all":
-			_, _ = w.Write([]byte(`[{"result":0,"arguments":{"leases":[{"ip-address":"10.0.0.5","hw-address":"02:00:00:00:00:01","subnet-id":3,"valid-lft":600}]}}]`))
+			_, _ = w.Write([]byte(`[{"result":0,"arguments":{"leases":[{"ip-address":"10.0.0.5","hw-address":"02:00:00:00:00:01","subnet-id":3,"valid-lft":600,"circuit-id":"01:02","remote-id":"aa:bb"}]}}]`))
 		case "lease4-get":
 			if req.Arguments["ip-address"] == "10.0.0.9" {
 				_, _ = w.Write([]byte(`[{"result":3,"text":"not found"}]`))
@@ -39,6 +39,9 @@ func TestLease4Lifecycle(t *testing.T) {
 	ls, err := agent.Lease4List(ctx)
 	if err != nil || len(ls) != 1 || ls[0].SubnetID != 3 {
 		t.Fatalf("list: %v %+v", err, ls)
+	}
+	if ls[0].CircuitID != "01:02" || ls[0].RemoteID != "aa:bb" {
+		t.Fatalf("option82 fields: %+v", ls[0])
 	}
 	if _, ok, err := agent.Lease4Get(ctx, "10.0.0.9"); err != nil || ok {
 		t.Fatalf("get missing: ok=%v err=%v", ok, err)

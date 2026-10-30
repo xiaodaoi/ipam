@@ -44,6 +44,8 @@ func BuildConfig(subnets []ipam.Subnet) (Dhcp4Config, error) {
 			"id":     s.KeaSubnetID,
 			"subnet": s.CIDR,
 			"pools":  pools,
+			// 存储 option82 中继信息（circuit-id/remote-id），供租约页展示（M6-010B4）
+			"store-extended-info": true,
 		}
 		if s.ValidLifetime > 0 {
 			sub["valid-lifetime"] = s.ValidLifetime // 子网级租期覆盖全局（0021 迁移）
@@ -96,6 +98,8 @@ func defaultBaseConfig() map[string]any {
 		"valid-lifetime": 3600,
 		// authoritative=true（M2-046）：无租约 INIT-REBOOT 回 NAK 令客户端重入 DISCOVER，而非静默丢弃卡死
 		"authoritative": true,
+		// 存储 option82 中继信息（circuit-id/remote-id），供租约页展示（M6-010B4）
+		"store-extended-info": true,
 		// lease_cmds hook：lease4-get-all 依赖（coherence 轮询/台账在线判定数据源，M3-012）
 		"hooks-libraries": []map[string]any{
 			{"library": "/usr/lib/x86_64-linux-gnu/kea/hooks/libdhcp_lease_cmds.so"},
