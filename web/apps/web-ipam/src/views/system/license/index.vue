@@ -33,16 +33,19 @@ const EDITION_LABEL: Record<string, string> = {
 const licensed = computed(() => Boolean(status.value?.licensed));
 const edition = computed(() => EDITION_LABEL[status.value?.edition ?? 'community'] ?? '社区版');
 const expiry = computed(() => {
+  if (!licensed.value) return '—';
   if (!status.value?.expiresAt) return '永久';
   const t = Date.parse(status.value.expiresAt);
   if (Number.isNaN(t)) return '—';
   return new Date(t).toLocaleDateString('zh-CN');
 });
 const terminal = computed(() => {
+  if (!licensed.value) return '—';
   const n = status.value?.maxTerminals ?? 0;
   return n > 0 ? `${n} 台` : '不限';
 });
 const days = computed(() => {
+  if (!licensed.value) return '未激活';
   const n = status.value?.daysRemaining ?? -1;
   if (!status.value?.expiresAt) return '永久';
   return n >= 0 ? `${n} 天` : '已过期';
@@ -100,7 +103,7 @@ onMounted(load);
     <PageHeader
       eyebrow="System"
       icon="lucide:badge-check"
-      title="License"
+      title="授权管理"
       description="离线授权文件管理：Ed25519 签名校验，激活后展示版本、能力与到期时间；未激活为社区版。"
     >
       <template #actions>
