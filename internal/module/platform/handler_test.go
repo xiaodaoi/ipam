@@ -55,6 +55,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		*ipam.OrgHandler
 		*ipam.SubnetHandler
 		*ipam.LedgerHandler
+		*ipam.LedgerMetaHandler
 		*ipam.AssetHandler
 		*logsAPI
 		*logq.AuditHandler
@@ -82,6 +83,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		ipam.NewOrgHandler(ipam.NewOrgService(orgStore)),
 		ipam.NewSubnetHandler(ipam.NewSubnetService(subRepo, orgStore, kea, nil)),
 		ipam.NewLedgerHandler(ledgerSvc),
+		ipam.NewLedgerMetaHandler(ipam.NewMemLedgerMetaRepo()),
 		ipam.NewAssetHandler(ipam.NewAssetService(ipam.NewMemAssetRepo(), orgStore)),
 		&logsAPI{logq.NewHandler(logq.NewService(logq.NewMemStore(), nil))},
 		logq.NewAuditHandler(logq.NewMemAuditStore()),

@@ -198,8 +198,10 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	subH := ipam.NewSubnetHandler(ipam.NewSubnetService(subRepo, orgStore, keaDeploy, notifyDhcp))
 
 	var resRepo ipam.ReservationRepo = ipam.NewMemReservationRepo()
+	var metaRepo ipam.LedgerMetaRepo = ipam.NewMemLedgerMetaRepo()
 	if pool != nil {
 		resRepo = ipam.NewPgReservationRepo(pool)
+		metaRepo = ipam.NewPgLedgerMetaRepo(pool)
 	}
 	// 子网利用率采样（M6-010B）：默认每 5 分钟，保留 90 天
 	var utilRepo utilization.Repo = utilization.NewMemRepo()
@@ -234,6 +236,12 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		}
 		reservations, _ := resRepo.List(ctx)
 		subs, _ := subRepo.List(ctx, "", 0)
+		meta := map[string]ipam.LedgerMeta{}
+		if pool != nil {
+			if mm, err := ipam.LoadLedgerMeta(ctx, pool); err == nil {
+				meta = mm
+			}
+		}
 		assets := map[string]ipam.Asset{}
 		if pool != nil {
 			if list, err := ipam.NewPgAssetRepo(pool).List(ctx, "", ""); err == nil {
@@ -244,7 +252,7 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		}
 		return ipam.LedgerSource{
 			Bindings: bindings, Reservations: reservations,
-			Assets: assets, Subnets: subs,
+			Assets: assets, Meta: meta, Subnets: subs,
 		}
 	}
 	// DHCP 选项/类（M2-016）+ host reservations 配置式下发（M3-007）：统一 config-set 收敛点
@@ -365,6 +373,7 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	leaseH := dhcpmodule.NewLeaseHandler(leaseAgent)
 
 	ledgerH := ipam.NewLedgerHandler(ipam.NewLedgerService(ledgerSrc, resRepo, subRepo, notifyDhcp))
+	metaH := ipam.NewLedgerMetaHandler(metaRepo)
 	var assetRepo ipam.AssetRepo = ipam.NewMemAssetRepo()
 	if pool != nil {
 		assetRepo = ipam.NewPgAssetRepo(pool)
@@ -681,6 +690,7 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		*ipam.OrgHandler
 		*ipam.SubnetHandler
 		*ipam.LedgerHandler
+		*ipam.LedgerMetaHandler
 		*ipam.AssetHandler
 		*logsAPI
 		*logq.AuditHandler
@@ -704,7 +714,7 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		*logexport.LogExportHandler
 		*backupmodule.APIHandler
 		*confApplier
-	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore, bl, permLookup, secStore), platform.NewUserHandler(userStore, secStore), &dhcpAPI{dhcpH}, leaseH, utilH, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, platform.NewSecuritySettingsHandler(secStore), licenseH, logMgrH, exportH, backupH, applier}
+	}{h, orgH, subH, ledgerH, metaH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore, bl, permLookup, secStore), platform.NewUserHandler(userStore, secStore), &dhcpAPI{dhcpH}, leaseH, utilH, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, platform.NewSecuritySettingsHandler(secStore), licenseH, logMgrH, exportH, backupH, applier}
 	// Prometheus 指标（M6-005）：放在 RBAC 之前供抓取；中间件只统计其后的 /api/v1 路由。
 	metricsH := platform.NewMetricsHandler(platform.MetricsSources{
 		Version:     version,

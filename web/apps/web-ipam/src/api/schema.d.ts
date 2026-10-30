@@ -1840,6 +1840,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ledger/meta": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 保存逐 IP 台账元数据
+         * @description 以地址为自然键 upsert；用于 VLAN/站点/使用人/用途/备注与自定义属性。scope 为 dhcp.write。
+         */
+        put: operations["upsertLedgerMeta"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/subnets": {
         parameters: {
             query?: never;
@@ -2226,8 +2246,16 @@ export interface components {
             /** @description 绑定/租约关联 MAC（六态中 online/static/grace/conflict 通常有） */
             mac?: string;
             hostname?: string;
-            /** @description 资产登记使用人（asset 表，以 MAC 为键） */
+            /** @description 使用人（逐 IP 元数据优先，否则资产登记） */
             owner?: string;
+            purpose?: string;
+            phone?: string;
+            remark?: string;
+            site?: string;
+            vlan?: number;
+            customAttrs?: {
+                [key: string]: string;
+            };
             /**
              * Format: date-time
              * @description 租约开始时间（kea cltt，在线态展示）
@@ -3480,6 +3508,22 @@ export interface components {
             address: string;
             /** @description 释放原因（审计） */
             reason?: string;
+        };
+        /** @description 逐 IP 台账元数据（VLAN/站点/使用人/用途/备注）；address 为自然键。 */
+        LedgerMetaUpsert: {
+            /** @description IPv4 地址 */
+            address: string;
+            /** Format: uuid */
+            subnetId?: string;
+            site?: string;
+            vlan?: number;
+            purpose?: string;
+            user?: string;
+            phone?: string;
+            remark?: string;
+            customAttrs?: {
+                [key: string]: string;
+            };
         };
         /** @description 子网级 DHCP 选项（Kea option-data；space 由 family 推导 dhcp4/dhcp6）。 */
         SubnetOption: {
@@ -7019,6 +7063,39 @@ export interface operations {
                         status: number;
                         code?: string;
                     };
+                };
+            };
+        };
+    };
+    upsertLedgerMeta: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LedgerMetaUpsert"];
+            };
+        };
+        responses: {
+            /** @description 已保存 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LedgerMetaUpsert"];
+                };
+            };
+            /** @description 参数非法 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };

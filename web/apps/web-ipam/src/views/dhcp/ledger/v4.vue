@@ -9,7 +9,7 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Button, Card, Input, message, Select, Space, Table, Tag } from 'ant-design-vue';
 
-import { bindStatic, listLedger, listOrgTree, listSubnets, releaseAddress, reserveAddress } from '#/api/ipam';
+import { bindStatic, listLedger, listOrgTree, listSubnets, releaseAddress, reserveAddress, upsertLedgerMeta } from '#/api/ipam';
 import IpPlanMap from '#/components/ip-plan-map.vue';
 import OrgFilterCard from '#/components/org-filter-card.vue';
 import PageHeader from '#/components/page-header.vue';
@@ -60,6 +60,10 @@ interface MapCell {
   leaseStart?: string;
   leaseEnd?: string;
   purpose?: string;
+  phone?: string;
+  vlan?: number;
+  site?: string;
+  customAttrs?: Record<string, string>;
   remark?: string;
   leaseStatus?: string;
 }
@@ -170,8 +174,12 @@ async function loadMap() {
         leaseStart: row.leaseStart ? new Date(row.leaseStart).toLocaleString() : '',
         leaseEnd: row.leaseExpiry ? new Date(row.leaseExpiry).toLocaleString() : '',
         leaseStatus: row.state === 'online' ? '已分配' : '',
-        purpose: row.state === 'reserved' ? '保留' : '',
-        remark: row.state === 'conflict' ? 'IP 冲突' : (row.state === 'grace' ? '租约宽限' : ''),
+        purpose: row.purpose || (row.state === 'reserved' ? '保留' : ''),
+        phone: row.phone || '',
+        vlan: row.vlan,
+        site: row.site || '',
+        customAttrs: row.customAttrs ?? {},
+        remark: row.remark || (row.state === 'conflict' ? 'IP 冲突' : (row.state === 'grace' ? '租约宽限' : '')),
       };
     }
     cells.value = grid;
@@ -347,6 +355,60 @@ onMounted(async () => {
     await loadMap();
   }
 });
+// ── 逐 IP 元数据保存（VLAN/站点/使用人/用途/备注）──
+async function saveLedgerMeta(target: MapCell[], values: Record<string, any>) {
+  const sub = currentSubnet.value;
+  const list = target.filter((c) => c.status !== 'network' && c.status !== 'broadcast');
+  if (!sub || list.length === 0) return;
+  try {
+    await Promise.all(
+      list.map((c) =>
+        upsertLedgerMeta({
+          address: c.ip,
+          subnetId: sub.id,
+          purpose: values.purpose || undefined,
+          user: values.user || undefined,
+          phone: values.phone || undefined,
+          site: values.site || undefined,
+          vlan: values.vlan ?? undefined,
+          remark: values.remark || undefined,
+          customAttrs: (values.customAttrs ?? {}) as Record<string, string>,
+        }),
+      ),
+    );
+    message.success(`已保存 ${list.length} 个地址的台账信息`);
+    await loadMap();
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '台账信息保存失败');
+  }
+}
+
+// ── CSV 导出（当前网段地址矩阵）──
+function csvCell(v: unknown): string {
+  const s = String(v ?? '');
+  return /[",\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
+}
+
+function exportLedgerCsv() {
+  if (!selectedCidr.value || cells.value.length === 0) {
+    message.warning('当前网段暂无可导出的地址');
+    return;
+  }
+  const header = ['IP', '状态', '主机名', 'MAC', '使用人', '用途', '备注', '租约开始', '租约结束'];
+  const lines = cells.value.map((c) =>
+    [c.ip, c.status, c.hostname, c.mac, c.user, c.purpose, c.remark, c.leaseStart, c.leaseEnd]
+      .map((v) => csvCell(v))
+      .join(','),
+  );
+  const csv = `\uFEFF${[header.join(','), ...lines].join('\r\n')}`;
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `ledger-${selectedCidr.value.replaceAll('/', '_')}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  message.success(`已导出 ${cells.value.length} 个地址`);
+}
 </script>
 
 <template>
@@ -362,6 +424,10 @@ onMounted(async () => {
           <IconifyIcon icon="lucide:layers" class="size-3.5" />
           {{ v4Subnets.length }} 个 IPv4 网段 · 当前 {{ selectedCidr || '未选择' }}
         </span>
+        <Button size="small" :disabled="!selectedCidr || cells.length === 0" @click="exportLedgerCsv">
+          <IconifyIcon icon="lucide:download" class="mr-1 size-3.5" />
+          导出 CSV
+        </Button>
         <Button size="small" :loading="mapLoading" :disabled="!selectedCidr" @click="loadMap">
           <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />
           刷新
@@ -450,7 +516,7 @@ onMounted(async () => {
             :subnets="v4Subnets.map((s) => ({ cidr: s.cidr, name: s.name }))"
             @subnet-change="onSubnetChange"
             @action="onMapAction"
-            @save="(_t: unknown, _v: unknown) => message.info('台账信息由 DHCP 租约 / 资产登记驱动，此处仅展示')"
+            @save="saveLedgerMeta"
           />
 
           <Card>

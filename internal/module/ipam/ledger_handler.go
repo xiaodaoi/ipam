@@ -292,6 +292,24 @@ func toGenLedger(r LedgerRow) apigen.LedgerRow {
 	if r.Owner != "" {
 		row.Owner = strPtr(r.Owner)
 	}
+	if r.Purpose != "" {
+		row.Purpose = strPtr(r.Purpose)
+	}
+	if r.Phone != "" {
+		row.Phone = strPtr(r.Phone)
+	}
+	if r.Remark != "" {
+		row.Remark = strPtr(r.Remark)
+	}
+	if r.Site != "" {
+		row.Site = strPtr(r.Site)
+	}
+	if r.VLAN != 0 {
+		row.Vlan = &r.VLAN
+	}
+	if len(r.CustomAttrs) > 0 {
+		row.CustomAttrs = &r.CustomAttrs
+	}
 	if !r.LeaseExpiry.IsZero() {
 		row.LeaseExpiry = &r.LeaseExpiry
 	}

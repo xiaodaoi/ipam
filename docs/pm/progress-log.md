@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-10-30 · 逐 IP 台账元数据与 CSV 导出（M6-010B3）
+- **数据/API**：新增 ledger_meta（VLAN/站点/使用人/电话/用途/备注/自定义属性）与 `PUT /ledger/meta`；台账行回填元数据，user 优先于资产 owner。
+- **前端**：地址矩阵编辑支持站点/VLAN 并写库；页头新增当前网段 CSV 导出。
+- **修复**：PG inet `address::text` 带 `/32` 导致元数据键不匹配，改用 `host(address)`。
+- **验证**：ipam 单测、真实 PG 保存/查询、go build/gen-check、vue-tsc/eslint/build、E2E 11/11。
+- **遗留**：010B4（RA/option82/冲突探测）。
 ## 2026-10-30 · 未登记终端发现（M6-010B2）
 - **API**：`GET /assets/discovered`，从 coherence 绑定筛出 asset 未登记 MAC（active/grace/conflict，去重，按最近活动倒序）。
 - **页面**：DHCP 服务 → 未登记终端；KPI/搜索/状态；一键登记（使用人必填、组织可选）后从列表移除。

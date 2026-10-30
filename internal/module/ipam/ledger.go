@@ -27,6 +27,12 @@ type LedgerRow struct {
 	MAC         string
 	Hostname    string
 	Owner       string
+	Purpose     string
+	Phone       string
+	Remark      string
+	Site        string
+	VLAN        int
+	CustomAttrs map[string]string
 	LeaseExpiry time.Time
 	SubnetID    string
 	PoolIndex   string
@@ -58,7 +64,8 @@ type LedgerBinding struct {
 type LedgerSource struct {
 	Bindings     []LedgerBinding
 	Reservations []Reservation
-	Assets       map[string]Asset // mac -> asset（asset.go 完整类型）
+	Assets       map[string]Asset      // mac -> asset（asset.go 完整类型）
+	Meta         map[string]LedgerMeta // address -> 逐 IP 元数据
 	Subnets      []Subnet
 }
 
@@ -259,6 +266,20 @@ func QueryLedger(src LedgerSource, q LedgerQuery) ([]LedgerRow, string, int) {
 			}
 		}
 		rows = filtered
+	}
+
+	for i := range rows {
+		if m, ok := src.Meta[rows[i].Address]; ok {
+			rows[i].Purpose = m.Purpose
+			rows[i].Phone = m.Phone
+			rows[i].Remark = m.Remark
+			rows[i].Site = m.Site
+			rows[i].VLAN = m.VLAN
+			rows[i].CustomAttrs = m.CustomAttrs
+			if m.User != "" {
+				rows[i].Owner = m.User
+			}
+		}
 	}
 
 	sort.Slice(rows, func(i, j int) bool { return rows[i].PoolIndex < rows[j].PoolIndex })

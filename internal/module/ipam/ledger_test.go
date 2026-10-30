@@ -247,3 +247,40 @@ func TestQueryLedger_v6绑定明细行(t *testing.T) {
 		t.Fatalf("v6 all rows=%d want 2 (summary+detail)", total)
 	}
 }
+
+func TestQueryLedger_逐IP元数据(t *testing.T) {
+	src := LedgerSource{
+		Subnets: []Subnet{{ID: "s1", Family: 4, CIDR: "10.2.0.0/24", Pools: []Pool{{StartAddr: "10.2.0.1", EndAddr: "10.2.0.3"}}}},
+		Meta: map[string]LedgerMeta{
+			"10.2.0.2": {Address: "10.2.0.2", Purpose: "打印机", User: "张三", Phone: "123", Remark: "三楼", Site: "总部", VLAN: 20, CustomAttrs: map[string]string{"asset": "PRN-1"}},
+		},
+	}
+	rows, _, _ := QueryLedger(src, LedgerQuery{PageSize: 10})
+	if len(rows) != 3 {
+		t.Fatalf("rows=%d", len(rows))
+	}
+	r := rows[1]
+	if r.Address != "10.2.0.2" || r.Purpose != "打印机" || r.Owner != "张三" || r.VLAN != 20 || r.Site != "总部" || r.CustomAttrs["asset"] != "PRN-1" {
+		t.Fatalf("meta row=%+v", r)
+	}
+}
+
+func TestMemLedgerMetaRepo(t *testing.T) {
+	ctx := context.Background()
+	r := NewMemLedgerMetaRepo()
+	_ = r.Upsert(ctx, LedgerMeta{Address: "10.0.0.1", SubnetID: "s1", Purpose: "服务器"})
+	_ = r.Upsert(ctx, LedgerMeta{Address: "10.0.0.2", SubnetID: "s2", Purpose: "办公"})
+	all, _ := r.List(ctx, "")
+	if len(all) != 2 {
+		t.Fatalf("all=%d", len(all))
+	}
+	one, _ := r.List(ctx, "s1")
+	if len(one) != 1 || one["10.0.0.1"].Purpose != "服务器" {
+		t.Fatalf("s1=%+v", one)
+	}
+	_ = r.Delete(ctx, "10.0.0.1")
+	one, _ = r.List(ctx, "s1")
+	if len(one) != 0 {
+		t.Fatalf("after delete=%+v", one)
+	}
+}

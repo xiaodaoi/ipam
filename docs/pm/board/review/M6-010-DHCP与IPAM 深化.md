@@ -3,7 +3,7 @@
 | 字段 | 内容 |
 |---|---|
 | ID | M6-010 |
-| 状态 | 010A + 010B1 + 发现 review；其余 010B backlog |
+| 状态 | 010A + 010B1 + 010B2 + 010B3 review；RA/option82/冲突 backlog |
 | 里程碑 | M6 商业化就绪 |
 | 优先级 | P1 |
 | 依赖 | M6-001 |
@@ -41,12 +41,18 @@
 - **闭环**：登记成功后该终端从发现列表移除，可在资产页继续维护标签/组织。
 - **测试**：`Discover` 单测（去重、inactive 过滤、IPv6/主机名）；真实环境发现→登记→列表移除→删除验证。
 
+## 010B3 已完成：逐 IP 元数据与 CSV 导出
+
+- **数据**：迁移 0034 `ledger_meta`（address 自然键、subnet_id 级联、site/vlan/purpose/user/phone/remark/custom_attrs）。
+- **API**：`PUT /ledger/meta`；台账 `GET /ledger` 行内回填元数据（user 优先于资产 owner）。
+- **页面**：IPv4 台账地址矩阵编辑弹窗新增站点/VLAN；保存后写库并刷新；页头「导出 CSV」导出当前网段全量地址。
+- **测试**：元数据回填/owner 覆盖、内存仓储过滤/删除；真实 PG 保存→查询→清理；E2E 11/11。
+
 ## 010B 其余未完成（backlog）
 
 - RA 联动（M/O/PIO）配置与状态；
 - option82 展示与基于 circuit-id 的选池策略；
-- Ping/ARP 冲突探测与自动隔离；
-- CSV 导入导出、VLAN/站点/负责人、逐 IP 备注标签。
+- Ping/ARP 冲突探测与自动隔离。
 
 ## 验收
 
@@ -56,7 +62,8 @@
 - [x] 真实 Kea 环境端到端验证；
 - [x] 利用率历史采样、趋势页、85/95% 告警指标；
 - [x] 未登记终端发现与一键登记；
-- [ ] 010B 其余项（RA/option82/冲突/CSV/VLAN）。
+- [x] 逐 IP VLAN/站点/使用人/用途/备注与 CSV 导出；
+- [ ] 010B 其余项（RA/option82/冲突探测）。
 
 ## 涉及文件
 
@@ -69,6 +76,8 @@
 - `internal/module/utilization/**`、`db/postgresql/migrations/0033_subnet_utilization.sql`
 - `observability/alerts.yml`、`web/.../views/dhcp/utilization/index.vue`
 - `internal/module/ipam/{asset,asset_handler}.go`、`web/.../views/dhcp/ledger/discovered.vue`
+- `internal/module/ipam/{ledger_meta,ledger_meta_handler}.go`、`db/.../0034_ledger_meta.sql`
+- `web/.../components/ip-plan-map.vue`、`web/.../views/dhcp/ledger/v4.vue`
 - 文档：本卡、实现说明、用户指南、进度日志
 
 ## 实施记录
@@ -94,3 +103,10 @@
 - 新增「未登记终端」页：搜索、状态、登记弹窗（使用人必填、组织可选）。
 - 实测：真实租约 `00:0c:29:29:11:4f` 出现在发现列表；登记后列表为 0；删除资产后恢复。
 - 验证：ipam 单测、go build、gen-check、vue-tsc、eslint、E2E 11/11。
+
+### 2026-10-30（010B3）
+
+- 新增 ledger_meta 表/仓储/端点；台账行回填元数据，user 覆盖 owner。
+- 地址地图编辑支持站点/VLAN，保存写库；新增当前网段 CSV 导出。
+- 实测 PUT/GET 元数据；修复 inet `::text` 带 /32 的键不一致（改 `host(address)`）。
+- 验证：ipam 单测、go build、gen-check、vue-tsc、eslint、前端 build、E2E 11/11。

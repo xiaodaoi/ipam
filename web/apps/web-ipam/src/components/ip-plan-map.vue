@@ -14,6 +14,7 @@ import {
   Drawer,
   Form,
   Input,
+  InputNumber,
   message,
   Modal,
   Pagination,
@@ -74,6 +75,8 @@ interface IpCell {
   purpose?: string;
   user?: string;
   phone?: string;
+  vlan?: number;
+  site?: string;
   customAttrs?: Record<string, string>;
   remark?: string;
 }
@@ -222,8 +225,8 @@ const subnetOptions = computed(() =>
 const editOpen = ref(false);
 const editing = ref<IpCell[]>([]);
 const editForm = reactive({
-  hostname: '', status: 'static', purpose: '', user: '', phone: '',
-  customAttrText: '', remark: '',
+  hostname: '', status: 'static', purpose: '', user: '', phone: '', site: '',
+  vlan: undefined as number | undefined, customAttrText: '', remark: '',
 });
 function openEdit() {
   if (props.readOnly || selectedIps.value.length === 0) return;
@@ -236,6 +239,8 @@ function openEdit() {
     purpose: first.purpose || '',
     user: first.user || '',
     phone: first.phone || '',
+    site: first.site || '',
+    vlan: first.vlan,
     customAttrText: Object.entries(first.customAttrs || {}).map(([k, v]) => `${k}=${v}`).join('\n'),
     remark: first.remark || '',
   });
@@ -470,6 +475,12 @@ onMounted(() => {
             </Form.Item>
             <Form.Item label="电话">
               <Input v-model:value="editForm.phone" />
+            </Form.Item>
+            <Form.Item label="站点">
+              <Input v-model:value="editForm.site" placeholder="如 总部 / A 栋" />
+            </Form.Item>
+            <Form.Item label="VLAN">
+              <InputNumber v-model:value="editForm.vlan" :min="0" :max="4094" style="width: 100%" />
             </Form.Item>
           </div>
           <Form.Item label="自定义属性" extra="每行一条，格式：键=值">

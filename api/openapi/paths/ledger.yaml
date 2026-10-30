@@ -178,3 +178,30 @@ ReleaseAddress:
                 title: { type: string }
                 status: { type: integer }
                 code: { type: string }
+
+LedgerMeta:
+  put:
+    operationId: upsertLedgerMeta
+    tags: [ledger]
+    summary: 保存逐 IP 台账元数据
+    description: 以地址为自然键 upsert；用于 VLAN/站点/使用人/用途/备注与自定义属性。scope 为 dhcp.write。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/ledger.yaml#/LedgerMetaUpsert'
+    responses:
+      '200':
+        description: 已保存
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/ledger.yaml#/LedgerMetaUpsert'
+      '400':
+        description: 参数非法
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Problem'

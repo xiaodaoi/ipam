@@ -14,6 +14,7 @@ export type SubnetOption = components['schemas']['SubnetOption'];
 export type Asset = components['schemas']['Asset'];
 export type AssetUpsert = components['schemas']['AssetUpsert'];
 export type DiscoveredTerminal = components['schemas']['DiscoveredTerminal'];
+export type LedgerMetaUpsert = components['schemas']['LedgerMetaUpsert'];
 
 const BASE = (import.meta.env.VITE_GLOB_API_URL as string) || '/api/v1';
 
@@ -62,6 +63,8 @@ export const updateBinding = (address: string, mac: string) =>
 
 export const releaseAddress = (address: string) =>
   req<void>('/ledger/release', { method: 'POST', body: JSON.stringify({ address }) });
+export const upsertLedgerMeta = (b: LedgerMetaUpsert) =>
+  req<LedgerMetaUpsert>('/ledger/meta', { method: 'PUT', body: JSON.stringify(b) });
 
 export const listSubnets = (orgId?: string) =>
   req<{ items: Subnet[] }>(`/subnets${orgId ? `?orgId=${orgId}` : ''}`);

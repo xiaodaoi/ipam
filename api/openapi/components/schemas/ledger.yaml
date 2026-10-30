@@ -22,7 +22,15 @@ LedgerRow:
       type: string
     owner:
       type: string
-      description: 资产登记使用人（asset 表，以 MAC 为键）
+      description: 使用人（逐 IP 元数据优先，否则资产登记）
+    purpose: { type: string }
+    phone: { type: string }
+    remark: { type: string }
+    site: { type: string }
+    vlan: { type: integer, minimum: 0, maximum: 4094 }
+    customAttrs:
+      type: object
+      additionalProperties: { type: string }
     leaseStart:
       type: string
       format: date-time
@@ -96,3 +104,20 @@ UpdateBindingRequest:
     mac:
       type: string
       description: 新 MAC（归一化小写冒号格式）
+
+LedgerMetaUpsert:
+  type: object
+  description: 逐 IP 台账元数据（VLAN/站点/使用人/用途/备注）；address 为自然键。
+  required: [address]
+  properties:
+    address: { type: string, description: IPv4 地址 }
+    subnetId: { type: string, format: uuid }
+    site: { type: string, maxLength: 128 }
+    vlan: { type: integer, minimum: 0, maximum: 4094 }
+    purpose: { type: string, maxLength: 128 }
+    user: { type: string, maxLength: 128 }
+    phone: { type: string, maxLength: 64 }
+    remark: { type: string, maxLength: 512 }
+    customAttrs:
+      type: object
+      additionalProperties: { type: string }
