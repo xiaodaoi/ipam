@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-10-30 · 数据长期稳定性与容量护栏（M6-015）
+- **采集**：Vector 1GB 有界磁盘缓冲（drop_newest）+ 10 次退避重试；checkpoint 持久化（M6-014 已有）。
+- **查询**：单查询 1GB 内存上限、聚合/排序 256MB 落盘阈值；count total 15s/256 条缓存。
+- **可观测**：`ipam_log_rows/disk_bytes/parts/latest_age_seconds`、`ipam_host_disk_total/free_bytes`；新增 part/停滞/增长/占比 4 条告警。
+- **保留**：TTL 1–3650 天 + 按月 Parquet 归档（已有）；建议在线 180–365 天、多年归档。
+- **验证**：vector validate、/metrics、30d 查询 0.13s（重复 3–10ms）、lint 0 issues、E2E 11/11。
 ## 2026-10-30 · 日志查询性能与重复入库修复（M6-014）
 - **根因**：Vector 重建丢 checkpoint + `read_from=beginning` 重放日志 + DNS 解析用 `now()` → 44M 行落在当前时间；`logs` 表 `ORDER BY (type,client_mac,ts)` 导致时间查询全表扫描，3s 超时被误报“日志存储暂不可达”。
 - **采集**：新增 `vector-data` 卷持久化 checkpoint；`read_from=end`；unbound/DNS_LOG 使用日志自带 epoch 时间戳。

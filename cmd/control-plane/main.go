@@ -716,9 +716,14 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		*confApplier
 	}{h, orgH, subH, ledgerH, metaH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore, bl, permLookup, secStore), platform.NewUserHandler(userStore, secStore), &dhcpAPI{dhcpH}, leaseH, utilH, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, platform.NewSecuritySettingsHandler(secStore), licenseH, logMgrH, exportH, backupH, applier}
 	// Prometheus 指标（M6-005）：放在 RBAC 之前供抓取；中间件只统计其后的 /api/v1 路由。
+	var logStatsFn func(context.Context) (logmanager.LogStats, error)
+	if chAdmin != nil {
+		logStatsFn = chAdmin.LogStats
+	}
 	metricsH := platform.NewMetricsHandler(platform.MetricsSources{
 		Version:     version,
 		Utilization: utilSvc.Latest,
+		LogStats:    logStatsFn,
 		Postgres: func(ctx context.Context) error {
 			if pool == nil {
 				return nil

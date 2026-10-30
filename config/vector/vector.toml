@@ -183,7 +183,14 @@ auth.user = "${CLICKHOUSE_USER:-ipam}"
 auth.password = "${CLICKHOUSE_PASSWORD:-}"
 batch.max_bytes = 5_000_000
 batch.timeout_secs = 5
-request.retry_max_attempts = 3
+# 有界磁盘缓冲：ClickHouse 短时不可用时保留最多 1GB，避免内存无限增长；
+# 超过上限丢弃最新（drop_newest），优先保证采集端/宿主稳定。
+buffer.type = "disk"
+buffer.max_size = 1_000_000_000
+buffer.when_full = "drop_newest"
+request.retry_max_attempts = 10
+request.retry_initial_backoff_secs = 1
+request.retry_max_duration_secs = 60
 healthcheck.enabled = true
 
 # encoding 仅做字段过滤（codec 已移除：0.4x 由 format=json_each_row 承担序列化）

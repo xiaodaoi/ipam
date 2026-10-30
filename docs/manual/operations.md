@@ -48,6 +48,25 @@ docker compose -f observability/compose.observability.yaml --profile observabili
 - “完整性校验”重算 SHA256 链，异常会给出 brokenId；
 - 保留 180 天，自动清理。
 
+## 日志容量与长期运行
+
+关键指标：
+
+| 指标 | 含义 | 建议 |
+|---|---|---|
+| `ipam_log_rows` | 在线日志行数 | 结合 TTL 评估 |
+| `ipam_log_disk_bytes` | 日志磁盘占用 | 占磁盘 >60% 告警 |
+| `ipam_log_parts` | 活跃 part 数 | >500 告警，检查写入/合并 |
+| `ipam_log_latest_age_seconds` | 最新日志滞后 | >600s 告警，查 Vector |
+| `ipam_host_disk_free_bytes` | 宿主可用空间 | 提前扩容 |
+
+建议：
+
+- 在线保留 180–365 天；多年合规留存用按月 Parquet 归档；
+- Vector 使用 1GB 有界磁盘缓冲，CH 故障超过缓冲会丢弃最新日志（优先保宿主稳定）；
+- 查询超时先缩小时间窗/加 type/domain 过滤；重复分页有 15s total 缓存；
+- 不要把 `read_from` 长期设为 `beginning`。
+
 ## 日志查询慢 / “日志存储暂不可达”
 
 先区分“超时”与“存储宕机”（接口 code）：

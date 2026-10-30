@@ -258,3 +258,35 @@ func (a *ChAdmin) RestoreMonth(ctx context.Context, file string) error {
 	defer func() { _ = f.Close() }()
 	return a.httpQuery(ctx, "INSERT INTO "+a.db+".logs FORMAT Parquet", f)
 }
+
+// LogStats 在线日志规模与新鲜度（/metrics 与容量预警用）。
+type LogStats struct {
+	Rows      int64
+	DiskBytes int64
+	Parts     int64
+	AgeSecs   int64 // 最新日志距今秒数；无数据为 -1
+}
+
+// LogStats 查询 system.parts 与 max(ts)，均为轻量元数据/主键查询。
+func (a *ChAdmin) LogStats(ctx context.Context) (LogStats, error) {
+	var out LogStats
+	var latest time.Time
+	if err := a.conn.QueryRow(ctx,
+		`SELECT toInt64(coalesce(sum(rows),0)), toInt64(coalesce(sum(bytes_on_disk),0)), toInt64(count())
+		   FROM system.parts WHERE database=? AND table='logs' AND active`, a.db).
+		Scan(&out.Rows, &out.DiskBytes, &out.Parts); err != nil {
+		return out, err
+	}
+	if err := a.conn.QueryRow(ctx, `SELECT max(ts) FROM `+a.db+`.logs`).Scan(&latest); err != nil {
+		return out, err
+	}
+	if latest.IsZero() {
+		out.AgeSecs = -1
+	} else {
+		out.AgeSecs = int64(time.Since(latest).Seconds())
+		if out.AgeSecs < 0 {
+			out.AgeSecs = 0
+		}
+	}
+	return out, nil
+}

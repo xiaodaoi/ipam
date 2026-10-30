@@ -2,10 +2,12 @@ package logquery
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"net/netip"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -26,6 +28,19 @@ type ChConfig struct {
 type ChStore struct {
 	conn chdriver.Conn
 	db   string
+
+	countMu    sync.Mutex
+	countCache map[string]countEntry
+}
+
+const (
+	countCacheTTL = 15 * time.Second
+	countCacheMax = 256
+)
+
+type countEntry struct {
+	n       int
+	expires time.Time
 }
 
 // OpenChStore 建立连接（懒连接；max_execution_time=3s 硬顶即性能预算 §8）。
@@ -35,6 +50,11 @@ func OpenChStore(cfg ChConfig) (*ChStore, error) {
 		Auth: clickhouse.Auth{Database: cfg.DB, Username: cfg.User, Password: cfg.Password},
 		Settings: clickhouse.Settings{
 			"max_execution_time": 3,
+			// 资源护栏：单查询内存上限 + 聚合/排序落盘阈值，避免大时间窗/高基数
+			// 查询把 ClickHouse 内存打满（容器总内存 7GB 级别）。
+			"max_memory_usage":                   1_000_000_000,
+			"max_bytes_before_external_group_by": 256_000_000,
+			"max_bytes_before_external_sort":     256_000_000,
 		},
 		DialTimeout:  5 * time.Second,
 		MaxOpenConns: 5,
@@ -44,7 +64,7 @@ func OpenChStore(cfg ChConfig) (*ChStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ChStore{conn: conn, db: cfg.DB}, nil
+	return &ChStore{conn: conn, db: cfg.DB, countCache: map[string]countEntry{}}, nil
 }
 
 func (s *ChStore) table() string { return s.db + ".logs" }
@@ -196,9 +216,15 @@ func (s *ChStore) Query(ctx context.Context, f LogFilter, scope OrgScope) (Page,
 	})
 
 	countSQL := "SELECT count() FROM " + s.table() + " WHERE " + where
-	var total uint64
-	if err := s.conn.QueryRow(ctx, countSQL, args...).Scan(&total); err != nil {
-		return Page{}, err
+	ck := countCacheKey(countSQL, args)
+	total, ok := s.cachedCount(ck)
+	if !ok {
+		var n uint64
+		if err := s.conn.QueryRow(ctx, countSQL, args...).Scan(&n); err != nil {
+			return Page{}, err
+		}
+		total = int(n)
+		s.storeCount(ck, total)
 	}
 
 	pageSize := f.PageSize
@@ -252,7 +278,53 @@ func (s *ChStore) Query(ctx context.Context, f LogFilter, scope OrgScope) (Page,
 		next = EncodeCursor(last.TS, last.ClientMAC, last.Domain)
 		items = items[:pageSize]
 	}
-	return Page{Items: items, NextCursor: next, Total: int(total)}, nil
+	return Page{Items: items, NextCursor: next, Total: total}, nil
+}
+
+// countCacheKey 基于 SQL + 绑定参数生成稳定键（时间转 UnixNano，避免 monotonic 差异）。
+func countCacheKey(sql string, args []any) string {
+	var b strings.Builder
+	b.WriteString(sql)
+	for _, a := range args {
+		if t, ok := a.(time.Time); ok {
+			fmt.Fprintf(&b, "|t%d", t.UnixNano())
+		} else {
+			fmt.Fprintf(&b, "|%v", a)
+		}
+	}
+	sum := sha256.Sum256([]byte(b.String()))
+	return string(sum[:])
+}
+
+func (s *ChStore) cachedCount(key string) (int, bool) {
+	s.countMu.Lock()
+	defer s.countMu.Unlock()
+	e, ok := s.countCache[key]
+	if !ok || time.Now().After(e.expires) {
+		delete(s.countCache, key)
+		return 0, false
+	}
+	return e.n, true
+}
+
+func (s *ChStore) storeCount(key string, n int) {
+	s.countMu.Lock()
+	defer s.countMu.Unlock()
+	if len(s.countCache) >= countCacheMax {
+		now := time.Now()
+		for k, e := range s.countCache {
+			if now.After(e.expires) {
+				delete(s.countCache, k)
+			}
+		}
+		if len(s.countCache) >= countCacheMax {
+			for k := range s.countCache {
+				delete(s.countCache, k)
+				break
+			}
+		}
+	}
+	s.countCache[key] = countEntry{n: n, expires: time.Now().Add(countCacheTTL)}
 }
 
 // Top 原表聚合（同窗内毫秒~数百毫秒级，满足 ≤3s 预算；
@@ -335,7 +407,7 @@ func (s *ChStore) Qps(ctx context.Context, q QpsQuery, scope OrgScope) ([]QpsPoi
 
 func scanLogRow(rows chdriver.Rows) (LogRow, error) {
 	var (
-		r                                             LogRow
+		r                                                 LogRow
 		sev, mac, clientIP, sip, dom, rc, act, cg, ai, dt string
 	)
 	if err := rows.Scan(&r.TS, &r.Type, &sev, &mac, &clientIP, &sip, &dom, &rc, &act, &cg, &ai, &dt); err != nil {

@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"sort"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/xiaodaoi/ipam/internal/module/logmanager"
 	"github.com/xiaodaoi/ipam/internal/module/utilization"
 	"github.com/xiaodaoi/ipam/internal/pkg/hostmetrics"
 )
@@ -28,6 +30,7 @@ type MetricsSources struct {
 	Unbound     func(context.Context) error
 	Host        *hostmetrics.Collector
 	Utilization func(context.Context) ([]utilization.Point, error)
+	LogStats    func(context.Context) (logmanager.LogStats, error)
 	TLSCertFile string
 }
 
@@ -118,6 +121,21 @@ func (h *MetricsHandler) Serve(c *gin.Context) {
 		}
 	}
 
+	if h.src.LogStats != nil {
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 1500*time.Millisecond)
+		if st, err := h.src.LogStats(ctx); err == nil {
+			fmt.Fprintf(&b, "# HELP ipam_log_rows 在线日志行数\n# TYPE ipam_log_rows gauge\nipam_log_rows %d\n", st.Rows)
+			fmt.Fprintf(&b, "# HELP ipam_log_disk_bytes 在线日志磁盘占用\n# TYPE ipam_log_disk_bytes gauge\nipam_log_disk_bytes %d\n", st.DiskBytes)
+			fmt.Fprintf(&b, "# HELP ipam_log_parts 在线日志活跃分区数\n# TYPE ipam_log_parts gauge\nipam_log_parts %d\n", st.Parts)
+			if st.AgeSecs >= 0 {
+				fmt.Fprintf(&b, "# HELP ipam_log_latest_age_seconds 最新日志距今秒数\n# TYPE ipam_log_latest_age_seconds gauge\nipam_log_latest_age_seconds %d\n", st.AgeSecs)
+			}
+		} else {
+			log.Printf("[metrics] log stats: %v", err)
+		}
+		cancel()
+	}
+
 	if h.src.Utilization != nil {
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 1500*time.Millisecond)
 		if points, err := h.src.Utilization(ctx); err == nil {
@@ -143,6 +161,8 @@ func (h *MetricsHandler) Serve(c *gin.Context) {
 			fmt.Fprintf(&b, "# HELP ipam_host_disk_used_percent 宿主文件系统使用率\n# TYPE ipam_host_disk_used_percent gauge\n")
 			for _, d := range m.Disks {
 				fmt.Fprintf(&b, "ipam_host_disk_used_percent{mount=%q,device=%q,fstype=%q} %.2f\n", d.Mount, d.Device, d.FSType, d.UsedPct)
+				fmt.Fprintf(&b, "ipam_host_disk_total_bytes{mount=%q,device=%q} %d\n", d.Mount, d.Device, d.TotalBytes)
+				fmt.Fprintf(&b, "ipam_host_disk_free_bytes{mount=%q,device=%q} %d\n", d.Mount, d.Device, d.AvailableBytes)
 			}
 			fmt.Fprintf(&b, "# HELP ipam_host_uptime_seconds 宿主运行时长\n# TYPE ipam_host_uptime_seconds gauge\n")
 			fmt.Fprintf(&b, "ipam_host_uptime_seconds %.0f\n", m.UptimeSec)

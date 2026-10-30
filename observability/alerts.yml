@@ -93,3 +93,43 @@ groups:
         annotations:
           summary: "子网 {{ $labels.subnet }}（{{ $labels.cidr }}）利用率 > 95%"
           description: "地址池即将耗尽，请立即扩容。"
+
+      - alert: IpamLogPartsHigh
+        expr: ipam_log_parts > 500
+        for: 15m
+        labels:
+          severity: warning
+          team: ipam
+        annotations:
+          summary: "ClickHouse logs 活跃分区数 > 500"
+          description: "分区/part 过多会拖慢查询与合并，请检查写入批次与后台 merge。"
+
+      - alert: IpamLogIngestStalled
+        expr: ipam_log_latest_age_seconds > 600
+        for: 10m
+        labels:
+          severity: critical
+          team: ipam
+        annotations:
+          summary: "日志 10 分钟无新数据"
+          description: "检查 Vector/ClickHouse/Kea/Unbound 采集链路；当前最新日志已滞后 {{ $value }} 秒。"
+
+      - alert: IpamLogDiskGrowthFast
+        expr: increase(ipam_log_disk_bytes[6h]) > 5368709120
+        for: 30m
+        labels:
+          severity: warning
+          team: ipam
+        annotations:
+          summary: "日志磁盘 6 小时增长 > 5GB"
+          description: "可能存在日志洪峰/重放，检查 Vector checkpoint 与日志量。"
+
+      - alert: IpamLogDiskRatioHigh
+        expr: ipam_log_disk_bytes / max(ipam_host_disk_total_bytes) > 0.6
+        for: 30m
+        labels:
+          severity: warning
+          team: ipam
+        annotations:
+          summary: "日志占用超过磁盘总量 60%"
+          description: "请评估保留天数/归档策略或扩容；日志盘即将影响其他组件。"
