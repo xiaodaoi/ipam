@@ -251,3 +251,15 @@ func TestCursorRoundTrip(t *testing.T) {
 		t.Fatalf("roundtrip 失败: %v %s %s", gotTS, gotMAC, gotDomain)
 	}
 }
+
+func TestIsQueryTimeout(t *testing.T) {
+	if !isQueryTimeout(errors.New("Code: 159. DB::Exception: Timeout exceeded: elapsed 3s")) {
+		t.Fatal("timeout should match")
+	}
+	if isQueryTimeout(errors.New("connection refused")) {
+		t.Fatal("connection refused should not match")
+	}
+	if isQueryTimeout(nil) {
+		t.Fatal("nil should not match")
+	}
+}

@@ -20,7 +20,9 @@ CREATE TABLE IF NOT EXISTS ipam.logs
 )
 ENGINE = MergeTree
 PARTITION BY toDate(ts)
-ORDER BY (type, client_mac, ts)
+-- ts 必须为首列，且与游标排序 (ts, client_mac, domain) 一致：
+-- 日志检索/统计绝大多数按时间窗过滤并倒序翻页，否则全表扫描/额外排序（M6-014）。
+ORDER BY (ts, client_mac, domain)
 TTL toDateTime(ts) + INTERVAL 180 DAY DELETE;
 
 -- TopN 物化视图（§8 预算支撑）：M4-002 当前走原表聚合已达标，

@@ -7,12 +7,14 @@ data_dir = "/var/lib/vector"
 [sources.kea_stdout]
 type = "file"
 include = ["/var/log/kea/*.log"]
-read_from = "beginning"
+# 只读启动后的新日志：避免 Vector 重建/丢 checkpoint 时整文件重放造成日志洪峰（M6-008 事故）
+# 首次部署若需回填历史，可临时改为 "beginning" 并在完成后改回 "end"。
+read_from = "end"
 
 [sources.unbound_log]
 type = "file"
 include = ["/var/log/unbound/unbound.log"]
-read_from = "beginning"
+read_from = "end"
 
 # ── Kea DHCPv4 租约/分配日志解析（Kea 2.2 行格式：TS LEVEL [组件/pid] DHCP4.EVENT ...）──
 [transforms.parse_kea]
@@ -75,7 +77,7 @@ source = '''
   .event = "dns_query"
   .rcode = ""
   .answer_ip = null
-  .timestamp = now()
+  .timestamp = from_unix_timestamp!(to_int!(m.ts), unit: "seconds")
   .severity = "INFO"
   .client_mac = ""
   .address = ""
@@ -109,7 +111,8 @@ source = '''
   .domain = parsed.qname
   .qtype = parsed.qtype
   .rtype = "dns"
-  .timestamp = now()
+  # DNS_LOG 自带 epoch 秒（可带小数）；不能再用 now()，否则重放会把历史日志记成当前时间
+  .timestamp = from_unix_timestamp!(to_int!(parsed.ts), unit: "seconds")
 '''
 
 # ── 归一化统一 schema（logs 宽表字段，§3 ClickHouse）──

@@ -3,6 +3,13 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-10-30 · 日志查询性能与重复入库修复（M6-014）
+- **根因**：Vector 重建丢 checkpoint + `read_from=beginning` 重放日志 + DNS 解析用 `now()` → 44M 行落在当前时间；`logs` 表 `ORDER BY (type,client_mac,ts)` 导致时间查询全表扫描，3s 超时被误报“日志存储暂不可达”。
+- **采集**：新增 `vector-data` 卷持久化 checkpoint；`read_from=end`；unbound/DNS_LOG 使用日志自带 epoch 时间戳。
+- **存储**：重建 `logs` 为 `ORDER BY (ts, client_mac, domain)`；清理重放窗口 44.3M 行（67.3M→23.0M）；重建 TopN MV；新增 CH 迁移 SQL 与脚本。
+- **错误语义**：超时返回 `QUERY_TIMEOUT` 并打印服务端错误，其他才返回 `CH_DOWN`。
+- **验证**：6h 34ms、24h 135ms、30d 0.93s；Top 0.73s、QPS 0.11s；Vector 重启无重放；E2E 11/11。
+- **代价**：重放窗口内正常日志约 2–3 万条一并清理，可按需从原始日志回填。
 ## 2026-10-30 · 会话收尾：GA 就绪评估与最终验证
 - 主卡 13/13 均有可交付切片；新增 `docs/pm/GA-就绪评估-2026-10-30.md`，列明完成/部分/阻塞项。
 - 最终验证：go test/vet、golangci-lint 0 issues、gen-check、前端 test/typecheck/build、E2E 11/11、离线产物断言通过。

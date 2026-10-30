@@ -48,6 +48,41 @@ docker compose -f observability/compose.observability.yaml --profile observabili
 - “完整性校验”重算 SHA256 链，异常会给出 brokenId；
 - 保留 180 天，自动清理。
 
+## 日志查询慢 / “日志存储暂不可达”
+
+先区分“超时”与“存储宕机”（接口 code）：
+
+- `QUERY_TIMEOUT`：查询超过 3s 预算，缩小时间范围或等待清理；
+- `CH_DOWN`：ClickHouse 不可达/其他错误，查看 control-plane 日志 `[logs] 查询失败`。
+
+排查步骤：
+
+```bash
+# 行数/时间范围/磁盘
+docker compose exec clickhouse clickhouse-client --query \
+  "SELECT count(), min(ts), max(ts) FROM ipam.logs"
+docker compose exec clickhouse clickhouse-client --query \
+  "SELECT table, formatReadableSize(sum(bytes_on_disk)), sum(rows) \
+     FROM system.parts WHERE database='ipam' AND active GROUP BY table"
+
+# Vector checkpoint 是否持久化（应为 vector-data 卷）
+docker inspect -f '{{range .Mounts}}{{.Name}}->{{.Destination}} {{end}}' ipam-vector-1
+
+# 每分钟入库量，异常洪峰通常 >10 万/分钟
+docker compose exec clickhouse clickhouse-client --query \
+  "SELECT toStartOfMinute(ts) m, count() FROM ipam.logs \
+     WHERE ts >= now() - INTERVAL 2 HOUR GROUP BY m ORDER BY m DESC LIMIT 20"
+```
+
+历史表结构升级（`ORDER BY` 改为 `ts` 优先）：
+
+```bash
+scripts/migrate-ch-logs.sh --yes
+# 确认后：DROP TABLE ipam.logs_old
+```
+
+> 不要将 Vector file source 的 `read_from` 长期设为 `beginning`；checkpoint 丢失会导致整文件重放。
+
 ## 故障处理
 
 | 现象 | 排查 |

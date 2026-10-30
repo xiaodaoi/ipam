@@ -5,7 +5,9 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -249,9 +251,24 @@ func writeLogErr(c *gin.Context, err error) {
 		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "INVALID_FILTER", err.Error())
 	case errors.Is(err, ErrOrgNotFound):
 		problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "ORG_NOT_FOUND", err.Error())
+	case isQueryTimeout(err):
+		problem.Write(c, http.StatusServiceUnavailable, "https://ipam.local/problems/log-query-timeout", "QUERY_TIMEOUT", "日志查询超时，请缩小时间范围或稍后重试")
 	default:
+		log.Printf("[logs] 查询失败: %v", err)
 		problem.Write(c, http.StatusServiceUnavailable, "https://ipam.local/problems/log-store-down", "CH_DOWN", "日志存储暂不可达")
 	}
+}
+
+// isQueryTimeout 区分“ClickHouse 超时”与“存储不可达”，避免把性能问题误报为宕机。
+func isQueryTimeout(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "timeout exceeded") ||
+		strings.Contains(msg, "max_execution_time") ||
+		strings.Contains(msg, "timed out") ||
+		strings.Contains(msg, "timeout")
 }
 
 // StreamLogTail GET /logs/tail（SSE live-tail，F-R7：延迟 ≤2s、断线续传）。

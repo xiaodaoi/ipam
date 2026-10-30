@@ -191,6 +191,8 @@ services:
         condition: service_started
     volumes:
       - vector-config:/etc/vector
+      # checkpoint 持久化：避免容器重建后从头重放日志文件（M6-008 日志洪峰事故）
+      - vector-data:/var/lib/vector
       - kea-logs:/var/log/kea:ro
       - unbound-logs:/var/log/unbound:ro
     restart: unless-stopped
@@ -280,6 +282,7 @@ volumes:
   ch-data:
   ch-exports:
   vector-config:
+  vector-data:
 
 # unbound 日志经宿主文件（unbound.conf logfile 配置）→ 由 vector file source 读取；
 # unbound-logs 卷：unbound 服务读写挂载（root 容器写入），vector 服务只读挂载采集。
