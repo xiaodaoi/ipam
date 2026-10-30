@@ -19,6 +19,12 @@ const routes: RouteRecordRaw[] = [
         meta: { icon: 'lucide:network', title: $t('page.dhcp.subnets'), authority: ['dhcp:read'] },
       },
       {
+        name: 'DhcpLeases',
+        path: '/dhcp/leases',
+        component: () => import('#/views/dhcp/leases/index.vue'),
+        meta: { icon: 'lucide:clock', title: $t('page.dhcp.leases'), authority: ['dhcp:read'] },
+      },
+      {
         name: 'DhcpLedger',
         path: '/dhcp/ledger',
         component: () => import('#/views/dhcp/ledger/parent.vue'),

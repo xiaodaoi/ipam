@@ -58,6 +58,12 @@ paths:
     $ref: './paths/dhcpoption.yaml#/DhcpClassItem'
   /dhcp/leases6:
     $ref: './paths/dhcpoption.yaml#/DhcpLeases6Collection'
+  /dhcp/leases6/{ipAddress}:
+    $ref: './paths/dhcpoption.yaml#/DhcpLease6Item'
+  /dhcp/leases4:
+    $ref: './paths/dhcpoption.yaml#/DhcpLeases4Collection'
+  /dhcp/leases4/{ipAddress}:
+    $ref: './paths/dhcpoption.yaml#/DhcpLease4Item'
   /auth/login:
     $ref: './paths/auth.yaml#/AuthLogin'
   /auth/user/info:

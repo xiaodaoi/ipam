@@ -20,7 +20,8 @@
     "subnets": "Subnets",
     "dualstack": "Dual-stack",
     "options": "Options & Classes",
-    "reservations": "Reservations & Bindings"
+    "reservations": "Reservations & Bindings",
+    "leases": "Leases"
   },
   "logs": {
     "title": "Log Center",

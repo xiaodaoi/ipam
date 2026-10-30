@@ -235,3 +235,110 @@ DhcpLeases6Collection:
                       iaid: 1
                       cltt: 1756440000
                       validLifetime: 3600
+
+DhcpLeases4Collection:
+  get:
+    operationId: listDhcpLeases4
+    tags: [dhcp]
+    summary: DHCPv4 租约列表
+    description: Kea lease4-get-all 实时投影（memfile 不入库，实时查询）。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: 租约列表
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/dhcpoption.yaml#/DhcpLease4List'
+      '500':
+        description: Kea 不可达
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Problem'
+
+DhcpLease4Item:
+  patch:
+    operationId: updateDhcpLease4
+    tags: [dhcp]
+    summary: 延期 / 改绑 / 改主机名
+    description: |
+      Kea lease4-update 实时生效；用于释放前延期、换机改绑或修正主机名。
+      scope 为 dhcp.write。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: ipAddress
+        in: path
+        required: true
+        schema: { type: string }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/dhcpoption.yaml#/DhcpLease4Update'
+    responses:
+      '200':
+        description: 更新后的租约
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/dhcpoption.yaml#/DhcpLease4'
+      '400':
+        description: 参数非法
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Problem'
+      '404':
+        description: 租约不存在
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Problem'
+  delete:
+    operationId: deleteDhcpLease4
+    tags: [dhcp]
+    summary: 释放 DHCPv4 租约
+    description: Kea lease4-del；不存在视为成功（幂等）。scope 为 dhcp.write。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: ipAddress
+        in: path
+        required: true
+        schema: { type: string }
+    responses:
+      '204': { description: 已释放 }
+      '500':
+        description: Kea 不可达
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Problem'
+
+DhcpLease6Item:
+  delete:
+    operationId: deleteDhcpLease6
+    tags: [dhcp]
+    summary: 释放 DHCPv6 租约
+    description: Kea lease6-del；不存在视为成功（幂等）。scope 为 dhcp.write。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: ipAddress
+        in: path
+        required: true
+        schema: { type: string }
+      - name: leaseType
+        in: query
+        required: true
+        schema:
+          type: string
+          enum: [IA_NA, IA_PD]
+    responses:
+      '204': { description: 已释放 }
+      '500':
+        description: Kea 不可达
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Problem'

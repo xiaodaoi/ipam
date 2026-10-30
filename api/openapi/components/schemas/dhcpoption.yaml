@@ -143,3 +143,43 @@ DhcpLease6List:
       type: array
       items:
         $ref: 'dhcpoption.yaml#/DhcpLease6'
+
+DhcpLease4:
+  type: object
+  description: DHCPv4 租约（Kea lease_cmds 实时投影，不入库）。
+  required: [ipAddress]
+  properties:
+    ipAddress: { type: string }
+    hwAddress: { type: string, description: 客户端 MAC（Kea hw-address） }
+    clientId: { type: string, description: RFC4361 client-id（如有） }
+    hostname: { type: string }
+    cltt: { type: integer, description: 客户端最近事务时间（unix 秒） }
+    validLifetime: { type: integer }
+    state: { type: integer, description: '0=default 1=declined' }
+    subnetId: { type: integer, description: Kea subnet-id }
+
+DhcpLease4List:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: 'dhcpoption.yaml#/DhcpLease4'
+
+DhcpLease4Update:
+  type: object
+  description: 延期（validLifetime）/改绑（hwAddress）/改主机名；至少填一项。
+  properties:
+    validLifetime:
+      type: integer
+      minimum: 60
+      maximum: 31536000
+      description: 新租约时长（秒）
+    hwAddress:
+      type: string
+      pattern: '^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$'
+      description: 改绑后的 MAC
+    hostname:
+      type: string
+      maxLength: 255

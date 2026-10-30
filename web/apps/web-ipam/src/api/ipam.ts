@@ -410,10 +410,19 @@ export const deleteUser = (id: string) => req<void>(`/users/${id}`, del);
 // ── DHCP 选项与类匹配（M2-016，C-02/C-03）──
 export type DhcpOptionRow = components['schemas']['DhcpOption'];
 export type DhcpLease6Row = components['schemas']['DhcpLease6'];
+export type DhcpLease4Row = components['schemas']['DhcpLease4'];
+export type DhcpLease4Update = components['schemas']['DhcpLease4Update'];
 export type DhcpClassRow = components['schemas']['DhcpClass'];
 export type DhcpClassOptionIn = { optionCode: number; name: string; data: string };
 export const listDhcpOptions = () => req<{ items: DhcpOptionRow[] }>('/dhcp/options');
 export const listDhcpLeases6 = () => req<{ items: DhcpLease6Row[] }>('/dhcp/leases6');
+export const listDhcpLeases4 = () => req<{ items: DhcpLease4Row[] }>('/dhcp/leases4');
+export const updateDhcpLease4 = (ip: string, b: DhcpLease4Update) =>
+  req<DhcpLease4Row>(`/dhcp/leases4/${encodeURIComponent(ip)}`, patch(b));
+export const deleteDhcpLease4 = (ip: string) =>
+  req<void>(`/dhcp/leases4/${encodeURIComponent(ip)}`, del);
+export const deleteDhcpLease6 = (ip: string, leaseType: 'IA_NA' | 'IA_PD') =>
+  req<void>(`/dhcp/leases6/${encodeURIComponent(ip)}?leaseType=${leaseType}`, del);
 export const createDhcpOption = (b: { optionCode: number; name: string; data: string; enabled?: boolean }) =>
   req<DhcpOptionRow>('/dhcp/options', j(b));
 export const updateDhcpOption = (id: string, b: { optionCode?: number; name?: string; data?: string; enabled?: boolean }) =>

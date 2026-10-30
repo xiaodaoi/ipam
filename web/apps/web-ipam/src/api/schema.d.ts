@@ -221,6 +221,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/dhcp/leases6/{ipAddress}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * 释放 DHCPv6 租约
+         * @description Kea lease6-del；不存在视为成功（幂等）。scope 为 dhcp.write。
+         */
+        delete: operations["deleteDhcpLease6"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dhcp/leases4": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * DHCPv4 租约列表
+         * @description Kea lease4-get-all 实时投影（memfile 不入库，实时查询）。
+         */
+        get: operations["listDhcpLeases4"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dhcp/leases4/{ipAddress}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * 释放 DHCPv4 租约
+         * @description Kea lease4-del；不存在视为成功（幂等）。scope 为 dhcp.write。
+         */
+        delete: operations["deleteDhcpLease4"];
+        options?: never;
+        head?: never;
+        /**
+         * 延期 / 改绑 / 改主机名
+         * @description Kea lease4-update 实时生效；用于释放前延期、换机改绑或修正主机名。
+         *     scope 为 dhcp.write。
+         */
+        patch: operations["updateDhcpLease4"];
+        trace?: never;
+    };
     "/auth/login": {
         parameters: {
             query?: never;
@@ -2953,6 +3018,33 @@ export interface components {
         DhcpLease6List: {
             items: components["schemas"]["DhcpLease6"][];
         };
+        /** @description DHCPv4 租约（Kea lease_cmds 实时投影，不入库）。 */
+        DhcpLease4: {
+            ipAddress: string;
+            /** @description 客户端 MAC（Kea hw-address） */
+            hwAddress?: string;
+            /** @description RFC4361 client-id（如有） */
+            clientId?: string;
+            hostname?: string;
+            /** @description 客户端最近事务时间（unix 秒） */
+            cltt?: number;
+            validLifetime?: number;
+            /** @description 0=default 1=declined */
+            state?: number;
+            /** @description Kea subnet-id */
+            subnetId?: number;
+        };
+        DhcpLease4List: {
+            items: components["schemas"]["DhcpLease4"][];
+        };
+        /** @description 延期（validLifetime）/改绑（hwAddress）/改主机名；至少填一项。 */
+        DhcpLease4Update: {
+            /** @description 新租约时长（秒） */
+            validLifetime?: number;
+            /** @description 改绑后的 MAC */
+            hwAddress?: string;
+            hostname?: string;
+        };
         AuthLogoutRequest: {
             /** @description 随登出一并吊销的刷新令牌（M5-032：登出同时吊销访问/刷新双令牌 jti） */
             refreshToken?: string;
@@ -3898,6 +3990,139 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DhcpLease6List"];
+                };
+            };
+        };
+    };
+    deleteDhcpLease6: {
+        parameters: {
+            query: {
+                leaseType: "IA_NA" | "IA_PD";
+            };
+            header?: never;
+            path: {
+                ipAddress: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已释放 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Kea 不可达 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    listDhcpLeases4: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 租约列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DhcpLease4List"];
+                };
+            };
+            /** @description Kea 不可达 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    deleteDhcpLease4: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ipAddress: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已释放 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Kea 不可达 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    updateDhcpLease4: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ipAddress: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DhcpLease4Update"];
+            };
+        };
+        responses: {
+            /** @description 更新后的租约 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DhcpLease4"];
+                };
+            };
+            /** @description 参数非法 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description 租约不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };

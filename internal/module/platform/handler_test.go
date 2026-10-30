@@ -62,6 +62,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		*AuthHandler
 		*UserHandler
 		*dhcpAPI
+		*dhcpmodule.LeaseHandler
 		*dnsmodule.DnsHandler
 		*dnsmodule.ForwardHandler
 		*dnsmodule.ZoneHandler
@@ -87,6 +88,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		NewAuthHandler(NewMemUserStore(), NewTokenBlacklist(), nil),
 		NewUserHandler(NewMemUserStore()),
 		&dhcpAPI{dhcpmodule.NewHandler(dhcpmodule.NewMemStore(), nil, nil)},
+		dhcpmodule.NewLeaseHandler(nil),
 		dnsmodule.NewDnsHandler(dnsSvc, nil),
 		dnsmodule.NewForwardHandler(dnsmodule.NewForwardService(dnsmodule.NewMemForwardRuleRepo(), dnsmodule.NewMemUpstreamRepo(), fakeUnbound{})),
 		dnsmodule.NewZoneHandler(dnsmodule.NewZoneService(dnsmodule.NewMemZoneRepo(), fakeUnbound{}), nil),

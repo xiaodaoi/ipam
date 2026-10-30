@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-10-30 · 租约管理 010A（M6-010）
+- **API**：`GET /dhcp/leases4`、`PATCH/DELETE /dhcp/leases4/{ip}`、`DELETE /dhcp/leases6/{ip}?leaseType=`；延期/改绑/释放直接走 Kea lease_cmds。
+- **前端**：DHCP 服务 → 租约管理，v4/v6 分页签、KPI、搜索、延期/改绑/释放。
+- **分层**：新增 `internal/engine/lease` 共享模型，避免 kea↔dhcp 循环依赖；`LeaseAgent` 接口便于单测。
+- **验证**：真实 Kea 端到端（合成租约延期→改绑→释放、v6 释放）通过；go test/build/gen-check/vue-tsc/eslint/build 通过。
+- **遗留**：010B（RA/option82/冲突探测/利用率历史/发现/CSV/VLAN）。
 ## 2026-10-30 · 单机韧性 003A（M6-003A）
 - **systemd**：`ipam.service` 开机自启 Compose（`up -d --wait`）。
 - **看门狗**：`ipam-watchdog.timer` 每分钟检查 `/healthz`，失败执行 `compose up -d`；容器 unhealthy 自动 restart。

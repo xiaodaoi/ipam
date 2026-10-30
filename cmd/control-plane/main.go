@@ -333,6 +333,11 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		return out, nil
 	}
 	dhcpH := dhcpmodule.NewHandler(dhcpStore, applyDhcpFn, lease6Fn)
+	var leaseAgent dhcpmodule.LeaseAgent
+	if keaCmd != nil {
+		leaseAgent = keaCmd
+	}
+	leaseH := dhcpmodule.NewLeaseHandler(leaseAgent)
 
 	ledgerH := ipam.NewLedgerHandler(ipam.NewLedgerService(ledgerSrc, resRepo, subRepo, notifyDhcp))
 	var assetRepo ipam.AssetRepo = ipam.NewMemAssetRepo()
@@ -653,6 +658,7 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		*platform.AuthHandler
 		*platform.UserHandler
 		*dhcpAPI
+		*dhcpmodule.LeaseHandler
 		*dnsmodule.DnsHandler
 		*dnsmodule.ForwardHandler
 		*dnsmodule.ZoneHandler
@@ -666,7 +672,7 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		*logexport.LogExportHandler
 		*backupmodule.APIHandler
 		*confApplier
-	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore, bl, permLookup, secStore), platform.NewUserHandler(userStore, secStore), &dhcpAPI{dhcpH}, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, platform.NewSecuritySettingsHandler(secStore), licenseH, logMgrH, exportH, backupH, applier}
+	}{h, orgH, subH, ledgerH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, platform.NewAuthHandler(userStore, bl, permLookup, secStore), platform.NewUserHandler(userStore, secStore), &dhcpAPI{dhcpH}, leaseH, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, platform.NewSecuritySettingsHandler(secStore), licenseH, logMgrH, exportH, backupH, applier}
 	// Prometheus 指标（M6-005）：放在 RBAC 之前供抓取；中间件只统计其后的 /api/v1 路由。
 	metricsH := platform.NewMetricsHandler(platform.MetricsSources{
 		Version: version,
