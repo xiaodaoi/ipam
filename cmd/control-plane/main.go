@@ -743,9 +743,9 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	})
 	r.GET("/metrics", metricsH.Serve)
 	// OpenAPI 在线事实源（M6-012）：无需令牌，仅暴露接口契约，不含数据。
-	if swagger, err := apigen.GetSwagger(); err == nil {
+	if spec, err := apigen.GetSpec(); err == nil {
 		r.GET("/openapi.json", func(c *gin.Context) {
-			c.JSON(http.StatusOK, swagger)
+			c.JSON(http.StatusOK, spec)
 		})
 	}
 	r.Use(metricsH.Middleware())

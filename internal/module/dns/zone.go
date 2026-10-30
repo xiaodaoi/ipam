@@ -78,7 +78,7 @@ func ValidateRecord(recType, rdata string) error {
 	case "SRV":
 		parts := strings.Fields(rdata)
 		if len(parts) != 4 {
-			return fmt.Errorf("%w: SRV 须为 priority weight port target.", ErrBadRdata)
+			return fmt.Errorf("%w: SRV 须为 priority weight port target（尾点）", ErrBadRdata)
 		}
 		if _, err := strconv.Atoi(parts[0]); err != nil {
 			return fmt.Errorf("%w: SRV priority 非法", ErrBadRdata)
@@ -95,7 +95,7 @@ func ValidateRecord(recType, rdata string) error {
 	case "MX":
 		parts := strings.Fields(rdata)
 		if len(parts) != 2 {
-			return fmt.Errorf("%w: MX 须为 priority exchange.", ErrBadRdata)
+			return fmt.Errorf("%w: MX 须为 priority exchange（尾点）", ErrBadRdata)
 		}
 		if _, err := strconv.Atoi(parts[0]); err != nil {
 			return fmt.Errorf("%w: MX priority 非法", ErrBadRdata)

@@ -82,8 +82,8 @@ func Validate(s Settings) error {
 	if s.KafkaEnabled && (strings.TrimSpace(s.KafkaBrokers) == "" || strings.TrimSpace(s.KafkaTopic) == "") {
 		return errors.New("启用 Kafka 时必须填写 brokers 与 topic")
 	}
-	if s.WebhookEnabled && !(strings.HasPrefix(s.WebhookURL, "http://") || strings.HasPrefix(s.WebhookURL, "https://")) {
-		return errors.New("Webhook URL 必须是 http(s)")
+	if s.WebhookEnabled && !strings.HasPrefix(s.WebhookURL, "http://") && !strings.HasPrefix(s.WebhookURL, "https://") {
+		return errors.New("webhook URL 必须是 http(s)")
 	}
 	if s.SamplingMode != "all" && s.SamplingMode != "sample" && s.SamplingMode != "errors" {
 		return errors.New("samplingMode 仅支持 all/sample/errors")

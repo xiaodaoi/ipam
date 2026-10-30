@@ -135,10 +135,8 @@ func (h *APIHandler) DownloadBackup(c *gin.Context, backupId openapi_types.UUID)
 
 func streamTarGz(w io.Writer, root string) error {
 	gz := gzip.NewWriter(w)
-	defer gz.Close()
 	tw := tar.NewWriter(gz)
-	defer tw.Close()
-	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -171,6 +169,13 @@ func streamTarGz(w io.Writer, root string) error {
 		}
 		return nil
 	})
+	if cerr := tw.Close(); err == nil {
+		err = cerr
+	}
+	if cerr := gz.Close(); err == nil {
+		err = cerr
+	}
+	return err
 }
 
 func (h *APIHandler) GetBackupSettings(c *gin.Context) {

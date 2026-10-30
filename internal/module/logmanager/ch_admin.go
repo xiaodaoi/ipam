@@ -232,7 +232,7 @@ func (a *ChAdmin) httpQuery(ctx context.Context, query string, body io.Reader) e
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 300 {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
 		return fmt.Errorf("clickhouse HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
@@ -255,6 +255,6 @@ func (a *ChAdmin) RestoreMonth(ctx context.Context, file string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	return a.httpQuery(ctx, "INSERT INTO "+a.db+".logs FORMAT Parquet", f)
 }

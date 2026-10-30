@@ -9,7 +9,6 @@ import (
 )
 
 type fakePg struct {
-	dumpPath string
 	restored string
 }
 
