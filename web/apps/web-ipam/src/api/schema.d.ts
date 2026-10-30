@@ -348,6 +348,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/2fa/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 生成 TOTP 密钥
+         * @description 生成并保存待确认 TOTP 密钥，返回 secret 与 otpauth URI；需再次调用 enable 并输入动态口令后生效。
+         */
+        post: operations["setupTotp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/2fa/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 启用 TOTP
+         * @description 校验动态口令后启用双因素认证。
+         */
+        post: operations["enableTotp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/2fa/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 关闭 TOTP
+         * @description 校验当前口令后关闭双因素认证并清除密钥。
+         */
+        post: operations["disableTotp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 注销全部会话
+         * @description 提升当前账号 token_version，使所有设备上的访问/刷新令牌立即失效。
+         */
+        post: operations["logoutAll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/password": {
         parameters: {
             query?: never;
@@ -2550,6 +2630,8 @@ export interface components {
             username: string;
             /** @description 登录口令（bcrypt 校验；首次启动随机生成，必须修改后才能继续使用） */
             password: string;
+            /** @description TOTP 动态口令（启用双因素认证后必填；6 位数字） */
+            totpCode?: string;
         };
         UserInfo: {
             userId: string;
@@ -2567,6 +2649,8 @@ export interface components {
             homePath: string;
             /** @description 当前是否需强制修改口令（M6-001：系统策略开启且账号被标记时为 true） */
             mustChangePassword: boolean;
+            /** @description 是否启用 TOTP 双因素认证（M6-007） */
+            totpEnabled?: boolean;
             token?: string;
         };
         /** @description 权限码集合（与 OpenAPI scope 同源预留；PoC 空=按钮级权限不启用） */
@@ -2581,14 +2665,16 @@ export interface components {
             username: string;
             /** @description 显示名 */
             displayName: string;
-            /** @description 角色（admin 写权限 / user 只读，admin 蕴含 user；§12.3） */
-            roles: ("admin" | "user")[];
+            /** @description 角色名（内置 admin/operator/auditor/user 或自定义角色；权限取并集） */
+            roles: string[];
             /** @description 启停（禁用即拒绝登录） */
             enabled: boolean;
             /** Format: date-time */
             createdAt: string;
             /** @description 是否被标记为需改密（M6-001：系统策略开启时新建/重置为 true；实际是否强制由全局策略决定） */
             mustChangePassword: boolean;
+            /** @description 是否启用 TOTP 双因素认证（M6-007） */
+            totpEnabled?: boolean;
         };
         UserList: {
             items: components["schemas"]["User"][];
@@ -2600,17 +2686,18 @@ export interface components {
             /** @description 初始口令（10–128 位，至少 3 类字符；新建账号首次登录须修改）。明文仅请求期接收，bcrypt 落库 */
             password: string;
             /**
+             * @description 角色名列表（内置/自定义，权限取并集）
              * @default [
              *       "user"
              *     ]
              */
-            roles: ("admin" | "user")[];
+            roles: string[];
         };
         /** @description PATCH 语义全部可选；password 提供即重置 */
         UserUpdate: {
             displayName?: string;
             password?: string;
-            roles?: ("admin" | "user")[];
+            roles?: string[];
             enabled?: boolean;
         };
         /** @description RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。 */
@@ -2836,6 +2923,20 @@ export interface components {
             accessToken: string;
             /** @description 新刷新令牌（7d TTL；旧刷新令牌 jti 已轮换入黑名单） */
             refreshToken: string;
+        };
+        TotpSetupResult: {
+            /** @description Base32 密钥（仅设置阶段展示，用于手动录入） */
+            secret: string;
+            /** @description otpauth:// URI（可生成二维码） */
+            otpauthUrl: string;
+        };
+        TotpEnableRequest: {
+            /** @description 6 位动态口令 */
+            code: string;
+        };
+        TotpDisableRequest: {
+            /** @description 当前登录口令 */
+            password: string;
         };
         AuthChangePasswordRequest: {
             /** @description 当前口令（用于确认身份；错误返回 401） */
@@ -3878,6 +3979,109 @@ export interface operations {
                 content: {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
+            };
+        };
+    };
+    setupTotp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 待确认密钥 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TotpSetupResult"];
+                };
+            };
+            401: components["responses"]["AuthUnauthorized"];
+        };
+    };
+    enableTotp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TotpEnableRequest"];
+            };
+        };
+        responses: {
+            /** @description 已启用 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthLoginResult"];
+                };
+            };
+            /** @description 动态口令错误 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    disableTotp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TotpDisableRequest"];
+            };
+        };
+        responses: {
+            /** @description 已关闭 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 当前口令错误 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    logoutAll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已注销全部会话 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

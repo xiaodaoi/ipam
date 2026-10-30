@@ -69,6 +69,18 @@ func (h *AuthHandler) AuthLogin(c *gin.Context) {
 		writeAuthErr(c, http.StatusUnauthorized, "BAD_CREDENTIALS", "账号或口令错误")
 		return
 	}
+	if rec.TOTPEnabled {
+		if body.TotpCode == nil || *body.TotpCode == "" {
+			SetAuditMeta(c, "login", rec.Username, "totp_required")
+			writeAuthErr(c, http.StatusUnauthorized, "TOTP_REQUIRED", "请输入动态口令")
+			return
+		}
+		if !ValidateTOTP(rec.TOTPSecret, *body.TotpCode, time.Now()) {
+			SetAuditMeta(c, "login", rec.Username, "totp_failed")
+			writeAuthErr(c, http.StatusUnauthorized, "TOTP_INVALID", "动态口令错误")
+			return
+		}
+	}
 	SetAuditMeta(c, "login", rec.Username, "success")
 	access, refresh := issueAuthPair(rec)
 	c.JSON(http.StatusOK, apigen.AuthLoginResult{
@@ -179,6 +191,111 @@ func (h *AuthHandler) refreshUser(c *gin.Context, claims JWTClaims) (UserRecord,
 	return rec, true
 }
 
+// SetupTotp POST /auth/2fa/setup（M6-007）：生成待确认密钥。
+func (h *AuthHandler) SetupTotp(c *gin.Context) {
+	claims, err := ParseJWT(bearerOf(c.GetHeader("Authorization")))
+	if err != nil {
+		writeAuthErr(c, http.StatusUnauthorized, "TOKEN_INVALID", err.Error())
+		return
+	}
+	rec, ok, err := h.users.GetByID(c.Request.Context(), claims.UID)
+	if err != nil || !ok {
+		writeAuthErr(c, http.StatusUnauthorized, "TOKEN_REVOKED", "账号不可用")
+		return
+	}
+	secret, err := GenerateTOTPSecret()
+	if err != nil {
+		WriteProblem(c, 500, "https://ipam.local/problems/internal", "TOTP_SETUP_FAILED", err.Error())
+		return
+	}
+	if _, err := h.users.Update(c.Request.Context(), rec.ID, UserUpdateInput{
+		TOTPSecret: &secret, TOTPEnabled: boolPtr(false),
+	}); err != nil {
+		WriteProblem(c, 500, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, apigen.TotpSetupResult{
+		Secret: secret, OtpauthUrl: TOTPAuthURL("IPAM", rec.Username, secret),
+	})
+}
+
+// EnableTotp POST /auth/2fa/enable：校验动态口令后启用。
+func (h *AuthHandler) EnableTotp(c *gin.Context) {
+	claims, err := ParseJWT(bearerOf(c.GetHeader("Authorization")))
+	if err != nil {
+		writeAuthErr(c, http.StatusUnauthorized, "TOKEN_INVALID", err.Error())
+		return
+	}
+	rec, ok, err := h.users.GetByID(c.Request.Context(), claims.UID)
+	if err != nil || !ok {
+		writeAuthErr(c, http.StatusUnauthorized, "TOKEN_REVOKED", "账号不可用")
+		return
+	}
+	var body apigen.TotpEnableRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		badRequest(c, "BAD_REQUEST", err.Error())
+		return
+	}
+	if rec.TOTPSecret == "" || !ValidateTOTP(rec.TOTPSecret, body.Code, time.Now()) {
+		badRequest(c, "TOTP_INVALID", "动态口令错误或未生成密钥")
+		return
+	}
+	if _, err := h.users.Update(c.Request.Context(), rec.ID, UserUpdateInput{TOTPEnabled: boolPtr(true)}); err != nil {
+		WriteProblem(c, 500, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	SetAuditMeta(c, "totp_enable", rec.Username, "success")
+	access, refresh := issueAuthPair(rec)
+	c.JSON(http.StatusOK, apigen.AuthLoginResult{AccessToken: access, RefreshToken: refresh, MustChangePassword: false})
+}
+
+// DisableTotp POST /auth/2fa/disable：校验当前口令后关闭。
+func (h *AuthHandler) DisableTotp(c *gin.Context) {
+	claims, err := ParseJWT(bearerOf(c.GetHeader("Authorization")))
+	if err != nil {
+		writeAuthErr(c, http.StatusUnauthorized, "TOKEN_INVALID", err.Error())
+		return
+	}
+	rec, ok, err := h.users.GetByID(c.Request.Context(), claims.UID)
+	if err != nil || !ok {
+		writeAuthErr(c, http.StatusUnauthorized, "TOKEN_REVOKED", "账号不可用")
+		return
+	}
+	var body apigen.TotpDisableRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		badRequest(c, "BAD_REQUEST", err.Error())
+		return
+	}
+	if !CheckPassword(rec.PasswordHash, body.Password) {
+		writeAuthErr(c, http.StatusUnauthorized, "BAD_CREDENTIALS", "当前口令不正确")
+		return
+	}
+	empty := ""
+	if _, err := h.users.Update(c.Request.Context(), rec.ID, UserUpdateInput{
+		TOTPSecret: &empty, TOTPEnabled: boolPtr(false),
+	}); err != nil {
+		WriteProblem(c, 500, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	SetAuditMeta(c, "totp_disable", rec.Username, "success")
+	c.Status(http.StatusNoContent)
+}
+
+// LogoutAll POST /auth/logout-all：token_version+1，注销全部会话。
+func (h *AuthHandler) LogoutAll(c *gin.Context) {
+	claims, err := ParseJWT(bearerOf(c.GetHeader("Authorization")))
+	if err != nil {
+		writeAuthErr(c, http.StatusUnauthorized, "TOKEN_INVALID", err.Error())
+		return
+	}
+	if err := h.users.BumpTokenVersion(c.Request.Context(), claims.UID); err != nil {
+		WriteProblem(c, 500, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	SetAuditMeta(c, "logout_all", claims.Sub, "success")
+	c.Status(http.StatusNoContent)
+}
+
 // ChangeAuthPassword POST /auth/password（M6-001：自助改密）
 // 校验旧口令 → 口令策略 → 更新散列 → 清除 must-change → token_version+1 → 颁发新令牌对。
 func (h *AuthHandler) ChangeAuthPassword(c *gin.Context) {
@@ -248,7 +365,9 @@ func (h *AuthHandler) GetAuthUserInfo(c *gin.Context) {
 	}
 	realName := claims.Sub
 	mustChange := false
+	totpEnabled := false
 	if rec, ok, lerr := h.users.GetByID(c.Request.Context(), claims.UID); lerr == nil && ok {
+		totpEnabled = rec.TOTPEnabled
 		mustChange = rec.MustChangePassword && h.forcePasswordChange(c.Request.Context())
 		if rec.DisplayName != "" {
 			realName = rec.DisplayName
@@ -270,6 +389,7 @@ func (h *AuthHandler) GetAuthUserInfo(c *gin.Context) {
 		Desc:               strPtr("IPAM 控制面账号"),
 		HomePath:           "/overview",
 		MustChangePassword: mustChange,
+		TotpEnabled:        &totpEnabled,
 	})
 }
 
@@ -319,6 +439,8 @@ func bearerOf(header string) string {
 var timeNowUTC = time.Now
 
 func strPtr(s string) *string { return &s }
+
+func boolPtr(b bool) *bool { return &b }
 
 func writeAuthErr(c *gin.Context, status int, code, detail string) {
 	WriteProblem(c, status, "https://ipam.local/problems/unauthorized", code, detail)

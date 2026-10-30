@@ -70,6 +70,14 @@ paths:
     $ref: './paths/auth.yaml#/AuthLogout'
   /auth/refresh:
     $ref: './paths/auth.yaml#/AuthRefresh'
+  /auth/2fa/setup:
+    $ref: './paths/auth.yaml#/AuthTotpSetup'
+  /auth/2fa/enable:
+    $ref: './paths/auth.yaml#/AuthTotpEnable'
+  /auth/2fa/disable:
+    $ref: './paths/auth.yaml#/AuthTotpDisable'
+  /auth/logout-all:
+    $ref: './paths/auth.yaml#/AuthLogoutAll'
   /auth/password:
     $ref: './paths/auth.yaml#/AuthChangePassword'
   /system/webui-settings:

@@ -61,14 +61,11 @@ func containsRole(rs []string, role string) bool {
 
 func toGenUser(u User) apigen.User {
 	id := guuid.MustParse(u.ID)
-	roles := make([]apigen.UserRoles, 0, len(u.Roles))
-	for _, r := range u.Roles {
-		roles = append(roles, apigen.UserRoles(r))
-	}
+	totp := u.TOTPEnabled
 	return apigen.User{
 		Id: id, Username: u.Username, DisplayName: u.DisplayName,
-		Roles: roles, Enabled: u.Enabled, CreatedAt: u.CreatedAt,
-		MustChangePassword: u.MustChangePassword,
+		Roles: u.Roles, Enabled: u.Enabled, CreatedAt: u.CreatedAt,
+		MustChangePassword: u.MustChangePassword, TotpEnabled: &totp,
 	}
 }
 

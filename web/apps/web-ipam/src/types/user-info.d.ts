@@ -3,6 +3,7 @@
 declare module '@vben/types' {
   interface UserInfo {
     mustChangePassword?: boolean;
+    totpEnabled?: boolean;
   }
 }
 

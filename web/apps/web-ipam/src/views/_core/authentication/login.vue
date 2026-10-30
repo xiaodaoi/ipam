@@ -33,6 +33,14 @@ const formSchema = computed((): VbenFormSchema[] => {
       rules: z.string().min(1, { message: $t('authentication.passwordTip') }),
     },
     {
+      component: 'VbenInput',
+      componentProps: {
+        placeholder: '未启用双因素认证可留空',
+      },
+      fieldName: 'totpCode',
+      label: '动态口令',
+    },
+    {
       component: markRaw(SliderCaptcha),
       fieldName: 'captcha',
       rules: z.boolean().refine((value) => value, {

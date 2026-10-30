@@ -4,6 +4,7 @@ export namespace AuthApi {
   /** 登录接口参数 */
   export interface LoginParams {
     password?: string;
+    totpCode?: string;
     username?: string;
   }
 
@@ -60,6 +61,25 @@ export async function refreshTokenApi(accessToken?: null | string) {
       withCredentials: true,
     },
   );
+}
+
+/** TOTP 双因素认证（M6-007） */
+export async function setupTotpApi() {
+  return requestClient.post<{ otpauthUrl: string; secret: string }>(
+    '/auth/2fa/setup',
+  );
+}
+
+export async function enableTotpApi(code: string) {
+  return requestClient.post<AuthApi.LoginResult>('/auth/2fa/enable', { code });
+}
+
+export async function disableTotpApi(password: string) {
+  return requestClient.post<void>('/auth/2fa/disable', { password });
+}
+
+export async function logoutAllApi() {
+  return requestClient.post<void>('/auth/logout-all');
 }
 
 /**

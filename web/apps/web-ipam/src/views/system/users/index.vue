@@ -21,7 +21,13 @@ import {
   Tooltip,
 } from 'ant-design-vue';
 
-import { createUser, deleteUser, listUsers, updateUser } from '#/api/ipam';
+import {
+  createUser,
+  deleteUser,
+  listRoles,
+  listUsers,
+  updateUser,
+} from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
 
@@ -31,10 +37,10 @@ const ROLE_META: Record<string, { color: string; desc: string; label: string }> 
   operator: { color: 'blue', desc: 'DHCP/DNS/资产读写', label: '运维' },
   user: { color: 'default', desc: '全模块只读', label: '只读' },
 };
-const ROLE_OPTIONS = [
-  { label: '管理员（可读写）', value: 'admin' },
-  { label: '只读（仅查看）', value: 'user' },
-];
+const roleOptions = ref<{ label: string; value: string }[]>([
+  { label: 'admin', value: 'admin' },
+  { label: 'user', value: 'user' },
+]);
 const STATUS_OPTIONS = [
   { label: '全部状态', value: 'all' },
   { label: '已启用', value: 'enabled' },
@@ -121,7 +127,12 @@ const activeFilters = computed(() => {
 });
 
 // ── 创建 / 编辑 / 重置口令 ──
-const createForm = reactive({ displayName: '', password: '', roles: 'user', username: '' });
+const createForm = reactive({
+  displayName: '',
+  password: '',
+  roles: ['user'] as string[],
+  username: '',
+});
 const [CreateModal, createModalApi] = useVbenModal({
   class: 'w-[560px]',
   draggable: true,
@@ -133,7 +144,7 @@ function openCreate() {
   createForm.username = '';
   createForm.displayName = '';
   createForm.password = '';
-  createForm.roles = 'user';
+  createForm.roles = ['user'];
   createModalApi.open();
 }
 
@@ -150,7 +161,7 @@ async function add() {
     await createUser({
       displayName: createForm.displayName.trim() || undefined,
       password: createForm.password,
-      roles: [createForm.roles],
+      roles: createForm.roles,
       username: createForm.username.trim(),
     });
     message.success(`账号「${createForm.username.trim()}」已创建`);
@@ -161,7 +172,13 @@ async function add() {
   }
 }
 
-const editForm = reactive({ displayName: '', enabled: true, id: '', roles: 'user', username: '' });
+const editForm = reactive({
+  displayName: '',
+  enabled: true,
+  id: '',
+  roles: ['user'] as string[],
+  username: '',
+});
 const [EditModal, editModalApi] = useVbenModal({
   class: 'w-[520px]',
   draggable: true,
@@ -173,7 +190,7 @@ function openEdit(row: UserRow) {
   editForm.id = row.id;
   editForm.username = row.username;
   editForm.displayName = row.displayName ?? '';
-  editForm.roles = row.roles.includes('admin') ? 'admin' : 'user';
+  editForm.roles = [...(row.roles as string[])];
   editForm.enabled = row.enabled;
   editModalApi.open();
 }
@@ -183,7 +200,7 @@ async function saveEdit() {
     await updateUser(editForm.id, {
       displayName: editForm.displayName.trim(),
       enabled: editForm.enabled,
-      roles: [editForm.roles],
+      roles: editForm.roles,
     });
     message.success('账号信息已更新');
     editModalApi.close();
@@ -257,8 +274,21 @@ const columns = [
   { dataIndex: 'op', key: 'op', title: '操作', width: 240 },
 ];
 
+async function loadRoleOptions() {
+  try {
+    const d = await listRoles();
+    roleOptions.value = (d.items ?? []).map((r) => ({
+      label: r.name,
+      value: r.name,
+    }));
+  } catch {
+    // 保留默认 admin/user
+  }
+}
+
 onMounted(() => {
   void load();
+  void loadRoleOptions();
   timer = setInterval(() => void load(), 15_000);
 });
 onBeforeUnmount(() => clearInterval(timer));
@@ -399,6 +429,7 @@ onBeforeUnmount(() => clearInterval(timer));
                   <span class="ipam-account__name ipam-mono">{{ record.username }}</span>
                   <Tag v-if="isSelf(record.username)" class="m-0" color="blue">当前登录</Tag>
                   <Tag v-if="record.mustChangePassword" class="m-0" color="orange">需改密</Tag>
+                  <Tag v-if="record.totpEnabled" class="m-0" color="green">2FA</Tag>
                 </div>
                 <span class="ipam-cell-meta">
                   {{ record.displayName || '未设置显示名' }}
@@ -490,7 +521,12 @@ onBeforeUnmount(() => clearInterval(timer));
         </div>
         <div class="ipam-form-field">
           <span class="ipam-form-field__label">角色</span>
-          <Select v-model:value="createForm.roles" :options="ROLE_OPTIONS" />
+          <Select
+            v-model:value="createForm.roles"
+            mode="multiple"
+            :options="roleOptions"
+            placeholder="选择一个或多个角色"
+          />
         </div>
         <div class="ipam-form-hint ipam-form-field--wide">
           口令仅在请求期接收并以 bcrypt 落库；只读账号的写操作会被 RBAC 拦截（403）。
@@ -510,7 +546,12 @@ onBeforeUnmount(() => clearInterval(timer));
         </div>
         <div class="ipam-form-field">
           <span class="ipam-form-field__label">角色</span>
-          <Select v-model:value="editForm.roles" :options="ROLE_OPTIONS" />
+          <Select
+            v-model:value="editForm.roles"
+            mode="multiple"
+            :options="roleOptions"
+            placeholder="选择一个或多个角色"
+          />
         </div>
         <div class="ipam-form-field">
           <span class="ipam-form-field__label">账号状态</span>

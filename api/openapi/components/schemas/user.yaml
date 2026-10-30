@@ -13,8 +13,8 @@ User:
       description: 显示名
     roles:
       type: array
-      items: { type: string, enum: [admin, user] }
-      description: 角色（admin 写权限 / user 只读，admin 蕴含 user；§12.3）
+      items: { type: string }
+      description: 角色名（内置 admin/operator/auditor/user 或自定义角色；权限取并集）
     enabled:
       type: boolean
       description: 启停（禁用即拒绝登录）
@@ -24,6 +24,9 @@ User:
     mustChangePassword:
       type: boolean
       description: 是否被标记为需改密（M6-001：系统策略开启时新建/重置为 true；实际是否强制由全局策略决定）
+    totpEnabled:
+      type: boolean
+      description: 是否启用 TOTP 双因素认证（M6-007）
 
 UserList:
   type: object
@@ -54,8 +57,9 @@ UserCreate:
       description: 初始口令（10–128 位，至少 3 类字符；新建账号首次登录须修改）。明文仅请求期接收，bcrypt 落库
     roles:
       type: array
-      items: { type: string, enum: [admin, user] }
+      items: { type: string }
       default: [user]
+      description: 角色名列表（内置/自定义，权限取并集）
 
 UserUpdate:
   type: object
@@ -70,6 +74,6 @@ UserUpdate:
       minLength: 8
     roles:
       type: array
-      items: { type: string, enum: [admin, user] }
+      items: { type: string }
     enabled:
       type: boolean

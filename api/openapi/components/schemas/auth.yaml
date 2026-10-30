@@ -49,6 +49,29 @@ AuthChangePasswordRequest:
         新口令。策略：10–128 位，至少包含小写/大写/数字/符号中的 3 类，
         不得包含用户名，且不得与旧口令相同（M6-001）。
 
+TotpSetupResult:
+  type: object
+  required: [secret, otpauthUrl]
+  properties:
+    secret:
+      type: string
+      description: Base32 密钥（仅设置阶段展示，用于手动录入）
+    otpauthUrl:
+      type: string
+      description: otpauth:// URI（可生成二维码）
+
+TotpEnableRequest:
+  type: object
+  required: [code]
+  properties:
+    code: { type: string, description: 6 位动态口令 }
+
+TotpDisableRequest:
+  type: object
+  required: [password]
+  properties:
+    password: { type: string, description: 当前登录口令 }
+
 AuthLogoutRequest:
   type: object
   properties:
@@ -66,6 +89,9 @@ AuthLoginRequest:
     password:
       type: string
       description: 登录口令（bcrypt 校验；首次启动随机生成，必须修改后才能继续使用）
+    totpCode:
+      type: string
+      description: TOTP 动态口令（启用双因素认证后必填；6 位数字）
 
 UserInfo:
   type: object
@@ -97,6 +123,9 @@ UserInfo:
     mustChangePassword:
       type: boolean
       description: 当前是否需强制修改口令（M6-001：系统策略开启且账号被标记时为 true）
+    totpEnabled:
+      type: boolean
+      description: 是否启用 TOTP 双因素认证（M6-007）
     token:
       type: string
 

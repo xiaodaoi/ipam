@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-10-30 · 账号体系 007A（TOTP/角色/会话）
+- **TOTP**：新增 2FA setup/enable/disable；登录支持 totpCode，启用后强制动态口令；个人中心安全设置可启用/关闭。
+- **角色**：`User.roles` 改为字符串数组，账号页多选加载内置+自定义角色；后端白名单沿用。
+- **会话**：新增 `/auth/logout-all`，token_version+1 注销全部设备；个人中心提供二次确认入口。
+- **验证**：TOTP 单测/登录流程、前端 typecheck/lint/build、go test/gen-check 通过。
+- **遗留**：LDAP/AD（007B 需目录服务）、会话列表/单会话踢出、TOTP 恢复码。
 ## 2026-10-30 · 审计合规强化（M6-006）
 - **审计内容**：变更请求记录脱敏 JSON body（≤8KB，password/token/secret/license 等打码），不改变 handler 读取；登录/登出动作沿用 M6-001。
 - **防篡改**：新增 prev_hash/chain_hash，PG 事务 + advisory lock 串行写入；新增 `GET /audits/verify` 与前端“完整性校验”，校验单条哈希与相邻链接；抽屉展示脱敏请求体/链哈希。
