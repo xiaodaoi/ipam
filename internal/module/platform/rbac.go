@@ -93,7 +93,11 @@ func hasPerm(claims JWTClaims, need string, lookup func(ctx context.Context, rol
 	return false
 }
 
-func NewRBACMiddleware(users UserStore, bl *TokenBlacklist, permLookup func(ctx context.Context, role string) ([]string, bool)) gin.HandlerFunc {
+func NewRBACMiddleware(users UserStore, bl *TokenBlacklist, permLookup func(ctx context.Context, role string) ([]string, bool), sessions ...*SessionService) gin.HandlerFunc {
+	var sessionSvc *SessionService
+	if len(sessions) > 0 {
+		sessionSvc = sessions[0]
+	}
 	return func(c *gin.Context) {
 		// 登录/登出/刷新与公开品牌端点（登录页鉴权前展示站点名）自身放行
 		// （/auth/refresh 自持刷新令牌校验，过期访问令牌须能到达端点，M5-032）
@@ -124,7 +128,8 @@ func NewRBACMiddleware(users UserStore, bl *TokenBlacklist, permLookup func(ctx 
 			return
 		}
 		// M5-011/M5-032：登出黑名单（已吊销令牌立即失效；jti 主键，存量令牌回退指纹）
-		if bl != nil && bl.Revoked(blacklistKey(claims, tok)) {
+		// M6-007C：同时检查会话键，单会话强制下线对访问/刷新令牌同时生效。
+		if bl != nil && bl.RevokedAny(revocationKeys(claims, tok)...) {
 			problem.Write(c, http.StatusUnauthorized,
 				"https://ipam.local/problems/unauthorized", "TOKEN_REVOKED", "令牌已吊销（已登出）")
 			c.Abort()
@@ -144,6 +149,10 @@ func NewRBACMiddleware(users UserStore, bl *TokenBlacklist, permLookup func(ctx 
 				"https://ipam.local/problems/unauthorized", "TOKEN_REVOKED", "令牌已吊销或账号不可用")
 			c.Abort()
 			return
+		}
+		// M6-007C：最近活动时间节流落库（每分钟每会话最多一次写）。
+		if sessionSvc != nil {
+			sessionSvc.Touch(c.Request.Context(), claims.SID)
 		}
 
 		// M2-035：域权限拦截（读 → <域>:read；写 → <域>:write）

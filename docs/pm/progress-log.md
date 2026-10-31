@@ -3,6 +3,15 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-10-31 · 会话列表与单会话强制下线（M6-007C）
+- **数据**：`0037_user_sessions.sql` 新增会话表（IP/UA/登录时间/最近活动/过期/吊销）；JWT 增加 `sid` claim，不保存令牌原文。
+- **自助**：`GET /auth/sessions` 列表、`DELETE /auth/sessions/{sessionId}` 下线；个人中心「安全设置」新增登录会话卡片（设备/IP/最近活动/当前会话标记）。
+- **管理端**：`GET /system/sessions?userId=`、`DELETE /system/sessions/{sessionId}`；账号页新增「会话」弹窗，可按账号强制下线。
+- **吊销**：会话键 `sess:<id>` 复用 `auth_token_blacklist`；`RevokedAny` 一次 DB 查询同时判断 jti 与会话键，访问/刷新令牌同步 401。
+- **联动**：刷新轮换沿用 `sid` 并推进过期时间；RBAC 最近活动每分钟节流落库；过期 7 天会话每小时清理。
+- **安全加固**：管理员重置口令/变更角色/停用账号/重置 2FA 统一提升 token_version 并下线全部会话，修复旧令牌保留旧角色权限的问题。
+- **验证**：platform 单测 9 组 + 真实环境 curl（登录/列表/刷新 sid 不变/管理端下线/访问与刷新 401）；golangci-lint 0 issues；vue-tsc/eslint；E2E 13/13。
+
 ## 2026-10-30 · TOTP 一次性恢复码（M6-007A 收尾）
 - **数据**：`0036_totp_recovery.sql`，`users.totp_recovery text[]` 仅存 SHA-256。
 - **生成**：10 个 `XXXXX-XXXXX` 恢复码，需当前口令或动态口令确认，旧码立即失效，明文仅返回一次。

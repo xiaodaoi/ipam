@@ -90,6 +90,10 @@ paths:
     $ref: './paths/auth.yaml#/AuthTotpRecovery'
   /auth/logout-all:
     $ref: './paths/auth.yaml#/AuthLogoutAll'
+  /auth/sessions:
+    $ref: './paths/auth.yaml#/AuthSessions'
+  /auth/sessions/{sessionId}:
+    $ref: './paths/auth.yaml#/AuthSessionItem'
   /auth/password:
     $ref: './paths/auth.yaml#/AuthChangePassword'
   /system/webui-settings:
@@ -120,6 +124,10 @@ paths:
     $ref: "./paths/ldap.yaml#/LDAPSettings"
   /system/ldap/test:
     $ref: "./paths/ldap.yaml#/LDAPTest"
+  /system/sessions:
+    $ref: "./paths/session.yaml#/SystemSessions"
+  /system/sessions/{sessionId}:
+    $ref: "./paths/session.yaml#/SystemSessionItem"
   /system/log-archives:
     $ref: "./paths/logsettings.yaml#/LogArchiveCollection"
   /system/log-archives/stats:

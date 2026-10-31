@@ -182,6 +182,14 @@ async function main() {
       const enabled = page.locator('.ant-switch').first();
       await enabled.waitFor({ state: 'visible', timeout: 15_000 });
     });
+
+    await step('个人中心登录会话', async () => {
+      await page.goto(urlFor('/profile'), { waitUntil: 'domcontentloaded' });
+      await waitText(page, '个人中心');
+      await page.getByText('安全设置', { exact: true }).first().click();
+      await waitText(page, '登录会话');
+      await waitText(page, '当前会话');
+    });
   } catch (error) {
     failed = true;
     const shot = join(artifactDir, `failure-${Date.now()}.png`);

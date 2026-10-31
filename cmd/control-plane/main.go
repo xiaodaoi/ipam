@@ -462,6 +462,13 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 			log.Printf("[bl-load] 黑名单持久化加载失败（降级内存）: %v", err)
 		}
 	}
+	// 登录会话（M6-007C）：会话列表/单会话强制下线；PG 持久化，内存实现用于无 DB 路径。
+	var sessionStore platform.SessionStore = platform.NewMemSessionStore()
+	if pool != nil {
+		sessionStore = platform.NewPgSessionStore(pool)
+	}
+	sessionSvc := platform.NewSessionService(sessionStore, bl)
+	sessionSvc.Start(rootCtx)
 
 	var upRepo dnsmodule.UpstreamRepo = dnsmodule.NewMemUpstreamRepo()
 	var unboundCtl dnsmodule.UnboundController = unboundengine.ExecController{Conf: os.Getenv("IPAM_UNBOUND_CONF")}
@@ -695,6 +702,10 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	}
 	authH := platform.NewAuthHandler(userStore, bl, permLookup, secStore)
 	authH.SetLDAP(ldapAuth)
+	authH.SetSessions(sessionSvc)
+	userH := platform.NewUserHandler(userStore, secStore)
+	userH.SetSessions(sessionSvc)
+	sessionH := platform.NewSessionHandler(sessionSvc)
 
 	full := struct {
 		*platform.Handler
@@ -709,6 +720,7 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		*dsAPI
 		*platform.AuthHandler
 		*platform.UserHandler
+		*platform.SessionHandler
 		*platform.LDAPHandler
 		*dhcpAPI
 		*dhcpmodule.LeaseHandler
@@ -726,7 +738,7 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		*logexport.LogExportHandler
 		*backupmodule.APIHandler
 		*confApplier
-	}{h, orgH, subH, ledgerH, metaH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, authH, platform.NewUserHandler(userStore, secStore), ldapH, &dhcpAPI{dhcpH}, leaseH, utilH, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, platform.NewSecuritySettingsHandler(secStore), licenseH, logMgrH, exportH, backupH, applier}
+	}{h, orgH, subH, ledgerH, metaH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, authH, userH, sessionH, ldapH, &dhcpAPI{dhcpH}, leaseH, utilH, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, platform.NewSecuritySettingsHandler(secStore), licenseH, logMgrH, exportH, backupH, applier}
 	// Prometheus 指标（M6-005）：放在 RBAC 之前供抓取；中间件只统计其后的 /api/v1 路由。
 	var logStatsFn func(context.Context) (logmanager.LogStats, error)
 	if chAdmin != nil {
@@ -784,7 +796,7 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	})
 	// RBAC 写权限拦截（M5-003）先于审计：被 403 的请求不入账。
 	// 操作审计（M4-003+M5-002）：actor 从 JWT claims 解析（human/bot 区分 §12.3）。
-	r.Use(platform.NewRBACMiddleware(userStore, bl, permLookup)) // M5-003/M5-010/M5-011/M2-035：认证+授权+吊销+域权限
+	r.Use(platform.NewRBACMiddleware(userStore, bl, permLookup, sessionSvc)) // M5-003/M5-010/M5-011/M2-035/M6-007C
 	r.Use(logq.NewAuditRecorder(auditRepo, platform.JWTActorProvider))
 	// spec servers.url=/api/v1 → 统一前缀注册
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})

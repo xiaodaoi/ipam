@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 
 import { useUserStore } from '@vben/stores';
 
@@ -22,6 +22,11 @@ import {
   logoutAllApi,
   setupTotpApi,
 } from '#/api';
+import {
+  listSessions,
+  revokeSession,
+  type SessionRow,
+} from '#/api/ipam';
 import { useAuthStore } from '#/store';
 
 const userStore = useUserStore();
@@ -171,6 +176,62 @@ async function logoutAll() {
     message.error(error instanceof Error ? error.message : '操作失败');
   }
 }
+
+// 登录会话（M6-007C）：查看当前账号在所有设备上的会话并单独下线。
+const sessions = ref<SessionRow[]>([]);
+const sessionsLoading = ref(false);
+
+async function loadSessions() {
+  sessionsLoading.value = true;
+  try {
+    const res = await listSessions();
+    sessions.value = res.items ?? [];
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '会话列表加载失败');
+  } finally {
+    sessionsLoading.value = false;
+  }
+}
+
+/** 从 User-Agent 提取可读设备名（未知时回退原始前缀）。 */
+function deviceLabel(ua: string): string {
+  if (!ua) return '未知客户端';
+  let browser = '浏览器';
+  if (/Edg\//.test(ua)) browser = 'Edge';
+  else if (/Chrome\//.test(ua)) browser = 'Chrome';
+  else if (/Firefox\//.test(ua)) browser = 'Firefox';
+  else if (/Safari\//.test(ua)) browser = 'Safari';
+
+  let os = '';
+  if (/Windows/.test(ua)) os = 'Windows';
+  else if (/Mac OS X|Macintosh/.test(ua)) os = 'macOS';
+  else if (/Android/.test(ua)) os = 'Android';
+  else if (/iPhone|iPad/.test(ua)) os = 'iOS';
+  else if (/Linux/.test(ua)) os = 'Linux';
+  return os ? `${browser} · ${os}` : browser;
+}
+
+function fmtTime(v: string): string {
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleString();
+}
+
+async function kickSession(row: SessionRow) {
+  try {
+    await revokeSession(row.id);
+    if (row.current) {
+      message.success('当前会话已注销，请重新登录');
+      await authStore.logout();
+      return;
+    }
+    message.success('会话已强制下线');
+    await loadSessions();
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '下线失败');
+  }
+}
+
+onMounted(() => void loadSessions());
 </script>
 
 <template>
@@ -272,6 +333,52 @@ async function logoutAll() {
         <Button :loading="loading" @click="openRecovery">
           {{ recovery.remaining > 0 ? '重新生成恢复码' : '生成恢复码' }}
         </Button>
+      </div>
+    </Card>
+
+    <Card>
+      <template #title>
+        <span class="ipam-card-title">
+          登录会话
+          <Tag class="m-0" :color="sessions.length > 1 ? 'blue' : 'default'">
+            {{ sessions.length }} 个
+          </Tag>
+        </span>
+      </template>
+      <template #extra>
+        <Button size="small" :loading="sessionsLoading" @click="loadSessions">
+          刷新
+        </Button>
+      </template>
+      <div v-if="sessions.length === 0" class="ipam-hint">
+        {{ sessionsLoading ? '加载中…' : '暂无活跃会话' }}
+      </div>
+      <div v-else class="flex flex-col gap-2">
+        <div
+          v-for="s in sessions"
+          :key="s.id"
+          class="flex flex-wrap items-center justify-between gap-3 rounded border border-gray-200 px-3 py-2 dark:border-gray-700"
+        >
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="font-medium">{{ deviceLabel(s.userAgent) }}</span>
+              <Tag v-if="s.current" class="m-0" color="green">当前会话</Tag>
+            </div>
+            <div class="ipam-hint break-all">
+              {{ s.ip || '未知 IP' }} · 登录 {{ fmtTime(s.createdAt) }} · 最近活动
+              {{ fmtTime(s.lastSeenAt) }}
+            </div>
+          </div>
+          <Popconfirm
+            :title="s.current ? '确认注销当前会话？' : '确认强制下线该会话？'"
+            description="该设备上的访问/刷新令牌将立即失效，需要重新登录。"
+            ok-text="下线"
+            cancel-text="取消"
+            @confirm="kickSession(s)"
+          >
+            <Button danger size="small">下线</Button>
+          </Popconfirm>
+        </div>
       </div>
     </Card>
 

@@ -65,25 +65,54 @@ func (b *TokenBlacklist) Add(hash string, until time.Time) {
 // PG 查询失败吞错返回 false：fail-open 窗口内后续 users 查询与业务写同处 PG 故障域必然失败，
 // 等效 fail-closed（不为此增加错误上报面）。
 func (b *TokenBlacklist) Revoked(hash string) bool {
+	return b.RevokedAny(hash)
+}
+
+// RevokedAny 批量吊销检查（M6-007C）：一次 DB 查询同时判断令牌 jti 与会话键，
+// 避免每个请求为会话状态额外增加一次往返。
+func (b *TokenBlacklist) RevokedAny(keys ...string) bool {
+	if b == nil || len(keys) == 0 {
+		return false
+	}
+	now := time.Now()
 	b.mu.Lock()
-	until, ok := b.m[hash]
-	if ok && time.Now().After(until) {
-		delete(b.m, hash)
-		ok = false
+	hit := false
+	valid := make([]string, 0, len(keys))
+	for _, k := range keys {
+		if k == "" {
+			continue
+		}
+		if until, ok := b.m[k]; ok {
+			if now.After(until) {
+				delete(b.m, k)
+				continue
+			}
+			hit = true
+		}
+		valid = append(valid, k)
 	}
 	db := b.db
 	b.mu.Unlock()
-	if ok {
+	if hit {
 		return true
 	}
-	if db != nil {
+	if db != nil && len(valid) > 0 {
 		var exists bool
 		_ = db.QueryRow(context.Background(),
-			`SELECT EXISTS (SELECT 1 FROM auth_token_blacklist WHERE token_hash=$1 AND until > now())`,
-			hash).Scan(&exists)
+			`SELECT EXISTS (SELECT 1 FROM auth_token_blacklist WHERE token_hash = ANY($1) AND until > now())`,
+			valid).Scan(&exists)
 		return exists
 	}
 	return false
+}
+
+// revocationKeys 请求令牌的吊销检查键：令牌 jti（存量令牌回退指纹）+ 会话键（M6-007C）。
+func revocationKeys(claims JWTClaims, rawToken string) []string {
+	keys := []string{blacklistKey(claims, rawToken)}
+	if claims.SID != "" {
+		keys = append(keys, SessionKey(claims.SID))
+	}
+	return keys
 }
 
 // Len 当前黑名单条数（诊断用）。

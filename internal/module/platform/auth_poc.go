@@ -32,16 +32,26 @@ func IssueToken(now time.Time) string {
 
 // IssueTokenFor 按用户记录签发 JWT（M5-004/M5-010：角色+会话版本进 claims）。
 func IssueTokenFor(sub, uid string, roles []string, ver int) string {
-	return IssueJWT(JWTClaims{Sub: sub, UID: uid, Roles: roles, Typ: "user", Ver: ver}, timeNowUTC())
+	return IssueTokenForSession(sub, uid, roles, ver, "")
+}
+
+// IssueTokenForSession 同 IssueTokenFor，附带会话 ID（M6-007C）。
+func IssueTokenForSession(sub, uid string, roles []string, ver int, sid string) string {
+	return IssueJWT(JWTClaims{Sub: sub, UID: uid, Roles: roles, Typ: "user", Ver: ver, SID: sid}, timeNowUTC())
 }
 
 // IssueRefreshTokenFor 签发刷新令牌（M5-032：kind=refresh，uid+jti+exp，7d TTL；
 // ver 随会话版本——改密/停用即失效，与 M5-010 吊销语义一致）。
 func IssueRefreshTokenFor(sub, uid string, ver int) string {
+	return IssueRefreshTokenForSession(sub, uid, ver, "")
+}
+
+// IssueRefreshTokenForSession 同 IssueRefreshTokenFor，附带会话 ID（M6-007C）。
+func IssueRefreshTokenForSession(sub, uid string, ver int, sid string) string {
 	return IssueJWT(JWTClaims{
 		Sub: sub, UID: uid, Typ: "user", Ver: ver,
-		Kind: tokenKindRefresh,
-		Exp:  timeNowUTC().Add(refreshTokenLifetime).Unix(),
+		Kind: tokenKindRefresh, SID: sid,
+		Exp: timeNowUTC().Add(refreshTokenLifetime).Unix(),
 	}, timeNowUTC())
 }
 

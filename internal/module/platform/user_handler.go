@@ -3,6 +3,7 @@ package platform
 import (
 	"context"
 	"errors"
+	"log"
 	"net/http"
 	"regexp"
 
@@ -16,8 +17,9 @@ import (
 // UserHandler 实现 apigen.ServerInterface 中 platform 域用户端点（M5-004，§13.4 系统管理）。
 // 读操作任何已认证用户可用；写操作由 RBAC 中间件（M5-003）限制为 admin。
 type UserHandler struct {
-	store UserStore
-	sec   SecuritySettingsStore
+	store    UserStore
+	sec      SecuritySettingsStore
+	sessions *SessionService
 }
 
 func NewUserHandler(store UserStore, sec ...SecuritySettingsStore) *UserHandler {
@@ -27,6 +29,9 @@ func NewUserHandler(store UserStore, sec ...SecuritySettingsStore) *UserHandler 
 	}
 	return &UserHandler{store: store, sec: s}
 }
+
+// SetSessions 注入会话服务（M6-007C）：安全属性变更时同步下线该账号全部会话。
+func (h *UserHandler) SetSessions(s *SessionService) { h.sessions = s }
 
 // forcePasswordChange 新建/重置时是否要求首次登录改密（默认关闭）。
 func (h *UserHandler) forcePasswordChange(ctx context.Context) bool {
@@ -211,24 +216,36 @@ func (h *UserHandler) UpdateUser(c *gin.Context, userId rtypes.UUID) {
 		mustChange := h.forcePasswordChange(c.Request.Context())
 		in.MustChangePassword = &mustChange
 	}
+	rolesChanged := false
 	if body.Roles != nil {
 		rs := make([]string, 0, len(*body.Roles))
 		for _, r := range *body.Roles {
 			rs = append(rs, string(r))
 		}
 		in.Roles = &rs
+		rolesChanged = !sameRoles(rs, target.Roles)
 	}
 	updated, err := h.store.Update(c.Request.Context(), userId.String(), in)
 	if err != nil {
 		WriteProblem(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
 		return
 	}
-	if totpReset {
-		// 解除 2FA 后强制重新登录，避免旧会话在无二次验证状态下继续使用。
+	// M6-007C：口令/角色/停用/重置 2FA 均属安全属性变更——提升会话版本并下线全部会话，
+	// 避免旧令牌在角色被降级或口令被重置后继续享有旧权限。
+	enabledChanged := body.Enabled != nil && *body.Enabled != target.Enabled
+	securityChanged := totpReset || body.Password != nil || rolesChanged ||
+		(enabledChanged && !*body.Enabled)
+	if securityChanged {
 		if err := h.store.BumpTokenVersion(c.Request.Context(), target.ID); err != nil {
 			WriteProblem(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
 			return
 		}
+		if err := h.sessions.RevokeByUser(c.Request.Context(), target.ID); err != nil {
+			log.Printf("[session] 账号变更后下线会话失败（令牌版本已提升）: %v", err)
+		}
+	}
+	if totpReset {
+		// 解除 2FA 后强制重新登录，避免旧会话在无二次验证状态下继续使用。
 		SetAuditMeta(c, "totp_reset", target.Username, "success")
 	}
 	c.JSON(http.StatusOK, toGenUser(updated))

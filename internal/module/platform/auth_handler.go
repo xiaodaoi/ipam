@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -26,6 +27,7 @@ type AuthHandler struct {
 	loginLimit *loginRateLimiter
 	sec        SecuritySettingsStore
 	ldap       DirectoryAuthenticator
+	sessions   *SessionService
 }
 
 // DirectoryAuthenticator 目录认证抽象（M6-007B）；便于单测注入假实现。
@@ -44,6 +46,33 @@ func NewAuthHandler(users UserStore, bl *TokenBlacklist, permLookup func(ctx con
 
 // SetLDAP 注入目录认证（M6-007B）；未注入时仅本地账号登录。
 func (h *AuthHandler) SetLDAP(a DirectoryAuthenticator) { h.ldap = a }
+
+// SetSessions 注入会话服务（M6-007C）；未注入时会话列表为空但登录不受影响。
+func (h *AuthHandler) SetSessions(s *SessionService) { h.sessions = s }
+
+// newSessionFor 为本次登录创建会话并返回会话 ID（服务未注入时返回空）。
+func (h *AuthHandler) newSessionFor(c *gin.Context, rec UserRecord) string {
+	if h.sessions == nil {
+		return ""
+	}
+	sess := h.sessions.NewSession(rec, c.ClientIP(), c.GetHeader("User-Agent"), timeNowUTC().Add(refreshTokenLifetime))
+	h.sessions.Create(c.Request.Context(), sess)
+	return sess.ID
+}
+
+// ensureSession 刷新链路会话归属：沿用会话 ID；升级前无 sid 的令牌补建会话。
+func (h *AuthHandler) ensureSession(c *gin.Context, sid string, rec UserRecord) string {
+	if h.sessions == nil {
+		return ""
+	}
+	if sid != "" {
+		if _, ok := h.sessions.Get(c.Request.Context(), sid); ok {
+			h.sessions.Extend(c.Request.Context(), sid, timeNowUTC().Add(refreshTokenLifetime))
+			return sid
+		}
+	}
+	return h.newSessionFor(c, rec)
+}
 
 // forcePasswordChange 读取全局策略；默认关闭，读取失败时按关闭处理（可用性优先）。
 func (h *AuthHandler) forcePasswordChange(ctx context.Context) bool {
@@ -140,7 +169,8 @@ func (h *AuthHandler) AuthLogin(c *gin.Context) {
 		}
 	}
 	SetAuditMeta(c, "login", rec.Username, "success")
-	access, refresh := issueAuthPair(rec)
+	sid := h.newSessionFor(c, rec)
+	access, refresh := issueAuthPairFor(rec, sid)
 	c.JSON(http.StatusOK, apigen.AuthLoginResult{
 		AccessToken: access, RefreshToken: refresh,
 		MustChangePassword: rec.MustChangePassword && h.forcePasswordChange(c.Request.Context()),
@@ -216,10 +246,10 @@ func sameRoles(a, b []string) bool {
 	return true
 }
 
-// issueAuthPair 签发访问+刷新令牌对（M5-032）。
-func issueAuthPair(rec UserRecord) (access string, refresh string) {
-	return IssueTokenFor(rec.Username, rec.ID, rec.Roles, rec.TokenVersion),
-		IssueRefreshTokenFor(rec.Username, rec.ID, rec.TokenVersion)
+// issueAuthPairFor 签发访问+刷新令牌对，并将会话 ID 写入双令牌（M6-007C）。
+func issueAuthPairFor(rec UserRecord, sid string) (access string, refresh string) {
+	return IssueTokenForSession(rec.Username, rec.ID, rec.Roles, rec.TokenVersion, sid),
+		IssueRefreshTokenForSession(rec.Username, rec.ID, rec.TokenVersion, sid)
 }
 
 // AuthRefresh POST /auth/refresh（M5-032：轮换制刷新）。
@@ -250,7 +280,7 @@ func (h *AuthHandler) refreshByRefreshToken(c *gin.Context, tok string) {
 		writeAuthErr(c, http.StatusUnauthorized, "TOKEN_INVALID", "非刷新令牌")
 		return
 	}
-	if h.bl != nil && h.bl.Revoked(claims.JTI) {
+	if h.bl != nil && h.bl.RevokedAny(revocationKeys(claims, tok)...) {
 		writeAuthErr(c, http.StatusUnauthorized, "TOKEN_REVOKED", "刷新令牌已吊销")
 		return
 	}
@@ -262,7 +292,8 @@ func (h *AuthHandler) refreshByRefreshToken(c *gin.Context, tok string) {
 	if h.bl != nil {
 		h.bl.Add(claims.JTI, time.Unix(claims.Exp, 0))
 	}
-	access, refresh := issueAuthPair(rec)
+	sid := h.ensureSession(c, claims.SID, rec)
+	access, refresh := issueAuthPairFor(rec, sid)
 	c.JSON(http.StatusOK, apigen.AuthRefreshResult{AccessToken: access, RefreshToken: refresh})
 }
 
@@ -292,7 +323,7 @@ func (h *AuthHandler) refreshByAccessToken(c *gin.Context) {
 		writeAuthErr(c, http.StatusUnauthorized, "TOKEN_INVALID", "访问令牌已过刷新宽限窗口，请重新登录")
 		return
 	}
-	if h.bl != nil && h.bl.Revoked(blacklistKey(claims, tok)) {
+	if h.bl != nil && h.bl.RevokedAny(revocationKeys(claims, tok)...) {
 		writeAuthErr(c, http.StatusUnauthorized, "TOKEN_REVOKED", "令牌已吊销（已登出）")
 		return
 	}
@@ -300,7 +331,8 @@ func (h *AuthHandler) refreshByAccessToken(c *gin.Context) {
 	if !ok {
 		return
 	}
-	access, refresh := issueAuthPair(rec)
+	sid := h.ensureSession(c, claims.SID, rec)
+	access, refresh := issueAuthPairFor(rec, sid)
 	c.JSON(http.StatusOK, apigen.AuthRefreshResult{AccessToken: access, RefreshToken: refresh})
 }
 
@@ -372,7 +404,7 @@ func (h *AuthHandler) EnableTotp(c *gin.Context) {
 		return
 	}
 	SetAuditMeta(c, "totp_enable", rec.Username, "success")
-	access, refresh := issueAuthPair(rec)
+	access, refresh := issueAuthPairFor(rec, claims.SID)
 	c.JSON(http.StatusOK, apigen.AuthLoginResult{AccessToken: access, RefreshToken: refresh, MustChangePassword: false})
 }
 
@@ -419,6 +451,9 @@ func (h *AuthHandler) LogoutAll(c *gin.Context) {
 	if err := h.users.BumpTokenVersion(c.Request.Context(), claims.UID); err != nil {
 		WriteProblem(c, 500, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
 		return
+	}
+	if err := h.sessions.RevokeByUser(c.Request.Context(), claims.UID); err != nil {
+		log.Printf("[session] 注销全部会话失败（令牌版本已提升）: %v", err)
 	}
 	SetAuditMeta(c, "logout_all", claims.Sub, "success")
 	c.Status(http.StatusNoContent)
@@ -481,7 +516,11 @@ func (h *AuthHandler) ChangeAuthPassword(c *gin.Context) {
 		return
 	}
 	SetAuditMeta(c, "password_change", rec.Username, "success")
-	access, refresh := issueAuthPair(fresh)
+	if err := h.sessions.RevokeByUser(c.Request.Context(), rec.ID); err != nil {
+		log.Printf("[session] 改密后注销旧会话失败（令牌版本已提升）: %v", err)
+	}
+	sid := h.newSessionFor(c, fresh)
+	access, refresh := issueAuthPairFor(fresh, sid)
 	c.JSON(http.StatusOK, apigen.AuthLoginResult{
 		AccessToken: access, RefreshToken: refresh,
 		MustChangePassword: false,
@@ -608,6 +647,11 @@ func (h *AuthHandler) LogoutAuth(c *gin.Context) {
 		if claims, perr := ParseJWT(tok); perr == nil {
 			SetAuditMeta(c, "logout", claims.Sub, "success")
 			h.bl.Add(blacklistKey(claims, tok), time.Unix(claims.Exp, 0))
+			if claims.SID != "" {
+				if rerr := h.sessions.Revoke(c.Request.Context(), claims.SID); rerr != nil && !errors.Is(rerr, errSessionNotFound) {
+					log.Printf("[session] 登出会话置吊销失败: %v", rerr)
+				}
+			}
 		}
 	}
 	var body apigen.AuthLogoutRequest

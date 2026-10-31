@@ -23,10 +23,11 @@ type JWTClaims struct {
 	Sub   string   `json:"sub"` // 账号
 	UID   string   `json:"uid"`
 	Roles []string `json:"roles"`
-	Typ   string   `json:"typ"`           // user | bot
-	Ver   int      `json:"ver,omitempty"` // 会话版本（M5-010：0=存量令牌，按 1 兼容）
-	JTI   string   `json:"jti,omitempty"` // 令牌唯一标识（M5-032：黑名单键）
+	Typ   string   `json:"typ"`            // user | bot
+	Ver   int      `json:"ver,omitempty"`  // 会话版本（M5-010：0=存量令牌，按 1 兼容）
+	JTI   string   `json:"jti,omitempty"`  // 令牌唯一标识（M5-032：黑名单键）
 	Kind  string   `json:"kind,omitempty"` // 令牌类别（M5-032：refresh=刷新令牌；空=访问令牌）
+	SID   string   `json:"sid,omitempty"`  // 会话 ID（M6-007C：会话列表/强制下线）
 	Exp   int64    `json:"exp"`
 }
 

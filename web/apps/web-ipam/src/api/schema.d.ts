@@ -558,6 +558,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 当前账号的登录会话
+         * @description 返回当前账号未过期且未吊销的会话（最近活动倒序）。会话仅保存 IP/UA 等元数据，
+         *     不保存令牌原文；current=true 标记当前请求所属会话（M6-007C）。
+         */
+        get: operations["listAuthSessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/sessions/{sessionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * 强制下线当前账号的指定会话
+         * @description 仅可注销属于当前账号的会话；会话键入黑名单后其访问/刷新令牌立即失效。
+         *     注销当前会话等价于登出（前端随后回到登录页）。
+         */
+        delete: operations["revokeAuthSession"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/password": {
         parameters: {
             query?: never;
@@ -896,6 +938,46 @@ export interface paths {
          */
         post: operations["testLDAPLogin"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/system/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 会话列表（管理端）
+         * @description 返回全部用户或指定用户的活跃会话，用于安全审计与强制下线。
+         */
+        get: operations["listSystemSessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/system/sessions/{sessionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * 强制下线指定会话（管理端）
+         * @description 管理员强制指定会话下线；对应用户的该会话访问/刷新令牌立即失效。
+         */
+        delete: operations["revokeSystemSession"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3283,6 +3365,36 @@ export interface components {
             /** @description 剩余可用恢复码数量 */
             remaining: number;
         };
+        Session: {
+            /** @description 会话 ID（JWT sid claim） */
+            id: string;
+            userId: string;
+            username: string;
+            /** @description 登录来源 IP */
+            ip: string;
+            /** @description 浏览器/客户端 User-Agent */
+            userAgent: string;
+            /**
+             * Format: date-time
+             * @description 登录时间
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description 最近活动时间（节流更新）
+             */
+            lastSeenAt: string;
+            /**
+             * Format: date-time
+             * @description 会话过期时间（随刷新令牌轮换推进）
+             */
+            expiresAt: string;
+            /** @description 是否为当前请求所属会话 */
+            current: boolean;
+        };
+        SessionList: {
+            items: components["schemas"]["Session"][];
+        };
         AuthChangePasswordRequest: {
             /** @description 当前口令（用于确认身份；错误返回 401） */
             oldPassword: string;
@@ -4769,6 +4881,56 @@ export interface operations {
             };
         };
     };
+    listAuthSessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 会话列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionList"];
+                };
+            };
+            401: components["responses"]["AuthUnauthorized"];
+        };
+    };
+    revokeAuthSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已下线 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 会话不存在或不属于当前账号 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     changeAuthPassword: {
         parameters: {
             query?: never;
@@ -5417,6 +5579,57 @@ export interface operations {
             };
             /** @description 目录服务不可达 */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    listSystemSessions: {
+        parameters: {
+            query?: {
+                userId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 会话列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionList"];
+                };
+            };
+        };
+    };
+    revokeSystemSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已下线 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 会话不存在 */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

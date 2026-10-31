@@ -1,0 +1,41 @@
+# 管理端会话端点（M6-007C，§13.4 系统管理）
+SystemSessions:
+  get:
+    operationId: listSystemSessions
+    tags: [platform]
+    summary: 会话列表（管理端）
+    description: 返回全部用户或指定用户的活跃会话，用于安全审计与强制下线。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: userId
+        in: query
+        required: false
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: 会话列表
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/auth.yaml#/SessionList'
+
+SystemSessionItem:
+  delete:
+    operationId: revokeSystemSession
+    tags: [platform]
+    summary: 强制下线指定会话（管理端）
+    description: 管理员强制指定会话下线；对应用户的该会话访问/刷新令牌立即失效。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: sessionId
+        in: path
+        required: true
+        schema: { type: string }
+    responses:
+      '204': { description: 已下线 }
+      '404':
+        description: 会话不存在
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Problem'

@@ -425,6 +425,18 @@ export const updateUser = (id: string, b: {
 }) => req<UserRow>(`/users/${id}`, patch(b));
 export const deleteUser = (id: string) => req<void>(`/users/${id}`, del);
 
+// ── 登录会话（M6-007C）：自助列表/下线 + 管理端强制下线 ──
+export type SessionRow = components['schemas']['Session'];
+export const listSessions = () => req<{ items: SessionRow[] }>('/auth/sessions');
+export const revokeSession = (id: string) =>
+  req<void>(`/auth/sessions/${encodeURIComponent(id)}`, del);
+export const listSystemSessions = (userId?: string) =>
+  req<{ items: SessionRow[] }>(
+    `/system/sessions${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`,
+  );
+export const revokeSystemSession = (id: string) =>
+  req<void>(`/system/sessions/${encodeURIComponent(id)}`, del);
+
 // ── DHCP 选项与类匹配（M2-016，C-02/C-03）──
 export type DhcpOptionRow = components['schemas']['DhcpOption'];
 export type DhcpLease6Row = components['schemas']['DhcpLease6'];

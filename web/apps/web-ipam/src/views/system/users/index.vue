@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { UserRow } from '#/api/ipam';
+import type { SessionRow, UserRow } from '#/api/ipam';
 
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 
@@ -25,7 +25,9 @@ import {
   createUser,
   deleteUser,
   listRoles,
+  listSystemSessions,
   listUsers,
+  revokeSystemSession,
   updateUser,
 } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
@@ -261,6 +263,57 @@ async function remove(row: UserRow) {
   await load();
 }
 
+// M6-007C：查看并强制下线指定账号的登录会话。
+const sessions = reactive({
+  open: false,
+  username: '',
+  rows: [] as SessionRow[],
+  loading: false,
+});
+
+async function openSessions(row: UserRow) {
+  sessions.open = true;
+  sessions.username = row.username;
+  sessions.rows = [];
+  sessions.loading = true;
+  try {
+    const res = await listSystemSessions(row.id);
+    sessions.rows = res.items ?? [];
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '会话列表加载失败');
+  } finally {
+    sessions.loading = false;
+  }
+}
+
+async function kickSession(row: SessionRow) {
+  try {
+    await revokeSystemSession(row.id);
+    message.success(`已强制下线「${row.username}」的一个会话`);
+    sessions.rows = sessions.rows.filter((s) => s.id !== row.id);
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '下线失败');
+  }
+}
+
+/** 从 User-Agent 提取可读设备名。 */
+function deviceLabel(ua: string): string {
+  if (!ua) return '未知客户端';
+  let browser = '浏览器';
+  if (/Edg\//.test(ua)) browser = 'Edge';
+  else if (/Chrome\//.test(ua)) browser = 'Chrome';
+  else if (/Firefox\//.test(ua)) browser = 'Firefox';
+  else if (/Safari\//.test(ua)) browser = 'Safari';
+
+  let os = '';
+  if (/Windows/.test(ua)) os = 'Windows';
+  else if (/Mac OS X|Macintosh/.test(ua)) os = 'macOS';
+  else if (/Android/.test(ua)) os = 'Android';
+  else if (/iPhone|iPad/.test(ua)) os = 'iOS';
+  else if (/Linux/.test(ua)) os = 'Linux';
+  return os ? `${browser} · ${os}` : browser;
+}
+
 function toggleAuto(on: boolean) {
   clearInterval(timer);
   timer = undefined;
@@ -281,7 +334,7 @@ const columns = [
   { dataIndex: 'roles', key: 'roles', title: '角色', width: 140 },
   { dataIndex: 'enabled', key: 'enabled', title: '状态', width: 130 },
   { dataIndex: 'createdAt', key: 'createdAt', title: '创建时间', width: 170 },
-  { dataIndex: 'op', key: 'op', title: '操作', width: 240 },
+  { dataIndex: 'op', key: 'op', title: '操作', width: 310 },
 ];
 
 async function loadRoleOptions() {
@@ -515,6 +568,9 @@ onBeforeUnmount(() => clearInterval(timer));
                   <IconifyIcon icon="lucide:shield-off" class="mr-1 size-3.5" />重置 2FA
                 </Button>
               </Popconfirm>
+              <Button size="small" @click="openSessions(record as UserRow)">
+                <IconifyIcon icon="lucide:monitor-smartphone" class="mr-1 size-3.5" />会话
+              </Button>
               <Popconfirm
                 title="确认删除该账号？"
                 description="删除后该账号立即失效且不可恢复。"
@@ -621,6 +677,45 @@ onBeforeUnmount(() => clearInterval(timer));
         </div>
         <div class="ipam-form-hint ipam-form-field--wide">
           重置后该账号的存量登录会话会立即失效，需要使用新口令重新登录。
+        </div>
+      </div>
+    </Modal>
+
+    <Modal
+      v-model:open="sessions.open"
+      :footer="null"
+      :title="`登录会话 · ${sessions.username}`"
+      :width="640"
+    >
+      <div v-if="sessions.loading" class="ipam-hint py-4">加载中…</div>
+      <div v-else-if="sessions.rows.length === 0" class="ipam-hint py-4">
+        该账号当前没有活跃会话
+      </div>
+      <div v-else class="flex flex-col gap-2">
+        <div
+          v-for="s in sessions.rows"
+          :key="s.id"
+          class="flex flex-wrap items-center justify-between gap-3 rounded border border-gray-200 px-3 py-2 dark:border-gray-700"
+        >
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="font-medium">{{ deviceLabel(s.userAgent) }}</span>
+              <Tag v-if="s.current" class="m-0" color="blue">当前操作会话</Tag>
+            </div>
+            <div class="ipam-hint break-all">
+              {{ s.ip || '未知 IP' }} · 登录 {{ fmtDateTime(s.createdAt) }} ·
+              最近活动 {{ fmtDateTime(s.lastSeenAt) }}
+            </div>
+          </div>
+          <Popconfirm
+            title="确认强制下线该会话？"
+            description="该设备上的访问/刷新令牌将立即失效，用户需要重新登录。"
+            ok-text="下线"
+            cancel-text="取消"
+            @confirm="kickSession(s)"
+          >
+            <Button danger size="small">强制下线</Button>
+          </Popconfirm>
         </div>
       </div>
     </Modal>

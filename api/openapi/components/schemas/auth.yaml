@@ -170,3 +170,44 @@ AuthLogoutDone:
   properties:
     ok:
       type: boolean
+Session:
+  type: object
+  required: [id, userId, username, ip, userAgent, createdAt, lastSeenAt, expiresAt, current]
+  properties:
+    id:
+      type: string
+      description: 会话 ID（JWT sid claim）
+    userId:
+      type: string
+    username:
+      type: string
+    ip:
+      type: string
+      description: 登录来源 IP
+    userAgent:
+      type: string
+      description: 浏览器/客户端 User-Agent
+    createdAt:
+      type: string
+      format: date-time
+      description: 登录时间
+    lastSeenAt:
+      type: string
+      format: date-time
+      description: 最近活动时间（节流更新）
+    expiresAt:
+      type: string
+      format: date-time
+      description: 会话过期时间（随刷新令牌轮换推进）
+    current:
+      type: boolean
+      description: 是否为当前请求所属会话
+
+SessionList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/Session'
