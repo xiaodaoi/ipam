@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 
 import { useUserStore } from '@vben/stores';
 
@@ -9,6 +9,7 @@ import {
   Card,
   Input,
   message,
+  Modal,
   Popconfirm,
   Tag,
 } from 'ant-design-vue';
@@ -16,6 +17,8 @@ import {
 import {
   disableTotpApi,
   enableTotpApi,
+  generateRecoveryCodesApi,
+  getRecoveryStatusApi,
   logoutAllApi,
   setupTotpApi,
 } from '#/api';
@@ -29,6 +32,82 @@ const setup = ref<null | { otpauthUrl: string; secret: string }>(null);
 const code = ref('');
 const password = ref('');
 const loading = ref(false);
+
+// 恢复码（M6-007A）：生成时需再次确认身份，明文仅展示一次。
+const recovery = reactive({
+  open: false,
+  codes: [] as string[],
+  password: '',
+  remaining: 0,
+  totpCode: '',
+});
+
+async function loadRecovery() {
+  if (!enabled.value) {
+    recovery.remaining = 0;
+    return;
+  }
+  try {
+    const r = await getRecoveryStatusApi();
+    recovery.remaining = r.remaining ?? 0;
+  } catch {
+    recovery.remaining = 0;
+  }
+}
+
+function openRecovery() {
+  recovery.password = '';
+  recovery.totpCode = '';
+  recovery.codes = [];
+  recovery.open = true;
+}
+
+async function regenerateRecovery() {
+  if (!recovery.password && !recovery.totpCode) {
+    message.warning('请输入当前口令或 6 位动态口令');
+    return;
+  }
+  loading.value = true;
+  try {
+    const r = await generateRecoveryCodesApi({
+      password: recovery.password || undefined,
+      totpCode: recovery.totpCode || undefined,
+    });
+    recovery.codes = r.codes ?? [];
+    recovery.remaining = r.remaining ?? recovery.codes.length;
+    message.success('已生成新的恢复码，旧恢复码立即失效');
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '生成失败');
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function copyCodes() {
+  try {
+    await navigator.clipboard.writeText(recovery.codes.join('\n'));
+    message.success('恢复码已复制');
+  } catch {
+    message.warning('复制失败，请手动选择文本复制');
+  }
+}
+
+function downloadCodes() {
+  const blob = new Blob(
+    [
+      `IPAM 恢复码（${userStore.userInfo?.username ?? ''}）\n生成时间：${new Date().toLocaleString()}\n每个恢复码仅可使用一次，请离线保存。\n\n${recovery.codes.join('\n')}\n`,
+    ],
+    { type: 'text/plain;charset=utf-8' },
+  );
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'ipam-recovery-codes.txt';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+watch(enabled, () => void loadRecovery(), { immediate: true });
 
 async function generate() {
   loading.value = true;
@@ -173,6 +252,29 @@ async function logoutAll() {
       </div>
     </Card>
 
+    <Card v-if="enabled">
+      <template #title>
+        <span class="ipam-card-title">
+          恢复码
+          <Tag class="m-0" :color="recovery.remaining > 0 ? 'blue' : 'orange'">
+            剩余 {{ recovery.remaining }} 个
+          </Tag>
+        </span>
+      </template>
+      <template #extra>
+        <span class="ipam-hint">认证器丢失时用于登录，每个仅可使用一次</span>
+      </template>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="ipam-hint max-w-xl">
+          恢复码可替代 6 位动态口令登录。生成后旧码立即失效，明文仅展示一次；
+          请打印或保存到离线位置，不要放在共享目录。
+        </div>
+        <Button :loading="loading" @click="openRecovery">
+          {{ recovery.remaining > 0 ? '重新生成恢复码' : '生成恢复码' }}
+        </Button>
+      </div>
+    </Card>
+
     <Card>
       <template #title>
         <span class="ipam-card-title">会话安全</span>
@@ -196,5 +298,64 @@ async function logoutAll() {
         </Popconfirm>
       </div>
     </Card>
+
+    <Modal
+      v-model:open="recovery.open"
+      :footer="null"
+      :title="recovery.codes.length > 0 ? '恢复码（仅展示一次）' : '生成恢复码'"
+      :width="560"
+    >
+      <template v-if="recovery.codes.length === 0">
+        <Alert
+          class="mb-3"
+          message="生成后，现有恢复码会立即失效"
+          show-icon
+          type="warning"
+        />
+        <div class="ipam-form-grid">
+          <div class="ipam-form-field">
+            <span class="ipam-form-field__label">当前口令</span>
+            <Input.Password
+              v-model:value="recovery.password"
+              placeholder="本地账号口令"
+            />
+          </div>
+          <div class="ipam-form-field">
+            <span class="ipam-form-field__label">或动态口令</span>
+            <Input
+              v-model:value="recovery.totpCode"
+              :maxlength="6"
+              placeholder="认证器 6 位口令"
+            />
+          </div>
+        </div>
+        <div class="mt-4 flex justify-end gap-2">
+          <Button @click="recovery.open = false">取消</Button>
+          <Button type="primary" :loading="loading" @click="regenerateRecovery">
+            生成
+          </Button>
+        </div>
+      </template>
+      <template v-else>
+        <Alert
+          class="mb-3"
+          message="请立即保存：关闭后将无法再次查看这些恢复码"
+          show-icon
+          type="warning"
+        />
+        <div class="grid grid-cols-2 gap-2 text-sm">
+          <span v-for="c in recovery.codes" :key="c" class="ipam-mono">
+            {{ c }}
+          </span>
+        </div>
+        <div class="mt-4 flex justify-end gap-2">
+          <Button @click="copyCodes">复制全部</Button>
+          <Button @click="downloadCodes">下载 TXT</Button>
+          <Button type="primary" @click="recovery.open = false">
+            我已保存
+          </Button>
+        </div>
+      </template>
+    </Modal>
   </div>
 </template>

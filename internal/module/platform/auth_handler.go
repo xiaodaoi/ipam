@@ -119,13 +119,24 @@ func (h *AuthHandler) AuthLogin(c *gin.Context) {
 	if rec.TOTPEnabled {
 		if body.TotpCode == nil || *body.TotpCode == "" {
 			SetAuditMeta(c, "login", rec.Username, "totp_required")
-			writeAuthErr(c, http.StatusUnauthorized, "TOTP_REQUIRED", "请输入动态口令")
+			writeAuthErr(c, http.StatusUnauthorized, "TOTP_REQUIRED", "请输入动态口令或恢复码")
 			return
 		}
-		if !ValidateTOTP(rec.TOTPSecret, *body.TotpCode, time.Now()) {
-			SetAuditMeta(c, "login", rec.Username, "totp_failed")
-			writeAuthErr(c, http.StatusUnauthorized, "TOTP_INVALID", "动态口令错误")
-			return
+		code := strings.TrimSpace(*body.TotpCode)
+		if !ValidateTOTP(rec.TOTPSecret, code, time.Now()) {
+			// 恢复码（M6-007A）：仅在动态口令不匹配时尝试，命中后立即消耗。
+			remaining, ok := ConsumeRecoveryCode(rec.TOTPRecovery, code)
+			if !ok {
+				SetAuditMeta(c, "login", rec.Username, "totp_failed")
+				writeAuthErr(c, http.StatusUnauthorized, "TOTP_INVALID", "动态口令或恢复码错误")
+				return
+			}
+			if _, uerr := h.users.Update(c.Request.Context(), rec.ID, UserUpdateInput{TOTPRecovery: &remaining}); uerr != nil {
+				WriteProblem(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", uerr.Error())
+				return
+			}
+			rec.TOTPRecovery = remaining
+			SetAuditMeta(c, "login", rec.Username, "recovery_code")
 		}
 	}
 	SetAuditMeta(c, "login", rec.Username, "success")
@@ -387,8 +398,9 @@ func (h *AuthHandler) DisableTotp(c *gin.Context) {
 		return
 	}
 	empty := ""
+	noCodes := []string{}
 	if _, err := h.users.Update(c.Request.Context(), rec.ID, UserUpdateInput{
-		TOTPSecret: &empty, TOTPEnabled: boolPtr(false),
+		TOTPSecret: &empty, TOTPEnabled: boolPtr(false), TOTPRecovery: &noCodes,
 	}); err != nil {
 		WriteProblem(c, 500, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
 		return
@@ -474,6 +486,64 @@ func (h *AuthHandler) ChangeAuthPassword(c *gin.Context) {
 		AccessToken: access, RefreshToken: refresh,
 		MustChangePassword: false,
 	})
+}
+
+// GetTotpRecoveryStatus GET /auth/2fa/recovery-codes（M6-007A）。
+func (h *AuthHandler) GetTotpRecoveryStatus(c *gin.Context) {
+	rec, ok := h.currentUser(c)
+	if !ok {
+		return
+	}
+	c.JSON(http.StatusOK, apigen.TotpRecoveryStatus{Remaining: len(rec.TOTPRecovery)})
+}
+
+// GenerateTotpRecoveryCodes POST /auth/2fa/recovery-codes：校验口令或动态口令后重置恢复码。
+func (h *AuthHandler) GenerateTotpRecoveryCodes(c *gin.Context) {
+	rec, ok := h.currentUser(c)
+	if !ok {
+		return
+	}
+	if !rec.TOTPEnabled {
+		badRequest(c, "TOTP_NOT_ENABLED", "请先启用双因素认证再生成恢复码")
+		return
+	}
+	var body apigen.TotpRecoveryGenerateRequest
+	_ = c.ShouldBindJSON(&body)
+	passwordOK := body.Password != nil && *body.Password != "" && rec.AuthSource != "ldap" &&
+		CheckPassword(rec.PasswordHash, *body.Password)
+	totpOK := body.TotpCode != nil && *body.TotpCode != "" &&
+		ValidateTOTP(rec.TOTPSecret, *body.TotpCode, time.Now())
+	if !passwordOK && !totpOK {
+		SetAuditMeta(c, "totp_recovery_generate", rec.Username, "auth_failed")
+		writeAuthErr(c, http.StatusUnauthorized, "BAD_CREDENTIALS", "当前口令或动态口令不正确")
+		return
+	}
+	codes, hashes, err := GenerateRecoveryCodes(recoveryCodeCount)
+	if err != nil {
+		WriteProblem(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "TOTP_RECOVERY_FAILED", err.Error())
+		return
+	}
+	if _, err := h.users.Update(c.Request.Context(), rec.ID, UserUpdateInput{TOTPRecovery: &hashes}); err != nil {
+		WriteProblem(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	SetAuditMeta(c, "totp_recovery_generate", rec.Username, "success")
+	c.JSON(http.StatusOK, apigen.TotpRecoveryCodes{Codes: codes, Remaining: len(codes)})
+}
+
+// currentUser 解析 Bearer 并加载当前账号（会话版本校验收口）。
+func (h *AuthHandler) currentUser(c *gin.Context) (UserRecord, bool) {
+	claims, err := ParseJWT(bearerOf(c.GetHeader("Authorization")))
+	if err != nil {
+		writeAuthErr(c, http.StatusUnauthorized, "TOKEN_INVALID", err.Error())
+		return UserRecord{}, false
+	}
+	rec, ok, err := h.users.GetByID(c.Request.Context(), claims.UID)
+	if err != nil || !ok || !rec.Enabled || (claims.Ver != 0 && claims.Ver != rec.TokenVersion) {
+		writeAuthErr(c, http.StatusUnauthorized, "TOKEN_REVOKED", "账号不可用或会话已失效")
+		return UserRecord{}, false
+	}
+	return rec, true
 }
 
 // GetAuthUserInfo GET /auth/user/info

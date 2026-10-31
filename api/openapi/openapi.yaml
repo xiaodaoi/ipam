@@ -86,6 +86,8 @@ paths:
     $ref: './paths/auth.yaml#/AuthTotpEnable'
   /auth/2fa/disable:
     $ref: './paths/auth.yaml#/AuthTotpDisable'
+  /auth/2fa/recovery-codes:
+    $ref: './paths/auth.yaml#/AuthTotpRecovery'
   /auth/logout-all:
     $ref: './paths/auth.yaml#/AuthLogoutAll'
   /auth/password:

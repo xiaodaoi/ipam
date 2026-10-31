@@ -81,3 +81,6 @@ UserUpdate:
       items: { type: string }
     enabled:
       type: boolean
+    totpReset:
+      type: boolean
+      description: 置 true 时清除该账号的 TOTP 绑定与恢复码（认证器丢失时管理员重置；会话立即失效）

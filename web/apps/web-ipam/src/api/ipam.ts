@@ -421,6 +421,7 @@ export const createUser = (b: {
 }) => req<UserRow>('/users', j(b));
 export const updateUser = (id: string, b: {
   displayName?: string; enabled?: boolean; password?: string; roles?: string[];
+  totpReset?: boolean;
 }) => req<UserRow>(`/users/${id}`, patch(b));
 export const deleteUser = (id: string) => req<void>(`/users/${id}`, del);
 

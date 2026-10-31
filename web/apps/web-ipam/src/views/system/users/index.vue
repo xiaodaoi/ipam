@@ -241,6 +241,16 @@ async function doReset() {
   }
 }
 
+async function resetTotp(row: UserRow) {
+  try {
+    await updateUser(row.id, { totpReset: true });
+    message.success(`已重置「${row.username}」的双因素认证，请通知其重新绑定`);
+    await load();
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '重置 2FA 失败');
+  }
+}
+
 async function remove(row: UserRow) {
   try {
     await deleteUser(row.id);
@@ -493,6 +503,18 @@ onBeforeUnmount(() => clearInterval(timer));
                   <IconifyIcon icon="lucide:key-round" class="mr-1 size-3.5" />重置口令
                 </Button>
               </Tooltip>
+              <Popconfirm
+                v-if="record.totpEnabled"
+                title="确认重置该账号的双因素认证？"
+                description="将清除 TOTP 绑定与恢复码，账号旧会话立即失效，用户需重新绑定。"
+                ok-text="重置"
+                cancel-text="取消"
+                @confirm="resetTotp(record as UserRow)"
+              >
+                <Button size="small">
+                  <IconifyIcon icon="lucide:shield-off" class="mr-1 size-3.5" />重置 2FA
+                </Button>
+              </Popconfirm>
               <Popconfirm
                 title="确认删除该账号？"
                 description="删除后该账号立即失效且不可恢复。"

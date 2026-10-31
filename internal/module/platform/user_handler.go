@@ -199,6 +199,14 @@ func (h *UserHandler) UpdateUser(c *gin.Context, userId rtypes.UUID) {
 		}
 	}
 	in := UserUpdateInput{DisplayName: body.DisplayName, Password: body.Password, Enabled: body.Enabled}
+	totpReset := body.TotpReset != nil && *body.TotpReset
+	if totpReset {
+		empty := ""
+		noCodes := []string{}
+		in.TOTPSecret = &empty
+		in.TOTPEnabled = boolPtr(false)
+		in.TOTPRecovery = &noCodes
+	}
 	if body.Password != nil {
 		mustChange := h.forcePasswordChange(c.Request.Context())
 		in.MustChangePassword = &mustChange
@@ -214,6 +222,14 @@ func (h *UserHandler) UpdateUser(c *gin.Context, userId rtypes.UUID) {
 	if err != nil {
 		WriteProblem(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
 		return
+	}
+	if totpReset {
+		// 解除 2FA 后强制重新登录，避免旧会话在无二次验证状态下继续使用。
+		if err := h.store.BumpTokenVersion(c.Request.Context(), target.ID); err != nil {
+			WriteProblem(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+			return
+		}
+		SetAuditMeta(c, "totp_reset", target.Username, "success")
 	}
 	c.JSON(http.StatusOK, toGenUser(updated))
 }

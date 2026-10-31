@@ -513,6 +513,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/2fa/recovery-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查询恢复码剩余数量
+         * @description 返回当前账号剩余可用的一次性恢复码数量（M6-007A）。
+         */
+        get: operations["getTotpRecoveryStatus"];
+        put?: never;
+        /**
+         * 生成/重置恢复码
+         * @description 校验当前口令或动态口令后生成 10 个一次性恢复码，旧的立即失效；
+         *     明文仅在本次响应返回。恢复码可在登录时替代动态口令使用。
+         */
+        post: operations["generateTotpRecoveryCodes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/logout-all": {
         parameters: {
             query?: never;
@@ -2873,7 +2898,7 @@ export interface components {
             username: string;
             /** @description 登录口令（bcrypt 校验；首次启动随机生成，必须修改后才能继续使用） */
             password: string;
-            /** @description TOTP 动态口令（启用双因素认证后必填；6 位数字） */
+            /** @description TOTP 动态口令（启用双因素认证后必填；6 位数字）或一次性恢复码（XXXXX-XXXXX） */
             totpCode?: string;
         };
         UserInfo: {
@@ -2947,6 +2972,8 @@ export interface components {
             password?: string;
             roles?: string[];
             enabled?: boolean;
+            /** @description 置 true 时清除该账号的 TOTP 绑定与恢复码（认证器丢失时管理员重置；会话立即失效） */
+            totpReset?: boolean;
         };
         /** @description RFC 9457 问题详情。type/code 字段供机器判读，AI agent 可据此自纠重试（§12.2 约定 4）。 */
         Problem: {
@@ -3238,6 +3265,23 @@ export interface components {
         TotpDisableRequest: {
             /** @description 当前登录口令 */
             password: string;
+        };
+        TotpRecoveryStatus: {
+            /** @description 剩余可用恢复码数量 */
+            remaining: number;
+        };
+        /** @description 生成/重置恢复码时的身份确认；口令与动态口令二选一（目录账号用动态口令）。 */
+        TotpRecoveryGenerateRequest: {
+            /** @description 当前登录口令（本地账号） */
+            password?: string;
+            /** @description 当前 6 位动态口令（目录账号或不愿输入口令时） */
+            totpCode?: string;
+        };
+        TotpRecoveryCodes: {
+            /** @description 新生成的 10 个恢复码（仅本次返回，每个仅可使用一次） */
+            codes: string[];
+            /** @description 剩余可用恢复码数量 */
+            remaining: number;
         };
         AuthChangePasswordRequest: {
             /** @description 当前口令（用于确认身份；错误返回 401） */
@@ -4650,6 +4694,61 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+        };
+    };
+    getTotpRecoveryStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 剩余数量 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TotpRecoveryStatus"];
+                };
+            };
+            401: components["responses"]["AuthUnauthorized"];
+        };
+    };
+    generateTotpRecoveryCodes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TotpRecoveryGenerateRequest"];
+            };
+        };
+        responses: {
+            /** @description 新恢复码 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TotpRecoveryCodes"];
+                };
+            };
+            /** @description 未启用双因素认证 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            401: components["responses"]["AuthUnauthorized"];
         };
     };
     logoutAll: {

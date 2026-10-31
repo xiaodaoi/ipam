@@ -26,6 +26,7 @@ type User struct {
 	MustChangePassword bool      `json:"mustChangePassword"`
 	TOTPSecret         string    `json:"-"`
 	TOTPEnabled        bool      `json:"totpEnabled"`
+	TOTPRecovery       []string  `json:"-"`          // 恢复码 SHA-256（M6-007A），仅登录/生成时使用
 	AuthSource         string    `json:"authSource"` // local | ldap
 	TokenVersion       int       `json:"-"`
 }
@@ -55,6 +56,7 @@ type UserUpdateInput struct {
 	MustChangePassword *bool
 	TOTPSecret         *string
 	TOTPEnabled        *bool
+	TOTPRecovery       *[]string
 }
 
 var ErrUsernameTaken = errors.New("USERNAME_TAKEN")
@@ -232,6 +234,9 @@ func (s *MemUserStore) Update(_ context.Context, id string, in UserUpdateInput) 
 	if in.TOTPEnabled != nil {
 		rec.TOTPEnabled = *in.TOTPEnabled
 	}
+	if in.TOTPRecovery != nil {
+		rec.TOTPRecovery = append([]string{}, (*in.TOTPRecovery)...)
+	}
 	s.m[found] = rec
 	return rec.User, nil
 }
@@ -275,7 +280,7 @@ type PgUserStore struct{ pool *pgxpool.Pool }
 
 func NewPgUserStore(pool *pgxpool.Pool) *PgUserStore { return &PgUserStore{pool: pool} }
 
-const userCols = `id::text, username, display_name, roles, enabled, created_at, token_version, must_change_password, totp_secret, totp_enabled, auth_source`
+const userCols = `id::text, username, display_name, roles, enabled, created_at, token_version, must_change_password, totp_secret, totp_enabled, totp_recovery, auth_source`
 
 func (s *PgUserStore) List(ctx context.Context) ([]User, error) {
 	rows, err := s.pool.Query(ctx, `SELECT `+userCols+` FROM users ORDER BY username`)
@@ -286,7 +291,7 @@ func (s *PgUserStore) List(ctx context.Context) ([]User, error) {
 	out := []User{}
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Roles, &u.Enabled, &u.CreatedAt, &u.TokenVersion, &u.MustChangePassword, &u.TOTPSecret, &u.TOTPEnabled, &u.AuthSource); err != nil {
+		if err := rows.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Roles, &u.Enabled, &u.CreatedAt, &u.TokenVersion, &u.MustChangePassword, &u.TOTPSecret, &u.TOTPEnabled, &u.TOTPRecovery, &u.AuthSource); err != nil {
 			return nil, err
 		}
 		out = append(out, u)
@@ -306,7 +311,7 @@ func (s *PgUserStore) getBy(ctx context.Context, cond, arg string) (UserRecord, 
 	r := UserRecord{}
 	err := s.pool.QueryRow(ctx,
 		`SELECT `+userCols+`, password_hash FROM users WHERE `+cond, arg).
-		Scan(&r.ID, &r.Username, &r.DisplayName, &r.Roles, &r.Enabled, &r.CreatedAt, &r.TokenVersion, &r.MustChangePassword, &r.TOTPSecret, &r.TOTPEnabled, &r.AuthSource, &r.PasswordHash)
+		Scan(&r.ID, &r.Username, &r.DisplayName, &r.Roles, &r.Enabled, &r.CreatedAt, &r.TokenVersion, &r.MustChangePassword, &r.TOTPSecret, &r.TOTPEnabled, &r.TOTPRecovery, &r.AuthSource, &r.PasswordHash)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return UserRecord{}, false, nil
 	}
@@ -379,13 +384,17 @@ func (s *PgUserStore) Update(ctx context.Context, id string, in UserUpdateInput)
 	if in.TOTPEnabled != nil {
 		totpEnabled = *in.TOTPEnabled
 	}
+	recovery := cur.TOTPRecovery
+	if in.TOTPRecovery != nil {
+		recovery = *in.TOTPRecovery
+	}
 	var u User
 	err = s.pool.QueryRow(ctx,
 		`UPDATE users SET display_name=$2, password_hash=$3, roles=$4, enabled=$5,
-		   must_change_password=$6, totp_secret=$7, totp_enabled=$8, updated_at=now()
+		   must_change_password=$6, totp_secret=$7, totp_enabled=$8, totp_recovery=$9, updated_at=now()
 		 WHERE id::text=$1 RETURNING `+userCols,
-		id, displayName, hash, roles, enabled, mustChange, totpSecret, totpEnabled).
-		Scan(&u.ID, &u.Username, &u.DisplayName, &u.Roles, &u.Enabled, &u.CreatedAt, &u.TokenVersion, &u.MustChangePassword, &u.TOTPSecret, &u.TOTPEnabled, &u.AuthSource)
+		id, displayName, hash, roles, enabled, mustChange, totpSecret, totpEnabled, recovery).
+		Scan(&u.ID, &u.Username, &u.DisplayName, &u.Roles, &u.Enabled, &u.CreatedAt, &u.TokenVersion, &u.MustChangePassword, &u.TOTPSecret, &u.TOTPEnabled, &u.TOTPRecovery, &u.AuthSource)
 	return u, err
 }
 

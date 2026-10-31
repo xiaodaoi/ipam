@@ -66,6 +66,37 @@ TotpEnableRequest:
   properties:
     code: { type: string, description: 6 位动态口令 }
 
+TotpRecoveryGenerateRequest:
+  type: object
+  description: 生成/重置恢复码时的身份确认；口令与动态口令二选一（目录账号用动态口令）。
+  properties:
+    password:
+      type: string
+      description: 当前登录口令（本地账号）
+    totpCode:
+      type: string
+      description: 当前 6 位动态口令（目录账号或不愿输入口令时）
+
+TotpRecoveryCodes:
+  type: object
+  required: [codes, remaining]
+  properties:
+    codes:
+      type: array
+      items: { type: string }
+      description: 新生成的 10 个恢复码（仅本次返回，每个仅可使用一次）
+    remaining:
+      type: integer
+      description: 剩余可用恢复码数量
+
+TotpRecoveryStatus:
+  type: object
+  required: [remaining]
+  properties:
+    remaining:
+      type: integer
+      description: 剩余可用恢复码数量
+
 TotpDisableRequest:
   type: object
   required: [password]
@@ -91,7 +122,7 @@ AuthLoginRequest:
       description: 登录口令（bcrypt 校验；首次启动随机生成，必须修改后才能继续使用）
     totpCode:
       type: string
-      description: TOTP 动态口令（启用双因素认证后必填；6 位数字）
+      description: TOTP 动态口令（启用双因素认证后必填；6 位数字）或一次性恢复码（XXXXX-XXXXX）
 
 UserInfo:
   type: object

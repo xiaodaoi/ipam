@@ -78,6 +78,21 @@ export async function disableTotpApi(password: string) {
   return requestClient.post<void>('/auth/2fa/disable', { password });
 }
 
+/** 恢复码（M6-007A）：一次性替代动态口令 */
+export async function getRecoveryStatusApi() {
+  return requestClient.get<{ remaining: number }>('/auth/2fa/recovery-codes');
+}
+
+export async function generateRecoveryCodesApi(body: {
+  password?: string;
+  totpCode?: string;
+}) {
+  return requestClient.post<{ codes: string[]; remaining: number }>(
+    '/auth/2fa/recovery-codes',
+    body,
+  );
+}
+
 export async function logoutAllApi() {
   return requestClient.post<void>('/auth/logout-all');
 }

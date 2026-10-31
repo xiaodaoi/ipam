@@ -35,10 +35,10 @@ const formSchema = computed((): VbenFormSchema[] => {
     {
       component: 'VbenInput',
       componentProps: {
-        placeholder: '未启用双因素认证可留空',
+        placeholder: '未启用双因素认证可留空；恢复码格式 XXXXX-XXXXX',
       },
       fieldName: 'totpCode',
-      label: '动态口令',
+      label: '动态口令 / 恢复码',
     },
     {
       component: markRaw(SliderCaptcha),
