@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-11-01 · 日志外发积压指标与告警（M6-008 补强）
+- **埋点**：Vector 模板内埋 `internal_metrics` + `prometheus_exporter`（容器内 `vector:9598`，不对宿主发布端口），覆盖所有 sink。
+- **抓取/告警**：Prometheus 新增 `ipam-vector` job；新增 `IpamLogSinkBacklog`（缓冲 >50%/15m）、`IpamLogSinkBufferFull`（>90%/5m）、`IpamLogSinkErrors`（sink 错误）。
+- **验证**：control-plane 重渲染后 Vector 热加载成功；容器内实测 `vector_buffer_byte_size/events`、`vector_component_received/sent_events_total`、`vector_utilization` 等指标可见；`vector validate` 通过；`promtool check rules` 18 条通过；临时 Observability 栈下 Prometheus `ipam-vector`/`ipam-control-plane` 目标均 up，新告警已加载，验证后已清理。
+- **文档**：observability/README、运维手册补充指标口径与排查路径。
+
 ## 2026-11-01 · License 终端计量与超限软降级（M6-004B）
 - **口径**：活跃终端 = 近 24h DHCP 日志去重客户端 MAC；`TerminalCounter` 60s TTL 缓存，计数源故障时沿用上次值。
 - **契约/后端**：`LicenseStatus` 新增 `terminalsUsed/terminalsOverLimit`；仅「已授权且上限>0」判定超限，超限只追加告警文案，不拦截请求。

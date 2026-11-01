@@ -153,3 +153,38 @@ groups:
         annotations:
           summary: "活跃终端数超过 License 上限"
           description: "当前 {{ $value }} 台活跃终端已超过授权上限，服务不中断；请联系授权方扩容或清理长期离线终端。"
+
+      # ── Vector 外发/入库积压（M6-008，需抓取 vector:9598）──
+      - alert: IpamLogSinkBacklog
+        expr: |
+          vector_buffer_byte_size{component_id=~"clickhouse|siem_.*"}
+            / vector_buffer_max_byte_size{component_id=~"clickhouse|siem_.*"} > 0.5
+        for: 15m
+        labels:
+          severity: warning
+          team: ipam
+        annotations:
+          summary: "日志外发/入库积压（缓冲 >50%）"
+          description: "{{ $labels.component_id }} 目标持续写入失败或变慢，缓冲占用已超 50%；检查 ClickHouse/SIEM 连通性与吞吐。"
+
+      - alert: IpamLogSinkBufferFull
+        expr: |
+          vector_buffer_byte_size{component_id=~"clickhouse|siem_.*"}
+            / vector_buffer_max_byte_size{component_id=~"clickhouse|siem_.*"} > 0.9
+        for: 5m
+        labels:
+          severity: critical
+          team: ipam
+        annotations:
+          summary: "日志外发缓冲接近上限，即将丢弃最新日志"
+          description: "{{ $labels.component_id }} 缓冲 >90%；缓冲为有界 drop_newest，再满会丢弃最新日志，请立即处理目标端。"
+
+      - alert: IpamLogSinkErrors
+        expr: increase(vector_component_errors_total{component_kind="sink"}[10m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          team: ipam
+        annotations:
+          summary: "日志外发 sink 报错"
+          description: "{{ $labels.component_id }} 近 10 分钟出现发送错误（重试中）；检查目标端与鉴权配置。"

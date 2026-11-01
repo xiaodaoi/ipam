@@ -44,6 +44,12 @@ docker compose -f observability/compose.observability.yaml --profile observabili
 - 自动降级只在渲染层生效，不修改用户保存的策略，页面「采样策略」显示实际生效模式；
 - 阈值可用环境变量 `IPAM_LOG_DEGRADE_HIGH`（默认 90）/ `IPAM_LOG_DEGRADE_LOW`（默认 85）调整。
 
+外发/入库积压观测（M6-008）：Vector 暴露自身指标（容器内 `vector:9598`，Prometheus `ipam-vector` job 抓取）：
+
+- `vector_buffer_byte_size{component_id="clickhouse"}` / `vector_buffer_max_byte_size` 比值 ≈ 缓冲占用率（上限 1GiB，有界 `drop_newest`）；
+- 告警 `IpamLogSinkBacklog`（>50% 持续 15m）、`IpamLogSinkBufferFull`（>90% 持续 5m，即将丢弃最新日志）、`IpamLogSinkErrors`（sink 发送错误）；
+- 排查：确认 ClickHouse/SIEM 目标可达与吞吐；缓冲满时最新日志会被丢弃（优先保宿主稳定），处置后自动回落后再评估是否需要回填。
+
 ## 授权与终端计量（M6-004B）
 
 - 活跃终端 = 近 24 小时 DHCP 日志中去重的客户端 MAC（60s 缓存）；`/system/license` 与 `/metrics` 共用同一份计量；

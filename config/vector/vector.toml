@@ -196,3 +196,16 @@ healthcheck.enabled = true
 # encoding 仅做字段过滤（codec 已移除：0.4x 由 format=json_each_row 承担序列化）
 [sinks.clickhouse.encoding]
 except_fields = ["message"]
+
+# ── Vector 自身可观测（M6-008）：外发/入 CH 的缓冲积压、发送与丢弃量 ──
+# 由 Prometheus 抓取 vector:9598，用于「外发失败积压/重试」告警；
+# internal_metrics 是所有 sink 的通用埋点，不依赖具体外发通道是否启用。
+[sources.vector_internal_metrics]
+type = "internal_metrics"
+scrape_interval_secs = 15
+namespace = "vector"
+
+[sinks.vector_metrics]
+type = "prometheus_exporter"
+inputs = ["vector_internal_metrics"]
+address = "0.0.0.0:9598"

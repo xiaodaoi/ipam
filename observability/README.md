@@ -3,7 +3,7 @@
 | 文件 | 用途 |
 |---|---|
 | `prometheus.yml` | 抓取 control-plane `/metrics`（15s） |
-| `alerts.yml` | 控制面/组件掉线、磁盘 85/90%、内存、TLS 到期、5xx 速率 |
+| `alerts.yml` | 控制面/组件掉线、磁盘 85/90%、内存、TLS 到期、5xx 速率、日志外发积压 |
 | `alertmanager.yml.example` | 邮件 + Webhook + 钉钉机器人示例 |
 | `compose.observability.yaml` | 可选 Prometheus/Alertmanager/Grafana 栈（profile=observability） |
 | `grafana/` | 数据源与「IPAM 概览」面板（自动 provision） |
@@ -69,6 +69,27 @@ ipam_subnet_utilization_percent{subnet_id="...",subnet="办公",cidr="10.0.0.0/2
 | `ipam_host_disk_total_bytes` / `free_bytes` | 宿主磁盘总量/可用 |
 
 告警：`IpamLogPartsHigh`、`IpamLogIngestStalled`、`IpamLogDiskGrowthFast`、`IpamLogDiskRatioHigh`。
+
+## 日志外发积压（M6-008）
+
+Vector 通过 `internal_metrics` + `prometheus_exporter` 暴露自身指标（`vector:9598`，由 Prometheus `ipam-vector` job 抓取，不对宿主机发布端口）：
+
+| 指标 | 说明 |
+|---|---|
+| `vector_buffer_byte_size{component_id}` | 目标 sink 当前缓冲占用字节 |
+| `vector_buffer_events{component_id}` | 目标 sink 当前缓冲事件数 |
+| `vector_buffer_max_byte_size{component_id}` | 缓冲上限（ClickHouse=1GiB） |
+| `vector_component_received_events_total` / `sent_events_total{component_id}` | 收/发事件累计（差值=在途）|
+| `vector_component_errors_total{component_kind="sink"}` | 发送错误累计（重试中）|
+| `vector_utilization{component_id}` | 组件利用率（0–1）|
+
+告警：
+
+- `IpamLogSinkBacklog`：`component_id=~"clickhouse|siem_.*"` 缓冲占用 >50% 持续 15m（warning）；
+- `IpamLogSinkBufferFull`：缓冲占用 >90% 持续 5m（critical，缓冲区为有界 `drop_newest`，再满将丢弃最新日志）；
+- `IpamLogSinkErrors`：近 10 分钟 sink 发送错误 >0（warning）。
+
+> 该埋点为所有 sink 通用，不依赖 Syslog/Kafka/Webhook 是否启用；启用外发后 `siem_*` 组件会同样出现在缓冲指标中。
 
 ## 授权与终端计量（M6-004B）
 
