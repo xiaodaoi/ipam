@@ -295,6 +295,27 @@ func (m *MemStore) DistinctClientIP(_ context.Context, f LogFilter, scope OrgSco
 	return int64(len(set)), nil
 }
 
+// DistinctClientIPs 去重客户端 IP 集合（过滤语义与 DistinctClientIP 一致，空 IP 忽略）。
+func (m *MemStore) DistinctClientIPs(_ context.Context, f LogFilter, scope OrgScope) ([]string, error) {
+	set := map[string]bool{}
+	for _, r := range m.rows {
+		if !matchTime(r, f.From, f.To) || !matchScope(r, scope) || (f.Type != "" && r.Type != f.Type) {
+			continue
+		}
+		ip := r.ClientIP
+		if ip == "" || (f.IP != "" && !matchIP(r, f.IP)) {
+			continue
+		}
+		set[ip] = true
+	}
+	out := make([]string, 0, len(set))
+	for ip := range set {
+		out = append(out, ip)
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
 // HourlyActive 逐小时 distinct client_ip。
 func (m *MemStore) HourlyActive(_ context.Context, from, to time.Time) ([]QpsPoint, error) {
 	buckets := map[time.Time]map[string]bool{}

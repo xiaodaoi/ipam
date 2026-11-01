@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"net/netip"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -451,6 +452,36 @@ func (s *ChStore) DistinctClientIP(ctx context.Context, f LogFilter, scope OrgSc
 		fmt.Sprintf(`SELECT uniqExact(coalesce(toString(client_ip),'')) FROM %s WHERE %s`, s.table(), where),
 		args...).Scan(&n)
 	return int64(n), err
+}
+
+// DistinctClientIPs 去重客户端 IP 集合（GROUP BY client_ip，单次扫描替代逐池查询）。
+func (s *ChStore) DistinctClientIPs(ctx context.Context, f LogFilter, scope OrgScope) ([]string, error) {
+	where, args := buildWhere(cond{
+		From: f.From, To: f.To, Type: f.Type, MAC: f.MAC, IP: f.IP,
+		Domain: f.Domain, Action: f.Action, AnswerIP: f.AnswerIP, Keyword: f.Keyword, Scope: scope,
+	})
+	rows, err := s.conn.Query(ctx, fmt.Sprintf(
+		`SELECT DISTINCT toString(client_ip) AS ip FROM %s WHERE %s AND client_ip IS NOT NULL`, s.table(), where),
+		args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := []string{}
+	for rows.Next() {
+		var ip string
+		if err := rows.Scan(&ip); err != nil {
+			return nil, err
+		}
+		if ip != "" {
+			out = append(out, ip)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	sort.Strings(out)
+	return out, nil
 }
 
 // HourlyActive 逐小时 distinct client_ip（type=dhcp）。

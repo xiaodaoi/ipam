@@ -104,6 +104,9 @@ type Store interface {
 	// DistinctClientIP 去重客户端 IP 计数（f.Type/IP/时间窗/组织 scope 生效；
 	// rng 非空时额外要求 client_ip 落 [Lo,Hi] 闭区间——池利用率口径）。
 	DistinctClientIP(ctx context.Context, f LogFilter, scope OrgScope, rng *AddrRange) (int64, error)
+	// DistinctClientIPs 去重客户端 IP 集合（过滤语义同 DistinctClientIP，空 IP 忽略）。
+	// 仪表盘用一次取回今日全部活动 IP，在内存侧按池区间计数，避免「每池一次 CH 查询」。
+	DistinctClientIPs(ctx context.Context, f LogFilter, scope OrgScope) ([]string, error)
 	// HourlyActive 逐小时 distinct client_ip（DHCP 事件，[from,to]）。
 	HourlyActive(ctx context.Context, from, to time.Time) ([]QpsPoint, error)
 	// MacActivity 各 MAC 活动窗口 min/max（[from,to]，MAC 非空行）。

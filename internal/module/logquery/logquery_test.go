@@ -270,3 +270,31 @@ func TestIsQueryTimeout(t *testing.T) {
 		t.Fatal("nil should not match")
 	}
 }
+
+// DistinctClientIPs 与 DistinctClientIP 必须同语义（仪表盘池利用率依赖单次取集合）。
+func TestDistinctClientIPsMatchesCount(t *testing.T) {
+	m, now := base(t)
+	from := now.Add(-30 * time.Minute)
+	for _, f := range []LogFilter{
+		{From: from},
+		{From: from, Type: "dhcp"},
+		{From: from, Type: "dns", IP: "10.61.172.0/24"},
+	} {
+		n, err := m.DistinctClientIP(context.Background(), f, OrgScope{}, nil)
+		if err != nil {
+			t.Fatalf("count: %v", err)
+		}
+		ips, err := m.DistinctClientIPs(context.Background(), f, OrgScope{})
+		if err != nil {
+			t.Fatalf("list: %v", err)
+		}
+		if int(n) != len(ips) {
+			t.Fatalf("count=%d list=%d（%+v）", n, len(ips), f)
+		}
+		for _, ip := range ips {
+			if ip == "" {
+				t.Fatal("空 IP 不应出现在集合中")
+			}
+		}
+	}
+}

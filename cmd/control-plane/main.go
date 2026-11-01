@@ -435,8 +435,13 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		Kea:        tcpLight("kea", os.Getenv("IPAM_KEA_API")),
 		Unbound:    unixLight("unbound", "/run/ipam/unbound-ctl.sock"),
 	}
-	dashH := dashboard.NewHandler(dashboard.NewService(logStore, subSrc, bindSrc, lights))
-
+	dashSvc := dashboard.NewService(logStore, subSrc, bindSrc, lights)
+	if v := os.Getenv("IPAM_DASHBOARD_CACHE_TTL"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			dashSvc.SetCacheTTL(d)
+		}
+	}
+	dashH := dashboard.NewHandler(dashSvc)
 	// 双栈绑定模板（M2-012，§4.3）：daemon 联动匹配的模板数据源
 	var dsStore dualstack.Store = dualstack.NewMemStore()
 	if pool != nil {

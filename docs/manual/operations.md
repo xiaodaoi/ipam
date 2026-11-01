@@ -66,6 +66,9 @@ docker compose -f observability/compose.observability.yaml --profile observabili
 建议：
 
 - 在线保留 180–365 天；多年合规留存用按月 Parquet 归档；
+- **容量口径（M6-016 实测）**：真实日志约 44.6 字节/行（压缩后含索引）⇒ 500 万行/天 ≈ 223MB/天，180 天 ≈ 40GB，365 天 ≈ 81GB；整机磁盘建议 ≥ 在线数据 2 倍（合并/归档/备份/镜像）；
+- **查询性能（M6-016 实测）**：单日 500 万行时全天 count 55ms、首页 50 行 44ms、域名子串 68ms、客户端 Top10 45ms；7 天全窗口分页在 10 并发下约 14 RPS，日志页默认时间窗应 ≤24h；
+- 仪表盘快照默认缓存 5s（`IPAM_DASHBOARD_CACHE_TTL`，0=关闭）；多管理员轮询时不要关，否则每次都要聚合 ClickHouse；
 - Vector 使用 1GB 有界磁盘缓冲，CH 故障超过缓冲会丢弃最新日志（优先保宿主稳定）；
 - 查询超时先缩小时间窗/加 type/domain 过滤；重复分页有 15s total 缓存；
 - 翻页超过 1 万条会返回 `PAGE_TOO_DEEP`，请缩小时间窗/增过滤条件或导出 CSV（避免深 offset 扫描）；

@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"net/netip"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/xiaodaoi/ipam/internal/module/ipam"
@@ -50,10 +51,30 @@ type Service struct {
 	bindings BindingSource
 	lights   Lights
 	now      func() time.Time // 测试注入
+
+	// 快照缓存：仪表盘按 30s 轮询 + 多管理员并发，命中 TTL 内直接复用，
+	// 避免每次请求都打满 ClickHouse（一次聚合约 5 条 CH 查询）。
+	cacheTTL time.Duration
+	mu       sync.Mutex
+	cache    map[int]cacheEntry
+}
+
+type cacheEntry struct {
+	ov *Overview
+	at time.Time
 }
 
 func NewService(logs logquery.Store, subnets SubnetSource, bindings BindingSource, lights Lights) *Service {
-	return &Service{logs: logs, subnets: subnets, bindings: bindings, lights: lights, now: time.Now}
+	return &Service{logs: logs, subnets: subnets, bindings: bindings, lights: lights, now: time.Now,
+		cacheTTL: 5 * time.Second, cache: map[int]cacheEntry{}}
+}
+
+// SetCacheTTL 覆盖快照缓存 TTL（≤0 关闭缓存；env：IPAM_DASHBOARD_CACHE_TTL）。
+func (s *Service) SetCacheTTL(d time.Duration) {
+	s.mu.Lock()
+	s.cacheTTL = d
+	s.cache = map[int]cacheEntry{}
+	s.mu.Unlock()
 }
 
 func (s *Service) NowUTC() time.Time { return s.now().UTC().Truncate(time.Second) }
@@ -85,9 +106,42 @@ type Overview struct {
 	CoherencePct     *int64
 }
 
-// Overview 单请求聚合（≤1s 预算：CH uniqExact 小窗口 + 每池一次计数，池数个位量级）。
+// Overview 单请求聚合（≤1s 预算）：4 条 CH 查询并发执行 + 内存侧池内计数，
+// 结果按 cacheTTL 缓存，避免多客户端轮询放大 ClickHouse 压力。
 func (s *Service) Overview(ctx context.Context, poolTopN int) (*Overview, error) {
 	now := s.NowUTC()
+	if ov := s.cached(poolTopN, now); ov != nil {
+		return ov, nil
+	}
+	// 串行化刷新：并发请求排队等首个快照，避免缓存击穿。
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now = s.NowUTC()
+	if ov := s.cachedLocked(poolTopN, now); ov != nil {
+		return ov, nil
+	}
+	ov := s.build(ctx, poolTopN, now)
+	if s.cacheTTL > 0 {
+		s.cache[poolTopN] = cacheEntry{ov: ov, at: now}
+	}
+	return ov, nil
+}
+
+func (s *Service) cached(poolTopN int, now time.Time) *Overview {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.cachedLocked(poolTopN, now)
+}
+
+func (s *Service) cachedLocked(poolTopN int, now time.Time) *Overview {
+	e, ok := s.cache[poolTopN]
+	if !ok || s.cacheTTL <= 0 || now.Sub(e.at) > s.cacheTTL {
+		return nil
+	}
+	return e.ov
+}
+
+func (s *Service) build(ctx context.Context, poolTopN int, now time.Time) *Overview {
 	today := now.Truncate(24 * time.Hour)
 	ov := &Overview{TS: now, TodayStart: today,
 		Lights: map[string]Light{
@@ -97,25 +151,53 @@ func (s *Service) Overview(ctx context.Context, poolTopN int) (*Overview, error)
 			"unbound":    s.lights.of(ctx, s.lights.Unbound),
 		}}
 
-	if n, err := s.logs.DistinctClientIP(ctx,
-		logquery.LogFilter{From: today, To: now, Type: "dhcp"}, logquery.OrgScope{}, nil); err == nil {
-		ov.OnlineNow = n
-	}
-	if trend, err := s.logs.HourlyActive(ctx, now.Add(-24*time.Hour), now); err == nil {
-		ov.OnlineTrend = fillHourly(trend, now)
-	}
-	s.terminalFlow(ctx, ov, now, today)
-	s.dnsMetrics(ctx, ov, now, today)
-	ov.PoolTop = s.poolTop(ctx, poolTopN, today, now)
+	// 四个数据源彼此独立 → 并发取数；任一失败按「该指标降级为空」处理，不拖垮整页。
+	var (
+		ips            []string
+		trend          []logquery.QpsPoint
+		fresh, offline *int64
+		qps            *float64
+		blockedToday   *int64
+	)
+	var wg sync.WaitGroup
+	wg.Add(4)
+	go func() {
+		defer wg.Done()
+		if v, err := s.logs.DistinctClientIPs(ctx,
+			logquery.LogFilter{From: today, To: now, Type: "dhcp"}, logquery.OrgScope{}); err == nil {
+			ips = v
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		if v, err := s.logs.HourlyActive(ctx, now.Add(-24*time.Hour), now); err == nil {
+			trend = v
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		fresh, offline = s.terminalFlow(ctx, now, today)
+	}()
+	go func() {
+		defer wg.Done()
+		qps, blockedToday = s.dnsMetrics(ctx, now, today)
+	}()
+	wg.Wait()
+
+	ov.OnlineNow = int64(len(ips))
+	ov.OnlineTrend = fillHourly(trend, now)
+	ov.NewTerminals, ov.OfflineTerminals = fresh, offline
+	ov.Qps5m, ov.BlockedToday = qps, blockedToday
+	ov.PoolTop = s.poolTop(ctx, poolTopN, ips)
 	s.coherenceRate(ctx, ov)
-	return ov, nil
+	return ov
 }
 
 // terminalFlow 新增/离线终端（近 7 天 MAC 活动窗口推导）。
-func (s *Service) terminalFlow(ctx context.Context, ov *Overview, now, today time.Time) {
+func (s *Service) terminalFlow(ctx context.Context, now, today time.Time) (*int64, *int64) {
 	act, err := s.logs.MacActivity(ctx, today.Add(-7*24*time.Hour), now)
 	if err != nil || len(act) == 0 {
-		return
+		return nil, nil
 	}
 	var fresh, offline int64
 	for _, w := range act {
@@ -128,11 +210,12 @@ func (s *Service) terminalFlow(ctx context.Context, ov *Overview, now, today tim
 			offline++
 		}
 	}
-	ov.NewTerminals, ov.OfflineTerminals = &fresh, &offline
+	return &fresh, &offline
 }
 
 // dnsMetrics qps5m 与今日拦截量。
-func (s *Service) dnsMetrics(ctx context.Context, ov *Overview, now, today time.Time) {
+func (s *Service) dnsMetrics(ctx context.Context, now, today time.Time) (*float64, *int64) {
+	var qps *float64
 	points, err := s.logs.Qps(ctx, logquery.QpsQuery{
 		From: now.Add(-5 * time.Minute), To: now, Type: "dns", IntervalSec: 300}, logquery.OrgScope{})
 	if err == nil {
@@ -141,24 +224,35 @@ func (s *Service) dnsMetrics(ctx context.Context, ov *Overview, now, today time.
 			total += int64(p.Count)
 		}
 		q := float64(total) / 300
-		ov.Qps5m = &q
+		qps = &q
 	}
+	var blocked *int64
 	page, err := s.logs.Query(ctx, logquery.LogFilter{
 		From: today, To: now, Action: "blocked", PageSize: 1}, logquery.OrgScope{})
 	if err == nil {
 		b := int64(page.Total)
-		ov.BlockedToday = &b
+		blocked = &b
 	}
+	return qps, blocked
 }
 
 // poolTop 池利用率 TopN（used=今日区间 distinct client_ip）。
-func (s *Service) poolTop(ctx context.Context, n int, today, now time.Time) []PoolUtil {
+// 今日活动 IP 集合只取一次，按池区间在内存侧二分计数——替代以往「每池一次 CH 查询」。
+func (s *Service) poolTop(ctx context.Context, n int, ips []string) []PoolUtil {
 	if n <= 0 {
 		n = 5
 	}
 	if s.subnets == nil {
 		return []PoolUtil{}
 	}
+	addrs := make([]netip.Addr, 0, len(ips))
+	for _, ip := range ips {
+		if a, err := netip.ParseAddr(ip); err == nil {
+			addrs = append(addrs, a.Unmap())
+		}
+	}
+	sort.Slice(addrs, func(i, j int) bool { return addrs[i].Compare(addrs[j]) < 0 })
+
 	out := []PoolUtil{}
 	for _, sn := range s.subnets(ctx) {
 		for i, p := range sn.Pools {
@@ -166,12 +260,12 @@ func (s *Service) poolTop(ctx context.Context, n int, today, now time.Time) []Po
 			if !ok {
 				continue
 			}
-			used, err := s.logs.DistinctClientIP(ctx,
-				logquery.LogFilter{From: today, To: now, Type: "dhcp"},
-				logquery.OrgScope{}, &rng)
-			if err != nil {
+			lo, errL := netip.ParseAddr(rng.Lo)
+			hi, errH := netip.ParseAddr(rng.Hi)
+			if errL != nil || errH != nil {
 				continue
 			}
+			used := int64(countAddrInRange(addrs, lo.Unmap(), hi.Unmap()))
 			pct := 0.0
 			if cap > 0 {
 				pct = float64(used) / float64(cap) * 100
@@ -187,6 +281,16 @@ func (s *Service) poolTop(ctx context.Context, n int, today, now time.Time) []Po
 		out = out[:n]
 	}
 	return out
+}
+
+// countAddrInRange 已排序地址集合中落在 [lo,hi] 闭区间的个数。
+func countAddrInRange(addrs []netip.Addr, lo, hi netip.Addr) int {
+	i := sort.Search(len(addrs), func(i int) bool { return addrs[i].Compare(lo) >= 0 })
+	j := sort.Search(len(addrs), func(i int) bool { return addrs[i].Compare(hi) > 0 })
+	if j < i {
+		return 0
+	}
+	return j - i
 }
 
 // coherenceRate active/(active+conflict)。

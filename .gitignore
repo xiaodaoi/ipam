@@ -48,3 +48,6 @@ deploy/compose/certs/
 # E2E/压测产物
 tests/e2e/artifacts/
 web/coverage/
+
+# 压测/容量报告本地产物（结果沉淀到 docs/dev，不入库）
+tests/load/artifacts/

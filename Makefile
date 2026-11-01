@@ -47,3 +47,6 @@ e2e: ## 主链路 E2E（需控制面已启动；可选 PLAYWRIGHT_CHROMIUM 指�
 
 load-test: ## API 压测（默认 10s/20 并发；需隔离环境并建议 IPAM_RATE_LIMIT=0）
 	@go run ./tests/load -base "$${IPAM_LOAD_BASE:-http://127.0.0.1:8443}"
+
+capacity-test: ## ClickHouse 容量压测（默认 500 万行单日样本；只建/删 logs_capacity 影子表）
+	@bash tests/load/capacity-ch.sh

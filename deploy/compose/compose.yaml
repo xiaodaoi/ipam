@@ -104,6 +104,8 @@ services:
       IPAM_TLS_KEY: "${IPAM_TLS_KEY:-}"
       IPAM_JWT_SECRET: "${IPAM_JWT_SECRET:?set IPAM_JWT_SECRET in .env (install.sh 会自动生成)}"
       IPAM_RATE_LIMIT: "${IPAM_RATE_LIMIT:-600}"
+      # 仪表盘快照缓存 TTL（默认 5s；0 关闭。多管理员轮询时降低 ClickHouse 压力）
+      IPAM_DASHBOARD_CACHE_TTL: "${IPAM_DASHBOARD_CACHE_TTL:-5s}"
       # 首次启动的一次性 admin 口令写入该目录（0600）
       IPAM_RUN_DIR: "/run/ipam"
     volumes:

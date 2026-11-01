@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"context"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -164,5 +165,73 @@ func TestPoolUsedCountsInRange(t *testing.T) {
 	}
 	if c := ov.PoolTop[0].Capacity; c != 11 { // .10..20
 		t.Fatalf("capacity=%d want 11", c)
+	}
+}
+func TestPoolTopIPv6AndEmptyIP(t *testing.T) {
+	now := fixedNow()
+	m := logquery.NewMemStore()
+	m.Append(
+		logquery.LogRow{TS: now.Add(-time.Minute), Type: "dhcp", ClientIP: "2001:db8::10"},
+		logquery.LogRow{TS: now.Add(-2 * time.Minute), Type: "dhcp", ClientIP: "2001:db8::20"},
+		logquery.LogRow{TS: now.Add(-3 * time.Minute), Type: "dhcp", ClientIP: "10.0.0.5"},
+		logquery.LogRow{TS: now.Add(-4 * time.Minute), Type: "dhcp"}, // 无 IP 不计入在线数
+	)
+	svc := NewService(m,
+		func(context.Context) []ipam.Subnet {
+			return []ipam.Subnet{{ID: "66666666-6666-6666-6666-666666666666", Name: "v6",
+				CIDR: "2001:db8::/64", Pools: []ipam.Pool{{StartAddr: "2001:db8::1", EndAddr: "2001:db8::ff"}}}}
+		}, nil, Lights{})
+	svc.now = func() time.Time { return now }
+	ov, err := svc.Overview(context.Background(), 5)
+	if err != nil {
+		t.Fatalf("overview: %v", err)
+	}
+	if ov.OnlineNow != 3 {
+		t.Fatalf("onlineNow=%d want 3（空 IP 不计）", ov.OnlineNow)
+	}
+	if len(ov.PoolTop) != 1 || ov.PoolTop[0].Used != 2 {
+		t.Fatalf("v6 池计数异常: %+v", ov.PoolTop)
+	}
+}
+
+func TestOverviewCacheTTL(t *testing.T) {
+	now := fixedNow()
+	m := logquery.NewMemStore()
+	m.Append(logquery.LogRow{TS: now.Add(-time.Minute), Type: "dhcp", ClientIP: "10.61.172.1"})
+	svc := NewService(m, func(context.Context) []ipam.Subnet { return nil }, nil, Lights{})
+	svc.now = func() time.Time { return now }
+
+	ov1, err := svc.Overview(context.Background(), 5)
+	if err != nil || ov1.OnlineNow != 1 {
+		t.Fatalf("first=%v err=%v", ov1, err)
+	}
+	// TTL 内新增数据应复用快照，避免每次轮询都打 CH。
+	m.Append(logquery.LogRow{TS: now.Add(-time.Minute), Type: "dhcp", ClientIP: "10.61.172.2"})
+	ov2, _ := svc.Overview(context.Background(), 5)
+	if ov2.OnlineNow != 1 {
+		t.Fatalf("缓存未命中，onlineNow=%d want 1", ov2.OnlineNow)
+	}
+	// TTL 归零后立即重算。
+	svc.SetCacheTTL(0)
+	ov3, _ := svc.Overview(context.Background(), 5)
+	if ov3.OnlineNow != 2 {
+		t.Fatalf("缓存关闭后 onlineNow=%d want 2", ov3.OnlineNow)
+	}
+}
+
+func TestCountAddrInRange(t *testing.T) {
+	addrs := []netip.Addr{
+		netip.MustParseAddr("10.0.0.1"),
+		netip.MustParseAddr("10.0.0.5"),
+		netip.MustParseAddr("10.0.0.9"),
+		netip.MustParseAddr("2001:db8::1"),
+	}
+	lo := netip.MustParseAddr("10.0.0.2")
+	hi := netip.MustParseAddr("10.0.0.9")
+	if n := countAddrInRange(addrs, lo, hi); n != 2 {
+		t.Fatalf("in-range=%d want 2", n)
+	}
+	if n := countAddrInRange(addrs, netip.MustParseAddr("10.0.0.10"), netip.MustParseAddr("10.0.0.20")); n != 0 {
+		t.Fatalf("empty-range=%d want 0", n)
 	}
 }
