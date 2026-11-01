@@ -3576,6 +3576,20 @@ export interface components {
             sampleRate: number;
             /** Format: date-time */
             updatedAt?: string;
+            /**
+             * @description 实际生效的采样模式；磁盘水位自动降级期间与 samplingMode 不同
+             * @enum {string}
+             */
+            readonly effectiveSamplingMode?: "all" | "sample" | "errors";
+            /** @description true=磁盘水位自动降级生效中（当前覆盖为仅异常） */
+            readonly degraded?: boolean;
+            /** @description 最近一次水位检查的根分区使用率（%） */
+            readonly diskUsedPercent?: number;
+            /**
+             * Format: date-time
+             * @description 本次自动降级开始时间
+             */
+            readonly degradedAt?: string;
         };
         /** @description LDAP/AD 目录服务设置（M6-007B）；bindPassword 仅写入，读取时用 hasBindPassword 表示。 */
         LDAPSettings: {

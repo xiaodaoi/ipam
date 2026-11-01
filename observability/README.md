@@ -63,6 +63,7 @@ ipam_subnet_utilization_percent{subnet_id="...",subnet="办公",cidr="10.0.0.0/2
 |---|---|
 | `ipam_log_rows` | 在线日志行数 |
 | `ipam_log_disk_bytes` | 日志磁盘占用 |
+| `ipam_log_export_degraded` | 日志采样是否因磁盘水位自动降级（1=是） |
 | `ipam_log_parts` | 活跃 part 数 |
 | `ipam_log_latest_age_seconds` | 最新日志滞后秒数 |
 | `ipam_host_disk_total_bytes` / `free_bytes` | 宿主磁盘总量/可用 |

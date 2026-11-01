@@ -686,6 +686,26 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	if err := exportSvc.Apply(rootCtx); err != nil {
 		log.Printf("[log-export] 渲染 Vector 配置失败（外发可能未生效）: %v", err)
 	}
+	// 磁盘水位自动降级（M6-008）：连续 3 次 ≥90% 切仅异常，连续 3 次 ≤85% 恢复。
+	watermark := logexport.NewWatermark(exportSvc, func() (float64, error) {
+		if hostCol == nil {
+			return 0, errors.New("宿主资源采集器未初始化")
+		}
+		m, err := hostCol.Collect()
+		if err != nil {
+			return 0, err
+		}
+		for _, d := range m.Disks {
+			if d.Mount == "/" {
+				return d.UsedPct, nil
+			}
+		}
+		if len(m.Disks) > 0 {
+			return m.Disks[0].UsedPct, nil
+		}
+		return 0, errors.New("未发现可用磁盘")
+	}, logexport.WatermarkConfigFromEnv(os.Getenv))
+	go watermark.Run(rootCtx)
 	exportH := logexport.NewLogExportHandler(exportSvc)
 	backupH := backupmodule.NewAPIHandler(backupSvc, backupSettingsRepo)
 	permLookup := func(ctx context.Context, role string) ([]string, bool) {
@@ -760,6 +780,7 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 			}
 			return chAdmin.Ping(ctx)
 		},
+		LogExportDegraded: func() bool { return exportSvc.Status().Degraded },
 		Kea: func(ctx context.Context) error {
 			if keaCmd == nil {
 				return nil

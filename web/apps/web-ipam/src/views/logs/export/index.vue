@@ -41,11 +41,32 @@ const form = reactive<LogExportSettings>({
 const loading = ref(false);
 const saving = ref(false);
 const diskPct = ref<number>();
+const auto = reactive({
+  degraded: false,
+  effectiveSamplingMode: '' as '' | LogExportSettings['effectiveSamplingMode'],
+  degradedAt: '',
+});
+
+function applyStatus(s: LogExportSettings) {
+  auto.degraded = Boolean(s.degraded);
+  auto.effectiveSamplingMode = s.effectiveSamplingMode ?? '';
+  auto.degradedAt = s.degradedAt ?? '';
+  if (typeof s.diskUsedPercent === 'number') {
+    diskPct.value = s.diskUsedPercent;
+  }
+}
 
 const samplingLabel = computed(() => {
   if (form.samplingMode === 'all') return '全量';
   if (form.samplingMode === 'errors') return '仅异常';
   return `1/${form.sampleRate}`;
+});
+const effectiveLabel = computed(() => {
+  if (!auto.degraded) return samplingLabel.value;
+  const mode = auto.effectiveSamplingMode;
+  if (mode === 'errors') return '仅异常（自动降级）';
+  if (mode === 'sample') return `1/${form.sampleRate}（自动降级）`;
+  return samplingLabel.value;
 });
 const diskTone = computed(() => {
   const p = diskPct.value ?? 0;
@@ -63,9 +84,12 @@ async function load() {
       samplingMode: s.samplingMode ?? 'all',
       sampleRate: s.sampleRate || 10,
     });
-    const m = await getSystemMetrics().catch(() => undefined);
-    const root = m?.disks.find((d) => d.mount === '/') ?? m?.disks[0];
-    diskPct.value = root ? Number(root.usedPct) : undefined;
+    applyStatus(s);
+    if (diskPct.value === undefined) {
+      const m = await getSystemMetrics().catch(() => undefined);
+      const root = m?.disks.find((d) => d.mount === '/') ?? m?.disks[0];
+      diskPct.value = root ? Number(root.usedPct) : undefined;
+    }
   } catch (error) {
     message.error(error instanceof Error ? error.message : '策略加载失败');
   } finally {
@@ -78,6 +102,7 @@ async function save() {
   try {
     const saved = await updateLogExportSettings({ ...form });
     Object.assign(form, saved);
+    applyStatus(saved);
     message.success('已保存，Vector 将自动重载配置');
   } catch (error) {
     message.error(error instanceof Error ? error.message : '保存失败');
@@ -135,10 +160,10 @@ onMounted(load);
       />
       <StatCard
         label="采样策略"
-        :value="samplingLabel"
+        :value="effectiveLabel"
         icon="lucide:filter"
-        tone="cyan"
-        :hint="form.samplingMode === 'sample' ? '按 1/N 抽样写入/外发' : form.samplingMode === 'errors' ? '仅非 INFO 日志' : '全量采集'"
+        :tone="auto.degraded ? 'amber' : 'cyan'"
+        :hint="auto.degraded ? `磁盘水位自动降级中（用户策略 ${samplingLabel}）` : form.samplingMode === 'sample' ? '按 1/N 抽样写入/外发' : form.samplingMode === 'errors' ? '仅非 INFO 日志' : '全量采集'"
       />
     </div>
 
@@ -146,10 +171,13 @@ onMounted(load);
       <IconifyIcon icon="lucide:hard-drive" class="mt-0.5 size-3.5 shrink-0" />
       <span>
         当前根分区使用率 {{ diskPct === undefined ? '未知' : `${diskPct.toFixed(1)}%` }}；
-        <template v-if="(diskPct ?? 0) >= 90">已超过 90%，建议立即切换为抽样/仅异常并清理归档。</template>
-        <template v-else-if="(diskPct ?? 0) >= 80">超过 80%，请关注容量并准备清理归档。</template>
-        <template v-else>容量正常。</template>
-        磁盘水位自动降级将在后续版本接入，当前需人工切换策略。
+        <template v-if="auto.degraded">
+          已连续超限，系统自动切换为「仅异常」采样以保护磁盘（用户策略 {{ samplingLabel }}）；
+          使用率降至 85% 以下并稳定后自动恢复<template v-if="auto.degradedAt">（本次开始：{{ new Date(auto.degradedAt).toLocaleString() }}）</template>。
+        </template>
+        <template v-else-if="(diskPct ?? 0) >= 90">已超过 90%，将在连续 3 次检查后自动切换为仅异常；也可立即手动切换并清理归档。</template>
+        <template v-else-if="(diskPct ?? 0) >= 85">超过 85%，请关注容量；持续高于 90% 将触发自动降级。</template>
+        <template v-else>容量正常，未触发自动降级。</template>
       </span>
     </div>
 
@@ -219,7 +247,7 @@ onMounted(load);
         </span>
       </template>
       <template #extra>
-        <Tag class="m-0" :color="form.samplingMode === 'all' ? 'green' : 'amber'">{{ samplingLabel }}</Tag>
+        <Tag class="m-0" :color="auto.degraded ? 'red' : form.samplingMode === 'all' ? 'green' : 'amber'">{{ effectiveLabel }}</Tag>
       </template>
       <div class="ipam-form-grid">
         <div class="ipam-form-field">
@@ -238,7 +266,7 @@ onMounted(load);
           <InputNumber v-model:value="form.sampleRate" :min="1" :max="1000" :disabled="form.samplingMode !== 'sample'" style="width: 100%" />
         </div>
         <div class="ipam-form-hint ipam-form-field--wide">
-          采样同时作用于 ClickHouse 入库与全部外发通道；磁盘 80% 预警、90% 建议降级。
+          采样同时作用于 ClickHouse 入库与全部外发通道；磁盘 85% 预警、90% 自动降级为仅异常，恢复到 85% 以下自动还原。
           生产切换请评估审计/合规留存要求。
         </div>
       </div>

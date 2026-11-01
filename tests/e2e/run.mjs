@@ -162,6 +162,12 @@ async function main() {
       await waitText(page, '查询检索');
     });
 
+    await step('日志外发与采样', async () => {
+      await page.goto(urlFor('/logs-center/export'), { waitUntil: 'domcontentloaded' });
+      await waitText(page, '外发与采样');
+      await waitText(page, '采样策略');
+    });
+
     await step('操作审计与完整性校验入口', async () => {
       await page.goto(urlFor('/logs-center/audit'), { waitUntil: 'domcontentloaded' });
       await waitText(page, '操作审计');

@@ -88,6 +88,10 @@ services:
       # 日志外发/采样（M6-008）：模板只读，生成配置写入共享卷供 Vector 热加载
       IPAM_VECTOR_TEMPLATE: "/etc/vector-template/vector.toml"
       IPAM_VECTOR_CONFIG: "/etc/vector-config/vector.toml"
+      # 磁盘水位自动降级阈值/间隔（M6-008）
+      IPAM_LOG_DEGRADE_HIGH: "${IPAM_LOG_DEGRADE_HIGH:-90}"
+      IPAM_LOG_DEGRADE_LOW: "${IPAM_LOG_DEGRADE_LOW:-85}"
+      IPAM_LOG_DEGRADE_INTERVAL: "${IPAM_LOG_DEGRADE_INTERVAL:-1m}"
       # License（M6-004）：离线授权文件 + Ed25519 公钥（base64/PEM）
       IPAM_LICENSE_FILE: "/srv/log-exports/license.json"
       IPAM_LICENSE_PUBKEY: "${IPAM_LICENSE_PUBKEY:-}"

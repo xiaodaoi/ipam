@@ -40,7 +40,9 @@ docker compose -f observability/compose.observability.yaml --profile observabili
 - Syslog RFC5424（TCP/UDP）、Kafka、Webhook；
 - 全量/1/N/仅异常；
 - 保存后 Vector `--watch-config` 热加载；
-- 磁盘 80% 预警、90% 建议人工降级（自动降级待后续）。
+- 磁盘连续 3 次 ≥90% 自动切换为仅异常，连续 3 次 ≤85% 自动恢复为用户策略；85–90% 为回差区间保持现状；
+- 自动降级只在渲染层生效，不修改用户保存的策略，页面「采样策略」显示实际生效模式；
+- 阈值可用环境变量 `IPAM_LOG_DEGRADE_HIGH`（默认 90）/ `IPAM_LOG_DEGRADE_LOW`（默认 85）调整。
 
 ## 审计
 
@@ -58,6 +60,7 @@ docker compose -f observability/compose.observability.yaml --profile observabili
 | `ipam_log_disk_bytes` | 日志磁盘占用 | 占磁盘 >60% 告警 |
 | `ipam_log_parts` | 活跃 part 数 | >500 告警，检查写入/合并 |
 | `ipam_log_latest_age_seconds` | 最新日志滞后 | >600s 告警，查 Vector |
+| `ipam_log_export_degraded` | 采样是否因磁盘水位自动降级 | =1 时清理归档/扩容 |
 | `ipam_host_disk_free_bytes` | 宿主可用空间 | 提前扩容 |
 
 建议：

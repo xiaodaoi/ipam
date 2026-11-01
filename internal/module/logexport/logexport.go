@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -26,6 +27,15 @@ type Settings struct {
 	UpdatedAt      time.Time
 }
 
+// Status 运行期生效状态（M6-008 自动降级）：用户策略仍保存在 repo，
+// 磁盘水位触发时仅覆盖本次渲染的采样模式，不修改用户配置。
+type Status struct {
+	EffectiveSamplingMode string
+	Degraded              bool
+	DiskUsedPercent       float64
+	DegradedAt            time.Time
+}
+
 func Defaults() Settings {
 	return Settings{SyslogMode: "tcp", SamplingMode: "all", SampleRate: 10}
 }
@@ -39,6 +49,12 @@ type Service struct {
 	repo     Repo
 	template string
 	output   string
+
+	mu            sync.Mutex
+	autoMode      string // 非空=磁盘水位自动降级中的覆盖模式
+	effectiveMode string // 最近一次渲染实际使用的采样模式
+	diskPct       float64
+	degradedAt    time.Time
 }
 
 func NewService(repo Repo, template, output string) *Service {
@@ -48,25 +64,81 @@ func NewService(repo Repo, template, output string) *Service {
 func (s *Service) Get(ctx context.Context) (Settings, error) { return s.repo.Get(ctx) }
 
 func (s *Service) Apply(ctx context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	st, err := s.repo.Get(ctx)
 	if err != nil {
 		return err
 	}
-	return s.render(st)
+	return s.renderLocked(st, s.autoMode)
 }
 
 func (s *Service) Save(ctx context.Context, st Settings) (Settings, error) {
 	if err := Validate(st); err != nil {
 		return Settings{}, err
 	}
-	if err := s.render(st); err != nil {
-		return Settings{}, err
-	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	saved, err := s.repo.Save(ctx, st)
 	if err != nil {
 		return Settings{}, err
 	}
+	// 自动降级期间保持覆盖，避免用户保存后短暂恢复全量写入。
+	if err := s.renderLocked(saved, s.autoMode); err != nil {
+		return Settings{}, err
+	}
 	return saved, nil
+}
+
+// SetAutoSampling 应用/解除磁盘水位自动降级（M6-008）。
+// mode 为空表示恢复正常（回到用户配置）；失败时不改变当前覆盖状态。
+func (s *Service) SetAutoSampling(ctx context.Context, mode string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.autoMode == mode {
+		return nil
+	}
+	st, err := s.repo.Get(ctx)
+	if err != nil {
+		return err
+	}
+	if err := s.renderLocked(st, mode); err != nil {
+		return err
+	}
+	s.autoMode = mode
+	if mode == "" {
+		s.degradedAt = time.Time{}
+	} else {
+		s.degradedAt = time.Now().UTC()
+	}
+	return nil
+}
+
+// SetDiskPercent 记录最近一次磁盘水位（供 API/页面展示）。
+func (s *Service) SetDiskPercent(pct float64) {
+	s.mu.Lock()
+	s.diskPct = pct
+	s.mu.Unlock()
+}
+
+// Status 返回当前生效状态。
+func (s *Service) Status() Status {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	mode := s.effectiveMode
+	return Status{
+		EffectiveSamplingMode: mode,
+		Degraded:              s.autoMode != "",
+		DiskUsedPercent:       s.diskPct,
+		DegradedAt:            s.degradedAt,
+	}
+}
+
+// AutoMode 当前自动降级覆盖模式（空=未降级）。
+func (s *Service) AutoMode() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.autoMode
 }
 
 func Validate(s Settings) error {
@@ -94,7 +166,10 @@ func Validate(s Settings) error {
 	return nil
 }
 
-func (s *Service) render(st Settings) error {
+func (s *Service) renderLocked(st Settings, autoMode string) error {
+	if autoMode != "" {
+		st.SamplingMode = autoMode
+	}
 	base, err := os.ReadFile(s.template)
 	if err != nil {
 		return fmt.Errorf("读取 Vector 模板失败: %w", err)
@@ -108,7 +183,11 @@ func (s *Service) render(st Settings) error {
 	if err := os.WriteFile(tmp, []byte(out), 0o644); err != nil {
 		return err
 	}
-	return os.Rename(tmp, s.output)
+	if err := os.Rename(tmp, s.output); err != nil {
+		return err
+	}
+	s.effectiveMode = st.SamplingMode
+	return nil
 }
 
 // Render 在基础模板上追加采样 transform 与外发 sink，并把 ClickHouse 输入改为 log_out。

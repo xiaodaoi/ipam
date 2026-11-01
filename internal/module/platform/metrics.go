@@ -31,7 +31,9 @@ type MetricsSources struct {
 	Host        *hostmetrics.Collector
 	Utilization func(context.Context) ([]utilization.Point, error)
 	LogStats    func(context.Context) (logmanager.LogStats, error)
-	TLSCertFile string
+	// LogExportDegraded 磁盘水位自动降级状态（M6-008）。
+	LogExportDegraded func() bool
+	TLSCertFile       string
 }
 
 // MetricsHandler 暴露 Prometheus 文本格式指标，并统计 HTTP 请求。
@@ -134,6 +136,14 @@ func (h *MetricsHandler) Serve(c *gin.Context) {
 			log.Printf("[metrics] log stats: %v", err)
 		}
 		cancel()
+	}
+
+	if h.src.LogExportDegraded != nil {
+		v := 0
+		if h.src.LogExportDegraded() {
+			v = 1
+		}
+		fmt.Fprintf(&b, "# HELP ipam_log_export_degraded 日志采样是否因磁盘水位自动降级（1=是）\n# TYPE ipam_log_export_degraded gauge\nipam_log_export_degraded %d\n", v)
 	}
 
 	if h.src.Utilization != nil {

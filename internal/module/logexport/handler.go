@@ -13,7 +13,7 @@ type LogExportHandler struct{ svc *Service }
 
 func NewLogExportHandler(svc *Service) *LogExportHandler { return &LogExportHandler{svc: svc} }
 
-func toGen(s Settings) apigen.LogExportSettings {
+func toGen(s Settings, st Status) apigen.LogExportSettings {
 	mode := apigen.LogExportSettingsSyslogMode(s.SyslogMode)
 	if mode == "" {
 		mode = "tcp"
@@ -39,6 +39,20 @@ func toGen(s Settings) apigen.LogExportSettings {
 	if !s.UpdatedAt.IsZero() {
 		out.UpdatedAt = &s.UpdatedAt
 	}
+	if st.EffectiveSamplingMode != "" {
+		mode := apigen.LogExportSettingsEffectiveSamplingMode(st.EffectiveSamplingMode)
+		out.EffectiveSamplingMode = &mode
+	}
+	degraded := st.Degraded
+	out.Degraded = &degraded
+	if st.DiskUsedPercent > 0 {
+		pct := float32(st.DiskUsedPercent)
+		out.DiskUsedPercent = &pct
+	}
+	if !st.DegradedAt.IsZero() {
+		at := st.DegradedAt
+		out.DegradedAt = &at
+	}
 	return out
 }
 
@@ -48,7 +62,7 @@ func (h *LogExportHandler) GetLogExportSettings(c *gin.Context) {
 		problem.Write(c, 500, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, toGen(s))
+	c.JSON(http.StatusOK, toGen(s, h.svc.Status()))
 }
 
 func (h *LogExportHandler) UpdateLogExportSettings(c *gin.Context) {
@@ -82,5 +96,5 @@ func (h *LogExportHandler) UpdateLogExportSettings(c *gin.Context) {
 		problem.Write(c, 400, "https://ipam.local/problems/log-export", "LOG_EXPORT_INVALID", err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, toGen(saved))
+	c.JSON(http.StatusOK, toGen(saved, h.svc.Status()))
 }

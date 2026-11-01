@@ -3,6 +3,14 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-10-31 · 日志磁盘水位自动降级（M6-008 收尾）
+- **触发**：`logexport.Watermark` 每分钟读根分区，连续 3 次 ≥90% 自动把渲染采样覆盖为 `errors`（仅非 INFO），降低 ClickHouse 入库与外发量。
+- **恢复**：连续 3 次 ≤85% 解除覆盖回到用户策略；85–90% 回差区间保持现状防抖；阈值可经 `IPAM_LOG_DEGRADE_HIGH/LOW` 调整。
+- **不丢策略**：覆盖只在渲染层，`log_export_settings` 保留用户配置；响应新增 `effectiveSamplingMode/degraded/diskUsedPercent/degradedAt`。
+- **可观测**：`ipam_log_export_degraded` 指标；`alerts.yml` 新增 `IpamLogExportDegraded`；observability README 同步。
+- **前端**：外发与采样页显示生效模式与自动降级/恢复说明。
+- **验证**：logexport 单测（覆盖/恢复/保存不丢/防抖/env）；golangci-lint 0 issues、vue-tsc/eslint、gen-check、E2E。
+
 ## 2026-10-31 · 会话列表与单会话强制下线（M6-007C）
 - **数据**：`0037_user_sessions.sql` 新增会话表（IP/UA/登录时间/最近活动/过期/吊销）；JWT 增加 `sid` claim，不保存令牌原文。
 - **自助**：`GET /auth/sessions` 列表、`DELETE /auth/sessions/{sessionId}` 下线；个人中心「安全设置」新增登录会话卡片（设备/IP/最近活动/当前会话标记）。

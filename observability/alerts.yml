@@ -44,6 +44,16 @@ groups:
           summary: "宿主磁盘使用率 {{ $labels.mount }} > 90%"
           description: "当前 {{ $value | printf \"%.1f\" }}%，可能触发日志降级/写入失败。"
 
+      - alert: IpamLogExportDegraded
+        expr: ipam_log_export_degraded == 1
+        for: 5m
+        labels:
+          severity: warning
+          team: ipam
+        annotations:
+          summary: "日志采样已因磁盘水位自动降级"
+          description: "日志采样已自动切换为仅异常；请清理归档/扩容，降至 85% 以下后自动恢复。"
+
       - alert: IpamMemoryHigh
         expr: ipam_host_memory_used_bytes / ipam_host_memory_total_bytes > 0.9
         for: 10m
