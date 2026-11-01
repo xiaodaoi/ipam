@@ -32,7 +32,7 @@ func TestAuditRecorderUsesContextMeta(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	store := &memAuditStore{}
 	r := gin.New()
-	r.Use(NewAuditRecorder(store))
+	r.Use(NewAuditRecorder(store).Middleware())
 	r.POST("/api/v1/auth/login", func(c *gin.Context) {
 		c.Set(auditmeta.ActionKey, "login")
 		c.Set(auditmeta.ActorKey, "alice")

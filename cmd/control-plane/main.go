@@ -839,7 +839,44 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	// RBAC 写权限拦截（M5-003）先于审计：被 403 的请求不入账。
 	// 操作审计（M4-003+M5-002）：actor 从 JWT claims 解析（human/bot 区分 §12.3）。
 	r.Use(platform.NewRBACMiddleware(userStore, bl, permLookup, sessionSvc)) // M5-003/M5-010/M5-011/M2-035/M6-007C
-	r.Use(logq.NewAuditRecorder(auditRepo, platform.JWTActorProvider))
+	// 操作审计（M4-003+M5-002）：actor 从 JWT claims 解析（human/bot 区分 §12.3）；
+	// M6-006 实体级 before 快照：为高价值资源登记“变更前实体”加载器。
+	auditRec := logq.NewAuditRecorder(auditRepo, platform.JWTActorProvider)
+	auditRec.RegisterBefore("/subnets/:subnetId", func(ctx context.Context, c *gin.Context) (any, error) {
+		sn, ok, err := subRepo.Get(ctx, c.Param("subnetId"))
+		if err != nil || !ok {
+			return nil, err
+		}
+		return sn, nil
+	})
+	auditRec.RegisterBefore("/users/:userId", func(ctx context.Context, c *gin.Context) (any, error) {
+		u, ok, err := userStore.GetByID(ctx, c.Param("userId"))
+		if err != nil || !ok {
+			return nil, err
+		}
+		return u, nil
+	})
+	auditRec.RegisterBefore("/roles/:roleId", func(ctx context.Context, c *gin.Context) (any, error) {
+		role, ok, err := roleStore.Get(ctx, c.Param("roleId"))
+		if err != nil || !ok {
+			return nil, err
+		}
+		return role, nil
+	})
+	auditRec.RegisterBefore("/orgs/:orgId", func(_ context.Context, c *gin.Context) (any, error) {
+		n, ok := orgStore.Get(c.Param("orgId"))
+		if !ok {
+			return nil, nil
+		}
+		return n, nil
+	})
+	auditRec.RegisterBefore("/system/security-settings", func(ctx context.Context, _ *gin.Context) (any, error) {
+		return secStore.Get(ctx)
+	})
+	auditRec.RegisterBefore("/system/log-export-settings", func(ctx context.Context, _ *gin.Context) (any, error) {
+		return exportSvc.Get(ctx)
+	})
+	r.Use(auditRec.Middleware())
 	// spec servers.url=/api/v1 → 统一前缀注册
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 	logmanager.StartScheduler(rootCtx, logMgrH, chAdmin)

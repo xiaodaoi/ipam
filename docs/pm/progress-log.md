@@ -3,6 +3,14 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-11-01 · 审计实体级变更前快照（M6-006 补强）
+- **背景**：M6-006 原仅记录脱敏请求体（变更后意图），无法取证“改成了什么”之外的“原来是什么”。
+- **实现**：`Recorder.RegisterBefore(resource, loader)` 按路由模板登记“变更前实体”加载器，中间件在 handler 执行前读取旧实体 → 递归脱敏 → 入库 `before_json`（新增迁移 0038）；已登记子网/用户/角色/组织/安全设置/日志外发设置。
+- **脱敏**：文本机密（password/token/secret/license/private/authorization/cookie）fail-closed 打码；布尔策略开关（如 `forcePasswordChange`）保留可读。
+- **链哈希**：`before` 非空时才纳入哈希，迁移前历史链校验不受影响。
+- **契约/前端**：`AuditEntry.before`（spec→gen→schema.d.ts）；审计详情抽屉新增「变更前实体（脱敏快照）」区块。
+- **验证**：`go test`（新增 before 抓取/未登记为空/链哈希兼容/布尔脱敏用例）、lint、gen-check；真机：`DELETE /roles/:roleId` 记录到 before=`{Builtin:false,Name:...}`、`PUT /system/security-settings` before 中 `ForcePasswordChange:false` 可读；7 天窗 133 条链校验通过，新记录链完整。
+
 ## 2026-11-01 · 日志外发积压指标与告警（M6-008 补强）
 - **埋点**：Vector 模板内埋 `internal_metrics` + `prometheus_exporter`（容器内 `vector:9598`，不对宿主发布端口），覆盖所有 sink。
 - **抓取/告警**：Prometheus 新增 `ipam-vector` job；新增 `IpamLogSinkBacklog`（缓冲 >50%/15m）、`IpamLogSinkBufferFull`（>90%/5m）、`IpamLogSinkErrors`（sink 错误）。

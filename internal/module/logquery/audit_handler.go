@@ -73,6 +73,7 @@ func toGenAudit(e AuditEntry) apigen.AuditEntry {
 		Status:    e.Status,
 		Detail:    optStr(e.Detail),
 		Payload:   optStr(e.Payload),
+		Before:    optStr(e.Before),
 		PrevHash:  optStr(e.PrevHash),
 		ChainHash: optStr(e.ChainHash),
 	}

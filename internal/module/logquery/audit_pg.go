@@ -63,7 +63,7 @@ func (s *PgAuditStore) maybeCleanup(ctx context.Context) {
 }
 
 const auditCols = `id, ts, actor_type, actor, token_sub,
-  method, path, action, resource, status, detail, payload, prev_hash, chain_hash`
+  method, path, action, resource, status, detail, payload, before_json, prev_hash, chain_hash`
 
 // Append 写入一条审计（ID 由库生成；TS 为零值时回填当前时刻）。
 func (s *PgAuditStore) Append(ctx context.Context, e AuditEntry) (AuditEntry, error) {
@@ -96,10 +96,10 @@ func (s *PgAuditStore) Append(ctx context.Context, e AuditEntry) (AuditEntry, er
 	e.PrevHash = prev
 	e.ChainHash = auditChainHash(e, prev)
 	if _, err := tx.Exec(ctx,
-		`INSERT INTO operation_audit(id, ts, actor_type, actor, token_sub, method, path, action, resource, status, detail, payload, prev_hash, chain_hash)
-		 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+		`INSERT INTO operation_audit(id, ts, actor_type, actor, token_sub, method, path, action, resource, status, detail, payload, before_json, prev_hash, chain_hash)
+		 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
 		e.ID, e.TS, string(e.ActorType), actor, e.TokenSub,
-		e.Method, e.Path, e.Action, e.Resource, e.Status, e.Detail, e.Payload, e.PrevHash, e.ChainHash,
+		e.Method, e.Path, e.Action, e.Resource, e.Status, e.Detail, e.Payload, e.Before, e.PrevHash, e.ChainHash,
 	); err != nil {
 		return e, err
 	}
@@ -167,7 +167,7 @@ func (s *PgAuditStore) Query(ctx context.Context, f AuditFilter) (AuditPage, err
 		var actor, atype string
 		if err := rows.Scan(&r.ID, &r.TS, &atype, &actor, &r.TokenSub,
 			&r.Method, &r.Path, &r.Action, &r.Resource, &r.Status, &r.Detail,
-			&r.Payload, &r.PrevHash, &r.ChainHash); err != nil {
+			&r.Payload, &r.Before, &r.PrevHash, &r.ChainHash); err != nil {
 			return AuditPage{}, err
 		}
 		r.Actor, r.ActorType = actor, ActorType(atype)
@@ -203,7 +203,7 @@ func (s *PgAuditStore) Verify(ctx context.Context, from, to time.Time) (int, int
 		var e AuditEntry
 		if err := rows.Scan(&e.ID, &e.TS, &e.ActorType, &e.Actor, &e.TokenSub,
 			&e.Method, &e.Path, &e.Action, &e.Resource, &e.Status, &e.Detail,
-			&e.Payload, &e.PrevHash, &e.ChainHash); err != nil {
+			&e.Payload, &e.Before, &e.PrevHash, &e.ChainHash); err != nil {
 			return checked, 0, err
 		}
 		if e.ChainHash != auditChainHash(e, e.PrevHash) {

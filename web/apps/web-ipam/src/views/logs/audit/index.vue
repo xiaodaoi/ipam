@@ -358,6 +358,16 @@ const prettyPayload = computed(() => {
   }
 });
 
+const prettyBefore = computed(() => {
+  const raw = detail.value?.before;
+  if (!raw) return '';
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2);
+  } catch {
+    return raw;
+  }
+});
+
 async function copyDetail() {
   if (!detail.value) return;
   try {
@@ -655,7 +665,14 @@ onBeforeUnmount(() => {
             <div v-else class="ipam-detail-item__value">—</div>
           </div>
           <div class="ipam-detail-item ipam-detail-item--wide">
-            <div class="ipam-detail-item__label">脱敏请求体</div>
+            <div class="ipam-detail-item__label">变更前实体（脱敏快照）</div>
+            <pre v-if="prettyBefore" class="ipam-code-block mt-1">{{ prettyBefore }}</pre>
+            <div v-else class="ipam-detail-item__value">
+              未登记该类资源的变更前快照，或为首次创建
+            </div>
+          </div>
+          <div class="ipam-detail-item ipam-detail-item--wide">
+            <div class="ipam-detail-item__label">脱敏请求体（变更后意图）</div>
             <pre v-if="prettyPayload" class="ipam-code-block mt-1">{{ prettyPayload }}</pre>
             <div v-else class="ipam-detail-item__value">—</div>
           </div>

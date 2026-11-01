@@ -33,6 +33,7 @@ type AuditEntry struct {
 	Status    int
 	Detail    string
 	Payload   string
+	Before    string
 	PrevHash  string
 	ChainHash string
 }

@@ -99,7 +99,7 @@ func TestAuditRecorderMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	store := NewMemAuditStore()
 	r := gin.New()
-	r.Use(NewAuditRecorder(store))
+	r.Use(NewAuditRecorder(store).Middleware())
 	r.POST("/api/v1/subnets", func(c *gin.Context) { c.JSON(201, gin.H{"ok": true}) })
 	r.GET("/api/v1/ledger", func(c *gin.Context) { c.Status(200) })
 

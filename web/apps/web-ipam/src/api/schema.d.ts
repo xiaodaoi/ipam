@@ -2896,8 +2896,10 @@ export interface components {
             status: number;
             /** @description 补充说明（RFC9457 code 等） */
             detail?: string;
-            /** @description 脱敏后的请求体 JSON（密码/令牌/密钥/License 等敏感字段已替换为 ***） */
+            /** @description 脱敏后的请求体 JSON（变更后意图；密码/令牌/密钥/License 等敏感字段已替换为 ***） */
             payload?: string;
+            /** @description 脱敏后的变更前实体快照 JSON（M6-006；仅对已登记 before 加载器的资源，如子网/用户/角色/组织/系统设置；首次创建为空） */
+            before?: string;
             /** @description 上一条审计的链哈希（首条为空） */
             prevHash?: string;
             /** @description 本条审计的 SHA256 链哈希；用于完整性校验 */
