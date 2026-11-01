@@ -3513,6 +3513,10 @@ export interface components {
             features: string[];
             /** @description 管理终端上限（0=不限） */
             maxTerminals?: number;
+            /** @description 近 24 小时活跃终端数（按客户端 MAC 去重；统计不可用时为 0） */
+            terminalsUsed?: number;
+            /** @description 活跃终端是否超过 maxTerminals（仅告警不中断服务，未授权/不限时恒为 false） */
+            terminalsOverLimit?: boolean;
             /** Format: date-time */
             issuedAt?: string;
             /**

@@ -33,7 +33,9 @@ type MetricsSources struct {
 	LogStats    func(context.Context) (logmanager.LogStats, error)
 	// LogExportDegraded 磁盘水位自动降级状态（M6-008）。
 	LogExportDegraded func() bool
-	TLSCertFile       string
+	// LicenseUsage 授权终端计量（M6-004B）：used/limit（0=不限）/是否已授权。
+	LicenseUsage func(context.Context) (int64, int64, bool)
+	TLSCertFile  string
 }
 
 // MetricsHandler 暴露 Prometheus 文本格式指标，并统计 HTTP 请求。
@@ -138,6 +140,12 @@ func (h *MetricsHandler) Serve(c *gin.Context) {
 		cancel()
 	}
 
+	if h.src.LicenseUsage != nil {
+		if used, limit, licensed := h.src.LicenseUsage(c.Request.Context()); licensed {
+			fmt.Fprintf(&b, "# HELP ipam_license_terminals_used 近 24 小时活跃终端数（按 MAC 去重）\n# TYPE ipam_license_terminals_used gauge\nipam_license_terminals_used %d\n", used)
+			fmt.Fprintf(&b, "# HELP ipam_license_terminals_limit 授权终端上限（0=不限）\n# TYPE ipam_license_terminals_limit gauge\nipam_license_terminals_limit %d\n", limit)
+		}
+	}
 	if h.src.LogExportDegraded != nil {
 		v := 0
 		if h.src.LogExportDegraded() {

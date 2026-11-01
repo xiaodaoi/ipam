@@ -671,8 +671,20 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		backupLogs = chAdmin
 	}
 	backupSvc := backupmodule.NewService(backupRepo, backupSettingsRepo, pgRunner, backupLogs, backupDir, configDirs)
-	licenseH := platform.NewLicenseHandler(platform.NewLicenseService(
-		os.Getenv("IPAM_LICENSE_FILE"), os.Getenv("IPAM_LICENSE_PUBKEY")))
+	licenseSvc := platform.NewLicenseService(
+		os.Getenv("IPAM_LICENSE_FILE"), os.Getenv("IPAM_LICENSE_PUBKEY"))
+	// 活跃终端计量（M6-004B）：近 24h 去重客户端 MAC，60s 缓存，避免 /metrics 抓取放大。
+	if logStore != nil {
+		licenseSvc.SetTerminalCounter(platform.NewTerminalCounter(func(ctx context.Context) (int64, error) {
+			now := time.Now().UTC()
+			act, err := logStore.MacActivity(ctx, now.Add(-24*time.Hour), now)
+			if err != nil {
+				return 0, err
+			}
+			return int64(len(act)), nil
+		}, time.Minute).Count)
+	}
+	licenseH := platform.NewLicenseHandler(licenseSvc)
 
 	// 日志外发/采样（M6-008）：启动时渲染 Vector 配置，保存后热加载
 	var exportRepo logexport.Repo = logexport.NewMemRepo()
@@ -786,6 +798,10 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 			return chAdmin.Ping(ctx)
 		},
 		LogExportDegraded: func() bool { return exportSvc.Status().Degraded },
+		LicenseUsage: func(ctx context.Context) (int64, int64, bool) {
+			st := licenseSvc.Status(ctx)
+			return st.TerminalsUsed, int64(st.MaxTerminals), st.Licensed
+		},
 		Kea: func(ctx context.Context) error {
 			if keaCmd == nil {
 				return nil

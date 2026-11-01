@@ -38,23 +38,28 @@ type LicensePayload struct {
 }
 
 type LicenseState struct {
-	Licensed      bool
-	Edition       string
-	LicenseID     string
-	IssuedTo      string
-	Features      []string
-	MaxTerminals  int
-	IssuedAt      time.Time
-	ExpiresAt     *time.Time
-	DaysRemaining int
-	Message       string
-	FilePath      string
+	Licensed     bool
+	Edition      string
+	LicenseID    string
+	IssuedTo     string
+	Features     []string
+	MaxTerminals int
+	// 活跃终端计量（M6-004B）：按客户端 MAC 近 24h 去重。
+	TerminalsUsed      int64
+	TerminalsOverLimit bool
+	IssuedAt           time.Time
+	ExpiresAt          *time.Time
+	DaysRemaining      int
+	Message            string
+	FilePath           string
 }
 
 type LicenseService struct {
 	filePath string
 	pub      ed25519.PublicKey
 	now      func() time.Time
+	// countTerminals 活跃终端计数源（可为空；为空则只展示授权上限）。
+	countTerminals func(context.Context) (int64, error)
 }
 
 // NewLicenseService 读取 IPAM_LICENSE_FILE / IPAM_LICENSE_PUBKEY。
@@ -87,7 +92,36 @@ func parseLicensePublicKey(raw string) ed25519.PublicKey {
 	return nil
 }
 
-func (s *LicenseService) Status(context.Context) LicenseState {
+// SetTerminalCounter 注入活跃终端计数源（通常为 logquery 的近 24h 去重 MAC 计数）。
+func (s *LicenseService) SetTerminalCounter(fn func(context.Context) (int64, error)) {
+	s.countTerminals = fn
+}
+
+// Status 返回授权状态，并附带活跃终端计量（超限只告警，不中断服务）。
+func (s *LicenseService) Status(ctx context.Context) LicenseState {
+	out := s.statusBase()
+	if s.countTerminals == nil {
+		return out
+	}
+	used, err := s.countTerminals(ctx)
+	if err != nil {
+		out.Message += "；活跃终端统计暂不可用"
+		return out
+	}
+	out.TerminalsUsed = used
+	if out.Licensed && out.MaxTerminals > 0 {
+		out.TerminalsOverLimit = used > int64(out.MaxTerminals)
+		if out.TerminalsOverLimit {
+			out.Message = fmt.Sprintf("%s；活跃终端 %d 台已超授权上限 %d 台（仅告警，不中断服务）",
+				out.Message, used, out.MaxTerminals)
+		} else {
+			out.Message = fmt.Sprintf("%s；活跃终端 %d/%d 台", out.Message, used, out.MaxTerminals)
+		}
+	}
+	return out
+}
+
+func (s *LicenseService) statusBase() LicenseState {
 	out := LicenseState{
 		Edition: "community", Features: []string{}, MaxTerminals: 0,
 		DaysRemaining: -1, FilePath: s.filePath,
@@ -213,9 +247,12 @@ func toGenLicense(s LicenseState) apigen.LicenseStatus {
 	}
 	maxTerminals := s.MaxTerminals
 	days := s.DaysRemaining
+	terminalsUsed := int(s.TerminalsUsed)
+	overLimit := s.TerminalsOverLimit
 	out := apigen.LicenseStatus{
 		Licensed: s.Licensed, Edition: edition, Features: s.Features,
 		MaxTerminals: &maxTerminals, DaysRemaining: &days, Message: s.Message,
+		TerminalsUsed: &terminalsUsed, TerminalsOverLimit: &overLimit,
 	}
 	if s.LicenseID != "" {
 		out.LicenseId = &s.LicenseID

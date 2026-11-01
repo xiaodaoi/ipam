@@ -44,6 +44,14 @@ docker compose -f observability/compose.observability.yaml --profile observabili
 - 自动降级只在渲染层生效，不修改用户保存的策略，页面「采样策略」显示实际生效模式；
 - 阈值可用环境变量 `IPAM_LOG_DEGRADE_HIGH`（默认 90）/ `IPAM_LOG_DEGRADE_LOW`（默认 85）调整。
 
+## 授权与终端计量（M6-004B）
+
+- 活跃终端 = 近 24 小时 DHCP 日志中去重的客户端 MAC（60s 缓存）；`/system/license` 与 `/metrics` 共用同一份计量；
+- 授权上限 `maxTerminals=0` 表示不限；**超限只告警不中断**：页面显示「终端超限」标签，message 给出超出数量；
+- 指标：`ipam_license_terminals_used`、`ipam_license_terminals_limit`；告警 `IpamLicenseTerminalsOverLimit`（持续 6h）；
+- 终端数依赖日志采集链路（Vector → ClickHouse），采集停滞时计量滞后但不影响业务；
+- 同一设备更换网卡/随机化 MAC 会被重复计数，属 MAC 口径的已知边界。
+
 ## 审计
 
 - 操作审计可在日志中心 → 操作审计查询/导出；

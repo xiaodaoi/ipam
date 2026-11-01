@@ -69,3 +69,13 @@ ipam_subnet_utilization_percent{subnet_id="...",subnet="办公",cidr="10.0.0.0/2
 | `ipam_host_disk_total_bytes` / `free_bytes` | 宿主磁盘总量/可用 |
 
 告警：`IpamLogPartsHigh`、`IpamLogIngestStalled`、`IpamLogDiskGrowthFast`、`IpamLogDiskRatioHigh`。
+
+## 授权与终端计量（M6-004B）
+
+| 指标 | 说明 |
+|---|---|
+| `ipam_license_terminals_used` | 近 24h 活跃终端数（按客户端 MAC 去重，60s 缓存） |
+| `ipam_license_terminals_limit` | 授权终端上限（0=不限） |
+
+告警：`IpamLicenseTerminalsOverLimit`（活跃终端数 > 上限持续 6h，仅告警不中断服务）。
+未激活/社区版不上报这两项指标，避免把「无授权」误判成「超限」。

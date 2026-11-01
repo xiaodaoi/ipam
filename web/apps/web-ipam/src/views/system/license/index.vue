@@ -39,10 +39,24 @@ const expiry = computed(() => {
   if (Number.isNaN(t)) return '—';
   return new Date(t).toLocaleDateString('zh-CN');
 });
+const terminalsUsed = computed(() => status.value?.terminalsUsed ?? 0);
+const overLimit = computed(() => Boolean(status.value?.terminalsOverLimit));
+const maxTerminals = computed(() => status.value?.maxTerminals ?? 0);
 const terminal = computed(() => {
   if (!licensed.value) return '—';
-  const n = status.value?.maxTerminals ?? 0;
-  return n > 0 ? `${n} 台` : '不限';
+  const n = maxTerminals.value;
+  if (n <= 0) return '不限';
+  return `${terminalsUsed.value} / ${n} 台`;
+});
+const terminalUsedText = computed(() =>
+  licensed.value ? `${terminalsUsed.value} 台` : '—',
+);
+const terminalHint = computed(() => {
+  if (!licensed.value) return '近 24h 活跃终端 / 授权上限';
+  if (maxTerminals.value <= 0) return '授权不限终端数';
+  return overLimit.value
+    ? `已超上限 ${terminalsUsed.value - maxTerminals.value} 台（仅告警，不中断）`
+    : '近 24h 活跃终端 / 授权上限';
 });
 const days = computed(() => {
   if (!licensed.value) return '未激活';
@@ -104,7 +118,7 @@ onMounted(load);
       eyebrow="System"
       icon="lucide:badge-check"
       title="授权管理"
-      description="离线授权文件管理：Ed25519 签名校验，激活后展示版本、能力与到期时间；未激活为社区版。"
+      description="离线授权文件管理：Ed25519 签名校验，激活后展示版本、能力、到期时间与活跃终端计量；超限仅告警不中断。"
     >
       <template #actions>
         <Button size="small" :loading="loading" @click="load">
@@ -147,11 +161,11 @@ onMounted(load);
         :hint="days"
       />
       <StatCard
-        label="终端上限"
+        label="终端计量"
         :value="terminal"
         icon="lucide:monitor-smartphone"
-        tone="blue"
-        hint="按授权文件约定；超限后续做软降级"
+        :tone="overLimit ? 'amber' : 'blue'"
+        :hint="terminalHint"
       />
     </div>
 
@@ -162,9 +176,12 @@ onMounted(load);
         </span>
       </template>
       <template #extra>
-        <Tag class="m-0" :color="licensed ? 'green' : 'default'">
-          {{ licensed ? '已激活' : '社区版' }}
-        </Tag>
+        <div class="flex items-center gap-2">
+          <Tag v-if="overLimit" class="m-0" color="orange">终端超限</Tag>
+          <Tag class="m-0" :color="licensed ? 'green' : 'default'">
+            {{ licensed ? '已激活' : '社区版' }}
+          </Tag>
+        </div>
       </template>
 
       <div class="ipam-form-grid">
@@ -181,6 +198,15 @@ onMounted(load);
           <div class="flex flex-wrap gap-1">
             <Tag v-for="f in status?.features ?? []" :key="f" class="m-0">{{ f }}</Tag>
             <span v-if="(status?.features ?? []).length === 0" class="ipam-hint">—</span>
+          </div>
+        </div>
+        <div class="ipam-form-field">
+          <span class="ipam-form-field__label">活跃终端（近 24h）</span>
+          <div class="ipam-service-value">
+            {{ terminalUsedText }}
+            <span v-if="maxTerminals > 0" class="ipam-hint">
+              ／上限 {{ maxTerminals }} 台
+            </span>
           </div>
         </div>
         <div class="ipam-form-field">

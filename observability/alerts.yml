@@ -143,3 +143,13 @@ groups:
         annotations:
           summary: "日志占用超过磁盘总量 60%"
           description: "请评估保留天数/归档策略或扩容；日志盘即将影响其他组件。"
+
+      - alert: IpamLicenseTerminalsOverLimit
+        expr: ipam_license_terminals_used > ipam_license_terminals_limit and ipam_license_terminals_limit > 0
+        for: 6h
+        labels:
+          severity: warning
+          team: ipam
+        annotations:
+          summary: "活跃终端数超过 License 上限"
+          description: "当前 {{ $value }} 台活跃终端已超过授权上限，服务不中断；请联系授权方扩容或清理长期离线终端。"

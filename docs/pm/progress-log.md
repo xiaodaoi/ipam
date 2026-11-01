@@ -3,6 +3,14 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-11-01 · License 终端计量与超限软降级（M6-004B）
+- **口径**：活跃终端 = 近 24h DHCP 日志去重客户端 MAC；`TerminalCounter` 60s TTL 缓存，计数源故障时沿用上次值。
+- **契约/后端**：`LicenseStatus` 新增 `terminalsUsed/terminalsOverLimit`；仅「已授权且上限>0」判定超限，超限只追加告警文案，不拦截请求。
+- **可观测**：`ipam_license_terminals_used/limit` 指标（未授权不上报）+ `IpamLicenseTerminalsOverLimit`（6h）告警。
+- **前端**：授权页 KPI 改「终端计量」（used/上限，超限变橙）、授权信息新增活跃终端与「终端超限」标签。
+- **验证**：license/terminal_counter 单测（超限/未超限/计数故障/TTL/降级）；go test、lint、gen-check、eslint、vue-tsc。
+- **真机 E2E**：签发 `-max 5` License → 激活后 `terminalsUsed=54`、`terminalsOverLimit=true`、`/metrics` 出现 54/5；连续调用仅 1 次 CH 查询（60s 缓存）；超限下各业务接口 200 不中断；授权页实机渲染计量/超限标签正确；`DELETE` 回 community 并清理文件；`.env` 公钥恢复为空；E2E 14/14。
+
 ## 2026-11-01 · 组件级覆盖率门禁（M6-011 补强）
 - **组件测试基建**：`@vue/test-utils`（catalog）+ happy-dom；`@vben/icons` 统一替身规避 iconify 远程取图导致 worker 挂起；`useElementSize` 用 mock 固定宽度让图表坐标可断言。
 - **用例**：`metric-ring`（取整/钳制/label/empty/tone）、`page-header`（标题/说明/模块标记/插槽）、`stat-card`（单位/趋势/进度钳制/spark 降级/渐变 id 稳定/插槽）、`trend-chart`（空数据/折线+面积/X 轴时间/柱状/markers/悬浮提示），共 22 条。

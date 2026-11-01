@@ -6,8 +6,10 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -100,5 +102,47 @@ func TestLicenseWithoutPublicKey(t *testing.T) {
 	}
 	if _, err := svc.Activate(context.Background(), "{}"); err == nil {
 		t.Fatal("activate without pubkey should fail")
+	}
+}
+
+func TestLicenseTerminalUsage(t *testing.T) {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	file := filepath.Join(dir, "license.json")
+	svc := NewLicenseService(file, base64.StdEncoding.EncodeToString(pub))
+	svc.now = func() time.Time { return time.Date(2026, 10, 30, 0, 0, 0, 0, time.UTC) }
+
+	expires := time.Date(2027, 10, 30, 0, 0, 0, 0, time.UTC)
+	raw := makeLicense(t, priv, LicensePayload{
+		LicenseID: "lic-u", IssuedTo: "ACME", Edition: "standard",
+		MaxTerminals: 10, IssuedAt: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC), ExpiresAt: &expires,
+	})
+	if _, err := svc.Activate(context.Background(), raw); err != nil {
+		t.Fatal(err)
+	}
+
+	svc.SetTerminalCounter(func(context.Context) (int64, error) { return 12, nil })
+	st := svc.Status(context.Background())
+	if st.TerminalsUsed != 12 || !st.TerminalsOverLimit {
+		t.Fatalf("over-limit: %+v", st)
+	}
+	if !strings.Contains(st.Message, "超授权上限") {
+		t.Fatalf("message=%q", st.Message)
+	}
+
+	svc.SetTerminalCounter(func(context.Context) (int64, error) { return 5, nil })
+	st = svc.Status(context.Background())
+	if st.TerminalsOverLimit || !strings.Contains(st.Message, "5/10") {
+		t.Fatalf("under-limit: %+v", st)
+	}
+
+	// 计数源故障：保留上限信息，不把状态判为未授权。
+	svc.SetTerminalCounter(func(context.Context) (int64, error) { return 0, errors.New("clickhouse down") })
+	st = svc.Status(context.Background())
+	if !st.Licensed || !strings.Contains(st.Message, "统计暂不可用") {
+		t.Fatalf("counter-error: %+v", st)
 	}
 }
