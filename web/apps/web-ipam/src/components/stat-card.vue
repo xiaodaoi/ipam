@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { CSSProperties } from 'vue';
 
-import { computed } from 'vue';
+import { computed, useId } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -50,8 +50,8 @@ const progressWidth = computed(() => {
   return `${Math.max(0, Math.min(100, props.progress))}%`;
 });
 
-let seed = 0;
-const uid = computed(() => `ipam-spark-${(seed += 1)}-${props.tone}`);
+// useId 保证同页多卡片渐变 id 稳定唯一（SSR/水合一致）。
+const uid = useId();
 
 const sparkPoints = computed(() => {
   const list = props.spark ?? [];

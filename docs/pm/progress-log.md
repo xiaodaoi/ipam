@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-11-01 · 组件级覆盖率门禁（M6-011 补强）
+- **组件测试基建**：`@vue/test-utils`（catalog）+ happy-dom；`@vben/icons` 统一替身规避 iconify 远程取图导致 worker 挂起；`useElementSize` 用 mock 固定宽度让图表坐标可断言。
+- **用例**：`metric-ring`（取整/钳制/label/empty/tone）、`page-header`（标题/说明/模块标记/插槽）、`stat-card`（单位/趋势/进度钳制/spark 降级/渐变 id 稳定/插槽）、`trend-chart`（空数据/折线+面积/X 轴时间/柱状/markers/悬浮提示），共 22 条。
+- **门禁**：Vitest glob 门槛按文件生效——utils 80/70，组件 75/70；`pnpm test` 27 条全绿（组件组 statements 91.4%、branches 70%、lines 96.6%）。
+- **顺手修复**：`stat-card` 渐变 id 由自增 seed 改为 `useId()`，避免同页多卡片/水合时 id 漂移；`vitest.config.ts` 迁移 Vitest 4 的 `poolOptions` → `maxWorkers: 1`。
+
 ## 2026-11-01 · 全链路压测与容量报告（M6-016）
 - **压测工具**：`tests/load` 支持 `-paths` 多路径、`-warmup` 预热、`-insecure`、`-out` JSON 报告；新增 `tests/load/capacity-ch.sh` 与 `make capacity-test`（影子表，不碰生产表）。
 - **全链路**（10 并发/20s，0 错误）：dashboard 8511 RPS、subnets 3918、ledger 727、leases4 1290、zones 7419、logs 28h 117、logs top 7d 26、logs 7d 14。
