@@ -104,6 +104,18 @@ services:
       IPAM_TLS_KEY: "${IPAM_TLS_KEY:-}"
       IPAM_JWT_SECRET: "${IPAM_JWT_SECRET:?set IPAM_JWT_SECRET in .env (install.sh 会自动生成)}"
       IPAM_RATE_LIMIT: "${IPAM_RATE_LIMIT:-600}"
+      # ── 网络安全加固（M6-017）────────────────────────────
+      # 仅信任显式声明的反向代理，未设置则不信任 X-Forwarded-*（防 IP 伪造绕过限流）
+      IPAM_TRUSTED_PROXIES: "${IPAM_TRUSTED_PROXIES:-}"
+      # API 请求体上限（字节；0=关闭）
+      IPAM_MAX_BODY_BYTES: "${IPAM_MAX_BODY_BYTES:-1048576}"
+      # /metrics 抓取令牌（install.sh 自动生成；空=开放，仅内网）
+      IPAM_METRICS_TOKEN: "${IPAM_METRICS_TOKEN:-}"
+      # 最低 TLS 版本（1.2/1.3）与超时
+      IPAM_TLS_MIN_VERSION: "${IPAM_TLS_MIN_VERSION:-1.2}"
+      IPAM_HTTP_READ_TIMEOUT: "${IPAM_HTTP_READ_TIMEOUT:-60s}"
+      # TLS 终结在反代之后时置 1，以便依据 X-Forwarded-Proto 下发 HSTS
+      IPAM_FORCE_HSTS: "${IPAM_FORCE_HSTS:-0}"
       # 仪表盘快照缓存 TTL（默认 5s；0 关闭。多管理员轮询时降低 ClickHouse 压力）
       IPAM_DASHBOARD_CACHE_TTL: "${IPAM_DASHBOARD_CACHE_TTL:-5s}"
       # 首次启动的一次性 admin 口令写入该目录（0600）

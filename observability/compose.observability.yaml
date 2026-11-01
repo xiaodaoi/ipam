@@ -11,6 +11,13 @@ services:
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./alerts.yml:/etc/prometheus/alerts.yml:ro
+      # /metrics 抓取令牌（M6-017）：install.sh 生成；缺失时需先创建空文件或删去 prometheus.yml 的 authorization 段
+      - type: bind
+        source: ./metrics_token
+        target: /etc/prometheus/metrics_token
+        read_only: true
+        bind:
+          create_host_path: false
       - prom-data:/prometheus
     ports:
       - "127.0.0.1:9090:9090"

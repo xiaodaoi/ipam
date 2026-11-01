@@ -77,6 +77,18 @@ set_env IPAM_TLS_KEY "/certs/server.key"
 set_env IPAM_CERTS_DIR "./certs"
 grep -qE '^IPAM_RATE_LIMIT=' "$env_file" || set_env IPAM_RATE_LIMIT "600"
 
+# /metrics 抓取令牌（M6-017）：设置后需 Bearer 令牌；并同步给可选 observability 栈
+metrics_token="$(grep -E '^IPAM_METRICS_TOKEN=' "$env_file" | cut -d= -f2- || true)"
+if [ -z "$metrics_token" ] || [[ "$metrics_token" == change-me* ]]; then
+  metrics_token="$(openssl rand -hex 24)"
+  set_env IPAM_METRICS_TOKEN "$metrics_token"
+  ok "已生成 IPAM_METRICS_TOKEN（/metrics 需 Bearer 令牌）"
+fi
+if [ -d "$here/../../observability" ]; then
+  printf '%s' "$metrics_token" > "$here/../../observability/metrics_token"
+  chmod 600 "$here/../../observability/metrics_token"
+fi
+
 grep -q "change-me" "$env_file" && fail ".env 仍有 change-me 占位值，请检查 POSTGRES_PASSWORD/IPAM_JWT_SECRET"
 
 cd "$here"

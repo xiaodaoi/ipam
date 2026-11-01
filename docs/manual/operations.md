@@ -197,3 +197,66 @@ sudo bash scripts/install-systemd.sh
 ## 单机 HA 边界
 
 单机不提供宿主故障自动接管；需要双机 HA 时按 `M6-003B` 增配第二节点（keepalived + Kea HA + config-replicate）。
+
+## 网络安全加固（M6-017）
+
+### 反向代理与客户端 IP
+
+默认**不信任任何代理**：`ClientIP()` 取自直连地址，`X-Forwarded-For` 无法伪造（防限流绕过/审计 IP 污染）。经 Nginx/HAProxy 等反代时须显式声明可信来源，否则所有请求会被视为来自反代单一 IP：
+
+```bash
+# .env
+IPAM_TRUSTED_PROXIES=172.18.0.0/16,127.0.0.1/32
+```
+
+反代需正确设置 `X-Forwarded-For`/`X-Forwarded-Proto`（Nginx：`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`，`proxy_set_header X-Forwarded-Proto $scheme;`）。TLS 终结在反代之后时设 `IPAM_FORCE_HSTS=1` 以正常下发 HSTS。
+
+### 请求体与 HTTP 方法
+
+- `IPAM_MAX_BODY_BYTES`（默认 1 MiB）限制 `/api/v1/*` 请求体；超限返回 413（RFC 9457）；
+- `TRACE`/`TRACK` 一律 405；
+- `MaxHeaderBytes` 收敛到 64 KiB；`ReadHeaderTimeout` 10s 防慢速头；`IPAM_HTTP_READ_TIMEOUT`（默认 60s）。写超时默认不设以兼容 `/logs/tail` SSE，需要时用 `IPAM_HTTP_WRITE_TIMEOUT`（会中断长连接 SSE）。
+
+### 安全响应头与 CSP
+
+默认下发 `X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`、`Permissions-Policy`、`COOP`、`CORP`、`X-Permitted-Cross-Domain-Policies`、`X-DNS-Prefetch-Control`、`X-XSS-Protection: 0`；TLS 时含 HSTS。
+
+内置 CSP 对 `index.html` 的内联引导脚本按 **sha256 哈希**放行（不使用 `'unsafe-inline'`），并允许 iconify 图标 CDN（`api.iconify.design`）。如需完全自定义：
+
+```bash
+IPAM_SECURITY_CSP="default-src 'self'; script-src 'self'; ..."
+# 或完全关闭（不推荐）：IPAM_SECURITY_CSP_OFF=1
+```
+
+> 若前端升级后 CSP 报错，多为内联脚本哈希变化；服务启动时按实际 `index.html` 重新计算，通常无需干预。彻底去外部依赖可将 iconify 图标改为离线打包，并从 `connect-src`/`img-src` 移除 `api.iconify.design`。
+
+### TLS
+
+- `IPAM_TLS_MIN_VERSION`（默认 `1.2`，可设 `1.3`）；TLS1.2 仅启用 AEAD 套件（ECDHE+GCM/CHACHA20），禁用重协商；
+- 自签证书仅供试用，正式交付替换为企业 CA。
+
+```bash
+# 自检：协议与套件
+openssl s_client -connect 127.0.0.1:8443 -tls1_1 </dev/null 2>&1 | grep -i "alert\|handshake"
+openssl s_client -connect 127.0.0.1:8443 -tls1_2 </dev/null 2>&1 | grep -i "cipher is"
+# 安全头
+curl -skD- https://127.0.0.1:8443/ -o /dev/null | grep -iE "content-security|strict-transport|x-frame|cross-origin"
+```
+
+### /metrics 暴露面
+
+设置 `IPAM_METRICS_TOKEN`（install.sh 自动生成）后，`/metrics` 需 `Authorization: Bearer <token>`；未设置时对所有可达客户端开放并在启动日志告警。监控抓取令牌写入 `observability/metrics_token`。
+
+### 快速扫描自检
+
+```bash
+# 依赖与镜像漏洞（需网络；只读扫描）
+docker scout cves ipam/control-plane:0.1.0-dev 2>/dev/null || true
+# API 未授权访问
+curl -sk -o /dev/null -w '%{http_code}\n' https://127.0.0.1:8443/api/v1/subnets   # 期望 401
+# TRACE 方法
+curl -sk -o /dev/null -w '%{http_code}\n' -X TRACE https://127.0.0.1:8443/        # 期望 405
+# 超大请求体
+head -c 2000000 /dev/zero | curl -sk -o /dev/null -w '%{http_code}\n' \
+  -X POST --data-binary @- -H 'Content-Type: application/json' https://127.0.0.1:8443/api/v1/auth/login  # 期望 413
+```

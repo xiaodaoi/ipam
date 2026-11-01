@@ -3,6 +3,15 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-11-01 · API/Web/服务网络安全加固（M6-017）
+- **客户端 IP 可信边界**：`SetTrustedProxies(IPAM_TRUSTED_PROXIES)`，默认不信任任何代理，`X-Forwarded-For` 不可伪造（防限流绕过 / 审计 IP 污染）。
+- **请求体/方法**：`/api/v1/*` 请求体上限默认 1 MiB（`IPAM_MAX_BODY_BYTES`，超限 413）；`TRACE`/`TRACK` 405。
+- **安全头/CSP**：新增 CORP、`X-Permitted-Cross-Domain-Policies`、`X-DNS-Prefetch-Control`、`X-XSS-Protection: 0`；内置默认 CSP，对 `index.html` 内联引导脚本用 **sha256** 放行（不用 `unsafe-inline`），兼容 Vben 与 iconify；`IPAM_SECURITY_CSP` 可覆盖、`IPAM_SECURITY_CSP_OFF=1` 关闭。
+- **/metrics**：`IPAM_METRICS_TOKEN` 可选 Bearer 保护；install.sh 生成并同步给 observability 抓取配置。
+- **服务器/TLS**：`MaxHeaderBytes=64KiB`、`ReadTimeout` 默认 60s、`WriteTimeout` 默认不设（兼容 `/logs/tail` SSE）、TLS `MinVersion` 可配 + TLS1.2 AEAD 套件白名单 + 曲线偏好；启动日志打印生效摘要。
+- **验证**：单测（安全头/BodyLimit/TRACE/MetricsAuth/CSP 哈希/引擎级接线）全绿、lint 0 issue、gen-check 一致、compose config 通过；真机安全头齐全、CSP 哈希与 index.html 一致、TRACE 405、2MB 体 413；Playwright E2E 14/14；临时 TLS 端口 tls1_1 拒绝、tls1_2/1.3 通过、HSTS 下发；metrics 401/200。
+- **文档**：`docs/dev/M6-017-网络安全加固实现说明.md`、运维手册「网络安全加固」章节。
+
 ## 2026-11-01 · 审计实体级变更前快照（M6-006 补强）
 - **背景**：M6-006 原仅记录脱敏请求体（变更后意图），无法取证“改成了什么”之外的“原来是什么”。
 - **实现**：`Recorder.RegisterBefore(resource, loader)` 按路由模板登记“变更前实体”加载器，中间件在 handler 执行前读取旧实体 → 递归脱敏 → 入库 `before_json`（新增迁移 0038）；已登记子网/用户/角色/组织/安全设置/日志外发设置。

@@ -140,8 +140,34 @@ func hostPort(raw string) (host, port string, ok bool) {
 func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
+	// 客户端 IP 可信边界（M6-017）：仅信任显式配置的反向代理，未配置时不信任任何代理，
+	// 避免 X-Forwarded-For 伪造绕过限流/污染审计 IP。IPAM_TRUSTED_PROXIES 逗号分隔 CIDR/地址。
+	trusted := splitList(os.Getenv("IPAM_TRUSTED_PROXIES"))
+	if err := r.SetTrustedProxies(trusted); err != nil {
+		log.Printf("⚠️  IPAM_TRUSTED_PROXIES 解析失败，回退为不信任任何代理: %v", err)
+		_ = r.SetTrustedProxies(nil)
+	}
+	// WebUI 静态资源需在注入 CSP 前读取 index.html（用于内联脚本哈希）。
+	dist, err := webuiFS()
+	if err != nil {
+		log.Fatalf("webui fs: %v", err)
+	}
+	var indexHTML []byte
+	if b, rerr := fs.ReadFile(dist, "index.html"); rerr == nil {
+		indexHTML = b
+	}
 	r.Use(gin.Recovery())
-	r.Use(platform.SecurityHeaders())
+	r.Use(platform.SecurityHeaders(platform.DefaultHTMLCSP(indexHTML)))
+	r.Use(platform.RejectTrace())
+	// 请求体大小限制（M6-017）：默认 1 MiB；IPAM_MAX_BODY_BYTES=0 关闭。
+	bodyLimit := int64(1 << 20)
+	if v := os.Getenv("IPAM_MAX_BODY_BYTES"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			bodyLimit = n
+		}
+	}
+	r.Use(platform.BodyLimit(bodyLimit))
+	log.Printf("network hardening: trustedProxies=%v bodyLimit=%d", trusted, bodyLimit)
 	rateLimit := 600
 	if v := os.Getenv("IPAM_RATE_LIMIT"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
@@ -812,7 +838,12 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		Host:        hostCol,
 		TLSCertFile: os.Getenv("IPAM_TLS_CERT"),
 	})
-	r.GET("/metrics", metricsH.Serve)
+	// 指标暴露面收敛（M6-017）：设置 IPAM_METRICS_TOKEN 后 /metrics 需 Bearer 令牌。
+	metricsToken := os.Getenv("IPAM_METRICS_TOKEN")
+	if metricsToken == "" {
+		log.Printf("⚠️  未设置 IPAM_METRICS_TOKEN：/metrics 对所有可达客户端开放，建议在生产为抓取方设置令牌或仅内网暴露")
+	}
+	r.GET("/metrics", platform.MetricsAuth(metricsToken), metricsH.Serve)
 	// OpenAPI 在线事实源（M6-012）：无需令牌，仅暴露接口契约，不含数据。
 	if spec, err := apigen.GetSpec(); err == nil {
 		r.GET("/openapi.json", func(c *gin.Context) {
@@ -882,10 +913,6 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	logmanager.StartScheduler(rootCtx, logMgrH, chAdmin)
 	backupmodule.StartScheduler(rootCtx, backupSvc)
 
-	dist, err := webuiFS()
-	if err != nil {
-		log.Fatalf("webui fs: %v", err)
-	}
 	serveStatic := func(c *gin.Context, name string) {
 		data, rerr := fs.ReadFile(dist, name)
 		if rerr != nil {
@@ -966,11 +993,29 @@ func main() {
 		Addr:              addr,
 		Handler:           newEngine(version, rootCtx),
 		ReadHeaderTimeout: 10 * time.Second,
-		IdleTimeout:       2 * time.Minute,
+		ReadTimeout:       envDuration("IPAM_HTTP_READ_TIMEOUT", 60*time.Second),
+		// WriteTimeout 默认 0（不设）：/logs/tail 为 SSE 长连接，写超时会误杀。
+		// 需要写保护时经 IPAM_HTTP_WRITE_TIMEOUT 显式开启（注意会中断长时间 SSE）。
+		WriteTimeout:   envDuration("IPAM_HTTP_WRITE_TIMEOUT", 0),
+		IdleTimeout:    2 * time.Minute,
+		MaxHeaderBytes: 64 << 10, // 收敛请求头大小（默认 1 MiB → 64 KiB）
 	}
 	if tlsEnabled {
-		srv.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+		srv.TLSConfig = &tls.Config{
+			MinVersion:       tlsMinVersion(os.Getenv("IPAM_TLS_MIN_VERSION")),
+			CurvePreferences: []tls.CurveID{tls.X25519, tls.CurveP256},
+			CipherSuites: []uint16{
+				tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+				tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+				tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+				tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+				tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+				tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+			},
+		}
 	}
+	log.Printf("http server: addr=%s tls=%v minTLS=%s readTimeout=%s writeTimeout=%s maxHeaderBytes=%d",
+		addr, tlsEnabled, os.Getenv("IPAM_TLS_MIN_VERSION"), srv.ReadTimeout, srv.WriteTimeout, srv.MaxHeaderBytes)
 	go func() {
 		var err error
 		if tlsEnabled {
@@ -1013,4 +1058,36 @@ func dbListenAddr() string {
 		return ":8443"
 	}
 	return ":" + strconv.Itoa(port)
+}
+
+// splitList 解析逗号分隔列表，忽略空项。
+func splitList(s string) []string {
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// envDuration 解析时长环境变量（Go duration 语法，如 30s/2m）；未设/非法时用默认值。
+func envDuration(key string, def time.Duration) time.Duration {
+	if v := os.Getenv(key); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			return d
+		}
+		log.Printf("⚠️  %s=%q 解析失败，使用默认 %s", key, v, def)
+	}
+	return def
+}
+
+// tlsMinVersion 解析最低 TLS 版本（"1.2"/"1.3"，也接受 tls1.2/TLS1.3 写法），默认 TLS1.2。
+func tlsMinVersion(v string) uint16 {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1.3", "tls1.3", "tlsv1.3", "tls13":
+		return tls.VersionTLS13
+	default:
+		return tls.VersionTLS12
+	}
 }

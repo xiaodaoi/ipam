@@ -15,6 +15,11 @@ alerting:
 scrape_configs:
   - job_name: ipam-control-plane
     metrics_path: /metrics
+    # /metrics 令牌保护（M6-017）：令牌由 install.sh 写入 observability/metrics_token 并挂载。
+    # 若未在 IPAM 侧设置 IPAM_METRICS_TOKEN，可删除本段（文件不存在会导致 Prometheus 启动失败）。
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/metrics_token
     static_configs:
       - targets: ['control-plane:8443']
         labels:

@@ -13,6 +13,10 @@
 ```bash
 # IPAM 主栈已启动（网络 ipam_default 存在）
 cp observability/alertmanager.yml.example observability/alertmanager.yml   # 按需改收件人
+# /metrics 令牌（M6-017）：由 deploy/compose/install.sh 自动生成；
+# 若未使用 install.sh，请创建该文件并填入与 IPAM_METRICS_TOKEN 相同的值，
+# 或在 prometheus.yml 中删除 authorization 段（要求 IPAM 侧未设令牌）。
+printf '%s' "$IPAM_METRICS_TOKEN" > observability/metrics_token
 GRAFANA_ADMIN_PASSWORD='strong-password' \
 docker compose -f observability/compose.observability.yaml --profile observability up -d
 ```
@@ -21,7 +25,7 @@ docker compose -f observability/compose.observability.yaml --profile observabili
 
 ## 指标
 
-`GET /metrics`（无需认证，建议只在内网/监控网暴露）：
+`GET /metrics`（设置 `IPAM_METRICS_TOKEN` 后需 `Authorization: Bearer <token>`；未设置则对内网开放，建议只在内网/监控网暴露）：
 
 - `ipam_build_info{version}`、`ipam_uptime_seconds`
 - `ipam_http_requests_total{method,status}`、`ipam_http_request_duration_seconds_sum/count`

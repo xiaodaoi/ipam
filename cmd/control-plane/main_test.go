@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -75,5 +76,59 @@ func TestUnknownAPIRouteReturnsProblem(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), "API_ROUTE_NOT_FOUND") {
 		t.Fatalf("missing machine-readable code: %s", w.Body.String())
+	}
+}
+
+// M6-017：引擎级安全加固接线（CSP、TRACE、请求体上限）。
+func TestEngineSecurityHardening(t *testing.T) {
+	t.Setenv("IPAM_MAX_BODY_BYTES", "1024")
+	r := newEngine("test", context.Background())
+
+	// index.html 响应带默认 CSP（含内联脚本 sha256，无 script unsafe-inline）。
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
+	csp := w.Header().Get("Content-Security-Policy")
+	if !strings.Contains(csp, "frame-ancestors 'none'") {
+		t.Fatalf("CSP 未生效: %q", csp)
+	}
+	if strings.Contains(csp, "script-src 'self' 'unsafe-inline'") {
+		t.Fatalf("脚本不应放行 unsafe-inline: %q", csp)
+	}
+
+	// TRACE → 405
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodTrace, "/", nil))
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("TRACE 应 405，got %d", w.Code)
+	}
+
+	// /api/v1 超大请求体 → 413
+	big := strings.NewReader(strings.Repeat("a", 4096))
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", big))
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("超大请求体应 413，got %d", w.Code)
+	}
+}
+
+func TestTLSMinVersion(t *testing.T) {
+	if got := tlsMinVersion(""); got != tls.VersionTLS12 {
+		t.Fatalf("默认应 TLS1.2，got %x", got)
+	}
+	if got := tlsMinVersion("1.3"); got != tls.VersionTLS13 {
+		t.Fatalf("1.3 解析失败，got %x", got)
+	}
+	if got := tlsMinVersion("garbage"); got != tls.VersionTLS12 {
+		t.Fatalf("非法值应回退 TLS1.2，got %x", got)
+	}
+}
+
+func TestSplitList(t *testing.T) {
+	got := splitList(" 10.0.0.1/8 , ,172.16.0.0/12")
+	if len(got) != 2 || got[0] != "10.0.0.1/8" || got[1] != "172.16.0.0/12" {
+		t.Fatalf("splitList=%v", got)
+	}
+	if splitList("") != nil {
+		t.Fatal("空串应返回 nil")
 	}
 }
