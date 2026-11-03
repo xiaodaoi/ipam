@@ -175,6 +175,15 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		}
 	}
 	r.Use(platform.APIRateLimit(rateLimit))
+	// 写接口独立限流（M6-021）：非安全方法单独计数，默认 120 次/分钟/IP。
+	writeLimit := 120
+	if v := os.Getenv("IPAM_WRITE_RATE_LIMIT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			writeLimit = n
+		}
+	}
+	r.Use(platform.WriteRateLimit(writeLimit))
+	log.Printf("write hardening: writeRateLimit=%d/min", writeLimit)
 
 	h := platform.NewHandler(version)
 	// 宿主资源采集：容器经只读挂载读宿主 /proc 等（env 未设则回落本机 /proc、/）。
@@ -879,6 +888,14 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	r.Use(platform.NewRBACMiddleware(userStore, bl, permLookup, sessionSvc)) // M5-003/M5-010/M5-011/M2-035/M6-007C
 	// 操作审计（M4-003+M5-002）：actor 从 JWT claims 解析（human/bot 区分 §12.3）；
 	// M6-006 实体级 before 快照：为高价值资源登记“变更前实体”加载器。
+	// 幂等重放（M6-021）：置于 RBAC 之后（401/403 不缓存）、审计之前（重放不重复入账）。
+	idemTTL := 24 * time.Hour
+	if v := os.Getenv("IPAM_IDEMPOTENCY_TTL"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			idemTTL = d
+		}
+	}
+	r.Use(platform.Idempotency(idemTTL))
 	auditRec := logq.NewAuditRecorder(auditRepo, platform.JWTActorProvider)
 	auditRec.RegisterBefore("/subnets/:subnetId", func(ctx context.Context, c *gin.Context) (any, error) {
 		sn, ok, err := subRepo.Get(ctx, c.Param("subnetId"))

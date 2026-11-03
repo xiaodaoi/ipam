@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-11-03 · 写接口幂等与限流（M6-021）
+- 新增 `platform.Idempotency`：`Idempotency-Key`（8-128 位）同 key+同指纹重放首次响应（`Idempotent-Replay: true`），不同载荷 422、并发 409、5xx 不缓存；内存上限 4096 + TTL 惰性清扫。
+- 新增 `platform.WriteRateLimit`：非安全方法独立限流，默认 120/min/IP，429 `WRITE_RATE_LIMITED` + `Retry-After`。
+- 接线于 RBAC 之后、审计之前；环境变量 `IPAM_WRITE_RATE_LIMIT`、`IPAM_IDEMPOTENCY_TTL`。
+- **验证**：8 条单测；真实环境 `POST /orgs` 同 key 两次仅落 1 行且第二次为重放；`go test ./...`、gen 检查通过。
+
 ## 2026-11-03 · 日志与仪表盘体验优化（M6-020）
 - **热门域名分页**：日志检索域名 TopN 由固定前 10 改为拉取 100 并客户端分页（每页 10/可选大小/总数），排名全局连续。
 - **地址池部门**：契约 `PoolUtilization` 增 `orgId/orgName`；后端 `dashboard` 经 `OrgStore` 解析组织名（`SetOrgNameResolver`）；仪表盘地址池行显示部门 chip。

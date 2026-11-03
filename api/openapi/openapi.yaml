@@ -8,6 +8,12 @@ info:
     规范要点（架构文档 §12）：operationId 即 AI 工具名，发布后不可改；
     错误模型统一 RFC 9457 Problem；每个 operation 必含描述与成功/错误双示例；
     写操作支持 dry_run 预检与 Idempotency-Key 幂等头。
+
+    加固约定（M6-021）：
+    - 所有 POST/PUT/PATCH/DELETE 可带 `Idempotency-Key`（8-128 位 [A-Za-z0-9._:-]）。
+      同 key + 相同载荷在 TTL（默认 24h）内重放首次响应，响应头 `Idempotent-Replay: true`；
+      同 key 不同载荷返回 422 `IDEMPOTENCY_KEY_REUSED`；并发同 key 返回 409 `IDEMPOTENCY_IN_PROGRESS`。
+    - 写请求按客户端 IP 独立限流（默认 120 次/分钟），超限 429 `WRITE_RATE_LIMITED` 并带 `Retry-After`。
 servers:
   - url: /api/v1
 tags:
