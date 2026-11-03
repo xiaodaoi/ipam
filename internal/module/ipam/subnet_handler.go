@@ -59,6 +59,10 @@ func (h *SubnetHandler) CreateSubnet(c *gin.Context) {
 		Gateway:       derefStr(body.Gateway),
 		DNSServers:    derefStr(body.DnsServers),
 		ValidLifetime: deref(body.ValidLifetime, 3600),
+		VLAN:          derefStr(body.Vlan),
+		Site:          derefStr(body.Site),
+		Purpose:       derefStr(body.Purpose),
+		Owner:         derefStr(body.Owner),
 	}
 	saved, err := h.svc.Create(c.Request.Context(), in, dry)
 	if err != nil {
@@ -93,6 +97,10 @@ func (h *SubnetHandler) UpdateSubnet(c *gin.Context, subnetId apigen.SubnetIdPar
 		ValidLifetime: cur.ValidLifetime,
 		Pools:         cur.Pools,
 		Options:       cur.Options,
+		VLAN:          cur.VLAN,
+		Site:          cur.Site,
+		Purpose:       cur.Purpose,
+		Owner:         cur.Owner,
 	}
 	if body.Name != nil {
 		in.Name = *body.Name
@@ -114,6 +122,18 @@ func (h *SubnetHandler) UpdateSubnet(c *gin.Context, subnetId apigen.SubnetIdPar
 	}
 	if body.Options != nil {
 		in.Options = optionsFromGen(body.Options)
+	}
+	if body.Vlan != nil {
+		in.VLAN = *body.Vlan
+	}
+	if body.Site != nil {
+		in.Site = *body.Site
+	}
+	if body.Purpose != nil {
+		in.Purpose = *body.Purpose
+	}
+	if body.Owner != nil {
+		in.Owner = *body.Owner
 	}
 	next, err := h.svc.Update(c.Request.Context(), guuid.UUID(subnetId).String(), in)
 	if err != nil {
@@ -189,6 +209,10 @@ func toGenSubnet(s Subnet) apigen.Subnet {
 		Pools:       pools,
 		KeaSubnetId: &[]int{s.KeaSubnetID}[0],
 		Description: strPtr(s.Description),
+		Vlan:        strPtr(s.VLAN),
+		Site:        strPtr(s.Site),
+		Purpose:     strPtr(s.Purpose),
+		Owner:       strPtr(s.Owner),
 	}
 }
 

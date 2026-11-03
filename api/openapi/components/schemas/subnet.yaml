@@ -30,6 +30,22 @@ Subnet:
     dnsServers:
       type: string
       description: DNS 服务器（逗号分隔；v4 domain-name-servers / v6 dns-servers）
+    vlan:
+      type: string
+      maxLength: 64
+      description: VLAN 标识（M6-022，如 100 或「100-办公」；仅规划展示，不影响 Kea 下发）
+    site:
+      type: string
+      maxLength: 128
+      description: 站点/机房（M6-022）
+    purpose:
+      type: string
+      maxLength: 128
+      description: 用途（M6-022，如「办公终端」「服务器」）
+    owner:
+      type: string
+      maxLength: 128
+      description: 负责人（M6-022，姓名/工号/团队）
     pools:
       type: array
       items:
@@ -88,6 +104,10 @@ SubnetCreate:
     name: { type: string, maxLength: 64 }
     family: { type: integer, enum: [4, 6] }
     cidr: { type: string }
+    vlan: { type: string, maxLength: 64, description: VLAN 标识（M6-022） }
+    site: { type: string, maxLength: 128, description: 站点/机房（M6-022） }
+    purpose: { type: string, maxLength: 128, description: 用途（M6-022） }
+    owner: { type: string, maxLength: 128, description: 负责人（M6-022） }
     pools:
       type: array
       items:
@@ -115,6 +135,10 @@ SubnetUpdate:
       type: string
       description: DNS 服务器（逗号分隔）
     name: { type: string, maxLength: 64 }
+    vlan: { type: string, maxLength: 64, description: VLAN 标识（M6-022） }
+    site: { type: string, maxLength: 128, description: 站点/机房（M6-022） }
+    purpose: { type: string, maxLength: 128, description: 用途（M6-022） }
+    owner: { type: string, maxLength: 128, description: 负责人（M6-022） }
     pools:
       type: array
       items:

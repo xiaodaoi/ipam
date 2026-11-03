@@ -142,3 +142,41 @@ func TestSubnetCreate_空白与非规范CIDR落库为规范值(t *testing.T) {
 		t.Fatalf("err=%v want SUBNET_DUP", err)
 	}
 }
+
+// M6-022：子网级元数据（VLAN/站点/用途/负责人）落库、更新与契约映射。
+func TestSubnetMetaRoundTrip(t *testing.T) {
+	svc, _, _ := newSubnetSvc(t)
+	in := Subnet{
+		Name: "研发网段", Family: 4, CIDR: "10.62.0.0/24",
+		VLAN: "100", Site: "A 栋 3F", Purpose: "办公终端", Owner: "张三",
+	}
+	created, err := svc.Create(context.Background(), in, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok, _ := svc.repo.Get(context.Background(), created.ID)
+	if !ok {
+		t.Fatal("not found")
+	}
+	if got.VLAN != "100" || got.Site != "A 栋 3F" || got.Purpose != "办公终端" || got.Owner != "张三" {
+		t.Fatalf("元数据未落库: %+v", got)
+	}
+
+	// 更新：仅改 VLAN/负责人，其余保留。
+	upd := got
+	upd.VLAN = "200"
+	upd.Owner = "李四"
+	next, err := svc.Update(context.Background(), created.ID, upd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next.VLAN != "200" || next.Owner != "李四" || next.Site != "A 栋 3F" {
+		t.Fatalf("更新结果异常: %+v", next)
+	}
+
+	// 契约映射：空字段转指针非 nil 但值为空串，前端显示占位。
+	g := toGenSubnet(next)
+	if g.Vlan == nil || *g.Vlan != "200" || g.Owner == nil || *g.Owner != "李四" {
+		t.Fatalf("契约映射异常: %+v", g)
+	}
+}

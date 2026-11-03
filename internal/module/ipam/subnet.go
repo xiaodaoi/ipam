@@ -40,6 +40,10 @@ type Subnet struct {
 	Gateway       string // v4 option routers；v6 留空（M2-019）
 	DNSServers    string // 逗号分隔（v4 domain-name-servers / v6 dns-servers，M2-019）
 	ValidLifetime int    // 租约时长秒（子网级覆盖 Kea 全局 3600，0021 迁移）
+	VLAN          string // 规划元数据，不参与 Kea 下发（M6-022）
+	Site          string
+	Purpose       string
+	Owner         string
 }
 
 // SubnetRepo 子网持久化抽象。（engine/kea 实现；测试用 fake）。

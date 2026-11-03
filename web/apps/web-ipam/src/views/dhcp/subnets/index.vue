@@ -605,6 +605,10 @@ function emptyForm(family: Family, orgId = '') {
     poolDelegatedLen: 80,
     validLifetime: 3600,
     options: [] as SubnetOptionIn[],
+    vlan: '',
+    site: '',
+    purpose: '',
+    owner: '',
   };
 }
 
@@ -699,6 +703,10 @@ async function add() {
         pools,
         validLifetime: f.validLifetime,
         options: f.options.filter((o) => o.enabled),
+        vlan: f.vlan,
+        site: f.site,
+        purpose: f.purpose,
+        owner: f.owner,
       });
       message.success('子网已更新并下发 Kea');
     } else {
@@ -712,6 +720,10 @@ async function add() {
         dnsServers: f.dnsServers || undefined,
         validLifetime: f.validLifetime,
         options: f.options.filter((o) => o.enabled),
+        vlan: f.vlan,
+        site: f.site,
+        purpose: f.purpose,
+        owner: f.owner,
       });
       message.success('子网已创建并下发 Kea');
     }
@@ -772,6 +784,10 @@ function edit(r: Subnet) {
     poolPrefixLen: p0?.prefixLen ?? 64,
     poolDelegatedLen: p0?.delegatedLen ?? 80,
     validLifetime: r.validLifetime ?? 3600,
+    vlan: r.vlan ?? '',
+    site: r.site ?? '',
+    purpose: r.purpose ?? '',
+    owner: r.owner ?? '',
     options: subnetOptions(r).map((o) => ({
       code: o.code,
       name: o.name ?? '',
@@ -1123,6 +1139,17 @@ onMounted(async () => {
                   </template>
                   · 租约 {{ fmtLifetime(row.validLifetime) }}
                 </span>
+                <span
+                  v-if="row.vlan || row.site || row.purpose || row.owner"
+                  class="ipam-subnet-cell__meta"
+                >
+                  <span v-if="row.vlan" class="ipam-chip" data-tone="violet">
+                    VLAN {{ row.vlan }}
+                  </span>
+                  <template v-if="row.site"> · 站点 {{ row.site }}</template>
+                  <template v-if="row.purpose"> · 用途 {{ row.purpose }}</template>
+                  <template v-if="row.owner"> · 负责人 {{ row.owner }}</template>
+                </span>
               </div>
             </template>
 
@@ -1449,6 +1476,46 @@ onMounted(async () => {
             />
           </div>
         </template>
+      </div>
+
+      <!-- 规划信息（M6-022）：仅规划展示，不参与 Kea 下发 -->
+      <Divider plain style="margin: 16px 0 12px" orientation="left">
+        规划信息
+        <span class="text-xs text-gray-400">（仅规划展示，不下发 Kea）</span>
+      </Divider>
+      <div class="flex flex-wrap items-end gap-3">
+        <div>
+          <div class="mb-1 text-xs text-gray-400">VLAN</div>
+          <Input
+            v-model:value="form.vlan"
+            placeholder="100"
+            style="width: 120px"
+          />
+        </div>
+        <div>
+          <div class="mb-1 text-xs text-gray-400">站点 / 机房</div>
+          <Input
+            v-model:value="form.site"
+            placeholder="A 栋 3F"
+            style="width: 180px"
+          />
+        </div>
+        <div>
+          <div class="mb-1 text-xs text-gray-400">用途</div>
+          <Input
+            v-model:value="form.purpose"
+            placeholder="办公终端"
+            style="width: 180px"
+          />
+        </div>
+        <div>
+          <div class="mb-1 text-xs text-gray-400">负责人</div>
+          <Input
+            v-model:value="form.owner"
+            placeholder="张三 / 网络组"
+            style="width: 180px"
+          />
+        </div>
       </div>
 
       <!-- 网关与 DNS -->

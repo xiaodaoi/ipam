@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-11-03 · 子网级规划元数据（M6-022）
+- 子网新增 `vlan/site/purpose/owner` 四字段（迁移 0039），创建/更新/列表/详情全链路打通；仅规划展示，不进入 Kea 配置。
+- 更新语义支持清空（指针非 nil 才覆盖），前端以空串提交；`vlan <> ''` 部分索引便于按 VLAN 检索。
+- 前端子网页新增「规划信息」分组，列表行显示 VLAN chip 与站点/用途/负责人。
+- **验证**：`TestSubnetMetaRoundTrip` 通过；`go test ./internal/module/ipam/` 全绿；前端 `pnpm build` 11 任务成功。
+
 ## 2026-11-03 · 写接口幂等与限流（M6-021）
 - 新增 `platform.Idempotency`：`Idempotency-Key`（8-128 位）同 key+同指纹重放首次响应（`Idempotent-Replay: true`），不同载荷 422、并发 409、5xx 不缓存；内存上限 4096 + TTL 惰性清扫。
 - 新增 `platform.WriteRateLimit`：非安全方法独立限流，默认 120/min/IP，429 `WRITE_RATE_LIMITED` + `Retry-After`。

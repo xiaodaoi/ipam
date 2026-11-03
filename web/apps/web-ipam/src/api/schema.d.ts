@@ -2320,6 +2320,14 @@ export interface components {
             gateway?: string;
             /** @description DNS 服务器（逗号分隔；v4 domain-name-servers / v6 dns-servers） */
             dnsServers?: string;
+            /** @description VLAN 标识（M6-022，如 100 或「100-办公」；仅规划展示，不影响 Kea 下发） */
+            vlan?: string;
+            /** @description 站点/机房（M6-022） */
+            site?: string;
+            /** @description 用途（M6-022，如「办公终端」「服务器」） */
+            purpose?: string;
+            /** @description 负责人（M6-022，姓名/工号/团队） */
+            owner?: string;
             pools: components["schemas"]["AddressPool"][];
             /** @description 下发 Kea 后的 subnet-id（引擎回写） */
             keaSubnetId?: number | null;
@@ -2358,6 +2366,14 @@ export interface components {
             /** @enum {integer} */
             family: 4 | 6;
             cidr: string;
+            /** @description VLAN 标识（M6-022） */
+            vlan?: string;
+            /** @description 站点/机房（M6-022） */
+            site?: string;
+            /** @description 用途（M6-022） */
+            purpose?: string;
+            /** @description 负责人（M6-022） */
+            owner?: string;
             pools?: components["schemas"]["AddressPool"][];
             /**
              * @description true 时仅生成并校验 Kea 配置，不实际下发（§12.2 约定 5）
@@ -2375,6 +2391,14 @@ export interface components {
             /** @description DNS 服务器（逗号分隔） */
             dnsServers?: string;
             name?: string;
+            /** @description VLAN 标识（M6-022） */
+            vlan?: string;
+            /** @description 站点/机房（M6-022） */
+            site?: string;
+            /** @description 用途（M6-022） */
+            purpose?: string;
+            /** @description 负责人（M6-022） */
+            owner?: string;
             pools?: components["schemas"]["AddressPool"][];
             description?: string;
         };
