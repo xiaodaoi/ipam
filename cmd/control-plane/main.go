@@ -462,6 +462,13 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		Unbound:    unixLight("unbound", "/run/ipam/unbound-ctl.sock"),
 	}
 	dashSvc := dashboard.NewService(logStore, subSrc, bindSrc, lights)
+	// 地址池行展示所属部门（组织名，M6-020）。
+	dashSvc.SetOrgNameResolver(func(id string) string {
+		if n, ok := orgStore.Get(id); ok {
+			return n.Name
+		}
+		return ""
+	})
 	if v := os.Getenv("IPAM_DASHBOARD_CACHE_TTL"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			dashSvc.SetCacheTTL(d)

@@ -92,6 +92,8 @@ func genPoolTop(rows []PoolUtil) *[]apigen.PoolUtilization {
 			Used:      int(r.Used),
 			Capacity:  int(clampInt(r.Capacity)),
 			Pct:       float32(r.Pct),
+			OrgId:     orgIDPtr(r.OrgID),
+			OrgName:   orgNamePtr(r.OrgName),
 		})
 	}
 	return &items
@@ -110,5 +112,20 @@ func int64Ptr(p *int64) *int {
 		return nil
 	}
 	v := int(*p)
+	return &v
+}
+
+// orgIDPtr / orgNamePtr：字符串空值返回 nil，便于契约可选字段省略（M6-020）。
+func orgIDPtr(v string) *string {
+	if v == "" {
+		return nil
+	}
+	return &v
+}
+
+func orgNamePtr(v string) *string {
+	if v == "" {
+		return nil
+	}
 	return &v
 }

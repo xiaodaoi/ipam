@@ -655,7 +655,12 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
                 <span class="ipam-rank__name" :title="p.name">{{ p.name }}</span>
                 <span class="ipam-rank__value">{{ fmtPct(p.pct) }}</span>
               </div>
-              <div class="ipam-rank__cidr ipam-mono">{{ p.cidr }}</div>
+              <div class="ipam-rank__tags">
+                <span class="ipam-rank__cidr ipam-mono">{{ p.cidr }}</span>
+                <span v-if="p.orgName" class="ipam-rank__dept" :title="`部门：${p.orgName}`">
+                  <IconifyIcon icon="lucide:building-2" class="size-3" />{{ p.orgName }}
+                </span>
+              </div>
               <div
                 class="ipam-progress"
                 :data-tone="toneOfPct(Number(p.pct) || 0)"

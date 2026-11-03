@@ -52,6 +52,9 @@ type Service struct {
 	lights   Lights
 	now      func() time.Time // 测试注入
 
+	// orgName 组织（部门）名解析；nil 时空值（组织未接入/PoC）。M6-020。
+	orgName func(id string) string
+
 	// 快照缓存：仪表盘按 30s 轮询 + 多管理员并发，命中 TTL 内直接复用，
 	// 避免每次请求都打满 ClickHouse（一次聚合约 5 条 CH 查询）。
 	cacheTTL time.Duration
@@ -69,6 +72,14 @@ func NewService(logs logquery.Store, subnets SubnetSource, bindings BindingSourc
 		cacheTTL: 5 * time.Second, cache: map[int]cacheEntry{}}
 }
 
+// SetOrgNameResolver 注入组织（部门）名解析器（M6-020）；nil 时地址池行 orgName 为空。
+func (s *Service) SetOrgNameResolver(fn func(id string) string) {
+	s.mu.Lock()
+	s.orgName = fn
+	s.cache = map[int]cacheEntry{}
+	s.mu.Unlock()
+}
+
 // SetCacheTTL 覆盖快照缓存 TTL（≤0 关闭缓存；env：IPAM_DASHBOARD_CACHE_TTL）。
 func (s *Service) SetCacheTTL(d time.Duration) {
 	s.mu.Lock()
@@ -84,6 +95,8 @@ type PoolUtil struct {
 	SubnetID string
 	Name     string
 	CIDR     string
+	OrgID    string
+	OrgName  string
 	PoolIdx  int
 	Used     int64
 	Capacity int64
@@ -255,6 +268,10 @@ func (s *Service) poolTop(ctx context.Context, n int, ips []string) []PoolUtil {
 
 	out := []PoolUtil{}
 	for _, sn := range s.subnets(ctx) {
+		orgName := ""
+		if s.orgName != nil && sn.OrgID != "" {
+			orgName = s.orgName(sn.OrgID)
+		}
 		for i, p := range sn.Pools {
 			rng, cap, ok := poolRangeCapacity(p.StartAddr, p.EndAddr)
 			if !ok {
@@ -272,6 +289,7 @@ func (s *Service) poolTop(ctx context.Context, n int, ips []string) []PoolUtil {
 			}
 			out = append(out, PoolUtil{
 				SubnetID: sn.ID, Name: sn.Name, CIDR: sn.CIDR,
+				OrgID: sn.OrgID, OrgName: orgName,
 				PoolIdx: i, Used: used, Capacity: cap, Pct: pct,
 			})
 		}

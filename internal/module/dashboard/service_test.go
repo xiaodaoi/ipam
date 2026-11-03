@@ -167,6 +167,42 @@ func TestPoolUsedCountsInRange(t *testing.T) {
 		t.Fatalf("capacity=%d want 11", c)
 	}
 }
+func TestPoolTopOrgName(t *testing.T) {
+	now := fixedNow()
+	m := logquery.NewMemStore()
+	m.Append(logquery.LogRow{TS: now.Add(-time.Minute), Type: "dhcp", ClientIP: "10.61.172.11"})
+	svc := NewService(m,
+		func(context.Context) []ipam.Subnet {
+			return []ipam.Subnet{{ID: "55555555-5555-5555-5555-555555555555", OrgID: "org-1", Name: "研发",
+				CIDR: "10.61.172.0/24", Pools: []ipam.Pool{{StartAddr: "10.61.172.10", EndAddr: "10.61.172.20"}}}}
+		}, nil, Lights{})
+	svc.now = func() time.Time { return now }
+
+	// 未注入解析器 → orgName 为空。
+	ov, err := svc.Overview(context.Background(), 5)
+	if err != nil {
+		t.Fatalf("overview: %v", err)
+	}
+	if len(ov.PoolTop) != 1 || ov.PoolTop[0].OrgID != "org-1" || ov.PoolTop[0].OrgName != "" {
+		t.Fatalf("默认应无部门名: %+v", ov.PoolTop)
+	}
+
+	// 注入解析器 → 解析到部门名。
+	svc.SetOrgNameResolver(func(id string) string {
+		if id == "org-1" {
+			return "研发中心"
+		}
+		return ""
+	})
+	ov, err = svc.Overview(context.Background(), 5)
+	if err != nil {
+		t.Fatalf("overview: %v", err)
+	}
+	if len(ov.PoolTop) != 1 || ov.PoolTop[0].OrgName != "研发中心" {
+		t.Fatalf("部门名解析失败: %+v", ov.PoolTop)
+	}
+}
+
 func TestPoolTopIPv6AndEmptyIP(t *testing.T) {
 	now := fixedNow()
 	m := logquery.NewMemStore()

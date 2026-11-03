@@ -78,6 +78,8 @@ PoolUtilization:
     subnetId: { type: string, format: uuid }
     name: { type: string }
     cidr: { type: string, description: 所属子网 CIDR }
+    orgId: { type: string, description: 所属组织（部门）ID }
+    orgName: { type: string, description: 所属组织（部门）名称；组织缺失时为空 }
     poolIndex: { type: string, description: 池序号（0 起） }
     used: { type: integer, description: 今日区间内 distinct client_ip }
     capacity: { type: integer, description: 池区间容量（/127+ 大段按 uint64 饱和展示） }

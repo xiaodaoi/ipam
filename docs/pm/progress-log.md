@@ -3,6 +3,13 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-11-03 · 日志与仪表盘体验优化（M6-020）
+- **热门域名分页**：日志检索域名 TopN 由固定前 10 改为拉取 100 并客户端分页（每页 10/可选大小/总数），排名全局连续。
+- **地址池部门**：契约 `PoolUtilization` 增 `orgId/orgName`；后端 `dashboard` 经 `OrgStore` 解析组织名（`SetOrgNameResolver`）；仪表盘地址池行显示部门 chip。
+- **外发通道排版**：Syslog/Kafka/Webhook 拆为三个独立分组（图标+标题+说明+开关+字段），启用态高亮，功能边界清晰。
+- **验证**：`go test ./internal/module/dashboard/`（新增部门解析/映射测试）通过；`gen-openapi.sh --check` 一致；`pnpm test` 通过；真机 Playwright 三项确认；E2E 15/15（新增断言）。
+- **文档**：`docs/dev/M6-020-日志与仪表盘体验优化实现说明.md`。
+
 ## 2026-11-03 · 容器镜像安全扫描与运行时加固（M6-019）
 - **背景**：安全扫描已有 govulncheck/gosec/pnpm audit/trivy fs + SBOM/cosign，但发布产物**镜像层无 CVE 扫描**，运行时加固不均。
 - **实现**：`scripts/scan-images.sh`（+`make scan-images`）；`release.yml` 新增 `image-scan` job（矩阵扫描推送镜像，HIGH/CRITICAL 可修即失败 + SARIF，门禁 release-notes）；`security.yml` 新增 `trivy-config` job。

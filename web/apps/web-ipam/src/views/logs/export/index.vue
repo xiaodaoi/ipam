@@ -191,52 +191,81 @@ onMounted(load);
         <span class="ipam-hint">保存后 Vector --watch-config 自动热加载</span>
       </template>
 
-      <div class="ipam-form-grid">
-        <div class="ipam-form-field">
-          <span class="ipam-form-field__label">Syslog</span>
-          <div class="flex h-8 items-center gap-2">
+      <div class="ipam-channels">
+        <!-- Syslog 通道（M6-020 分组排版） -->
+        <section class="ipam-channel" :data-on="form.syslogEnabled">
+          <header class="ipam-channel__head">
+            <span class="ipam-channel__icon">
+              <IconifyIcon icon="lucide:terminal" />
+            </span>
+            <div class="ipam-channel__meta">
+              <span class="ipam-channel__title">Syslog</span>
+              <span class="ipam-channel__desc">标准 RFC5424，面向 SIEM / 日志采集</span>
+            </div>
             <Switch v-model:checked="form.syslogEnabled" size="small" />
-            <span class="ipam-hint">{{ form.syslogEnabled ? '启用' : '关闭' }}</span>
+            <span class="ipam-channel__state">{{ form.syslogEnabled ? '启用' : '关闭' }}</span>
+          </header>
+          <div class="ipam-form-grid ipam-channel__body">
+            <div class="ipam-form-field">
+              <span class="ipam-form-field__label">地址</span>
+              <Input v-model:value="form.syslogAddress" :disabled="!form.syslogEnabled" placeholder="siem.example.com:514" />
+            </div>
+            <div class="ipam-form-field">
+              <span class="ipam-form-field__label">协议</span>
+              <Select
+                v-model:value="form.syslogMode"
+                :disabled="!form.syslogEnabled"
+                :options="[{ value: 'tcp', label: 'TCP' }, { value: 'udp', label: 'UDP' }]"
+              />
+            </div>
           </div>
-        </div>
-        <div class="ipam-form-field">
-          <span class="ipam-form-field__label">Syslog 地址</span>
-          <Input v-model:value="form.syslogAddress" :disabled="!form.syslogEnabled" placeholder="siem.example.com:514" />
-        </div>
-        <div class="ipam-form-field">
-          <span class="ipam-form-field__label">Syslog 协议</span>
-          <Select
-            v-model:value="form.syslogMode"
-            :disabled="!form.syslogEnabled"
-            :options="[{ value: 'tcp', label: 'TCP' }, { value: 'udp', label: 'UDP' }]"
-          />
-        </div>
-        <div class="ipam-form-field">
-          <span class="ipam-form-field__label">Kafka</span>
-          <div class="flex h-8 items-center gap-2">
+        </section>
+
+        <!-- Kafka 通道 -->
+        <section class="ipam-channel" :data-on="form.kafkaEnabled">
+          <header class="ipam-channel__head">
+            <span class="ipam-channel__icon">
+              <IconifyIcon icon="lucide:git-branch" />
+            </span>
+            <div class="ipam-channel__meta">
+              <span class="ipam-channel__title">Kafka</span>
+              <span class="ipam-channel__desc">面向 SIEM / 数据平台的高吞吐管道</span>
+            </div>
             <Switch v-model:checked="form.kafkaEnabled" size="small" />
-            <span class="ipam-hint">{{ form.kafkaEnabled ? '启用' : '关闭' }}</span>
+            <span class="ipam-channel__state">{{ form.kafkaEnabled ? '启用' : '关闭' }}</span>
+          </header>
+          <div class="ipam-form-grid ipam-channel__body">
+            <div class="ipam-form-field">
+              <span class="ipam-form-field__label">Brokers</span>
+              <Input v-model:value="form.kafkaBrokers" :disabled="!form.kafkaEnabled" placeholder="kafka1:9092,kafka2:9092" />
+            </div>
+            <div class="ipam-form-field">
+              <span class="ipam-form-field__label">Topic</span>
+              <Input v-model:value="form.kafkaTopic" :disabled="!form.kafkaEnabled" placeholder="ipam-logs" />
+            </div>
           </div>
-        </div>
-        <div class="ipam-form-field">
-          <span class="ipam-form-field__label">Kafka Brokers</span>
-          <Input v-model:value="form.kafkaBrokers" :disabled="!form.kafkaEnabled" placeholder="kafka1:9092,kafka2:9092" />
-        </div>
-        <div class="ipam-form-field">
-          <span class="ipam-form-field__label">Kafka Topic</span>
-          <Input v-model:value="form.kafkaTopic" :disabled="!form.kafkaEnabled" placeholder="ipam-logs" />
-        </div>
-        <div class="ipam-form-field">
-          <span class="ipam-form-field__label">Webhook</span>
-          <div class="flex h-8 items-center gap-2">
+        </section>
+
+        <!-- Webhook 通道 -->
+        <section class="ipam-channel" :data-on="form.webhookEnabled">
+          <header class="ipam-channel__head">
+            <span class="ipam-channel__icon">
+              <IconifyIcon icon="lucide:webhook" />
+            </span>
+            <div class="ipam-channel__meta">
+              <span class="ipam-channel__title">Webhook</span>
+              <span class="ipam-channel__desc">JSON over HTTP，推送到自定义接收端点</span>
+            </div>
             <Switch v-model:checked="form.webhookEnabled" size="small" />
-            <span class="ipam-hint">{{ form.webhookEnabled ? '启用' : '关闭' }}</span>
+            <span class="ipam-channel__state">{{ form.webhookEnabled ? '启用' : '关闭' }}</span>
+          </header>
+          <div class="ipam-form-grid ipam-channel__body">
+            <div class="ipam-form-field ipam-form-field--wide">
+              <span class="ipam-form-field__label">URL</span>
+              <Input v-model:value="form.webhookUrl" :disabled="!form.webhookEnabled" placeholder="https://siem.example.com/hooks/ipam" />
+            </div>
           </div>
-        </div>
-        <div class="ipam-form-field">
-          <span class="ipam-form-field__label">Webhook URL</span>
-          <Input v-model:value="form.webhookUrl" :disabled="!form.webhookEnabled" placeholder="https://siem.example.com/hooks/ipam" />
-        </div>
+        </section>
       </div>
     </Card>
 

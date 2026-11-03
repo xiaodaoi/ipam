@@ -309,7 +309,7 @@ async function loadAgg() {
     if (filters.type) base.type = filters.type;
     if (filters.action) base.action = filters.action;
     const [domains, clients, qps] = await Promise.all([
-      listLogTop({ ...base, by: 'domain', limit: 10 }),
+      listLogTop({ ...base, by: 'domain', limit: 100 }),
       listLogTop({ ...base, by: 'client', limit: 10 }),
       getLogQps({ ...base, intervalSec: aggBucketSeconds() }),
     ]);
@@ -443,6 +443,16 @@ function withRank(list: TopEntry[]) {
 }
 const topDomainRows = computed(() => withRank(topDomains.value));
 const topClientRows = computed(() => withRank(topClients.value));
+
+// 热门域名分页（M6-020）：拉取更多条目后按页展示，排名全局连续。
+const domainPagination = computed(() => ({
+  pageSize: 10,
+  pageSizeOptions: ['10', '20', '50'],
+  showSizeChanger: true,
+  showQuickJumper: true,
+  size: 'small' as const,
+  showTotal: (total: number) => `共 ${total} 个域名`,
+}));
 
 const kpiValue = (v?: number) => (v === undefined ? '—' : fmtInt(v));
 const stats = computed(() => kpi.stats.value);
@@ -751,7 +761,7 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             :data-source="topDomainRows"
             :loading="aggLoading"
             :locale="{ emptyText: '当前过滤条件下没有域名聚合数据' }"
-            :pagination="false"
+            :pagination="domainPagination"
             row-key="key"
             size="small"
           >

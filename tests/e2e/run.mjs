@@ -127,6 +127,9 @@ async function main() {
     await step('仪表盘运行概览', async () => {
       await page.goto(urlFor('/overview'), { waitUntil: 'domcontentloaded' });
       await waitText(page, '运行概览');
+      // 地址池利用率行显示所属部门（M6-020）。
+      await page.locator('.ipam-rank__item--pool').first().waitFor({ timeout: 15_000 });
+      await page.locator('.ipam-rank__dept').first().waitFor({ timeout: 15_000 });
     });
 
     await step('DHCP 子网管理', async () => {
@@ -167,12 +170,24 @@ async function main() {
     await step('日志查询检索', async () => {
       await page.goto(urlFor('/logs-center/search'), { waitUntil: 'domcontentloaded' });
       await waitText(page, '查询检索');
+      // 热门域名支持分页浏览（M6-020）：切到该页签，有数据时分页控件可见。
+      await page.getByText('热门域名', { exact: true }).first().click();
+      const domPane = page.locator('.ant-tabs-tabpane-active').first();
+      await domPane.locator('.ant-table').first().waitFor({ timeout: 15_000 });
+      const rows = await domPane.locator('.ant-table-tbody tr.ant-table-row').count();
+      if (rows > 0) {
+        await domPane.locator('.ant-pagination').first().waitFor({ timeout: 10_000 });
+      }
     });
 
     await step('日志外发与采样', async () => {
       await page.goto(urlFor('/logs-center/export'), { waitUntil: 'domcontentloaded' });
       await waitText(page, '外发与采样');
       await waitText(page, '采样策略');
+      // 外发通道按功能分组排版（M6-020）：Syslog / Kafka / Webhook 三组独立分区。
+      const channels = page.locator('.ipam-channel');
+      await channels.first().waitFor({ timeout: 10_000 });
+      assert((await channels.count()) === 3, '外发通道应为 3 个分组');
     });
 
     await step('操作审计与完整性校验入口', async () => {

@@ -2960,6 +2960,10 @@ export interface components {
             name: string;
             /** @description 所属子网 CIDR */
             cidr: string;
+            /** @description 所属组织（部门）ID */
+            orgId?: string;
+            /** @description 所属组织（部门）名称；组织缺失时为空 */
+            orgName?: string;
             /** @description 池序号（0 起） */
             poolIndex: string;
             /** @description 今日区间内 distinct client_ip */
