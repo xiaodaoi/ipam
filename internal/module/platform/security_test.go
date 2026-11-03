@@ -177,6 +177,10 @@ func TestDefaultHTMLCSP(t *testing.T) {
 	if !strings.Contains(csp, "frame-ancestors 'none'") || !strings.Contains(csp, "object-src 'none'") {
 		t.Fatalf("CSP 缺少关键约束: %s", csp)
 	}
+	// M6-018：图标离线化后不应再放行任何外部 CDN。
+	if strings.Contains(csp, "iconify.design") || strings.Contains(csp, "https://") {
+		t.Fatalf("CSP 不应放行外部域: %s", csp)
+	}
 	// 外链脚本不应被计入哈希（换行分隔的两个哈希只剩一个）。
 	if strings.Count(csp, "sha256-") != 1 {
 		t.Fatalf("仅内联脚本应计哈希: %s", csp)

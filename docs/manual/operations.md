@@ -221,14 +221,15 @@ IPAM_TRUSTED_PROXIES=172.18.0.0/16,127.0.0.1/32
 
 默认下发 `X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`、`Permissions-Policy`、`COOP`、`CORP`、`X-Permitted-Cross-Domain-Policies`、`X-DNS-Prefetch-Control`、`X-XSS-Protection: 0`；TLS 时含 HSTS。
 
-内置 CSP 对 `index.html` 的内联引导脚本按 **sha256 哈希**放行（不使用 `'unsafe-inline'`），并允许 iconify 图标 CDN（`api.iconify.design`）。如需完全自定义：
+内置 CSP 对 `index.html` 的内联引导脚本按 **sha256 哈希**放行（不使用 `'unsafe-inline'`），`connect-src`/`img-src` 仅 `'self'`；图标集合已**离线打包**（M6-018），运行期不访问任何外部 CDN。如需完全自定义：
 
 ```bash
 IPAM_SECURITY_CSP="default-src 'self'; script-src 'self'; ..."
 # 或完全关闭（不推荐）：IPAM_SECURITY_CSP_OFF=1
 ```
 
-> 若前端升级后 CSP 报错，多为内联脚本哈希变化；服务启动时按实际 `index.html` 重新计算，通常无需干预。彻底去外部依赖可将 iconify 图标改为离线打包，并从 `connect-src`/`img-src` 移除 `api.iconify.design`。
+> 若前端升级后 CSP 报错，多为内联脚本哈希变化；服务启动时按实际 `index.html` 重新计算，通常无需干预。
+> 新增/变更图标后须重跑 `node scripts/gen-offline-icons.mjs`（`make gen-icons`）并提交，`make gen-icons-check` 为 CI 门禁。
 
 ### TLS
 

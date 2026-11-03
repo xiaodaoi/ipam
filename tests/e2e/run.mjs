@@ -103,6 +103,13 @@ async function main() {
   }
   console.log(`目标: ${base}`);
   const page = await context.newPage();
+  // M6-018：监控任何指向外部图标 CDN 的请求（离线化后应为 0）。
+  const externalIconRequests = [];
+  page.on('request', (req) => {
+    if (/iconify\.design|api\.simplesvg\.com|api\.unisvg\.com/.test(req.url())) {
+      externalIconRequests.push(req.url());
+    }
+  });
   let failed = false;
   try {
     await step('healthz/readyz', async () => {
@@ -195,6 +202,17 @@ async function main() {
       await page.getByText('安全设置', { exact: true }).first().click();
       await waitText(page, '登录会话');
       await waitText(page, '当前会话');
+    });
+
+    await step('图标离线渲染与零外链', async () => {
+      // 图标须来自本地离线集合：应有内联 <svg> 图标，且全程无外部 CDN 请求。
+      await page.goto(urlFor('/overview'), { waitUntil: 'domcontentloaded' });
+      await waitText(page, '运行概览');
+      await page.locator('.iconify svg, svg.iconify').first().waitFor({ state: 'visible', timeout: 10_000 });
+      assert(
+        externalIconRequests.length === 0,
+        `出现图标外部 CDN 请求: ${externalIconRequests.join(', ')}`,
+      );
     });
   } catch (error) {
     failed = true;

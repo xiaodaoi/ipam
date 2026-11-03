@@ -108,8 +108,9 @@ func MetricsAuth(token string) gin.HandlerFunc {
 	}
 }
 
-// DefaultHTMLCSP 依据 index.html 内联脚本生成 CSP（M6-017）。
+// DefaultHTMLCSP 依据 index.html 内联脚本生成 CSP（M6-017 / M6-018）。
 // 脚本以 sha256 哈希放行，避免 'unsafe-inline'；样式沿用 'unsafe-inline'（Vue 运行期注入内联样式）。
+// 图标集合已离线打包（M6-018），故不放行任何外部 CDN，运行期仅同源。
 // 环境变量 IPAM_SECURITY_CSP 非空时优先；IPAM_SECURITY_CSP_OFF=1 时返回空串（完全关闭）。
 func DefaultHTMLCSP(indexHTML []byte) string {
 	if v := os.Getenv("IPAM_SECURITY_CSP"); v != "" {
@@ -126,9 +127,9 @@ func DefaultHTMLCSP(indexHTML []byte) string {
 		"default-src 'self'",
 		"script-src " + script,
 		"style-src 'self' 'unsafe-inline'",
-		"img-src 'self' data: blob: https://api.iconify.design",
+		"img-src 'self' data: blob:",
 		"font-src 'self' data:",
-		"connect-src 'self' https://api.iconify.design https://api.simplesvg.com https://api.unisvg.com",
+		"connect-src 'self'",
 		"worker-src 'self' blob:",
 		"frame-ancestors 'none'",
 		"base-uri 'self'",

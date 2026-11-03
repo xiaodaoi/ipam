@@ -106,7 +106,7 @@ const stats = computed(() => {
         label="限速阈值"
         :value="stats.rrlEnabled ? stats.rrlRate : '—'"
         :unit="stats.rrlEnabled ? '次/秒' : ''"
-        icon="lucide:speedometer"
+        icon="lucide:gauge"
         tone="blue"
         :hint="stats.rrlEnabled ? '按来源 IP 计算的每秒配额' : '开启限速后可配置'"
       />

@@ -90,6 +90,7 @@ jobs:
         run: |
           set -o pipefail
           { pnpm install --frozen-lockfile \
+            && node ../scripts/gen-offline-icons.mjs --check \
             && pnpm --filter @vben/web-ipam run typecheck \
             && pnpm test \
             && pnpm run build:ipam; } 2>&1 | tee /tmp/web-build.log

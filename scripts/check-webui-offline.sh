@@ -26,6 +26,15 @@ done < <(find "$dist" -name '*.css' -type f)
 js_hits=$(grep -rhoE 'https?://[a-zA-Z0-9.-]+' "$dist"/js "$dist"/jse 2>/dev/null | sort -u | head -8 || true)
 [ -n "$js_hits" ] && { echo "INFO(js 内字符串 URL，非加载引用):"; echo "$js_hits"; }
 
+# 4) 图标离线化（M6-018）：产物须内置离线 iconify 集合（证明运行期不依赖外部 CDN）。
+#    以 Vben 核心引用的 mdi:keyboard-esc 离线数据为标记。
+#    注意：@iconify/vue 库自身内置默认 API host 字符串，属惰性兜底代码，不计违规；
+#    是否真的发起外链请求由 E2E「图标离线渲染与零外链」步骤断言。
+if ! grep -rq 'keyboard-esc' "$dist"/js "$dist"/jse 2>/dev/null; then
+  echo "FAIL: 产物缺少离线 iconify 图标集合（请运行 node scripts/gen-offline-icons.mjs 并重新构建）"
+  violations=$((violations+1))
+fi
+
 if [ "$violations" -gt 0 ]; then
   echo "RESULT: FAIL ($violations 项外链违规)"; exit 1
 fi
