@@ -253,6 +253,10 @@ curl -skD- https://127.0.0.1:8443/ -o /dev/null | grep -iE "content-security|str
 ```bash
 # 依赖与镜像漏洞（需网络；只读扫描）
 docker scout cves ipam/control-plane:0.1.0-dev 2>/dev/null || true
+# 镜像 HIGH/CRITICAL CVE（M6-019；无本地 trivy 时经 docker 运行 aquasec/trivy）
+make scan-images            # 或 bash scripts/scan-images.sh
+# Dockerfile/compose 误配（M6-019）
+trivy config --severity HIGH,CRITICAL deploy    # 例外见仓库根 .trivyignore.yaml
 # API 未授权访问
 curl -sk -o /dev/null -w '%{http_code}\n' https://127.0.0.1:8443/api/v1/subnets   # 期望 401
 # TRACE 方法
@@ -261,3 +265,13 @@ curl -sk -o /dev/null -w '%{http_code}\n' -X TRACE https://127.0.0.1:8443/      
 head -c 2000000 /dev/zero | curl -sk -o /dev/null -w '%{http_code}\n' \
   -X POST --data-binary @- -H 'Content-Type: application/json' https://127.0.0.1:8443/api/v1/auth/login  # 期望 413
 ```
+
+### 镜像与容器加固（M6-019）
+
+- **发布门禁**：`release.yml` 的 `image-scan` job 对推送的每个镜像跑 trivy（HIGH/CRITICAL，可修复即失败），
+  并把 SARIF 上传到代码扫描；失败会阻断 `release-notes`。周期扫描见 `security.yml`（`trivy fs` + `trivy config`）。
+- **运行时约束**：所有服务均设 `no-new-privileges:true`；`control-plane`/`coherence-daemon`/`vector` 额外
+  `cap_drop: ALL` 且以非 root 运行（control-plane uid 10001）。
+- **有意以 root 运行**：`unbound`（需绑定 53 并内部降权）、`kea-dhcp4/6`（需绑定 67/547 与 `raw` socket）
+  已记录于 `.trivyignore.yaml` 并附带理由；`coherence-daemon` 非 root 化待共享 `/run/ipam` 属主重构。
+- **本地**：`make scan-images`（无本地 trivy 时自动经 docker 运行）；`--strict` 使 trivy/docker 均缺失时判失败。

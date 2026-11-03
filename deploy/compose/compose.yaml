@@ -162,6 +162,13 @@ services:
       - "/run/ipam/coherence.sock"
       - "--dsn"
       - "postgres://${POSTGRES_USER:-ipam}:${POSTGRES_PASSWORD}@postgresql:5432/${POSTGRES_DB:-ipam}?sslmode=disable"
+    healthcheck:
+      # 联动守护无 HTTP 端口，以 UDS 是否就绪判活（M6-019）。
+      test: ["CMD-SHELL", "test -S /run/ipam/coherence.sock"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
 
   clickhouse:
@@ -225,6 +232,8 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    security_opt:
+      - no-new-privileges:true
     image: ipam/unbound:${IPAM_VERSION:-0.1.0-dev}
     # hostNetwork：DNS 服务必须看到客户端真实源 IP。桥接网络为纯 IPv4，
     # 客户端经 IPv6（如 2406::ff3）查询时 docker-proxy 会把源 NAT 成网桥网关
@@ -250,6 +259,8 @@ services:
     # 到达时由 docker-proxy 转发，源地址被 NAT 成网桥网关；hostNetwork 直接绑宿主 :67，
     # 既保留真实源地址，也避免 DHCPv4 广播在桥接网络中的可见性问题。
     network_mode: host
+    security_opt:
+      - no-new-privileges:true
     environment:
       IPAM_KEA4_IFACE: ${IPAM_KEA4_IFACE:-ens160}
     volumes:
@@ -266,6 +277,8 @@ services:
       args: { COMPONENT: kea-dhcp6-server , APT_MIRROR: "${APT_MIRROR:-}" }
     command: ["sh", "-c", "rm -f /run/ipam/kea6-ctrl.sock /run/ipam/kea6-ctrl.sock.lock; mkdir -p /var/log/kea && exec kea-dhcp6 -c /etc/kea/kea-dhcp6.conf"]
     network_mode: host
+    security_opt:
+      - no-new-privileges:true
     environment:
       IPAM_KEA6_IFACE: ${IPAM_KEA6_IFACE:-ens160}
     volumes:
@@ -284,6 +297,8 @@ services:
       - kea-dhcp4
       - kea-dhcp6
     command: ["kea-ctrl-agent", "-c", "/etc/kea/kea-ctrl-agent.conf"]
+    security_opt:
+      - no-new-privileges:true
     volumes:
       - ../../config/kea/kea-ctrl-agent.conf:/etc/kea/kea-ctrl-agent.conf:ro
       - ipam-run:/run/ipam

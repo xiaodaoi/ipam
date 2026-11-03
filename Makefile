@@ -2,7 +2,7 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 SPEC := api/openapi/openapi.yaml
 
-.PHONY: help doctor build test lint gen gen-check gen-icons gen-icons-check clean
+.PHONY: help doctor build test lint gen gen-check gen-icons gen-icons-check scan-images clean
 
 help: ## 列出可用目标与说明
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-10s\033[0m %s\n",$$1,$$2}'
@@ -34,6 +34,9 @@ gen-icons: ## 从 @iconify/json 再生前端离线图标集合（M6-018）
 
 gen-icons-check: ## 校验离线图标集合与源码一致（CI 门禁，M6-018）
 	@node scripts/gen-offline-icons.mjs --check
+
+scan-images: ## 扫描本地构建镜像的 HIGH/CRITICAL CVE（M6-019；无 trivy 时经 docker 运行）
+	@bash scripts/scan-images.sh
 
 gen-check: ## 校验 api/gen 与重新生成结果一致（CI 门禁用，diff 非空即失败）
 	@bash scripts/gen-openapi.sh --check

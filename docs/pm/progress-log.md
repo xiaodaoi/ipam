@@ -3,6 +3,15 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-11-03 · 容器镜像安全扫描与运行时加固（M6-019）
+- **背景**：安全扫描已有 govulncheck/gosec/pnpm audit/trivy fs + SBOM/cosign，但发布产物**镜像层无 CVE 扫描**，运行时加固不均。
+- **实现**：`scripts/scan-images.sh`（+`make scan-images`）；`release.yml` 新增 `image-scan` job（矩阵扫描推送镜像，HIGH/CRITICAL 可修即失败 + SARIF，门禁 release-notes）；`security.yml` 新增 `trivy-config` job。
+- **误配治理**：修复 `Dockerfile.prebuilt` DS-0029；新增 `.trivyignore.yaml` 对 unbound/kea/coherence-daemon 的 DS-0002 附理由抑制（附到期日）。
+- **运行时**：unbound/kea-dhcp4/kea-dhcp6/kea-ctrl-agent 补 `no-new-privileges`；coherence-daemon 补 UDS 健康检查。`no-new-privileges` 现覆盖 9 服务。
+- **验证**：compose config 通过；重建无回归（DNS 监听 53、kea-ctrl-agent 200、coherence healthy、readyz ready）；E2E 15/15；`trivy config`（忽略文件）0 命中。
+- **边界**：镜像 CVE 扫描需联网漏洞库（本机不可达，CI 生效）；coherence-daemon 非 root 化待共享卷属主重构。
+- **文档**：`docs/dev/M6-019-镜像安全扫描与运行时加固实现说明.md`、运维手册安全章节。
+
 ## 2026-11-03 · 图标离线化，移除 iconify 外部 CDN（M6-018）
 - **背景**：M6-017 为兼容 `IconifyIcon` 运行期取图在 CSP 放行了 iconify 公网 CDN；内网/离线交付既不可用也不安全。
 - **实现**：`scripts/gen-offline-icons.mjs` 扫描源码图标名 → 从 `@iconify/json` 提取子集（含 alias 解析）生成 `offline-icons.generated.ts`（8 集合/144 图标/≈51 KiB）；`icons/offline.ts` 启动 `addCollection` 注册；`bootstrap.ts` 顶层导入。

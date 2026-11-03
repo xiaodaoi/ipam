@@ -3,7 +3,7 @@
 # 前置：compose build unbound（同 tag 引用）；dist 置于 cmd/control-plane/webui/dist。
 FROM ubuntu:jammy AS build
 ARG GO_DL=https://go.dev
-RUN apt-get update -qq >/dev/null; apt-get install -y -qq ca-certificates curl git >/dev/null
+RUN apt-get update -qq >/dev/null; apt-get install -y -qq --no-install-recommends ca-certificates curl git >/dev/null
 RUN curl -fsSL "${GO_DL}/dl/go1.27.0.linux-amd64.tar.gz" | tar -C /usr/local -xz
 ENV PATH=/usr/local/go/bin:$PATH \
     GOPATH=/go \

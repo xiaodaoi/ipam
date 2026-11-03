@@ -1,0 +1,17 @@
+# trivy 扫描例外（M6-019）。每条均需可审计的理由；不得用于掩盖可修复问题。
+#
+# 说明：DS-0002（镜像以 root 运行）对 unbound/kea 属**有意为之**：
+#   - unbound 需绑定特权端口 53/tcp+udp 并在内部 setuid 降权（配置 username: unbound、
+#     chroot 关闭，§6.2）；非 root 需额外 CAP_NET_BIND_SERVICE，且与其自带降权机制冲突。
+#   - kea-dhcp4/6 需绑定特权端口 67/547 且 DHCP 数据面 socket-type=raw（需 CAP_NET_RAW）。
+# 运行时已通过 compose 的 no-new-privileges + 最小化权限约束。
+# coherence-daemon 的 root 属**待办**：非 root 化需重构多 uid 共享的 /run/ipam 属主
+#   （control-plane uid10001 / unbound uid999 / kea root 共写），见 M6-019 任务卡「设计取舍」。
+misconfigurations:
+  - id: DS-0002
+    paths:
+      - "images/kea/Dockerfile"
+      - "images/unbound/Dockerfile"
+      - "images/coherence-daemon/Dockerfile"
+    statement: "unbound/kea 需特权端口/raw socket 并内部降权；coherence-daemon 非 root 化待共享卷重构（M6-019）"
+    expired_at: 2027-06-30

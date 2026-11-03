@@ -74,8 +74,44 @@ jobs:
           cosign sign --yes \
             "${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.name }}@${{ steps.build.outputs.digest }}"
 
-  release-notes:
+  # 镜像 CVE 扫描门禁（M6-019）：扫描已推送的发布产物，HIGH/CRITICAL（可修复）即失败。
+  image-scan:
     needs: images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [control-plane, coherence-daemon, unbound, kea-dhcp4, kea-dhcp6, kea-ctrl-agent]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: trivy image scan（${{ matrix.image }}）
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.image }}:${{ github.ref_name }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: sarif
+          output: trivy-${{ matrix.image }}.sarif
+      - name: upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-${{ matrix.image }}.sarif
+        continue-on-error: true
+
+  release-notes:
+    needs: [images, image-scan]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
