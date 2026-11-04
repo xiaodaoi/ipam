@@ -4,6 +4,14 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-11-04 · 首次使用向导（M6-024）
+- **入口**：仪表盘 banner（继续配置 / 稍后再说），完成或忽略后隐藏；向导页可「重新显示向导」复位。
+- **五步检测**：组织 ≥1、子网 ≥1、启用上游 ≥1、区域含记录 ≥1、账号安全（无待改密或已启用 2FA），全部只读、并发执行，单步失败不阻塞。
+- **状态**：`localStorage` 键 `ipam.onboarding.v1.<username>`，仅存 completed/dismissed/updatedAt；不新增服务端偏好表。
+- **离线图标**：rocket/blocks/file-code/network/globe/shield-check/check/info 入离线集合，向导页无外部 CDN 请求。
+- **验证**：`vue-tsc` 0 error、eslint 目标文件 0 error、`pnpm build:ipam` 11 任务成功；E2E 16/16（新增向导步骤）；真实栈 5/5 手工路径通过。
+- **文档**：`docs/dev/M6-024-首次使用向导实现说明.md`、任务卡 M6-024、计划表。
+
 ## 2026-11-04 · DNS 能力补齐 009B2（M6-023）
 - **泛域名**：记录名校验（仅最左 `*`）；实测 unbound `local-data` 不展开通配，含 `*` 的区域改渲染 `auth-zone + zonefile`（自动生成 SOA/NS），多级子域/区顶点/显式记录行为符合 RFC 1034。
 - **DoT**：Upstream `tlsName` → `forward-tls-upstream: yes` + `ip@853#sni`；dot/udp 混用只取 dot。

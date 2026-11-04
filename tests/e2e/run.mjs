@@ -132,6 +132,31 @@ async function main() {
       await page.locator('.ipam-rank__dept').first().waitFor({ timeout: 15_000 });
     });
 
+    await step('首次使用向导', async () => {
+      // M6-024：仪表盘入口 → 5 步只读检测 → 稍后再说收起入口。
+      await waitText(page, '首次使用向导');
+      await page.locator('button', { hasText: '继续配置' }).first().click();
+      await page.waitForURL(/onboarding/, { timeout: 15_000 });
+      await waitText(page, '配置进度');
+      const steps = page.locator('.ipam-onboarding-step');
+      await steps.first().waitFor({ state: 'visible', timeout: 15_000 });
+      assert((await steps.count()) === 5, `向导步骤数=${await steps.count()}`);
+      await page.waitForTimeout(1500);
+      assert(
+        (await page.locator('.ipam-onboarding-step[data-done="true"]').count()) > 0,
+        '向导未检测到任何已完成步骤',
+      );
+      await page.locator('button', { hasText: '稍后再说' }).first().click();
+      await page.goto(urlFor('/overview'), { waitUntil: 'domcontentloaded' });
+      await waitText(page, '运行概览');
+      await page.waitForTimeout(600);
+      // 顶部标签页仍保留「首次使用向导」标题，故以入口按钮判定而不是文本。
+      assert(
+        (await page.locator('button', { hasText: '继续配置' }).count()) === 0,
+        '稍后再说后仪表盘仍显示向导入口',
+      );
+    });
+
     await step('DHCP 子网管理', async () => {
       await page.goto(urlFor('/dhcp/subnets'), { waitUntil: 'domcontentloaded' });
       await waitText(page, '子网管理');

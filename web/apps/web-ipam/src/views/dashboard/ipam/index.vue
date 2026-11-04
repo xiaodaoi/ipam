@@ -2,6 +2,7 @@
 import type { DashboardOverview, HostMetrics } from '#/api/ipam';
 
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -18,6 +19,11 @@ import MetricRing from '#/components/metric-ring.vue';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
 import TrendChart from '#/components/trend-chart.vue';
+import {
+  readOnboarding,
+  useOnboardingUsername,
+  writeOnboarding,
+} from '#/composables/use-onboarding';
 
 type Light = 'down' | 'unknown' | 'up';
 const LIGHT_TEXT: Record<Light, string> = {
@@ -31,6 +37,17 @@ const LIGHT_LABEL: Record<string, string> = {
   kea: 'Kea DHCP',
   unbound: 'Unbound DNS',
 };
+
+const router = useRouter();
+const onboardingName = useOnboardingUsername();
+const onboardingState = ref(readOnboarding(onboardingName));
+const showOnboarding = computed(
+  () =>
+    !onboardingState.value.completed && !onboardingState.value.dismissed,
+);
+function dismissOnboarding() {
+  onboardingState.value = writeOnboarding(onboardingName, { dismissed: true });
+}
 
 const data = ref<DashboardOverview>();
 const metrics = ref<HostMetrics>();
@@ -263,6 +280,24 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
         </Button>
       </template>
     </PageHeader>
+
+    <!-- 首次使用向导入口（M6-024） -->
+    <div
+      v-if="showOnboarding"
+      class="ipam-note mb-4 flex-wrap items-center gap-3"
+    >
+      <IconifyIcon icon="lucide:rocket" class="size-4 shrink-0" />
+      <div class="min-w-[220px] flex-1">
+        <div class="font-medium">{{ $t('page.onboarding.title') }}</div>
+        <div class="ipam-hint">{{ $t('page.onboarding.bannerDesc') }}</div>
+      </div>
+      <Button size="small" type="primary" @click="router.push('/onboarding')">
+        {{ $t('page.onboarding.bannerStart') }}
+      </Button>
+      <Button size="small" @click="dismissOnboarding">
+        {{ $t('page.onboarding.dismiss') }}
+      </Button>
+    </div>
 
     <!-- 核心指标 -->
     <div class="ipam-stat-grid">

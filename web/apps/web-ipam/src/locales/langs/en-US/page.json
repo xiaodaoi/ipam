@@ -56,5 +56,55 @@
     "runtime": "Runtime",
     "backup": "Backup & Restore",
     "license": "License"
+  },
+  "onboarding": {
+    "title": "Getting Started",
+    "desc": "Five steps to a minimally usable setup. Progress is derived from live data; you can resume later.",
+    "progress": "Setup progress",
+    "recheck": "Re-check",
+    "allDone": "Everything is ready. You can finish the guide.",
+    "inProgress": "Complete the remaining steps to finish.",
+    "dismiss": "Later",
+    "finish": "Finish",
+    "finishHint": "Some steps are still incomplete. Configure them first or choose Later.",
+    "finished": "Setup complete. Welcome to IPAM.",
+    "dismissed": "Guide hidden. Use Restart to show it again.",
+    "restart": "Show guide again",
+    "done": "Done",
+    "todo": "To do",
+    "open": "Open",
+    "note": "State is stored in this browser; it reappears on another device or after clearing storage. Checks are read-only.",
+    "checkFailed": "Check failed (possibly no permission)",
+    "hints": {
+      "orgs": "{n} organization(s)",
+      "subnets": "{n} subnet(s)",
+      "upstreams": "{n} enabled upstream(s)",
+      "records": "{n} record(s) found",
+      "security": "Password state looks good; enabling 2FA is recommended"
+    },
+    "steps": {
+      "org": {
+        "title": "Create an organization",
+        "desc": "Create at least one organization to own subnets, addresses and permissions."
+      },
+      "subnet": {
+        "title": "Plan DHCP subnets",
+        "desc": "Add IPv4/IPv6 subnets and pools; changes are pushed to Kea automatically."
+      },
+      "upstream": {
+        "title": "Configure DNS upstreams",
+        "desc": "Set default recursive/forwarding upstreams for name resolution."
+      },
+      "records": {
+        "title": "Add DNS zones and records",
+        "desc": "Create an authoritative/local zone and at least one record."
+      },
+      "security": {
+        "title": "Confirm account security",
+        "desc": "Make sure the initial password is handled; enabling 2FA is recommended."
+      }
+    },
+    "bannerDesc": "Five steps to set up subnets, DNS and account security. Progress is auto-detected.",
+    "bannerStart": "Continue"
   }
 }
