@@ -24,7 +24,10 @@ export function formatLeaseRemaining(
 }
 
 /** 租约关键字过滤（IP/MAC/主机名/DUID/Kea 子网）。 */
-export function filterLeases<T extends LeaseLike>(rows: T[], keyword: string): T[] {
+export function filterLeases<T extends LeaseLike>(
+  rows: T[],
+  keyword: string,
+): T[] {
   const kw = keyword.trim().toLowerCase();
   if (!kw) return rows;
   return rows.filter((r) =>

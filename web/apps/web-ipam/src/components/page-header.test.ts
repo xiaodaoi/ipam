@@ -12,10 +12,16 @@ vi.mock('@vben/icons', () => ({
 describe('page-header 页头', () => {
   it('渲染标题/说明/模块标记', () => {
     const wrapper = mount(PageHeader, {
-      props: { description: '统一查看子网与地址池', eyebrow: 'IPAM', title: '子网管理' },
+      props: {
+        description: '统一查看子网与地址池',
+        eyebrow: 'IPAM',
+        title: '子网管理',
+      },
     });
     expect(wrapper.find('.ipam-page-header__title').text()).toBe('子网管理');
-    expect(wrapper.find('.ipam-page-header__desc').text()).toBe('统一查看子网与地址池');
+    expect(wrapper.find('.ipam-page-header__desc').text()).toBe(
+      '统一查看子网与地址池',
+    );
     expect(wrapper.find('.ipam-page-header__eyebrow').text()).toBe('IPAM');
   });
 
@@ -36,7 +42,10 @@ describe('page-header 页头', () => {
   it('actions/default 插槽进入右侧操作区', () => {
     const wrapper = mount(PageHeader, {
       props: { title: '日志' },
-      slots: { actions: '<button class="act">导出</button>', default: '<span class="extra">更多</span>' },
+      slots: {
+        actions: '<button class="act">导出</button>',
+        default: '<span class="extra">更多</span>',
+      },
     });
     const actions = wrapper.find('.ipam-page-header__actions');
     expect(actions.find('.act').exists()).toBe(true);

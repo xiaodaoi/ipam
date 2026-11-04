@@ -33,13 +33,19 @@ withDefaults(
         <h1 class="ipam-page-header__title">
           <slot name="title">{{ title }}</slot>
         </h1>
-        <p v-if="description || $slots.description" class="ipam-page-header__desc">
+        <p
+          v-if="description || $slots.description"
+          class="ipam-page-header__desc"
+        >
           <slot name="description">{{ description }}</slot>
         </p>
         <slot name="meta"></slot>
       </div>
     </div>
-    <div v-if="$slots.actions || $slots.default" class="ipam-page-header__actions">
+    <div
+      v-if="$slots.actions || $slots.default"
+      class="ipam-page-header__actions"
+    >
       <slot name="actions"></slot>
       <slot></slot>
     </div>

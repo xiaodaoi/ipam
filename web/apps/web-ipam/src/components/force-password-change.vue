@@ -64,7 +64,9 @@ async function submit() {
     reset();
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('shared.passwordChange.failed'),
+      error instanceof Error
+        ? error.message
+        : $t('shared.passwordChange.failed'),
     );
   } finally {
     loading.value = false;
@@ -90,7 +92,9 @@ async function submit() {
     />
     <div class="flex flex-col gap-3">
       <label class="ipam-form-field">
-        <span class="ipam-form-field__label">{{ $t('shared.passwordChange.oldLabel') }}</span>
+        <span class="ipam-form-field__label">{{
+          $t('shared.passwordChange.oldLabel')
+        }}</span>
         <Input.Password
           v-model:value="form.oldPassword"
           autocomplete="current-password"
@@ -98,7 +102,9 @@ async function submit() {
         />
       </label>
       <label class="ipam-form-field">
-        <span class="ipam-form-field__label">{{ $t('shared.passwordChange.newLabel') }}</span>
+        <span class="ipam-form-field__label">{{
+          $t('shared.passwordChange.newLabel')
+        }}</span>
         <Input.Password
           v-model:value="form.newPassword"
           autocomplete="new-password"
@@ -106,7 +112,9 @@ async function submit() {
         />
       </label>
       <label class="ipam-form-field">
-        <span class="ipam-form-field__label">{{ $t('shared.passwordChange.confirmLabel') }}</span>
+        <span class="ipam-form-field__label">{{
+          $t('shared.passwordChange.confirmLabel')
+        }}</span>
         <Input.Password
           v-model:value="form.confirmPassword"
           autocomplete="new-password"

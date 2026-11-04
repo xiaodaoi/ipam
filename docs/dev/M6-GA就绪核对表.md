@@ -49,7 +49,7 @@
 - [ ] **工具链自检**：`make doctor`（或 `bash scripts/doctor.sh`）→ 关键工具均可用；CI 侧用 `--strict` 收紧，不允许关键项静默跳过。
 - [ ] **构建**：`make build` → Go 二进制与前端产物生成成功，无关键部分被跳过；产物位于 `bin/` 与 `cmd/control-plane/webui/dist/`。
 - [ ] **测试**：`make test` → `go test` 全绿且 `pnpm test` 覆盖率门槛通过；新增逻辑有单测。
-- [ ] **静态检查**：`make lint` → golangci-lint、eslint 均 0 error（warning 需逐条确认）。
+- [ ] **静态检查**：`make lint`（或 `bash scripts/make-part.sh lint`）→ golangci-lint `0 issues`、stylelint/oxfmt/oxlint/eslint 均 0 error（warning 逐条确认）。2026-11-04 已归零（M6-027），连跑两次仍 exit 0；规则边界见 `docs/dev/M6-027-静态检查与格式化约定.md`。
 - [ ] **契约一致**：`make gen-check` → `api/gen` 与 `api/openapi` 无 diff；禁止手改 `api/gen/**`。
 - [ ] **E2E**：`IPAM_E2E_USER=admin IPAM_E2E_PASSWORD='<初始口令>' node tests/e2e/run.mjs` → `E2E PASS: 17/17 步通过`；失败时查 `tests/e2e/artifacts/result.json` 与截图。
 - [ ] **备份→恢复演练**：`POST /system/backups` 创建 `note=pre_release`，等待 `status=success`；在维护窗口 `POST /system/backups/{id}/restore` 携带 `{"confirm":true}`；恢复后抽查账号、子网、租约与日志条数。期望数据一致，无报错。

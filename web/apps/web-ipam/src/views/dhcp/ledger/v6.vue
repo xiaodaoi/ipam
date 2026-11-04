@@ -14,7 +14,8 @@ import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
 import { $t } from '#/locales';
 
-const showTotal = (t: number) => $t('dhcpLedger.common.showTotal', { total: t });
+const showTotal = (t: number) =>
+  $t('dhcpLedger.common.showTotal', { total: t });
 
 // ── 组织筛选 ──
 const orgTree = ref<OrgTreeNode[]>([]);
@@ -33,7 +34,9 @@ const selectedCidr = ref('');
 const selectedSubnetId = computed(
   () => v6Subnets.value.find((s) => s.cidr === selectedCidr.value)?.id ?? '',
 );
-const currentSubnet = computed(() => v6Subnets.value.find((s) => s.cidr === selectedCidr.value));
+const currentSubnet = computed(() =>
+  v6Subnets.value.find((s) => s.cidr === selectedCidr.value),
+);
 const allOnline = ref<LedgerRow[]>([]);
 const onlineCounts = ref<Record<string, number>>({});
 const onlineLoading = ref(false);
@@ -47,7 +50,8 @@ const onlineTotal = computed(() =>
   v6Subnets.value.reduce((acc, s) => acc + (onlineCounts.value[s.id] ?? 0), 0),
 );
 const activeSubnetCount = computed(
-  () => v6Subnets.value.filter((s) => (onlineCounts.value[s.id] ?? 0) > 0).length,
+  () =>
+    v6Subnets.value.filter((s) => (onlineCounts.value[s.id] ?? 0) > 0).length,
 );
 const pdPoolCount = computed(() =>
   v6Subnets.value.reduce(
@@ -67,7 +71,12 @@ async function fetchAllOnline(): Promise<LedgerRow[]> {
   const out: LedgerRow[] = [];
   let cursor: string | undefined;
   for (let i = 0; i < 20; i += 1) {
-    const d = await listLedger({ family: 6, state: 'online', pageSize: 500, cursor });
+    const d = await listLedger({
+      family: 6,
+      state: 'online',
+      pageSize: 500,
+      cursor,
+    });
     out.push(...(d.items ?? []));
     if (!d.nextCursor) break;
     cursor = d.nextCursor;
@@ -122,7 +131,8 @@ const kindOptions = computed(() => [
 const filteredSubnets = computed(() => {
   const kw = subnetKeyword.value.trim().toLowerCase();
   return v6Subnets.value.filter((s) => {
-    if (kw && !`${s.cidr} ${s.name ?? ''}`.toLowerCase().includes(kw)) return false;
+    if (kw && !`${s.cidr} ${s.name ?? ''}`.toLowerCase().includes(kw))
+      return false;
     const kinds = new Set((s.pools ?? []).map((p) => p.kind));
     if (subnetKind.value === 'pd') return kinds.has('pd');
     if (subnetKind.value === 'dynamic') return kinds.has('dynamic');
@@ -181,12 +191,23 @@ const filteredOnlineRows = computed(() => {
   const kw = onlineKeyword.value.trim().toLowerCase();
   return onlineRows.value.filter((row) => {
     const ms = remainingMs(row);
-    if (expiryFilter.value === 'expired' && (!(ms !== null && ms < 0))) return false;
-    if (expiryFilter.value === '24h' && (!(ms !== null && ms >= 0 && ms <= 86_400_000))) return false;
-    if (expiryFilter.value === '7d' && (!(ms !== null && ms >= 0 && ms <= 7 * 86_400_000))) return false;
+    if (expiryFilter.value === 'expired' && !(ms !== null && ms < 0))
+      return false;
+    if (
+      expiryFilter.value === '24h' &&
+      !(ms !== null && ms >= 0 && ms <= 86_400_000)
+    )
+      return false;
+    if (
+      expiryFilter.value === '7d' &&
+      !(ms !== null && ms >= 0 && ms <= 7 * 86_400_000)
+    )
+      return false;
     if (!kw) return true;
     return [row.address, row.mac, row.hostname, row.owner].some((v) =>
-      String(v ?? '').toLowerCase().includes(kw),
+      String(v ?? '')
+        .toLowerCase()
+        .includes(kw),
     );
   });
 });
@@ -197,10 +218,22 @@ function resetOnlineFilters() {
 }
 
 const onlineColumns = computed(() => [
-  { title: $t('dhcpLedger.v6.colAddress'), dataIndex: 'address', minWidth: 250 },
-  { title: $t('dhcpLedger.v6.colHostname'), dataIndex: 'hostname', minWidth: 160 },
+  {
+    title: $t('dhcpLedger.v6.colAddress'),
+    dataIndex: 'address',
+    minWidth: 250,
+  },
+  {
+    title: $t('dhcpLedger.v6.colHostname'),
+    dataIndex: 'hostname',
+    minWidth: 160,
+  },
   { title: $t('dhcpLedger.v6.colOwner'), dataIndex: 'owner', width: 110 },
-  { title: $t('dhcpLedger.v6.colExpiry'), dataIndex: 'leaseExpiry', width: 210 },
+  {
+    title: $t('dhcpLedger.v6.colExpiry'),
+    dataIndex: 'leaseExpiry',
+    width: 210,
+  },
 ]);
 
 const subnetEmptyText = computed(() =>
@@ -275,7 +308,12 @@ onMounted(async () => {
       <template #actions>
         <span class="ipam-page-header__meta">
           <IconifyIcon icon="lucide:globe" class="size-3.5" />
-          {{ $t('dhcpLedger.v6.meta', { count: v6Subnets.length, online: onlineTotal }) }}
+          {{
+            $t('dhcpLedger.v6.meta', {
+              count: v6Subnets.length,
+              online: onlineTotal,
+            })
+          }}
         </span>
         <Button size="small" :loading="onlineLoading" @click="loadOnline">
           <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />
@@ -296,8 +334,12 @@ onMounted(async () => {
           <div class="ipam-empty__icon">
             <IconifyIcon icon="lucide:globe" class="size-5" />
           </div>
-          <div class="ipam-empty__title">{{ $t('dhcpLedger.v6.emptyTitle') }}</div>
-          <div class="ipam-empty__desc">{{ $t('dhcpLedger.v6.emptyDesc') }}</div>
+          <div class="ipam-empty__title">
+            {{ $t('dhcpLedger.v6.emptyTitle') }}
+          </div>
+          <div class="ipam-empty__desc">
+            {{ $t('dhcpLedger.v6.emptyDesc') }}
+          </div>
         </div>
 
         <template v-else>
@@ -308,7 +350,11 @@ onMounted(async () => {
               :unit="$t('dhcpLedger.common.units.count')"
               icon="lucide:globe"
               tone="violet"
-              :hint="$t('dhcpLedger.v6.statSubnetsHint', { count: activeSubnetCount })"
+              :hint="
+                $t('dhcpLedger.v6.statSubnetsHint', {
+                  count: activeSubnetCount,
+                })
+              "
             />
             <StatCard
               :label="$t('dhcpLedger.v6.statOnline')"
@@ -316,7 +362,9 @@ onMounted(async () => {
               :unit="$t('dhcpLedger.common.units.item')"
               icon="lucide:radio"
               tone="green"
-              :hint="$t('dhcpLedger.v6.statOnlineHint', { count: activeSubnetCount })"
+              :hint="
+                $t('dhcpLedger.v6.statOnlineHint', { count: activeSubnetCount })
+              "
             />
             <StatCard
               :label="$t('dhcpLedger.v6.statPd')"
@@ -324,7 +372,9 @@ onMounted(async () => {
               :unit="$t('dhcpLedger.common.units.count')"
               icon="lucide:git-branch"
               tone="cyan"
-              :hint="$t('dhcpLedger.v6.statPdHint', { count: dynamicPoolCount })"
+              :hint="
+                $t('dhcpLedger.v6.statPdHint', { count: dynamicPoolCount })
+              "
             />
             <StatCard
               :label="$t('dhcpLedger.v6.statCurrentOnline')"
@@ -342,21 +392,36 @@ onMounted(async () => {
                 <IconifyIcon icon="lucide:layers" />
                 {{ $t('dhcpLedger.v6.overviewCard') }}
                 <em class="ipam-card-sub">
-                  {{ $t('dhcpLedger.v6.overviewSub', { shown: filteredSubnets.length, total: v6Subnets.length }) }}
+                  {{
+                    $t('dhcpLedger.v6.overviewSub', {
+                      shown: filteredSubnets.length,
+                      total: v6Subnets.length,
+                    })
+                  }}
                 </em>
               </span>
             </template>
             <template #extra>
               <Space :size="6" wrap>
-                <Tag color="geekblue" class="m-0">{{ $t('dhcpLedger.v6.tagSubnets', { count: v6Subnets.length }) }}</Tag>
-                <Tag color="green" class="m-0">{{ $t('dhcpLedger.v6.tagOnline', { online: onlineTotal }) }}</Tag>
-                <span class="ipam-hint">{{ $t('dhcpLedger.v6.poolHint') }}</span>
+                <Tag color="geekblue" class="m-0">
+                  {{
+                    $t('dhcpLedger.v6.tagSubnets', { count: v6Subnets.length })
+                  }}
+                </Tag>
+                <Tag color="green" class="m-0">
+                  {{ $t('dhcpLedger.v6.tagOnline', { online: onlineTotal }) }}
+                </Tag>
+                <span class="ipam-hint">{{
+                  $t('dhcpLedger.v6.poolHint')
+                }}</span>
               </Space>
             </template>
 
             <div class="ipam-toolbar mb-3">
               <div class="ipam-field">
-                <span class="ipam-field__label">{{ $t('dhcpLedger.common.keyword') }}</span>
+                <span class="ipam-field__label">{{
+                  $t('dhcpLedger.common.keyword')
+                }}</span>
                 <Input
                   v-model:value="subnetKeyword"
                   allow-clear
@@ -365,10 +430,18 @@ onMounted(async () => {
                 />
               </div>
               <div class="ipam-field">
-                <span class="ipam-field__label">{{ $t('dhcpLedger.common.type') }}</span>
-                <Select v-model:value="subnetKind" :options="kindOptions" style="width: 140px" />
+                <span class="ipam-field__label">{{
+                  $t('dhcpLedger.common.type')
+                }}</span>
+                <Select
+                  v-model:value="subnetKind"
+                  :options="kindOptions"
+                  style="width: 140px"
+                />
               </div>
-              <Button size="small" @click="resetSubnetFilters">{{ $t('dhcpLedger.common.reset') }}</Button>
+              <Button size="small" @click="resetSubnetFilters">
+                {{ $t('dhcpLedger.common.reset') }}
+              </Button>
               <div class="ipam-toolbar__spacer"></div>
               <span class="ipam-hint">{{ $t('dhcpLedger.v6.rowHint') }}</span>
             </div>
@@ -379,8 +452,15 @@ onMounted(async () => {
               :columns="v6Cols"
               :locale="{ emptyText: subnetEmptyText }"
               :pagination="{ pageSize: 20, showSizeChanger: true, showTotal }"
-              :row-class-name="(r: any) => (r.cidr === selectedCidr ? 'ipam-row-active' : '')"
-              :custom-row="(r: any) => ({ onClick: () => onSelectSubnet(r.cidr), style: { cursor: 'pointer' } })"
+              :row-class-name="
+                (r: any) => (r.cidr === selectedCidr ? 'ipam-row-active' : '')
+              "
+              :custom-row="
+                (r: any) => ({
+                  onClick: () => onSelectSubnet(r.cidr),
+                  style: { cursor: 'pointer' },
+                })
+              "
               row-key="id"
               size="middle"
             >
@@ -388,17 +468,31 @@ onMounted(async () => {
                 <template v-if="column.dataIndex === 'cidr'">
                   <div class="ipam-cell-stack">
                     <span class="ipam-mono">{{ record.cidr }}</span>
-                    <span class="ipam-hint">{{ (record as Subnet).name || $t('dhcpLedger.common.unnamedSubnet') }}</span>
+                    <span class="ipam-hint">{{
+                      (record as Subnet).name ||
+                      $t('dhcpLedger.common.unnamedSubnet')
+                    }}</span>
                   </div>
                 </template>
                 <template v-else-if="column.dataIndex === 'kind'">
-                  <Tag :color="kindColor(record as Subnet)" class="m-0">{{ kindText(record as Subnet) }}</Tag>
+                  <Tag :color="kindColor(record as Subnet)" class="m-0">
+                    {{ kindText(record as Subnet) }}
+                  </Tag>
                 </template>
                 <template v-else-if="column.dataIndex === 'pools'">
-                  <span class="ipam-mono text-xs">{{ poolText(record as Subnet) }}</span>
+                  <span class="ipam-mono text-xs">{{
+                    poolText(record as Subnet)
+                  }}</span>
                 </template>
                 <template v-else-if="column.dataIndex === 'online'">
-                  <Tag :color="(onlineCounts[(record as Subnet).id] ?? 0) > 0 ? 'green' : 'default'" class="m-0">
+                  <Tag
+                    :color="
+                      (onlineCounts[(record as Subnet).id] ?? 0) > 0
+                        ? 'green'
+                        : 'default'
+                    "
+                    class="m-0"
+                  >
                     {{ onlineCounts[(record as Subnet).id] ?? 0 }}
                   </Tag>
                 </template>
@@ -414,7 +508,9 @@ onMounted(async () => {
                 <em class="ipam-card-sub">
                   {{
                     $t('dhcpLedger.leaseCard.sub', {
-                      cidr: selectedCidr || $t('dhcpLedger.common.noSubnetSelected'),
+                      cidr:
+                        selectedCidr ||
+                        $t('dhcpLedger.common.noSubnetSelected'),
                       shown: filteredOnlineRows.length,
                       total: onlineRows.length,
                     })
@@ -424,14 +520,20 @@ onMounted(async () => {
             </template>
             <template #extra>
               <Space :size="6" wrap>
-                <Tag v-if="currentSubnet?.dnsServers" class="m-0">DNS {{ currentSubnet.dnsServers }}</Tag>
-                <span class="ipam-hint">{{ $t('dhcpLedger.v6.leaseCardHint') }}</span>
+                <Tag v-if="currentSubnet?.dnsServers" class="m-0">
+                  DNS {{ currentSubnet.dnsServers }}
+                </Tag>
+                <span class="ipam-hint">{{
+                  $t('dhcpLedger.v6.leaseCardHint')
+                }}</span>
               </Space>
             </template>
 
             <div class="ipam-toolbar mb-3">
               <div class="ipam-field">
-                <span class="ipam-field__label">{{ $t('dhcpLedger.common.keyword') }}</span>
+                <span class="ipam-field__label">{{
+                  $t('dhcpLedger.common.keyword')
+                }}</span>
                 <Input
                   v-model:value="onlineKeyword"
                   allow-clear
@@ -440,12 +542,22 @@ onMounted(async () => {
                 />
               </div>
               <div class="ipam-field">
-                <span class="ipam-field__label">{{ $t('dhcpLedger.common.expiry') }}</span>
-                <Select v-model:value="expiryFilter" :options="expiryOptions" style="width: 150px" />
+                <span class="ipam-field__label">{{
+                  $t('dhcpLedger.common.expiry')
+                }}</span>
+                <Select
+                  v-model:value="expiryFilter"
+                  :options="expiryOptions"
+                  style="width: 150px"
+                />
               </div>
-              <Button size="small" @click="resetOnlineFilters">{{ $t('dhcpLedger.common.reset') }}</Button>
+              <Button size="small" @click="resetOnlineFilters">
+                {{ $t('dhcpLedger.common.reset') }}
+              </Button>
               <div class="ipam-toolbar__spacer"></div>
-              <span class="ipam-hint">{{ $t('dhcpLedger.v6.onlineRowHint') }}</span>
+              <span class="ipam-hint">{{
+                $t('dhcpLedger.v6.onlineRowHint')
+              }}</span>
             </div>
 
             <Table
@@ -467,12 +579,22 @@ onMounted(async () => {
                     </span>
                   </div>
                 </template>
-                <template v-else-if="column.dataIndex === 'hostname'">{{ (record as any).hostname || '—' }}</template>
-                <template v-else-if="column.dataIndex === 'owner'">{{ (record as any).owner || '—' }}</template>
+                <template v-else-if="column.dataIndex === 'hostname'">
+                  {{ (record as any).hostname || '—' }}
+                </template>
+                <template v-else-if="column.dataIndex === 'owner'">
+                  {{ (record as any).owner || '—' }}
+                </template>
                 <template v-else-if="column.dataIndex === 'leaseExpiry'">
                   <div class="ipam-cell-stack">
-                    <span class="ipam-hint">{{ fmtTime((record as any).leaseExpiry) }}</span>
-                    <span class="ipam-chip" :data-tone="expiryTone(record as any)">{{ expiryText(record as any) }}</span>
+                    <span class="ipam-hint">{{
+                      fmtTime((record as any).leaseExpiry)
+                    }}</span>
+                    <span
+                      class="ipam-chip"
+                      :data-tone="expiryTone(record as any)"
+                      >{{ expiryText(record as any) }}</span
+                    >
                   </div>
                 </template>
               </template>

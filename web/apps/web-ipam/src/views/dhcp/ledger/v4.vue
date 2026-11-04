@@ -7,9 +7,26 @@ import { useRoute } from 'vue-router';
 import { useVbenModal } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Button, Card, Input, message, Select, Space, Table, Tag } from 'ant-design-vue';
+import {
+  Button,
+  Card,
+  Input,
+  message,
+  Select,
+  Space,
+  Table,
+  Tag,
+} from 'ant-design-vue';
 
-import { bindStatic, listLedger, listOrgTree, listSubnets, releaseAddress, reserveAddress, upsertLedgerMeta } from '#/api/ipam';
+import {
+  bindStatic,
+  listLedger,
+  listOrgTree,
+  listSubnets,
+  releaseAddress,
+  reserveAddress,
+  upsertLedgerMeta,
+} from '#/api/ipam';
 import IpPlanMap from '#/components/ip-plan-map.vue';
 import OrgFilterCard from '#/components/org-filter-card.vue';
 import PageHeader from '#/components/page-header.vue';
@@ -17,7 +34,8 @@ import StatCard from '#/components/stat-card.vue';
 import { $t } from '#/locales';
 import { normalizeMacInput } from '#/utils/mac';
 
-const showTotal = (t: number) => $t('dhcpLedger.common.showTotal', { total: t });
+const showTotal = (t: number) =>
+  $t('dhcpLedger.common.showTotal', { total: t });
 
 // ── 组织筛选 ──
 const orgTree = ref<OrgTreeNode[]>([]);
@@ -51,27 +69,29 @@ async function loadSubnets() {
 
 // ── 地址矩阵数据（IPv4 逐地址）──
 interface MapCell {
-  ip: string;
-  host: number;
-  status: string;
-  overlays?: string[];
-  hostname?: string;
-  mac?: string;
-  user?: string;
-  leaseStart?: string;
-  leaseEnd?: string;
-  purpose?: string;
-  phone?: string;
-  vlan?: number;
-  site?: string;
   customAttrs?: Record<string, string>;
-  remark?: string;
+  host: number;
+  hostname?: string;
+  ip: string;
+  leaseEnd?: string;
+  leaseStart?: string;
   leaseStatus?: string;
+  mac?: string;
+  overlays?: string[];
+  phone?: string;
+  purpose?: string;
+  remark?: string;
+  site?: string;
+  status: string;
+  user?: string;
+  vlan?: number;
 }
 const cells = ref<MapCell[]>([]);
 const onlineRows = ref<Partial<LedgerRow>[]>([]);
 const mapLoading = ref(false);
-const currentSubnet = computed(() => v4Subnets.value.find((s) => s.cidr === selectedCidr.value));
+const currentSubnet = computed(() =>
+  v4Subnets.value.find((s) => s.cidr === selectedCidr.value),
+);
 
 /** 当前网段地址矩阵统计（网络/广播地址不计入可用容量） */
 const stats = computed(() => {
@@ -152,12 +172,17 @@ async function loadMap() {
       grid.push({
         ip,
         host: n,
-        status: n === 0 ? 'network' : (n === hostCount - 1 ? 'broadcast' : 'available'),
+        status:
+          n === 0 ? 'network' : n === hostCount - 1 ? 'broadcast' : 'available',
         overlays: [],
       });
     }
     // 2) 覆盖台账状态（按 host 定位）
-    const page = await listLedger({ subnetId: sub.id, family: 4, pageSize: 500 });
+    const page = await listLedger({
+      subnetId: sub.id,
+      family: 4,
+      pageSize: 500,
+    });
     onlineRows.value = (page.items ?? []).filter((r) => r.state === 'online');
     nowTs.value = Date.now();
     for (const row of page.items ?? []) {
@@ -172,9 +197,14 @@ async function loadMap() {
         hostname: row.hostname || '',
         mac: row.mac || '',
         user: row.owner || '',
-        leaseStart: row.leaseStart ? new Date(row.leaseStart).toLocaleString() : '',
-        leaseEnd: row.leaseExpiry ? new Date(row.leaseExpiry).toLocaleString() : '',
-        leaseStatus: row.state === 'online' ? $t('dhcpLedger.common.leaseGranted') : '',
+        leaseStart: row.leaseStart
+          ? new Date(row.leaseStart).toLocaleString()
+          : '',
+        leaseEnd: row.leaseExpiry
+          ? new Date(row.leaseExpiry).toLocaleString()
+          : '',
+        leaseStatus:
+          row.state === 'online' ? $t('dhcpLedger.common.leaseGranted') : '',
         purpose:
           row.purpose ||
           (row.state === 'reserved' ? $t('dhcpLedger.common.reserved') : ''),
@@ -186,7 +216,9 @@ async function loadMap() {
           row.remark ||
           (row.state === 'conflict'
             ? $t('dhcpLedger.common.ipConflict')
-            : (row.state === 'grace' ? $t('dhcpLedger.common.leaseGrace') : '')),
+            : row.state === 'grace'
+              ? $t('dhcpLedger.common.leaseGrace')
+              : ''),
       };
     }
     cells.value = grid;
@@ -245,12 +277,23 @@ const filteredOnlineRows = computed(() => {
   const kw = onlineKeyword.value.trim().toLowerCase();
   return onlineRows.value.filter((row) => {
     const ms = remainingMs(row);
-    if (expiryFilter.value === 'expired' && (!(ms !== null && ms < 0))) return false;
-    if (expiryFilter.value === '24h' && (!(ms !== null && ms >= 0 && ms <= 86_400_000))) return false;
-    if (expiryFilter.value === '7d' && (!(ms !== null && ms >= 0 && ms <= 7 * 86_400_000))) return false;
+    if (expiryFilter.value === 'expired' && !(ms !== null && ms < 0))
+      return false;
+    if (
+      expiryFilter.value === '24h' &&
+      !(ms !== null && ms >= 0 && ms <= 86_400_000)
+    )
+      return false;
+    if (
+      expiryFilter.value === '7d' &&
+      !(ms !== null && ms >= 0 && ms <= 7 * 86_400_000)
+    )
+      return false;
     if (!kw) return true;
     return [row.address, row.mac, row.hostname, row.owner].some((v) =>
-      String(v ?? '').toLowerCase().includes(kw),
+      String(v ?? '')
+        .toLowerCase()
+        .includes(kw),
     );
   });
 });
@@ -270,7 +313,11 @@ const onlineColumns = computed(() => [
   { title: $t('dhcpLedger.v4.colMac'), dataIndex: 'mac', width: 160 },
   { title: $t('dhcpLedger.v4.colHostname'), dataIndex: 'hostname', width: 140 },
   { title: $t('dhcpLedger.v4.colOwner'), dataIndex: 'owner', width: 100 },
-  { title: $t('dhcpLedger.v4.colExpiry'), dataIndex: 'leaseExpiry', width: 220 },
+  {
+    title: $t('dhcpLedger.v4.colExpiry'),
+    dataIndex: 'leaseExpiry',
+    width: 220,
+  },
 ]);
 
 const onlineEmptyText = computed(() =>
@@ -281,16 +328,24 @@ const onlineEmptyText = computed(() =>
 
 // ── IP 工具（与 IpPlanMap 同源）──
 function ipToInt(ip: string): number {
-  return ip.split('.').reduce((acc, o) => ((acc << 8) >>> 0) + Number.parseInt(o, 10), 0) >>> 0;
+  return (
+    ip
+      .split('.')
+      .reduce((acc, o) => ((acc << 8) >>> 0) + Number.parseInt(o, 10), 0) >>> 0
+  );
 }
 function intToIp(n: number): string {
   return [n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.');
 }
-function parseCidr(cidr: string): { broadcast: number; hostCount: number; network: number } {
+function parseCidr(cidr: string): {
+  broadcast: number;
+  hostCount: number;
+  network: number;
+} {
   const parts = String(cidr).split('/');
   const bits = Number.parseInt(parts[1] || '32', 10);
   const ipInt = ipToInt(parts[0] || '0.0.0.0');
-  const mask = bits === 0 ? 0 : (0xFF_FF_FF_FF << (32 - bits)) >>> 0;
+  const mask = bits === 0 ? 0 : (0xff_ff_ff_ff << (32 - bits)) >>> 0;
   const network = (ipInt & mask) >>> 0;
   const broadcast = (network | (~mask >>> 0)) >>> 0;
   return { network, broadcast, hostCount: broadcast - network + 1 };
@@ -317,7 +372,9 @@ async function onMapAction(action: string, ips: MapCell[]) {
   if (!sub || !first) return;
   if (action === 'toStatic') {
     bindModal.value = { address: first.ip, subnetId: sub.id, mac: '' };
-    bindModalApi.setState({ title: $t('dhcpLedger.common.staticBindTitle', { ip: first.ip }) });
+    bindModalApi.setState({
+      title: $t('dhcpLedger.common.staticBindTitle', { ip: first.ip }),
+    });
     bindModalApi.open();
     return;
   }
@@ -336,7 +393,9 @@ async function onMapAction(action: string, ips: MapCell[]) {
           throw new Error(reasons || $t('dhcpLedger.common.bulkRolledBack'));
         }
       }
-      message.success($t('dhcpLedger.common.reservedCount', { count: ips.length }));
+      message.success(
+        $t('dhcpLedger.common.reservedCount', { count: ips.length }),
+      );
     } else if (action === 'toRelease') {
       const failed: string[] = [];
       for (const c of ips) {
@@ -347,16 +406,24 @@ async function onMapAction(action: string, ips: MapCell[]) {
         }
       }
       if (failed.length > 0) {
-        message.warning($t('dhcpLedger.common.releasedPartial', {
-          ok: ips.length - failed.length,
-          failed: failed.join('、'),
-        }));
+        message.warning(
+          $t('dhcpLedger.common.releasedPartial', {
+            ok: ips.length - failed.length,
+            failed: failed.join('、'),
+          }),
+        );
       } else {
-        message.success($t('dhcpLedger.common.releasedCount', { count: ips.length }));
+        message.success(
+          $t('dhcpLedger.common.releasedCount', { count: ips.length }),
+        );
       }
     }
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dhcpLedger.common.operationFailed'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dhcpLedger.common.operationFailed'),
+    );
   }
   void loadMap();
 }
@@ -367,15 +434,25 @@ async function confirmBind() {
     return;
   }
   try {
-    await bindStatic(bindModal.value.subnetId, bindModal.value.address, normMac);
-    message.success($t('dhcpLedger.common.staticBound', {
-      address: bindModal.value.address,
-      mac: normMac,
-    }));
+    await bindStatic(
+      bindModal.value.subnetId,
+      bindModal.value.address,
+      normMac,
+    );
+    message.success(
+      $t('dhcpLedger.common.staticBound', {
+        address: bindModal.value.address,
+        mac: normMac,
+      }),
+    );
     bindModalApi.close();
     void loadMap();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dhcpLedger.common.bindFailed'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dhcpLedger.common.bindFailed'),
+    );
   }
 }
 
@@ -394,7 +471,9 @@ onMounted(async () => {
 // ── 逐 IP 元数据保存（VLAN/站点/使用人/用途/备注）──
 async function saveLedgerMeta(target: MapCell[], values: Record<string, any>) {
   const sub = currentSubnet.value;
-  const list = target.filter((c) => c.status !== 'network' && c.status !== 'broadcast');
+  const list = target.filter(
+    (c) => c.status !== 'network' && c.status !== 'broadcast',
+  );
   if (!sub || list.length === 0) return;
   try {
     await Promise.all(
@@ -415,7 +494,11 @@ async function saveLedgerMeta(target: MapCell[], values: Record<string, any>) {
     message.success($t('dhcpLedger.v4.savedMeta', { count: list.length }));
     await loadMap();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dhcpLedger.v4.saveMetaFailed'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dhcpLedger.v4.saveMetaFailed'),
+    );
   }
 }
 
@@ -442,7 +525,17 @@ function exportLedgerCsv() {
     $t('dhcpLedger.v4.csv.leaseEnd'),
   ];
   const lines = cells.value.map((c) =>
-    [c.ip, c.status, c.hostname, c.mac, c.user, c.purpose, c.remark, c.leaseStart, c.leaseEnd]
+    [
+      c.ip,
+      c.status,
+      c.hostname,
+      c.mac,
+      c.user,
+      c.purpose,
+      c.remark,
+      c.leaseStart,
+      c.leaseEnd,
+    ]
       .map((v) => csvCell(v))
       .join(','),
   );
@@ -453,7 +546,9 @@ function exportLedgerCsv() {
   a.download = `ledger-${selectedCidr.value.replaceAll('/', '_')}-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
-  message.success($t('dhcpLedger.v4.exportDone', { count: cells.value.length }));
+  message.success(
+    $t('dhcpLedger.v4.exportDone', { count: cells.value.length }),
+  );
 }
 </script>
 
@@ -475,11 +570,20 @@ function exportLedgerCsv() {
             })
           }}
         </span>
-        <Button size="small" :disabled="!selectedCidr || cells.length === 0" @click="exportLedgerCsv">
+        <Button
+          size="small"
+          :disabled="!selectedCidr || cells.length === 0"
+          @click="exportLedgerCsv"
+        >
           <IconifyIcon icon="lucide:download" class="mr-1 size-3.5" />
           {{ $t('dhcpLedger.common.exportCsv') }}
         </Button>
-        <Button size="small" :loading="mapLoading" :disabled="!selectedCidr" @click="loadMap">
+        <Button
+          size="small"
+          :loading="mapLoading"
+          :disabled="!selectedCidr"
+          @click="loadMap"
+        >
           <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />
           {{ $t('dhcpLedger.common.refresh') }}
         </Button>
@@ -498,8 +602,12 @@ function exportLedgerCsv() {
           <div class="ipam-empty__icon">
             <IconifyIcon icon="lucide:map" class="size-5" />
           </div>
-          <div class="ipam-empty__title">{{ $t('dhcpLedger.v4.emptyTitle') }}</div>
-          <div class="ipam-empty__desc">{{ $t('dhcpLedger.v4.emptyDesc') }}</div>
+          <div class="ipam-empty__title">
+            {{ $t('dhcpLedger.v4.emptyTitle') }}
+          </div>
+          <div class="ipam-empty__desc">
+            {{ $t('dhcpLedger.v4.emptyDesc') }}
+          </div>
         </div>
 
         <template v-else>
@@ -510,7 +618,9 @@ function exportLedgerCsv() {
               :unit="$t('dhcpLedger.common.units.count')"
               icon="lucide:hash"
               tone="blue"
-              :hint="$t('dhcpLedger.v4.statCapacityHint', { total: stats.total })"
+              :hint="
+                $t('dhcpLedger.v4.statCapacityHint', { total: stats.total })
+              "
             />
             <StatCard
               :label="$t('dhcpLedger.v4.statUsed')"
@@ -519,7 +629,12 @@ function exportLedgerCsv() {
               icon="lucide:pie-chart"
               tone="green"
               :progress="stats.utilization"
-              :hint="$t('dhcpLedger.v4.statUsedHint', { utilization: stats.utilization, online: stats.online })"
+              :hint="
+                $t('dhcpLedger.v4.statUsedHint', {
+                  utilization: stats.utilization,
+                  online: stats.online,
+                })
+              "
             />
             <StatCard
               :label="$t('dhcpLedger.v4.statStatic')"
@@ -527,7 +642,9 @@ function exportLedgerCsv() {
               :unit="$t('dhcpLedger.common.units.count')"
               icon="lucide:pin"
               tone="cyan"
-              :hint="$t('dhcpLedger.v4.statStaticHint', { reserved: stats.reserved })"
+              :hint="
+                $t('dhcpLedger.v4.statStaticHint', { reserved: stats.reserved })
+              "
             />
             <StatCard
               :label="$t('dhcpLedger.v4.statAvailable')"
@@ -537,7 +654,9 @@ function exportLedgerCsv() {
               :tone="stats.conflict > 0 ? 'amber' : 'violet'"
               :hint="
                 stats.conflict > 0
-                  ? $t('dhcpLedger.v4.statAvailableHintConflict', { conflict: stats.conflict })
+                  ? $t('dhcpLedger.v4.statAvailableHintConflict', {
+                      conflict: stats.conflict,
+                    })
                   : $t('dhcpLedger.v4.statAvailableHintOk')
               "
             />
@@ -545,20 +664,35 @@ function exportLedgerCsv() {
 
           <div class="ipam-toolbar">
             <span class="ipam-field">
-              <span class="ipam-field__label">{{ $t('dhcpLedger.v4.fieldSubnet') }}</span>
+              <span class="ipam-field__label">{{
+                $t('dhcpLedger.v4.fieldSubnet')
+              }}</span>
               <Tag color="blue" class="m-0">{{ selectedCidr }}</Tag>
-              <span class="ipam-hint">{{ currentSubnet?.name || $t('dhcpLedger.common.unnamedSubnet') }}</span>
+              <span class="ipam-hint">{{
+                currentSubnet?.name || $t('dhcpLedger.common.unnamedSubnet')
+              }}</span>
             </span>
             <span class="ipam-field">
-              <span class="ipam-field__label">{{ $t('dhcpLedger.v4.fieldGateway') }}</span>
-              <span class="ipam-mono">{{ currentSubnet?.gateway || $t('dhcpLedger.common.notConfigured') }}</span>
+              <span class="ipam-field__label">{{
+                $t('dhcpLedger.v4.fieldGateway')
+              }}</span>
+              <span class="ipam-mono">{{
+                currentSubnet?.gateway || $t('dhcpLedger.common.notConfigured')
+              }}</span>
             </span>
             <span class="ipam-field">
-              <span class="ipam-field__label">{{ $t('dhcpLedger.v4.fieldDns') }}</span>
-              <span class="ipam-mono">{{ currentSubnet?.dnsServers || $t('dhcpLedger.common.notConfigured') }}</span>
+              <span class="ipam-field__label">{{
+                $t('dhcpLedger.v4.fieldDns')
+              }}</span>
+              <span class="ipam-mono">{{
+                currentSubnet?.dnsServers ||
+                $t('dhcpLedger.common.notConfigured')
+              }}</span>
             </span>
             <span class="ipam-field">
-              <span class="ipam-field__label">{{ $t('dhcpLedger.v4.fieldPool') }}</span>
+              <span class="ipam-field__label">{{
+                $t('dhcpLedger.v4.fieldPool')
+              }}</span>
               <span class="ipam-mono">{{ poolText }}</span>
             </span>
             <div class="ipam-toolbar__spacer"></div>
@@ -582,7 +716,9 @@ function exportLedgerCsv() {
                 <em class="ipam-card-sub">
                   {{
                     $t('dhcpLedger.leaseCard.sub', {
-                      cidr: selectedCidr || $t('dhcpLedger.common.noSubnetSelected'),
+                      cidr:
+                        selectedCidr ||
+                        $t('dhcpLedger.common.noSubnetSelected'),
                       shown: filteredOnlineRows.length,
                       total: onlineRows.length,
                     })
@@ -593,15 +729,21 @@ function exportLedgerCsv() {
             <template #extra>
               <Space :size="6" wrap>
                 <Tag v-if="stats.conflict > 0" color="red" class="m-0">
-                  {{ $t('dhcpLedger.v4.conflictTag', { count: stats.conflict }) }}
+                  {{
+                    $t('dhcpLedger.v4.conflictTag', { count: stats.conflict })
+                  }}
                 </Tag>
-                <span class="ipam-hint">{{ $t('dhcpLedger.v4.leaseLiveHint') }}</span>
+                <span class="ipam-hint">{{
+                  $t('dhcpLedger.v4.leaseLiveHint')
+                }}</span>
               </Space>
             </template>
 
             <div class="ipam-toolbar mb-3">
               <div class="ipam-field">
-                <span class="ipam-field__label">{{ $t('dhcpLedger.common.keyword') }}</span>
+                <span class="ipam-field__label">{{
+                  $t('dhcpLedger.common.keyword')
+                }}</span>
                 <Input
                   v-model:value="onlineKeyword"
                   allow-clear
@@ -610,16 +752,22 @@ function exportLedgerCsv() {
                 />
               </div>
               <div class="ipam-field">
-                <span class="ipam-field__label">{{ $t('dhcpLedger.common.expiry') }}</span>
+                <span class="ipam-field__label">{{
+                  $t('dhcpLedger.common.expiry')
+                }}</span>
                 <Select
                   v-model:value="expiryFilter"
                   :options="expiryOptions"
                   style="width: 150px"
                 />
               </div>
-              <Button size="small" @click="resetOnlineFilters">{{ $t('dhcpLedger.common.reset') }}</Button>
+              <Button size="small" @click="resetOnlineFilters">
+                {{ $t('dhcpLedger.common.reset') }}
+              </Button>
               <div class="ipam-toolbar__spacer"></div>
-              <span class="ipam-hint">{{ $t('dhcpLedger.v4.timezoneHint') }}</span>
+              <span class="ipam-hint">{{
+                $t('dhcpLedger.v4.timezoneHint')
+              }}</span>
             </div>
 
             <Table
@@ -636,15 +784,25 @@ function exportLedgerCsv() {
                   <span class="ipam-mono">{{ record.address }}</span>
                 </template>
                 <template v-else-if="column.dataIndex === 'mac'">
-                  <span v-if="record.mac" class="ipam-mono">{{ record.mac }}</span>
+                  <span v-if="record.mac" class="ipam-mono">{{
+                    record.mac
+                  }}</span>
                   <span v-else class="text-gray-400">—</span>
                 </template>
-                <template v-else-if="column.dataIndex === 'hostname'">{{ record.hostname || '—' }}</template>
-                <template v-else-if="column.dataIndex === 'owner'">{{ record.owner || '—' }}</template>
+                <template v-else-if="column.dataIndex === 'hostname'">
+                  {{ record.hostname || '—' }}
+                </template>
+                <template v-else-if="column.dataIndex === 'owner'">
+                  {{ record.owner || '—' }}
+                </template>
                 <template v-else-if="column.dataIndex === 'leaseExpiry'">
                   <div class="ipam-cell-stack">
-                    <span class="ipam-hint">{{ fmtTime(record.leaseExpiry) }}</span>
-                    <span class="ipam-chip" :data-tone="expiryTone(record)">{{ expiryText(record) }}</span>
+                    <span class="ipam-hint">{{
+                      fmtTime(record.leaseExpiry)
+                    }}</span>
+                    <span class="ipam-chip" :data-tone="expiryTone(record)">{{
+                      expiryText(record)
+                    }}</span>
                   </div>
                 </template>
               </template>

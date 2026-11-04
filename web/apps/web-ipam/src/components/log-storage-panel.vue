@@ -67,43 +67,67 @@ function fmtDate(v?: string): string {
   return new Date(t).toLocaleString(undefined, { hour12: false });
 }
 
-const monthValid = computed(() => /^\d{4}-(0[1-9]|1[0-2])$/.test(exportMonthInput.value.trim()));
+const monthValid = computed(() =>
+  /^\d{4}-(0[1-9]|1[0-2])$/.test(exportMonthInput.value.trim()),
+);
 const partitions = computed(() =>
-  [...(stats.value?.partitions ?? [])].toSorted((a, b) => b.month.localeCompare(a.month)),
+  [...(stats.value?.partitions ?? [])].toSorted((a, b) =>
+    b.month.localeCompare(a.month),
+  ),
 );
 const partitionMax = computed(() =>
   Math.max(1, ...partitions.value.map((p) => p.rowCount ?? 0)),
 );
 const archiveRows = computed(() =>
   [...archives.value]
-    .filter((a) => !keyword.value.trim() || a.month.includes(keyword.value.trim()))
+    .filter(
+      (a) => !keyword.value.trim() || a.month.includes(keyword.value.trim()),
+    )
     .toSorted((a, b) => b.month.localeCompare(a.month)),
 );
 const latestArchive = computed(() => archiveRows.value[0]?.month ?? '');
 const archiveColumns = computed(() => [
-  { dataIndex: 'month', key: 'month', title: $t('logs.storage.archive.col.month'), width: 116 },
+  {
+    dataIndex: 'month',
+    key: 'month',
+    title: $t('logs.storage.archive.col.month'),
+    width: 116,
+  },
   {
     dataIndex: 'rowCount',
     key: 'rowCount',
     title: $t('logs.storage.archive.col.rows'),
-    sorter: (a: LogArchive, b: LogArchive) => (a.rowCount ?? 0) - (b.rowCount ?? 0),
+    sorter: (a: LogArchive, b: LogArchive) =>
+      (a.rowCount ?? 0) - (b.rowCount ?? 0),
     width: 120,
   },
   {
     dataIndex: 'fileSize',
     key: 'fileSize',
     title: $t('logs.storage.archive.col.size'),
-    sorter: (a: LogArchive, b: LogArchive) => (a.fileSize ?? 0) - (b.fileSize ?? 0),
+    sorter: (a: LogArchive, b: LogArchive) =>
+      (a.fileSize ?? 0) - (b.fileSize ?? 0),
     width: 120,
   },
-  { dataIndex: 'exportedBy', key: 'exportedBy', title: $t('logs.storage.archive.col.source'), width: 90 },
+  {
+    dataIndex: 'exportedBy',
+    key: 'exportedBy',
+    title: $t('logs.storage.archive.col.source'),
+    width: 90,
+  },
   {
     dataIndex: 'createdAt',
     key: 'createdAt',
     title: $t('logs.storage.archive.col.created'),
-    sorter: (a: LogArchive, b: LogArchive) => Date.parse(a.createdAt) - Date.parse(b.createdAt),
+    sorter: (a: LogArchive, b: LogArchive) =>
+      Date.parse(a.createdAt) - Date.parse(b.createdAt),
   },
-  { dataIndex: 'actions', key: 'actions', title: $t('logs.storage.archive.col.actions'), width: 130 },
+  {
+    dataIndex: 'actions',
+    key: 'actions',
+    title: $t('logs.storage.archive.col.actions'),
+    width: 130,
+  },
 ]);
 
 async function loadSettings() {
@@ -159,7 +183,11 @@ async function saveSettings() {
     message.success($t('logs.storage.policy.saved'));
     await loadStats();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('logs.storage.policy.saveFail'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('logs.storage.policy.saveFail'),
+    );
   } finally {
     logSaving.value = false;
   }
@@ -177,7 +205,11 @@ async function doExport() {
     message.success($t('logs.storage.archive.exported', { m }));
     await Promise.all([loadArchives(), loadStats()]);
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('logs.storage.archive.exportFail'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('logs.storage.archive.exportFail'),
+    );
   } finally {
     exporting.value = false;
   }
@@ -194,7 +226,11 @@ async function removeArchive(month: string) {
     message.success($t('logs.storage.archive.deleted', { m: month }));
     await Promise.all([loadArchives(), loadStats()]);
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('logs.storage.archive.deleteFail'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('logs.storage.archive.deleteFail'),
+    );
   } finally {
     busyMonth.value = '';
   }
@@ -205,7 +241,11 @@ async function downloadArchive(month: string) {
   try {
     await downloadLogArchive(month);
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('logs.storage.archive.downloadFail'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('logs.storage.archive.downloadFail'),
+    );
   } finally {
     busyMonth.value = '';
   }
@@ -259,9 +299,7 @@ onMounted(reloadAll);
         :unit="$t('logs.storage.kpi.ttlUnit')"
         icon="lucide:timer-reset"
         tone="green"
-        :hint="
-          $t('logs.storage.kpi.ttlHint', { n: logForm.archiveKeepMonths })
-        "
+        :hint="$t('logs.storage.kpi.ttlHint', { n: logForm.archiveKeepMonths })"
       />
     </div>
 
@@ -279,7 +317,9 @@ onMounted(reloadAll);
 
         <div class="ipam-form-grid">
           <div class="ipam-form-field">
-            <span class="ipam-form-field__label">{{ $t('logs.storage.policy.retention') }}</span>
+            <span class="ipam-form-field__label">{{
+              $t('logs.storage.policy.retention')
+            }}</span>
             <div class="flex items-center gap-2">
               <InputNumber
                 v-model:value="logForm.retentionDays"
@@ -287,11 +327,15 @@ onMounted(reloadAll);
                 :max="3650"
                 class="flex-1"
               />
-              <span class="ipam-hint">{{ $t('logs.storage.policy.days') }}</span>
+              <span class="ipam-hint">{{
+                $t('logs.storage.policy.days')
+              }}</span>
             </div>
           </div>
           <div class="ipam-form-field">
-            <span class="ipam-form-field__label">{{ $t('logs.storage.policy.keepMonths') }}</span>
+            <span class="ipam-form-field__label">{{
+              $t('logs.storage.policy.keepMonths')
+            }}</span>
             <div class="flex items-center gap-2">
               <InputNumber
                 v-model:value="logForm.archiveKeepMonths"
@@ -299,11 +343,15 @@ onMounted(reloadAll);
                 :max="120"
                 class="flex-1"
               />
-              <span class="ipam-hint">{{ $t('logs.storage.policy.months') }}</span>
+              <span class="ipam-hint">{{
+                $t('logs.storage.policy.months')
+              }}</span>
             </div>
           </div>
           <div class="ipam-form-field ipam-form-field--wide">
-            <span class="ipam-form-field__label">{{ $t('logs.storage.policy.auto') }}</span>
+            <span class="ipam-form-field__label">{{
+              $t('logs.storage.policy.auto')
+            }}</span>
             <div class="flex h-8 items-center gap-2">
               <Switch v-model:checked="logForm.autoExport" size="small" />
               <span class="ipam-hint">
@@ -320,7 +368,9 @@ onMounted(reloadAll);
           </div>
           <div class="ipam-form-field--wide flex justify-end">
             <Button type="primary" :loading="logSaving" @click="saveSettings">
-              <IconifyIcon icon="lucide:save" class="mr-1" />{{ $t('logs.storage.policy.save') }}
+              <IconifyIcon icon="lucide:save" class="mr-1" />{{
+                $t('logs.storage.policy.save')
+              }}
             </Button>
           </div>
         </div>
@@ -339,29 +389,48 @@ onMounted(reloadAll);
 
         <div class="ipam-metric-row">
           <div class="ipam-metric">
-            <div class="ipam-metric__label">{{ $t('logs.storage.online.totalRows') }}</div>
+            <div class="ipam-metric__label">
+              {{ $t('logs.storage.online.totalRows') }}
+            </div>
             <div class="ipam-metric__value">{{ fmtInt(stats?.totalRows) }}</div>
           </div>
           <div class="ipam-metric">
-            <div class="ipam-metric__label">{{ $t('logs.storage.online.disk') }}</div>
-            <div class="ipam-metric__value">{{ fmtBytes(stats?.diskBytes) }}</div>
-          </div>
-          <div class="ipam-metric">
-            <div class="ipam-metric__label">{{ $t('logs.storage.online.earliest') }}</div>
-            <div class="ipam-metric__value">{{ stats?.earliestMonth || '—' }}</div>
-          </div>
-          <div class="ipam-metric">
-            <div class="ipam-metric__label">{{ $t('logs.storage.online.ttl') }}</div>
+            <div class="ipam-metric__label">
+              {{ $t('logs.storage.online.disk') }}
+            </div>
             <div class="ipam-metric__value">
-              {{ stats?.retentionDays ?? logForm.retentionDays }}<small class="ml-1 text-xs font-normal">{{ $t('logs.storage.kpi.ttlUnit') }}</small>
+              {{ fmtBytes(stats?.diskBytes) }}
+            </div>
+          </div>
+          <div class="ipam-metric">
+            <div class="ipam-metric__label">
+              {{ $t('logs.storage.online.earliest') }}
+            </div>
+            <div class="ipam-metric__value">
+              {{ stats?.earliestMonth || '—' }}
+            </div>
+          </div>
+          <div class="ipam-metric">
+            <div class="ipam-metric__label">
+              {{ $t('logs.storage.online.ttl') }}
+            </div>
+            <div class="ipam-metric__value">
+              {{ stats?.retentionDays ?? logForm.retentionDays
+              }}<small class="ml-1 text-xs font-normal">{{
+                $t('logs.storage.kpi.ttlUnit')
+              }}</small>
             </div>
           </div>
         </div>
 
         <div v-if="partitions.length > 0" class="mt-4">
-          <div class="mb-2 flex items-center justify-between text-xs text-gray-400">
+          <div
+            class="mb-2 flex items-center justify-between text-xs text-gray-400"
+          >
             <span>{{ $t('logs.storage.online.partitionHint') }}</span>
-            <span>{{ $t('logs.storage.online.partitions', { n: partitions.length }) }}</span>
+            <span>{{
+              $t('logs.storage.online.partitions', { n: partitions.length })
+            }}</span>
           </div>
           <div class="ipam-partition-list">
             <button
@@ -369,7 +438,9 @@ onMounted(reloadAll);
               :key="p.month"
               type="button"
               class="ipam-partition"
-              :class="{ 'ipam-partition--active': exportMonthInput === p.month }"
+              :class="{
+                'ipam-partition--active': exportMonthInput === p.month,
+              }"
               :title="$t('logs.storage.online.pick', { m: p.month })"
               @click="pickMonth(p.month)"
             >
@@ -383,14 +454,22 @@ onMounted(reloadAll);
                 }}
               </span>
               <span class="ipam-progress ipam-partition__bar">
-                <i :style="{ width: `${Math.max(4, ((p.rowCount ?? 0) / partitionMax) * 100)}%` }"></i>
+                <i
+                  :style="{
+                    width: `${Math.max(4, ((p.rowCount ?? 0) / partitionMax) * 100)}%`,
+                  }"
+                ></i>
               </span>
             </button>
           </div>
         </div>
         <div v-else class="ipam-empty ipam-empty--compact mt-3">
-          <div class="ipam-empty__title">{{ $t('logs.storage.online.emptyTitle') }}</div>
-          <div class="ipam-empty__desc">{{ $t('logs.storage.online.emptyDesc') }}</div>
+          <div class="ipam-empty__title">
+            {{ $t('logs.storage.online.emptyTitle') }}
+          </div>
+          <div class="ipam-empty__desc">
+            {{ $t('logs.storage.online.emptyDesc') }}
+          </div>
         </div>
       </Card>
     </div>
@@ -415,14 +494,18 @@ onMounted(reloadAll);
             size="small"
           />
           <Button size="small" :loading="archiveLoading" @click="loadArchives">
-            <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{ $t('logs.storage.archive.refresh') }}
+            <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{
+              $t('logs.storage.archive.refresh')
+            }}
           </Button>
         </div>
       </template>
 
       <div class="ipam-toolbar mb-3">
         <div class="ipam-field">
-          <span class="ipam-field__label">{{ $t('logs.storage.archive.exportMonth') }}</span>
+          <span class="ipam-field__label">{{
+            $t('logs.storage.archive.exportMonth')
+          }}</span>
           <Input
             v-model:value="exportMonthInput"
             placeholder="YYYY-MM"
@@ -437,7 +520,9 @@ onMounted(reloadAll);
           :loading="exporting"
           @click="doExport"
         >
-          <IconifyIcon icon="lucide:package-plus" class="mr-1 size-3.5" />{{ $t('logs.storage.archive.export') }}
+          <IconifyIcon icon="lucide:package-plus" class="mr-1 size-3.5" />{{
+            $t('logs.storage.archive.export')
+          }}
         </Button>
         <span class="ipam-toolbar__spacer"></span>
         <span class="ipam-hint">{{ $t('logs.storage.archive.hint') }}</span>
@@ -464,16 +549,29 @@ onMounted(reloadAll);
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'month'">
             <span class="ipam-cell-stack">
-              <span class="ipam-mono text-xs font-semibold">{{ record.month }}</span>
-              <span v-if="record.fileHash" class="ipam-cell-meta ipam-mono" :title="record.fileHash">
+              <span class="ipam-mono text-xs font-semibold">{{
+                record.month
+              }}</span>
+              <span
+                v-if="record.fileHash"
+                class="ipam-cell-meta ipam-mono"
+                :title="record.fileHash"
+              >
                 {{ record.fileHash.slice(0, 16) }}…
               </span>
             </span>
           </template>
-          <template v-else-if="column.key === 'rowCount'">{{ fmtInt(record.rowCount) }}</template>
-          <template v-else-if="column.key === 'fileSize'">{{ fmtBytes(record.fileSize) }}</template>
+          <template v-else-if="column.key === 'rowCount'">
+            {{ fmtInt(record.rowCount) }}
+          </template>
+          <template v-else-if="column.key === 'fileSize'">
+            {{ fmtBytes(record.fileSize) }}
+          </template>
           <template v-else-if="column.key === 'exportedBy'">
-            <Tag class="m-0" :color="record.exportedBy === 'system' ? 'default' : 'blue'">
+            <Tag
+              class="m-0"
+              :color="record.exportedBy === 'system' ? 'default' : 'blue'"
+            >
               {{
                 record.exportedBy === 'system'
                   ? $t('logs.storage.archive.auto')
@@ -481,7 +579,9 @@ onMounted(reloadAll);
               }}
             </Tag>
           </template>
-          <template v-else-if="column.key === 'createdAt'">{{ fmtDate(record.createdAt) }}</template>
+          <template v-else-if="column.key === 'createdAt'">
+            {{ fmtDate(record.createdAt) }}
+          </template>
           <template v-else-if="column.key === 'actions'">
             <Button
               size="small"

@@ -66,9 +66,9 @@ const coverage = computed(() => {
 });
 
 function permLabels(r: RoleRow): string[] {
-  return PERM_DOMAINS.value.filter((d) =>
-    (r.permissions ?? []).some((p) => p.startsWith(`${d.key}:`)),
-  ).map((d) => d.label);
+  return PERM_DOMAINS.value
+    .filter((d) => (r.permissions ?? []).some((p) => p.startsWith(`${d.key}:`)))
+    .map((d) => d.label);
 }
 function domainAccess(r: RoleRow, key: string): 'none' | 'r' | 'rw' | 'w' {
   const hasRead = (r.permissions ?? []).includes(`${key}:read`);
@@ -116,7 +116,9 @@ async function load() {
     rows.value = d.items ?? [];
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('system.roles.msg.loadFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('system.roles.msg.loadFailed'),
     );
   } finally {
     loading.value = false;
@@ -226,18 +228,20 @@ async function save() {
   try {
     if (modal.editing) {
       await updateRole(modal.editing, { permissions: modal.perms });
-      message.success(
-        $t('system.roles.msg.updated', { name: modal.editing }),
-      );
+      message.success($t('system.roles.msg.updated', { name: modal.editing }));
     } else {
       await createRole({ name: modal.name.trim(), permissions: modal.perms });
-      message.success($t('system.roles.msg.created', { name: modal.name.trim() }));
+      message.success(
+        $t('system.roles.msg.created', { name: modal.name.trim() }),
+      );
     }
     roleModalApi.close();
     await load();
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('system.roles.msg.saveFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('system.roles.msg.saveFailed'),
     );
   }
 }
@@ -248,7 +252,9 @@ async function remove(r: RoleRow) {
     message.success($t('system.roles.msg.deleted', { name: r.name }));
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('system.roles.msg.deleteFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('system.roles.msg.deleteFailed'),
     );
   }
   await load();
@@ -419,7 +425,9 @@ onMounted(load);
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
             <div class="ipam-cell-stack">
-              <span class="ipam-account__name ipam-mono">{{ record.name }}</span>
+              <span class="ipam-account__name ipam-mono">{{
+                record.name
+              }}</span>
               <span class="ipam-cell-meta">
                 {{
                   $t('system.roles.cell.access', {
@@ -477,7 +485,11 @@ onMounted(load);
             <div class="flex items-center gap-1">
               <Button
                 size="small"
-                @click="record.builtin ? openView(record as RoleRow) : openEdit(record as RoleRow)"
+                @click="
+                  record.builtin
+                    ? openView(record as RoleRow)
+                    : openEdit(record as RoleRow)
+                "
               >
                 <IconifyIcon
                   :icon="record.builtin ? 'lucide:eye' : 'lucide:pencil'"
@@ -498,10 +510,8 @@ onMounted(load);
                 @confirm="remove(record as RoleRow)"
               >
                 <Button size="small" danger>
-{{
-                  $t('system.roles.action.delete')
-                }}
-</Button>
+                  {{ $t('system.roles.action.delete') }}
+                </Button>
               </Popconfirm>
             </div>
           </template>
@@ -566,14 +576,18 @@ onMounted(load);
             <Checkbox
               :checked="has(`${dom.key}:read`)"
               :disabled="modal.readonly"
-              @change="(e: any) => togglePerm(`${dom.key}:read`, e.target.checked)"
+              @change="
+                (e: any) => togglePerm(`${dom.key}:read`, e.target.checked)
+              "
             >
               {{ $t('system.roles.modal.read') }}
             </Checkbox>
             <Checkbox
               :checked="has(`${dom.key}:write`)"
               :disabled="modal.readonly"
-              @change="(e: any) => togglePerm(`${dom.key}:write`, e.target.checked)"
+              @change="
+                (e: any) => togglePerm(`${dom.key}:write`, e.target.checked)
+              "
             >
               {{ $t('system.roles.modal.write') }}
             </Checkbox>

@@ -43,8 +43,7 @@ const router = useRouter();
 const onboardingName = useOnboardingUsername();
 const onboardingState = ref(readOnboarding(onboardingName));
 const showOnboarding = computed(
-  () =>
-    !onboardingState.value.completed && !onboardingState.value.dismissed,
+  () => !onboardingState.value.completed && !onboardingState.value.dismissed,
 );
 function dismissOnboarding() {
   onboardingState.value = writeOnboarding(onboardingName, { dismissed: true });
@@ -92,7 +91,7 @@ onBeforeUnmount(() => {
 // ── 格式化 ──
 function fmtInt(v?: null | number): string {
   if (v === undefined || v === null || Number.isNaN(v)) return '—';
-  return v.toLocaleString('zh-CN');
+  return v.toLocaleString();
 }
 function fmtDecimal(v?: null | number, digits = 1): string {
   if (v === undefined || v === null || Number.isNaN(v)) return '—';
@@ -168,9 +167,11 @@ type RangeHours = 1 | 6 | 24;
 
 const qpsRange = ref<RangeHours>(1);
 const qpsPoints = ref<{ count: number; ts: string }[]>([]);
-const currentRange = computed(
-  () => RANGES.value.find((r) => r.hours === qpsRange.value) ?? RANGES.value[0]!,
-);
+const currentRange = computed(() => {
+  const found = RANGES.value.find((r) => r.hours === qpsRange.value);
+  // RANGES 覆盖 1/6/24 全部取值，find 必然命中；fallback 仅用于类型收窄。
+  return found ?? { hours: qpsRange.value, intervalSec: 60, label: '' };
+});
 const qpsBucketMin = computed(() => currentRange.value.intervalSec / 60);
 const qpsSeries = computed(() =>
   qpsPoints.value.map((p) => ({ ts: p.ts, value: p.count })),
@@ -204,7 +205,9 @@ async function loadQps() {
     // 剔除仍在进行中的末尾分桶，避免趋势尾部跌到 0
     const bucketMs = currentRange.value.intervalSec * 1000;
     const nowMs = Date.now();
-    const full = list.filter((p) => new Date(p.ts).getTime() + bucketMs <= nowMs);
+    const full = list.filter(
+      (p) => new Date(p.ts).getTime() + bucketMs <= nowMs,
+    );
     qpsPoints.value = full.length > 0 ? full : list;
   } catch {
     if (seq === qpsSeq) qpsPoints.value = [];
@@ -275,7 +278,9 @@ const healthHint = computed(() => {
 const cpuPct = computed(() => metrics.value?.cpu?.usagePct ?? 0);
 const memPct = computed(() => metrics.value?.memory?.usedPct ?? 0);
 const rootDisk = computed(
-  () => metrics.value?.disks?.find((d) => d.mount === '/') ?? metrics.value?.disks?.[0],
+  () =>
+    metrics.value?.disks?.find((d) => d.mount === '/') ??
+    metrics.value?.disks?.[0],
 );
 const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
 </script>
@@ -347,7 +352,9 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
         icon="lucide:activity"
         tone="cyan"
         :spark="qpsSpark"
-        :hint="$t('dashboard.ipam.stat.qpsHint', { avg: fmtDecimal(qpsAvgRate) })"
+        :hint="
+          $t('dashboard.ipam.stat.qpsHint', { avg: fmtDecimal(qpsAvgRate) })
+        "
       />
       <StatCard
         :label="$t('dashboard.ipam.stat.health')"
@@ -395,23 +402,43 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
           />
           <div class="ipam-figure-row">
             <div class="ipam-figure">
-              <span class="ipam-figure__label">{{ $t('dashboard.ipam.online.new') }}</span>
-              <span class="ipam-figure__value">{{ fmtInt(data?.newTerminals) }}</span>
-              <span class="ipam-figure__unit">{{ $t('dashboard.ipam.unit.devices') }}</span>
+              <span class="ipam-figure__label">{{
+                $t('dashboard.ipam.online.new')
+              }}</span>
+              <span class="ipam-figure__value">{{
+                fmtInt(data?.newTerminals)
+              }}</span>
+              <span class="ipam-figure__unit">{{
+                $t('dashboard.ipam.unit.devices')
+              }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">{{ $t('dashboard.ipam.online.offline') }}</span>
-              <span class="ipam-figure__value">{{ fmtInt(data?.offlineTerminals) }}</span>
-              <span class="ipam-figure__unit">{{ $t('dashboard.ipam.unit.devices') }}</span>
+              <span class="ipam-figure__label">{{
+                $t('dashboard.ipam.online.offline')
+              }}</span>
+              <span class="ipam-figure__value">{{
+                fmtInt(data?.offlineTerminals)
+              }}</span>
+              <span class="ipam-figure__unit">{{
+                $t('dashboard.ipam.unit.devices')
+              }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">{{ $t('dashboard.ipam.online.hourlyAvg') }}</span>
+              <span class="ipam-figure__label">{{
+                $t('dashboard.ipam.online.hourlyAvg')
+              }}</span>
               <span class="ipam-figure__value">{{ fmtInt(onlineAvg) }}</span>
-              <span class="ipam-figure__unit">{{ $t('dashboard.ipam.unit.devices') }}</span>
+              <span class="ipam-figure__unit">{{
+                $t('dashboard.ipam.unit.devices')
+              }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">{{ $t('dashboard.ipam.online.dualstack') }}</span>
-              <span class="ipam-figure__value">{{ fmtInt(data?.coherenceSuccessRatePct) }}</span>
+              <span class="ipam-figure__label">{{
+                $t('dashboard.ipam.online.dualstack')
+              }}</span>
+              <span class="ipam-figure__value">{{
+                fmtInt(data?.coherenceSuccessRatePct)
+              }}</span>
               <span class="ipam-figure__unit">%</span>
               <span class="ipam-figure__hint">DHCP ↔ DNS</span>
             </div>
@@ -421,8 +448,12 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
           <div class="ipam-empty__icon">
             <IconifyIcon icon="lucide:bar-chart-3" class="size-5" />
           </div>
-          <div class="ipam-empty__title">{{ $t('dashboard.ipam.online.emptyTitle') }}</div>
-          <div class="ipam-empty__desc">{{ $t('dashboard.ipam.online.emptyDesc') }}</div>
+          <div class="ipam-empty__title">
+            {{ $t('dashboard.ipam.online.emptyTitle') }}
+          </div>
+          <div class="ipam-empty__desc">
+            {{ $t('dashboard.ipam.online.emptyDesc') }}
+          </div>
         </div>
       </Card>
 
@@ -457,7 +488,9 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
           />
           <div class="ipam-health-summary__text">
             <div class="ipam-health-summary__title">{{ healthHint }}</div>
-            <div class="ipam-hint">{{ $t('dashboard.ipam.health.probeHint') }}</div>
+            <div class="ipam-hint">
+              {{ $t('dashboard.ipam.health.probeHint') }}
+            </div>
           </div>
         </div>
 
@@ -498,8 +531,13 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
         <template #extra>
           <div class="ipam-card-tools">
             <span class="ipam-card-legend">
-              <span><i data-kind="peak"></i>{{ $t('dashboard.ipam.qps.peak') }}</span>
-              <span><i data-kind="avg"></i>{{ $t('dashboard.ipam.qps.avg') }}</span>
+              <span
+                ><i data-kind="peak"></i
+                >{{ $t('dashboard.ipam.qps.peak') }}</span
+              >
+              <span
+                ><i data-kind="avg"></i>{{ $t('dashboard.ipam.qps.avg') }}</span
+              >
             </span>
             <div class="ipam-seg">
               <button
@@ -529,24 +567,44 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
             <div class="ipam-empty__icon">
               <IconifyIcon icon="lucide:activity" class="size-5" />
             </div>
-            <div class="ipam-empty__title">{{ $t('dashboard.ipam.qps.emptyTitle') }}</div>
-            <div class="ipam-empty__desc">{{ $t('dashboard.ipam.qps.emptyDesc') }}</div>
+            <div class="ipam-empty__title">
+              {{ $t('dashboard.ipam.qps.emptyTitle') }}
+            </div>
+            <div class="ipam-empty__desc">
+              {{ $t('dashboard.ipam.qps.emptyDesc') }}
+            </div>
           </div>
           <div class="ipam-figure-row">
             <div class="ipam-figure">
-              <span class="ipam-figure__label">{{ $t('dashboard.ipam.qps.avgRate') }}</span>
-              <span class="ipam-figure__value">{{ fmtDecimal(qpsAvgRate) }}</span>
-              <span class="ipam-figure__unit">{{ $t('dashboard.ipam.unit.perMin') }}</span>
+              <span class="ipam-figure__label">{{
+                $t('dashboard.ipam.qps.avgRate')
+              }}</span>
+              <span class="ipam-figure__value">{{
+                fmtDecimal(qpsAvgRate)
+              }}</span>
+              <span class="ipam-figure__unit">{{
+                $t('dashboard.ipam.unit.perMin')
+              }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">{{ $t('dashboard.ipam.qps.peakRate') }}</span>
-              <span class="ipam-figure__value">{{ fmtDecimal(qpsPeakRate) }}</span>
-              <span class="ipam-figure__unit">{{ $t('dashboard.ipam.unit.perMin') }}</span>
+              <span class="ipam-figure__label">{{
+                $t('dashboard.ipam.qps.peakRate')
+              }}</span>
+              <span class="ipam-figure__value">{{
+                fmtDecimal(qpsPeakRate)
+              }}</span>
+              <span class="ipam-figure__unit">{{
+                $t('dashboard.ipam.unit.perMin')
+              }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">{{ $t('dashboard.ipam.qps.total') }}</span>
+              <span class="ipam-figure__label">{{
+                $t('dashboard.ipam.qps.total')
+              }}</span>
               <span class="ipam-figure__value">{{ fmtInt(qpsTotal) }}</span>
-              <span class="ipam-figure__unit">{{ $t('dashboard.ipam.unit.times') }}</span>
+              <span class="ipam-figure__unit">{{
+                $t('dashboard.ipam.unit.times')
+              }}</span>
             </div>
           </div>
         </template>
@@ -580,7 +638,11 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
                 <span class="ipam-rank__value">{{ fmtInt(d.count) }}</span>
               </div>
               <div class="ipam-progress ipam-rank__bar">
-                <i :style="{ width: `${Math.max(4, (d.count / topDomainMax) * 100)}%` }"></i>
+                <i
+                  :style="{
+                    width: `${Math.max(4, (d.count / topDomainMax) * 100)}%`,
+                  }"
+                ></i>
               </div>
             </div>
           </div>
@@ -589,8 +651,12 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
           <div class="ipam-empty__icon">
             <IconifyIcon icon="lucide:flame" class="size-5" />
           </div>
-          <div class="ipam-empty__title">{{ $t('dashboard.ipam.top.emptyTitle') }}</div>
-          <div class="ipam-empty__desc">{{ $t('dashboard.ipam.top.emptyDesc') }}</div>
+          <div class="ipam-empty__title">
+            {{ $t('dashboard.ipam.top.emptyTitle') }}
+          </div>
+          <div class="ipam-empty__desc">
+            {{ $t('dashboard.ipam.top.emptyDesc') }}
+          </div>
         </div>
       </Card>
     </div>
@@ -630,7 +696,9 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
               <div class="ipam-gauge__caption">
                 <span>CPU</span>
                 <small>
-                  {{ $t('dashboard.ipam.host.cores', { n: metrics.cpu.cores }) }}
+                  {{
+                    $t('dashboard.ipam.host.cores', { n: metrics.cpu.cores })
+                  }}
                 </small>
               </div>
             </div>
@@ -645,7 +713,8 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
               <div class="ipam-gauge__caption">
                 <span>{{ $t('dashboard.ipam.host.memory') }}</span>
                 <small>
-                  {{ fmtBytes(metrics.memory.usedBytes) }} / {{ fmtBytes(metrics.memory.totalBytes) }}
+                  {{ fmtBytes(metrics.memory.usedBytes) }} /
+                  {{ fmtBytes(metrics.memory.totalBytes) }}
                 </small>
               </div>
             </div>
@@ -661,7 +730,8 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
               <div class="ipam-gauge__caption">
                 <span>{{ $t('dashboard.ipam.host.rootfs') }}</span>
                 <small>
-                  {{ fmtBytes(rootDisk?.usedBytes) }} / {{ fmtBytes(rootDisk?.totalBytes) }}
+                  {{ fmtBytes(rootDisk?.usedBytes) }} /
+                  {{ fmtBytes(rootDisk?.totalBytes) }}
                 </small>
               </div>
             </div>
@@ -671,14 +741,23 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
             <div v-for="d in metrics.disks" :key="d.mount" class="ipam-disk">
               <div class="ipam-disk__head">
                 <span class="ipam-disk__mount">{{ d.mount }}</span>
-                <span class="ipam-disk__meta">{{ d.device }} · {{ d.fsType }}</span>
+                <span class="ipam-disk__meta"
+                  >{{ d.device }} · {{ d.fsType }}</span
+                >
                 <span class="ipam-disk__size">
                   {{ fmtBytes(d.usedBytes) }} / {{ fmtBytes(d.totalBytes) }}
                 </span>
                 <span class="ipam-disk__pct">{{ fmtPct(d.usedPct) }}</span>
               </div>
-              <div class="ipam-progress" :data-tone="toneOfPct(Number(d.usedPct) || 0)">
-                <i :style="{ width: `${Math.min(100, Number(d.usedPct) || 0)}%` }"></i>
+              <div
+                class="ipam-progress"
+                :data-tone="toneOfPct(Number(d.usedPct) || 0)"
+              >
+                <i
+                  :style="{
+                    width: `${Math.min(100, Number(d.usedPct) || 0)}%`,
+                  }"
+                ></i>
               </div>
             </div>
           </div>
@@ -686,26 +765,46 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
             <div class="ipam-empty__icon">
               <IconifyIcon icon="lucide:hard-drive" class="size-5" />
             </div>
-            <div class="ipam-empty__title">{{ $t('dashboard.ipam.host.emptyTitle') }}</div>
-            <div class="ipam-empty__desc">{{ $t('dashboard.ipam.host.emptyDesc') }}</div>
+            <div class="ipam-empty__title">
+              {{ $t('dashboard.ipam.host.emptyTitle') }}
+            </div>
+            <div class="ipam-empty__desc">
+              {{ $t('dashboard.ipam.host.emptyDesc') }}
+            </div>
           </div>
 
           <div class="ipam-figure-row">
             <div class="ipam-figure">
-              <span class="ipam-figure__label">{{ $t('dashboard.ipam.host.load1') }}</span>
-              <span class="ipam-figure__value">{{ fmtDecimal(metrics.cpu.load1, 2) }}</span>
+              <span class="ipam-figure__label">{{
+                $t('dashboard.ipam.host.load1')
+              }}</span>
+              <span class="ipam-figure__value">{{
+                fmtDecimal(metrics.cpu.load1, 2)
+              }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">{{ $t('dashboard.ipam.host.load5') }}</span>
-              <span class="ipam-figure__value">{{ fmtDecimal(metrics.cpu.load5, 2) }}</span>
+              <span class="ipam-figure__label">{{
+                $t('dashboard.ipam.host.load5')
+              }}</span>
+              <span class="ipam-figure__value">{{
+                fmtDecimal(metrics.cpu.load5, 2)
+              }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">{{ $t('dashboard.ipam.host.load15') }}</span>
-              <span class="ipam-figure__value">{{ fmtDecimal(metrics.cpu.load15, 2) }}</span>
+              <span class="ipam-figure__label">{{
+                $t('dashboard.ipam.host.load15')
+              }}</span>
+              <span class="ipam-figure__value">{{
+                fmtDecimal(metrics.cpu.load15, 2)
+              }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">{{ $t('dashboard.ipam.host.uptime') }}</span>
-              <span class="ipam-figure__value">{{ fmtUptime(metrics.uptimeSec) }}</span>
+              <span class="ipam-figure__label">{{
+                $t('dashboard.ipam.host.uptime')
+              }}</span>
+              <span class="ipam-figure__value">{{
+                fmtUptime(metrics.uptimeSec)
+              }}</span>
             </div>
           </div>
         </template>
@@ -734,7 +833,9 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
             <span class="ipam-rank__no" :data-top="i < 3">{{ i + 1 }}</span>
             <div class="ipam-rank__body">
               <div class="ipam-rank__title">
-                <span class="ipam-rank__name" :title="p.name">{{ p.name }}</span>
+                <span class="ipam-rank__name" :title="p.name">{{
+                  p.name
+                }}</span>
                 <span class="ipam-rank__value">{{ fmtPct(p.pct) }}</span>
               </div>
               <div class="ipam-rank__tags">
@@ -744,14 +845,18 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
                   class="ipam-rank__dept"
                   :title="$t('dashboard.ipam.pools.dept', { name: p.orgName })"
                 >
-                  <IconifyIcon icon="lucide:building-2" class="size-3" />{{ p.orgName }}
+                  <IconifyIcon icon="lucide:building-2" class="size-3" />{{
+                    p.orgName
+                  }}
                 </span>
               </div>
               <div
                 class="ipam-progress"
                 :data-tone="toneOfPct(Number(p.pct) || 0)"
               >
-                <i :style="{ width: `${Math.min(100, Number(p.pct) || 0)}%` }"></i>
+                <i
+                  :style="{ width: `${Math.min(100, Number(p.pct) || 0)}%` }"
+                ></i>
               </div>
               <div class="ipam-rank__meta">
                 {{
@@ -768,8 +873,12 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
           <div class="ipam-empty__icon">
             <IconifyIcon icon="lucide:network" class="size-5" />
           </div>
-          <div class="ipam-empty__title">{{ $t('dashboard.ipam.pools.emptyTitle') }}</div>
-          <div class="ipam-empty__desc">{{ $t('dashboard.ipam.pools.emptyDesc') }}</div>
+          <div class="ipam-empty__title">
+            {{ $t('dashboard.ipam.pools.emptyTitle') }}
+          </div>
+          <div class="ipam-empty__desc">
+            {{ $t('dashboard.ipam.pools.emptyDesc') }}
+          </div>
         </div>
       </Card>
     </div>

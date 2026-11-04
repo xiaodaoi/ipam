@@ -261,10 +261,12 @@ const options = computed(() => {
     // 客户端数据：手动分页切片（vxe 仅代理模式自动切片，tableData 需自行处理）
     const total = tableData.value.length;
     const size = clientPageSize.value || 10;
-    clientPageSize.value = size;
     const pageCount = Math.max(1, Math.ceil(total / size));
     const current = Math.min(clientPage.value, pageCount);
-    mergedOptions.data = tableData.value.slice((current - 1) * size, current * size);
+    mergedOptions.data = tableData.value.slice(
+      (current - 1) * size,
+      current * size,
+    );
     if (mergedOptions.pagerConfig) {
       mergedOptions.pagerConfig.total = total;
       mergedOptions.pagerConfig.currentPage = current;

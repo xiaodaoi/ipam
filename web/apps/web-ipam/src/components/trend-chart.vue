@@ -50,7 +50,9 @@ const chartWidth = computed(() => Math.max(0, width.value));
 const innerWidth = computed(() =>
   Math.max(0, chartWidth.value - PAD.left - PAD.right),
 );
-const innerHeight = computed(() => Math.max(0, props.height - PAD.top - PAD.bottom));
+const innerHeight = computed(() =>
+  Math.max(0, props.height - PAD.top - PAD.bottom),
+);
 
 const values = computed(() => props.data.map((d) => d.value));
 const maxValue = computed(() => Math.max(0, ...values.value));
@@ -154,7 +156,7 @@ const areaPath = computed(() => {
 
 const lastPoint = computed(() => points.value.at(-1) ?? null);
 const hoverPoint = computed(() =>
-  hoverIndex.value === null ? null : points.value[hoverIndex.value] ?? null,
+  hoverIndex.value === null ? null : (points.value[hoverIndex.value] ?? null),
 );
 
 const barWidth = computed(() => {
@@ -163,7 +165,10 @@ const barWidth = computed(() => {
 });
 
 const yTicks = computed(() =>
-  [0, 0.5, 1].map((r) => ({ value: axisMax.value * r, y: yAt(axisMax.value * r) })),
+  [0, 0.5, 1].map((r) => ({
+    value: axisMax.value * r,
+    y: yAt(axisMax.value * r),
+  })),
 );
 
 const xTicks = computed(() => {
@@ -191,7 +196,8 @@ const avgY = computed(() => yAt(avgValue.value));
 const peakY = computed(() => yAt(maxValue.value));
 
 function fmtAxis(v: number): string {
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(v % 1_000_000 === 0 ? 0 : 1)}M`;
+  if (v >= 1_000_000)
+    return `${(v / 1_000_000).toFixed(v % 1_000_000 === 0 ? 0 : 1)}M`;
   if (v >= 10_000) return `${(v / 1000).toFixed(0)}k`;
   if (v >= 1000) return `${(v / 1000).toFixed(1)}k`;
   return String(Math.round(v));
@@ -204,7 +210,10 @@ function onMove(e: MouseEvent) {
   const x = e.clientX - rect.left;
   if (props.bars) {
     const step = innerWidth.value / n;
-    hoverIndex.value = Math.min(n - 1, Math.max(0, Math.floor((x - PAD.left) / step)));
+    hoverIndex.value = Math.min(
+      n - 1,
+      Math.max(0, Math.floor((x - PAD.left) / step)),
+    );
     return;
   }
   const ratio = stepX.value === 0 ? 0 : (x - PAD.left) / stepX.value;
@@ -337,12 +346,7 @@ const lineStyle = computed<CSSProperties>(() => ({
         />
         <!-- 末端脉冲点 -->
         <template v-if="lastPoint">
-          <circle
-            :cx="lastPoint.x"
-            :cy="lastPoint.y"
-            :fill="toneVar"
-            r="3.5"
-          />
+          <circle :cx="lastPoint.x" :cy="lastPoint.y" :fill="toneVar" r="3.5" />
           <circle
             class="ipam-chart__pulse"
             :cx="lastPoint.x"
@@ -380,7 +384,9 @@ const lineStyle = computed<CSSProperties>(() => ({
         :key="`x-${t.i}`"
         fill="hsl(var(--muted-foreground))"
         font-size="10"
-        :text-anchor="t.i === 0 ? 'start' : t.i === data.length - 1 ? 'end' : 'middle'"
+        :text-anchor="
+          t.i === 0 ? 'start' : t.i === data.length - 1 ? 'end' : 'middle'
+        "
         :x="t.x"
         :y="height - 6"
       >

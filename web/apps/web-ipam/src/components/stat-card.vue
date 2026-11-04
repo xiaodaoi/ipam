@@ -69,7 +69,9 @@ const sparkPoints = computed(() => {
 });
 
 const sparkLine = computed(() =>
-  (sparkPoints.value ?? []).map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' '),
+  (sparkPoints.value ?? [])
+    .map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`)
+    .join(' '),
 );
 const sparkArea = computed(() =>
   sparkPoints.value ? `0,28 ${sparkLine.value} 100,28` : '',

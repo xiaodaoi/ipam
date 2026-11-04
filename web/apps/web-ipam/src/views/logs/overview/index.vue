@@ -40,19 +40,19 @@ const window = ref({
 const windowLabel = computed(() => $t(window.value.labelKey));
 
 function fmtInt(v?: number): string {
-  return (v ?? 0).toLocaleString('zh-CN');
+  return (v ?? 0).toLocaleString();
 }
 function fmtTime(v?: string): string {
   if (!v) return '—';
   const t = Date.parse(v);
   if (Number.isNaN(t) || t <= 0) return '—';
-  return new Date(t).toLocaleTimeString('zh-CN', { hour12: false });
+  return new Date(t).toLocaleTimeString(undefined, { hour12: false });
 }
 function fmtDate(v?: string): string {
   if (!v) return '—';
   const t = Date.parse(v);
   if (Number.isNaN(t) || t <= 0) return '—';
-  return new Date(t).toLocaleDateString('zh-CN');
+  return new Date(t).toLocaleDateString();
 }
 function fmtMac(mac?: string): string {
   if (!mac) return '';
@@ -64,7 +64,8 @@ function pct(part: number, all: number): string {
 }
 
 function refreshWindow() {
-  const r = RANGE_HOURS.find((x) => x.key === range.value) ?? RANGE_HOURS[1]!;
+  const r = RANGE_HOURS.find((x) => x.key === range.value) ?? RANGE_HOURS[1];
+  if (!r) return;
   window.value = {
     from: new Date(Date.now() - r.hours * 3_600_000).toISOString(),
     to: new Date().toISOString(),
@@ -129,10 +130,15 @@ async function loadAll() {
     qps.status === 'fulfilled'
       ? (qps.value.points ?? []).map((p) => ({ ts: p.ts, value: p.count }))
       : [];
-  topDomains.value = domains.status === 'fulfilled' ? (domains.value.items ?? []) : [];
-  topClients.value = clients.status === 'fulfilled' ? (clients.value.items ?? []) : [];
-  recentAudits.value = audits.status === 'fulfilled' ? (audits.value.items ?? []) : [];
-  lastUpdated.value = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+  topDomains.value =
+    domains.status === 'fulfilled' ? (domains.value.items ?? []) : [];
+  topClients.value =
+    clients.status === 'fulfilled' ? (clients.value.items ?? []) : [];
+  recentAudits.value =
+    audits.status === 'fulfilled' ? (audits.value.items ?? []) : [];
+  lastUpdated.value = new Date().toLocaleTimeString(undefined, {
+    hour12: false,
+  });
   loading.value = false;
   void kpi.load(base);
 }
@@ -143,12 +149,42 @@ function setRange(key: RangeKey) {
 }
 
 const auditColumns = computed(() => [
-  { dataIndex: 'ts', key: 'ts', title: $t('logs.overview.columns.time'), width: 96 },
-  { dataIndex: 'actor', key: 'actor', title: $t('logs.overview.columns.actor'), width: 150 },
-  { dataIndex: 'actorType', key: 'actorType', title: $t('logs.overview.columns.type'), width: 76 },
-  { dataIndex: 'action', key: 'action', title: $t('logs.overview.columns.action'), width: 92 },
-  { dataIndex: 'resource', key: 'resource', title: $t('logs.overview.columns.resource'), ellipsis: true },
-  { dataIndex: 'status', key: 'status', title: $t('logs.overview.columns.status'), width: 76 },
+  {
+    dataIndex: 'ts',
+    key: 'ts',
+    title: $t('logs.overview.columns.time'),
+    width: 96,
+  },
+  {
+    dataIndex: 'actor',
+    key: 'actor',
+    title: $t('logs.overview.columns.actor'),
+    width: 150,
+  },
+  {
+    dataIndex: 'actorType',
+    key: 'actorType',
+    title: $t('logs.overview.columns.type'),
+    width: 76,
+  },
+  {
+    dataIndex: 'action',
+    key: 'action',
+    title: $t('logs.overview.columns.action'),
+    width: 92,
+  },
+  {
+    dataIndex: 'resource',
+    key: 'resource',
+    title: $t('logs.overview.columns.resource'),
+    ellipsis: true,
+  },
+  {
+    dataIndex: 'status',
+    key: 'status',
+    title: $t('logs.overview.columns.status'),
+    width: 76,
+  },
 ]);
 const ACTOR_META = computed<Record<string, { color: string; label: string }>>(
   () => ({
@@ -203,7 +239,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           {{ $t('logs.overview.updatedAt', { time: lastUpdated || '—' }) }}
         </span>
         <Button size="small" :loading="loading" @click="loadAll">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{ $t('logs.common.refresh') }}
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{
+            $t('logs.common.refresh')
+          }}
         </Button>
       </template>
     </PageHeader>
@@ -222,21 +260,35 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         :value="stats ? fmtInt(stats.dns) : kpi.failed.value ? '—' : '…'"
         icon="lucide:globe"
         tone="cyan"
-        :hint="$t('logs.common.share', { pct: pct(stats?.dns ?? 0, stats?.total ?? 0) })"
+        :hint="
+          $t('logs.common.share', {
+            pct: pct(stats?.dns ?? 0, stats?.total ?? 0),
+          })
+        "
       />
       <StatCard
         :label="$t('logs.overview.kpi.dhcp')"
         :value="stats ? fmtInt(stats.dhcp) : kpi.failed.value ? '—' : '…'"
         icon="lucide:network"
         tone="green"
-        :hint="$t('logs.common.share', { pct: pct(stats?.dhcp ?? 0, stats?.total ?? 0) })"
+        :hint="
+          $t('logs.common.share', {
+            pct: pct(stats?.dhcp ?? 0, stats?.total ?? 0),
+          })
+        "
       />
       <StatCard
         :label="$t('logs.overview.kpi.blocked')"
         :value="stats ? fmtInt(stats.blocked) : kpi.failed.value ? '—' : '…'"
         icon="lucide:shield-ban"
         :tone="(stats?.blocked ?? 0) > 0 ? 'red' : 'violet'"
-        :hint="(stats?.blocked ?? 0) > 0 ? $t('logs.common.blockedShare', { pct: pct(stats?.blocked ?? 0, stats?.dns ?? 0) }) : $t('logs.common.noBlocked')"
+        :hint="
+          (stats?.blocked ?? 0) > 0
+            ? $t('logs.common.blockedShare', {
+                pct: pct(stats?.blocked ?? 0, stats?.dns ?? 0),
+              })
+            : $t('logs.common.noBlocked')
+        "
       />
     </div>
 
@@ -246,13 +298,20 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           <span class="ipam-card-title">
             <IconifyIcon icon="lucide:chart-area" />
             {{ $t('logs.overview.trend.title') }}
-            <em class="ipam-card-sub">{{ $t('logs.overview.trend.bucket', { n: bucketSeconds }) }}</em>
+            <em class="ipam-card-sub">{{
+              $t('logs.overview.trend.bucket', { n: bucketSeconds })
+            }}</em>
           </span>
         </template>
         <template #extra>
           <span class="ipam-card-legend">
-            <span><i data-kind="peak"></i>{{ $t('logs.overview.trend.peak') }}</span>
-            <span><i data-kind="avg"></i>{{ $t('logs.overview.trend.avg') }}</span>
+            <span
+              ><i data-kind="peak"></i
+              >{{ $t('logs.overview.trend.peak') }}</span
+            >
+            <span
+              ><i data-kind="avg"></i>{{ $t('logs.overview.trend.avg') }}</span
+            >
           </span>
         </template>
 
@@ -260,7 +319,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           v-if="qpsPoints.length > 0"
           :data="qpsPoints"
           :height="210"
-          :time-format="range === '1h' || range === '6h' ? 'HH:mm' : 'MM-DD HH:mm'"
+          :time-format="
+            range === '1h' || range === '6h' ? 'HH:mm' : 'MM-DD HH:mm'
+          "
           tone="cyan"
           :unit="$t('logs.common.times')"
         />
@@ -276,24 +337,36 @@ onBeforeUnmount(() => timer && clearInterval(timer));
 
         <div class="ipam-figure-row">
           <div class="ipam-figure">
-            <span class="ipam-figure__label">{{ $t('logs.common.figures.total') }}</span>
+            <span class="ipam-figure__label">{{
+              $t('logs.common.figures.total')
+            }}</span>
             <span class="ipam-figure__value">{{ fmtInt(qpsTotal) }}</span>
             <span class="ipam-figure__unit">{{ $t('logs.common.times') }}</span>
           </div>
           <div class="ipam-figure">
-            <span class="ipam-figure__label">{{ $t('logs.common.figures.avg') }}</span>
+            <span class="ipam-figure__label">{{
+              $t('logs.common.figures.avg')
+            }}</span>
             <span class="ipam-figure__value">{{ qpsAvg.toFixed(1) }}</span>
             <span class="ipam-figure__unit">{{ $t('logs.common.times') }}</span>
           </div>
           <div class="ipam-figure">
-            <span class="ipam-figure__label">{{ $t('logs.common.figures.peak') }}</span>
+            <span class="ipam-figure__label">{{
+              $t('logs.common.figures.peak')
+            }}</span>
             <span class="ipam-figure__value">{{ fmtInt(qpsPeak) }}</span>
             <span class="ipam-figure__unit">{{ $t('logs.common.times') }}</span>
           </div>
           <div class="ipam-figure">
-            <span class="ipam-figure__label">{{ $t('logs.common.figures.blockedShare') }}</span>
-            <span class="ipam-figure__value">{{ pct(stats?.blocked ?? 0, stats?.total ?? 0) }}</span>
-            <span class="ipam-figure__unit">{{ $t('logs.common.figures.allEvents') }}</span>
+            <span class="ipam-figure__label">{{
+              $t('logs.common.figures.blockedShare')
+            }}</span>
+            <span class="ipam-figure__value">{{
+              pct(stats?.blocked ?? 0, stats?.total ?? 0)
+            }}</span>
+            <span class="ipam-figure__unit">{{
+              $t('logs.common.figures.allEvents')
+            }}</span>
           </div>
         </div>
       </Card>
@@ -325,7 +398,12 @@ onBeforeUnmount(() => timer && clearInterval(timer));
                 <span>{{ fmtInt(stats.dns) }}</span>
               </div>
               <div class="ipam-dist__bar">
-                <i data-tone="cyan" :style="{ width: `${Math.max(2, (stats.dns / stats.total) * 100)}%` }"></i>
+                <i
+                  data-tone="cyan"
+                  :style="{
+                    width: `${Math.max(2, (stats.dns / stats.total) * 100)}%`,
+                  }"
+                ></i>
               </div>
             </div>
             <div class="ipam-dist__row">
@@ -334,7 +412,12 @@ onBeforeUnmount(() => timer && clearInterval(timer));
                 <span>{{ fmtInt(stats.dhcp) }}</span>
               </div>
               <div class="ipam-dist__bar">
-                <i data-tone="green" :style="{ width: `${Math.max(2, (stats.dhcp / stats.total) * 100)}%` }"></i>
+                <i
+                  data-tone="green"
+                  :style="{
+                    width: `${Math.max(2, (stats.dhcp / stats.total) * 100)}%`,
+                  }"
+                ></i>
               </div>
             </div>
             <div class="ipam-dist__row">
@@ -343,7 +426,12 @@ onBeforeUnmount(() => timer && clearInterval(timer));
                 <span>{{ fmtInt(stats.blocked) }}</span>
               </div>
               <div class="ipam-dist__bar">
-                <i data-tone="red" :style="{ width: `${Math.max(2, (stats.blocked / Math.max(1, stats.dns)) * 100)}%` }"></i>
+                <i
+                  data-tone="red"
+                  :style="{
+                    width: `${Math.max(2, (stats.blocked / Math.max(1, stats.dns)) * 100)}%`,
+                  }"
+                ></i>
               </div>
             </div>
             <div v-if="otherCount > 0" class="ipam-dist__row">
@@ -352,14 +440,23 @@ onBeforeUnmount(() => timer && clearInterval(timer));
                 <span>{{ fmtInt(otherCount) }}</span>
               </div>
               <div class="ipam-dist__bar">
-                <i data-tone="amber" :style="{ width: `${Math.max(2, (otherCount / stats.total) * 100)}%` }"></i>
+                <i
+                  data-tone="amber"
+                  :style="{
+                    width: `${Math.max(2, (otherCount / stats.total) * 100)}%`,
+                  }"
+                ></i>
               </div>
             </div>
           </div>
         </div>
         <div v-else class="ipam-empty ipam-empty--compact">
-          <div class="ipam-empty__title">{{ $t('logs.overview.compose.emptyTitle') }}</div>
-          <div class="ipam-empty__desc">{{ $t('logs.overview.compose.emptyDesc') }}</div>
+          <div class="ipam-empty__title">
+            {{ $t('logs.overview.compose.emptyTitle') }}
+          </div>
+          <div class="ipam-empty__desc">
+            {{ $t('logs.overview.compose.emptyDesc') }}
+          </div>
         </div>
 
         <div class="ipam-note mt-3">
@@ -386,22 +483,36 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         </template>
 
         <div v-if="topDomains.length > 0" class="ipam-rank">
-          <div v-for="(d, i) in topDomains" :key="d.key" class="ipam-rank__item">
+          <div
+            v-for="(d, i) in topDomains"
+            :key="d.key"
+            class="ipam-rank__item"
+          >
             <span class="ipam-rank__no" :data-top="i < 3">{{ i + 1 }}</span>
             <div class="ipam-rank__body">
               <div class="ipam-rank__title">
-                <span class="ipam-rank__name ipam-mono" :title="d.key">{{ d.key }}</span>
+                <span class="ipam-rank__name ipam-mono" :title="d.key">{{
+                  d.key
+                }}</span>
                 <span class="ipam-rank__value">{{ fmtInt(d.count) }}</span>
               </div>
               <div class="ipam-progress ipam-rank__bar">
-                <i :style="{ width: `${Math.max(4, (d.count / topDomainMax) * 100)}%` }"></i>
+                <i
+                  :style="{
+                    width: `${Math.max(4, (d.count / topDomainMax) * 100)}%`,
+                  }"
+                ></i>
               </div>
             </div>
           </div>
         </div>
         <div v-else class="ipam-empty ipam-empty--compact">
-          <div class="ipam-empty__title">{{ $t('logs.overview.topDomains.emptyTitle') }}</div>
-          <div class="ipam-empty__desc">{{ $t('logs.overview.topDomains.emptyDesc') }}</div>
+          <div class="ipam-empty__title">
+            {{ $t('logs.overview.topDomains.emptyTitle') }}
+          </div>
+          <div class="ipam-empty__desc">
+            {{ $t('logs.overview.topDomains.emptyDesc') }}
+          </div>
         </div>
       </Card>
 
@@ -410,7 +521,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           <span class="ipam-card-title">
             <IconifyIcon icon="lucide:monitor-smartphone" />
             {{ $t('logs.common.topClients') }}
-            <em class="ipam-card-sub">{{ $t('logs.overview.topClients.subtitle') }}</em>
+            <em class="ipam-card-sub">{{
+              $t('logs.overview.topClients.subtitle')
+            }}</em>
           </span>
         </template>
         <template #extra>
@@ -421,22 +534,36 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         </template>
 
         <div v-if="topClients.length > 0" class="ipam-rank">
-          <div v-for="(d, i) in topClients" :key="d.key" class="ipam-rank__item">
+          <div
+            v-for="(d, i) in topClients"
+            :key="d.key"
+            class="ipam-rank__item"
+          >
             <span class="ipam-rank__no" :data-top="i < 3">{{ i + 1 }}</span>
             <div class="ipam-rank__body">
               <div class="ipam-rank__title">
-                <span class="ipam-rank__name ipam-mono" :title="d.key">{{ fmtMac(d.key) }}</span>
+                <span class="ipam-rank__name ipam-mono" :title="d.key">{{
+                  fmtMac(d.key)
+                }}</span>
                 <span class="ipam-rank__value">{{ fmtInt(d.count) }}</span>
               </div>
               <div class="ipam-progress ipam-rank__bar">
-                <i :style="{ width: `${Math.max(4, (d.count / topClientMax) * 100)}%` }"></i>
+                <i
+                  :style="{
+                    width: `${Math.max(4, (d.count / topClientMax) * 100)}%`,
+                  }"
+                ></i>
               </div>
             </div>
           </div>
         </div>
         <div v-else class="ipam-empty ipam-empty--compact">
-          <div class="ipam-empty__title">{{ $t('logs.overview.topClients.emptyTitle') }}</div>
-          <div class="ipam-empty__desc">{{ $t('logs.overview.topClients.emptyDesc') }}</div>
+          <div class="ipam-empty__title">
+            {{ $t('logs.overview.topClients.emptyTitle') }}
+          </div>
+          <div class="ipam-empty__desc">
+            {{ $t('logs.overview.topClients.emptyDesc') }}
+          </div>
         </div>
       </Card>
     </div>
@@ -473,7 +600,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             </span>
           </template>
           <template v-else-if="column.key === 'actor'">
-            <span class="ipam-cell-title">{{ record.actor || 'anonymous' }}</span>
+            <span class="ipam-cell-title">{{
+              record.actor || 'anonymous'
+            }}</span>
           </template>
           <template v-else-if="column.key === 'actorType'">
             <Tag class="m-0" :color="ACTOR_META[record.actorType]?.color">
@@ -487,12 +616,18 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           </template>
           <template v-else-if="column.key === 'resource'">
             <span class="ipam-cell-stack">
-              <span class="ipam-cell-title" :title="record.resource">{{ record.resource }}</span>
-              <span class="ipam-cell-meta ipam-mono">{{ record.method }} {{ record.path }}</span>
+              <span class="ipam-cell-title" :title="record.resource">{{
+                record.resource
+              }}</span>
+              <span class="ipam-cell-meta ipam-mono"
+                >{{ record.method }} {{ record.path }}</span
+              >
             </span>
           </template>
           <template v-else-if="column.key === 'status'">
-            <Tag class="m-0" :color="statusTone(record.status)">{{ record.status }}</Tag>
+            <Tag class="m-0" :color="statusTone(record.status)">
+              {{ record.status }}
+            </Tag>
           </template>
         </template>
       </Table>

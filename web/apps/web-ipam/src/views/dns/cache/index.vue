@@ -5,9 +5,25 @@ import { computed, onMounted, ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { Button, Card, Input, InputNumber, message, Popconfirm, Switch, Table } from 'ant-design-vue';
+import {
+  Button,
+  Card,
+  Input,
+  InputNumber,
+  message,
+  Popconfirm,
+  Switch,
+  Table,
+} from 'ant-design-vue';
 
-import { flushCache, getDnsSettings, getLogQps, listTtlOverrides, updateDnsSettings, upsertTtlOverride } from '#/api/ipam';
+import {
+  flushCache,
+  getDnsSettings,
+  getLogQps,
+  listTtlOverrides,
+  updateDnsSettings,
+  upsertTtlOverride,
+} from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
 import { $t } from '#/locales';
@@ -54,7 +70,9 @@ async function doFlush() {
     message.success($t('dns.cache.msg.flushOk', { n: r.flushed, cmd: r.cmd }));
     flushZone.value = '';
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dns.cache.msg.flushFailed'));
+    message.error(
+      error instanceof Error ? error.message : $t('dns.cache.msg.flushFailed'),
+    );
   } finally {
     flushing.value = false;
   }
@@ -70,7 +88,9 @@ async function addTtl() {
     newTtl.value = { domain: '', ttl: 300 };
     await load();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dns.common.saveFailed'));
+    message.error(
+      error instanceof Error ? error.message : $t('dns.common.saveFailed'),
+    );
   }
 }
 
@@ -104,7 +124,7 @@ const stats = computed(() => ({
   serveExpired: settings.value?.serveExpired ?? false,
 }));
 
-const nf = (n: number) => n.toLocaleString('zh-CN');
+const nf = (n: number) => n.toLocaleString();
 
 const ttlCols = computed(() => [
   { title: $t('dns.cache.ttl.colDomain'), dataIndex: 'domain', minWidth: 260 },
@@ -113,9 +133,18 @@ const ttlCols = computed(() => [
 ]);
 
 function humanTtl(ttl: number): string {
-  if (ttl >= 86_400) return $t('dns.cache.ttl.days', { n: (ttl / 86_400).toFixed(ttl % 86_400 === 0 ? 0 : 1) });
-  if (ttl >= 3600) return $t('dns.cache.ttl.hours', { n: (ttl / 3600).toFixed(ttl % 3600 === 0 ? 0 : 1) });
-  if (ttl >= 60) return $t('dns.cache.ttl.minutes', { n: (ttl / 60).toFixed(ttl % 60 === 0 ? 0 : 1) });
+  if (ttl >= 86_400)
+    return $t('dns.cache.ttl.days', {
+      n: (ttl / 86_400).toFixed(ttl % 86_400 === 0 ? 0 : 1),
+    });
+  if (ttl >= 3600)
+    return $t('dns.cache.ttl.hours', {
+      n: (ttl / 3600).toFixed(ttl % 3600 === 0 ? 0 : 1),
+    });
+  if (ttl >= 60)
+    return $t('dns.cache.ttl.minutes', {
+      n: (ttl / 60).toFixed(ttl % 60 === 0 ? 0 : 1),
+    });
   return $t('dns.cache.ttl.seconds', { n: ttl });
 }
 </script>
@@ -131,12 +160,29 @@ function humanTtl(ttl: number): string {
       <template #actions>
         <span class="ipam-page-header__meta">
           <IconifyIcon icon="lucide:database" class="size-3.5" />
-          {{ $t('dns.cache.header.meta', { min: stats.minTtl, max: stats.maxTtl, covers: stats.covers }) }}
+          {{
+            $t('dns.cache.header.meta', {
+              min: stats.minTtl,
+              max: stats.maxTtl,
+              covers: stats.covers,
+            })
+          }}
         </span>
-        <Button size="small" :loading="loading" @click="load(); loadQps()">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{ $t('dns.common.refresh') }}
+        <Button
+          size="small"
+          :loading="loading"
+          @click="
+            load();
+            loadQps();
+          "
+        >
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{
+            $t('dns.common.refresh')
+          }}
         </Button>
-        <Button type="primary" size="small" :loading="saving" @click="save">{{ $t('dns.cache.actions.save') }}</Button>
+        <Button type="primary" size="small" :loading="saving" @click="save">
+          {{ $t('dns.cache.actions.save') }}
+        </Button>
       </template>
     </PageHeader>
 
@@ -148,7 +194,11 @@ function humanTtl(ttl: number): string {
         icon="lucide:activity"
         tone="blue"
         :spark="qpsSpark.length > 1 ? qpsSpark : undefined"
-        :hint="stats.qps1h > 0 ? $t('dns.cache.stat.qps1hHintOn') : $t('dns.cache.stat.qps1hHintOff')"
+        :hint="
+          stats.qps1h > 0
+            ? $t('dns.cache.stat.qps1hHintOn')
+            : $t('dns.cache.stat.qps1hHintOff')
+        "
       />
       <StatCard
         :label="$t('dns.cache.stat.total')"
@@ -164,7 +214,11 @@ function humanTtl(ttl: number): string {
         :unit="$t('dns.common.unit.times')"
         icon="lucide:trending-up"
         tone="violet"
-        :hint="stats.peak > 0 ? $t('dns.cache.stat.peakHintOn') : $t('dns.cache.stat.peakHintOff')"
+        :hint="
+          stats.peak > 0
+            ? $t('dns.cache.stat.peakHintOn')
+            : $t('dns.cache.stat.peakHintOff')
+        "
       />
       <StatCard
         :label="$t('dns.cache.stat.covers')"
@@ -172,7 +226,11 @@ function humanTtl(ttl: number): string {
         :unit="$t('dns.common.unit.item')"
         icon="lucide:timer-reset"
         tone="green"
-        :hint="stats.covers > 0 ? $t('dns.cache.stat.coversHintOn') : $t('dns.cache.stat.coversHintOff')"
+        :hint="
+          stats.covers > 0
+            ? $t('dns.cache.stat.coversHintOn')
+            : $t('dns.cache.stat.coversHintOff')
+        "
       />
     </div>
 
@@ -189,35 +247,64 @@ function humanTtl(ttl: number): string {
 
       <div v-if="settings" class="ipam-form-grid">
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dns.cache.form.minLabel') }}</span>
-          <InputNumber v-model:value="settings.cacheMinTtl" :min="0" style="width: 100%" />
+          <span class="ipam-form-field__label">{{
+            $t('dns.cache.form.minLabel')
+          }}</span>
+          <InputNumber
+            v-model:value="settings.cacheMinTtl"
+            :min="0"
+            style="width: 100%"
+          />
           <span class="ipam-hint">{{ $t('dns.cache.form.minHint') }}</span>
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dns.cache.form.maxLabel') }}</span>
-          <InputNumber v-model:value="settings.cacheMaxTtl" :min="1" style="width: 100%" />
+          <span class="ipam-form-field__label">{{
+            $t('dns.cache.form.maxLabel')
+          }}</span>
+          <InputNumber
+            v-model:value="settings.cacheMaxTtl"
+            :min="1"
+            style="width: 100%"
+          />
           <span class="ipam-hint">{{ $t('dns.cache.form.maxHint') }}</span>
         </label>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dns.cache.form.serveExpiredLabel') }}</span>
+          <span class="ipam-form-field__label">{{
+            $t('dns.cache.form.serveExpiredLabel')
+          }}</span>
           <div class="flex h-8 items-center gap-2">
             <Switch v-model:checked="settings.serveExpired" size="small" />
-            <span class="ipam-hint">{{ settings.serveExpired ? $t('dns.cache.form.serveExpiredOn') : $t('dns.cache.form.serveExpiredOff') }}</span>
+            <span class="ipam-hint">{{
+              settings.serveExpired
+                ? $t('dns.cache.form.serveExpiredOn')
+                : $t('dns.cache.form.serveExpiredOff')
+            }}</span>
           </div>
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dns.cache.form.policy') }}</span>
+          <span class="ipam-form-field__label">{{
+            $t('dns.cache.form.policy')
+          }}</span>
           <div class="flex h-8 flex-wrap items-center gap-1">
-            <span class="ipam-chip" data-tone="muted">min {{ settings.cacheMinTtl }}s</span>
-            <span class="ipam-chip" data-tone="muted">max {{ settings.cacheMaxTtl }}s</span>
-            <span class="ipam-chip" :data-tone="settings.serveExpired ? 'green' : 'muted'">
+            <span class="ipam-chip" data-tone="muted"
+              >min {{ settings.cacheMinTtl }}s</span
+            >
+            <span class="ipam-chip" data-tone="muted"
+              >max {{ settings.cacheMaxTtl }}s</span
+            >
+            <span
+              class="ipam-chip"
+              :data-tone="settings.serveExpired ? 'green' : 'muted'"
+            >
               serve-expired {{ settings.serveExpired ? 'ON' : 'OFF' }}
             </span>
           </div>
         </div>
         <div class="ipam-form-field--wide flex justify-end">
           <Button type="primary" :loading="saving" @click="save">
-            <IconifyIcon icon="lucide:save" class="mr-1" />{{ $t('dns.cache.actions.save') }}
+            <IconifyIcon icon="lucide:save" class="mr-1" />{{
+              $t('dns.cache.actions.save')
+            }}
           </Button>
         </div>
       </div>
@@ -240,18 +327,31 @@ function humanTtl(ttl: number): string {
 
       <div class="ipam-toolbar">
         <div class="ipam-field">
-          <span class="ipam-field__label">{{ $t('dns.cache.flush.zoneLabel') }}</span>
-          <Input v-model:value="flushZone" allow-clear :placeholder="$t('dns.cache.flush.zonePlaceholder')" style="width: 280px" />
+          <span class="ipam-field__label">{{
+            $t('dns.cache.flush.zoneLabel')
+          }}</span>
+          <Input
+            v-model:value="flushZone"
+            allow-clear
+            :placeholder="$t('dns.cache.flush.zonePlaceholder')"
+            style="width: 280px"
+          />
         </div>
         <Popconfirm
           :title="$t('dns.cache.flush.confirmTitle')"
-          :description="flushZone ? $t('dns.cache.flush.confirmDescZone', { zone: flushZone }) : $t('dns.cache.flush.confirmDescAll')"
+          :description="
+            flushZone
+              ? $t('dns.cache.flush.confirmDescZone', { zone: flushZone })
+              : $t('dns.cache.flush.confirmDescAll')
+          "
           :ok-text="$t('dns.cache.flush.ok')"
           :cancel-text="$t('dns.common.cancel')"
           @confirm="doFlush"
         >
           <Button danger :loading="flushing">
-            <IconifyIcon icon="lucide:trash-2" class="mr-1" />{{ $t('dns.cache.flush.btn') }}
+            <IconifyIcon icon="lucide:trash-2" class="mr-1" />{{
+              $t('dns.cache.flush.btn')
+            }}
           </Button>
         </Popconfirm>
         <div class="ipam-toolbar__spacer"></div>
@@ -264,7 +364,9 @@ function humanTtl(ttl: number): string {
         <span class="ipam-card-title">
           <IconifyIcon icon="lucide:timer-reset" />
           {{ $t('dns.cache.ttl.title') }}
-          <em class="ipam-card-sub">{{ $t('dns.cache.ttl.sub', { n: ttlRows.length }) }}</em>
+          <em class="ipam-card-sub">{{
+            $t('dns.cache.ttl.sub', { n: ttlRows.length })
+          }}</em>
         </span>
       </template>
       <template #extra>
@@ -273,15 +375,29 @@ function humanTtl(ttl: number): string {
 
       <div class="ipam-toolbar mb-3">
         <div class="ipam-field">
-          <span class="ipam-field__label">{{ $t('dns.cache.ttl.domainLabel') }}</span>
-          <Input v-model:value="newTtl.domain" :placeholder="$t('dns.cache.ttl.domainPlaceholder')" style="width: 280px" />
+          <span class="ipam-field__label">{{
+            $t('dns.cache.ttl.domainLabel')
+          }}</span>
+          <Input
+            v-model:value="newTtl.domain"
+            :placeholder="$t('dns.cache.ttl.domainPlaceholder')"
+            style="width: 280px"
+          />
         </div>
         <div class="ipam-field">
-          <span class="ipam-field__label">{{ $t('dns.cache.ttl.valueLabel') }}</span>
-          <InputNumber v-model:value="newTtl.ttl" :min="1" style="width: 140px" />
+          <span class="ipam-field__label">{{
+            $t('dns.cache.ttl.valueLabel')
+          }}</span>
+          <InputNumber
+            v-model:value="newTtl.ttl"
+            :min="1"
+            style="width: 140px"
+          />
         </div>
         <Button type="primary" size="small" @click="addTtl">
-          <IconifyIcon icon="lucide:plus" class="mr-1" />{{ $t('dns.cache.ttl.add') }}
+          <IconifyIcon icon="lucide:plus" class="mr-1" />{{
+            $t('dns.cache.ttl.add')
+          }}
         </Button>
         <div class="ipam-toolbar__spacer"></div>
         <span class="ipam-hint">{{ $t('dns.cache.ttl.toolbarHint') }}</span>
@@ -300,7 +416,9 @@ function humanTtl(ttl: number): string {
             <span class="ipam-mono text-xs">{{ record.domain }}</span>
           </template>
           <template v-else-if="column.dataIndex === 'ttl'">
-            <span class="ipam-chip ipam-mono" data-tone="blue">{{ record.ttl }}s</span>
+            <span class="ipam-chip ipam-mono" data-tone="blue"
+              >{{ record.ttl }}s</span
+            >
           </template>
           <template v-else-if="column.dataIndex === 'human'">
             <span class="ipam-hint">{{ humanTtl(record.ttl) }}</span>
@@ -308,7 +426,9 @@ function humanTtl(ttl: number): string {
         </template>
       </Table>
       <div v-else class="ipam-empty ipam-empty--compact">
-        <div class="ipam-empty__title">{{ $t('dns.cache.ttl.emptyTitle') }}</div>
+        <div class="ipam-empty__title">
+          {{ $t('dns.cache.ttl.emptyTitle') }}
+        </div>
         <div class="ipam-empty__desc">{{ $t('dns.cache.ttl.emptyDesc') }}</div>
       </div>
     </Card>

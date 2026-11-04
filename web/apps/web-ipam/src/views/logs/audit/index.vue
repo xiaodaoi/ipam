@@ -73,7 +73,7 @@ const filters = reactive({
 });
 
 function fmtInt(v?: number): string {
-  return (v ?? 0).toLocaleString('zh-CN');
+  return (v ?? 0).toLocaleString();
 }
 function parseTs(v?: string): Date | undefined {
   if (!v) return undefined;
@@ -81,11 +81,11 @@ function parseTs(v?: string): Date | undefined {
   return Number.isNaN(t) || t <= 0 ? undefined : new Date(t);
 }
 function fmtDate(v?: string): string {
-  return parseTs(v)?.toLocaleDateString('zh-CN') ?? '—';
+  return parseTs(v)?.toLocaleDateString() ?? '—';
 }
 function fmtTime(v?: string): string {
   return (
-    parseTs(v)?.toLocaleTimeString('zh-CN', {
+    parseTs(v)?.toLocaleTimeString(undefined, {
       hour12: false,
       hour: '2-digit',
       minute: '2-digit',
@@ -124,7 +124,8 @@ function refreshWindow(): boolean {
     };
     return true;
   }
-  const r = RANGE_HOURS.find((x) => x.key === preset.value) ?? RANGE_HOURS[1]!;
+  const r = RANGE_HOURS.find((x) => x.key === preset.value) ?? RANGE_HOURS[1];
+  if (!r) return false;
   window.value = {
     from: new Date(Date.now() - r.hours * 3_600_000).toISOString(),
     to: new Date().toISOString(),
@@ -134,7 +135,12 @@ function refreshWindow(): boolean {
 }
 
 // ── KPI（时间窗级，不随表格过滤变化）──
-const stats = ref<{ bot: number; human: number; system: number; total: number }>();
+const stats = ref<{
+  bot: number;
+  human: number;
+  system: number;
+  total: number;
+}>();
 const statsFailed = ref(false);
 
 async function loadStats() {
@@ -190,7 +196,9 @@ async function load(cursor?: string) {
     total.value = p.total ?? rows.value.length;
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('logs.audit.messages.queryFail'),
+      error instanceof Error
+        ? error.message
+        : $t('logs.audit.messages.queryFail'),
     );
     if (!more) {
       rows.value = [];
@@ -253,7 +261,11 @@ function watchAutoRefresh(on: boolean) {
 // ── CSV 导出（跟随当前过滤，最多 5000 条）──
 const exporting = ref(false);
 const verifying = ref(false);
-const verified = ref<null | { checked: number; message: string; valid: boolean }>(null);
+const verified = ref<null | {
+  checked: number;
+  message: string;
+  valid: boolean;
+}>(null);
 
 function csvCell(v: unknown): string {
   const s = v === undefined || v === null ? '' : String(v);
@@ -318,7 +330,9 @@ async function exportCsv() {
     if (all.length >= 5000) message.info($t('logs.audit.messages.exportLimit'));
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('logs.audit.messages.exportFail'),
+      error instanceof Error
+        ? error.message
+        : $t('logs.audit.messages.exportFail'),
     );
   } finally {
     exporting.value = false;
@@ -328,7 +342,10 @@ async function exportCsv() {
 async function verifyChain() {
   verifying.value = true;
   try {
-    const res = await verifyAudits(window.value.from, window.value.to || undefined);
+    const res = await verifyAudits(
+      window.value.from,
+      window.value.to || undefined,
+    );
     verified.value = {
       checked: res.checked,
       valid: res.valid,
@@ -350,7 +367,9 @@ async function verifyChain() {
     }
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('logs.audit.messages.verifyFail'),
+      error instanceof Error
+        ? error.message
+        : $t('logs.audit.messages.verifyFail'),
     );
   } finally {
     verifying.value = false;
@@ -415,18 +434,51 @@ async function copyDetail() {
 }
 
 const columns = computed(() => [
-  { dataIndex: 'ts', key: 'ts', title: $t('logs.audit.columns.time'), width: 142 },
-  { dataIndex: 'actor', key: 'actor', title: $t('logs.audit.columns.actor'), width: 190 },
-  { dataIndex: 'actorType', key: 'actorType', title: $t('logs.audit.columns.type'), width: 84 },
-  { dataIndex: 'action', key: 'action', title: $t('logs.audit.columns.action'), width: 96 },
-  { dataIndex: 'resource', key: 'resource', title: $t('logs.audit.columns.resource'), ellipsis: true },
-  { dataIndex: 'status', key: 'status', title: $t('logs.audit.columns.status'), width: 88 },
+  {
+    dataIndex: 'ts',
+    key: 'ts',
+    title: $t('logs.audit.columns.time'),
+    width: 142,
+  },
+  {
+    dataIndex: 'actor',
+    key: 'actor',
+    title: $t('logs.audit.columns.actor'),
+    width: 190,
+  },
+  {
+    dataIndex: 'actorType',
+    key: 'actorType',
+    title: $t('logs.audit.columns.type'),
+    width: 84,
+  },
+  {
+    dataIndex: 'action',
+    key: 'action',
+    title: $t('logs.audit.columns.action'),
+    width: 96,
+  },
+  {
+    dataIndex: 'resource',
+    key: 'resource',
+    title: $t('logs.audit.columns.resource'),
+    ellipsis: true,
+  },
+  {
+    dataIndex: 'status',
+    key: 'status',
+    title: $t('logs.audit.columns.status'),
+    width: 88,
+  },
 ]);
 
 const footerText = computed(() => {
   const base = $t('logs.audit.footer.loaded', { n: fmtInt(rows.value.length) });
   return total.value > rows.value.length
-    ? base + $t('logs.audit.footer.remaining', { n: fmtInt(total.value - rows.value.length) })
+    ? base +
+        $t('logs.audit.footer.remaining', {
+          n: fmtInt(total.value - rows.value.length),
+        })
     : base;
 });
 
@@ -454,17 +506,36 @@ onBeforeUnmount(() => {
           <IconifyIcon icon="lucide:clock" class="size-3.5" />
           {{ $t('logs.audit.meta', { range: windowLabel, n: fmtInt(total) }) }}
         </span>
-        <Tag v-if="verified" class="m-0" :color="verified.valid ? 'green' : 'red'">
-          {{ verified.valid ? $t('logs.audit.chain.valid', { n: verified.checked }) : $t('logs.audit.chain.invalid') }}
+        <Tag
+          v-if="verified"
+          class="m-0"
+          :color="verified.valid ? 'green' : 'red'"
+        >
+          {{
+            verified.valid
+              ? $t('logs.audit.chain.valid', { n: verified.checked })
+              : $t('logs.audit.chain.invalid')
+          }}
         </Tag>
         <Button size="small" :loading="loading" @click="query">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{ $t('logs.common.refresh') }}
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{
+            $t('logs.common.refresh')
+          }}
         </Button>
         <Button size="small" :loading="verifying" @click="verifyChain">
-          <IconifyIcon icon="lucide:shield-check" class="mr-1 size-3.5" />{{ $t('logs.audit.chain.verify') }}
+          <IconifyIcon icon="lucide:shield-check" class="mr-1 size-3.5" />{{
+            $t('logs.audit.chain.verify')
+          }}
         </Button>
-        <Button size="small" type="primary" :loading="exporting" @click="exportCsv">
-          <IconifyIcon icon="lucide:download" class="mr-1 size-3.5" />{{ $t('logs.common.exportCsv') }}
+        <Button
+          size="small"
+          type="primary"
+          :loading="exporting"
+          @click="exportCsv"
+        >
+          <IconifyIcon icon="lucide:download" class="mr-1 size-3.5" />{{
+            $t('logs.common.exportCsv')
+          }}
         </Button>
       </template>
     </PageHeader>
@@ -482,21 +553,33 @@ onBeforeUnmount(() => {
         :value="stats ? fmtInt(stats.human) : statsFailed ? '—' : '…'"
         icon="lucide:user-round"
         tone="cyan"
-        :hint="$t('logs.audit.kpi.share', { pct: pct(stats?.human ?? 0, stats?.total ?? 0) })"
+        :hint="
+          $t('logs.audit.kpi.share', {
+            pct: pct(stats?.human ?? 0, stats?.total ?? 0),
+          })
+        "
       />
       <StatCard
         :label="$t('logs.audit.kpi.bot')"
         :value="stats ? fmtInt(stats.bot) : statsFailed ? '—' : '…'"
         icon="lucide:bot"
         tone="violet"
-        :hint="$t('logs.audit.kpi.share', { pct: pct(stats?.bot ?? 0, stats?.total ?? 0) })"
+        :hint="
+          $t('logs.audit.kpi.share', {
+            pct: pct(stats?.bot ?? 0, stats?.total ?? 0),
+          })
+        "
       />
       <StatCard
         :label="$t('logs.audit.kpi.system')"
         :value="stats ? fmtInt(stats.system) : statsFailed ? '—' : '…'"
         icon="lucide:server-cog"
         tone="green"
-        :hint="$t('logs.audit.kpi.share', { pct: pct(stats?.system ?? 0, stats?.total ?? 0) })"
+        :hint="
+          $t('logs.audit.kpi.share', {
+            pct: pct(stats?.system ?? 0, stats?.total ?? 0),
+          })
+        "
       />
     </div>
 
@@ -505,13 +588,20 @@ onBeforeUnmount(() => {
         <span class="ipam-card-title">
           <IconifyIcon icon="lucide:clipboard-list" />
           {{ $t('logs.audit.card.title') }}
-          <em class="ipam-card-sub">{{ $t('logs.audit.card.loaded', { loaded: fmtInt(rows.length), total: fmtInt(total) }) }}</em>
+          <em class="ipam-card-sub">{{
+            $t('logs.audit.card.loaded', {
+              loaded: fmtInt(rows.length),
+              total: fmtInt(total),
+            })
+          }}</em>
         </span>
       </template>
       <template #extra>
         <div class="ipam-card-tools">
           <span class="ipam-hint">{{ $t('logs.audit.card.order') }}</span>
-          <span class="ipam-field__label">{{ $t('logs.audit.card.autoRefresh') }}</span>
+          <span class="ipam-field__label">{{
+            $t('logs.audit.card.autoRefresh')
+          }}</span>
           <Switch
             v-model:checked="autoRefresh"
             size="small"
@@ -545,19 +635,28 @@ onBeforeUnmount(() => {
           :show-time="{ format: 'HH:mm:ss' }"
           format="YYYY-MM-DD HH:mm:ss"
           style="width: 340px"
-          :placeholder="[$t('logs.common.startTime'), $t('logs.common.endTime')]"
+          :placeholder="[
+            $t('logs.common.startTime'),
+            $t('logs.common.endTime'),
+          ]"
           @change="onRangeChange"
         />
         <div class="ipam-toolbar__spacer"></div>
-        <Button size="small" @click="resetFilters">{{ $t('logs.common.reset') }}</Button>
+        <Button size="small" @click="resetFilters">
+          {{ $t('logs.common.reset') }}
+        </Button>
         <Button type="primary" size="small" @click="query">
-          <IconifyIcon icon="lucide:search" class="mr-1 size-3.5" />{{ $t('logs.common.query') }}
+          <IconifyIcon icon="lucide:search" class="mr-1 size-3.5" />{{
+            $t('logs.common.query')
+          }}
         </Button>
       </div>
 
       <div class="ipam-filter-grid">
         <label class="ipam-filter-field">
-          <span class="ipam-filter-field__label">{{ $t('logs.audit.filters.actorType') }}</span>
+          <span class="ipam-filter-field__label">{{
+            $t('logs.audit.filters.actorType')
+          }}</span>
           <Select
             v-model:value="filters.actorType"
             allow-clear
@@ -570,7 +669,9 @@ onBeforeUnmount(() => {
           />
         </label>
         <label class="ipam-filter-field">
-          <span class="ipam-filter-field__label">{{ $t('logs.audit.filters.action') }}</span>
+          <span class="ipam-filter-field__label">{{
+            $t('logs.audit.filters.action')
+          }}</span>
           <Select
             v-model:value="filters.action"
             allow-clear
@@ -581,7 +682,9 @@ onBeforeUnmount(() => {
           />
         </label>
         <label class="ipam-filter-field ipam-filter-field--wide">
-          <span class="ipam-filter-field__label">{{ $t('logs.audit.filters.resource') }}</span>
+          <span class="ipam-filter-field__label">{{
+            $t('logs.audit.filters.resource')
+          }}</span>
           <Input
             v-model:value="filters.q"
             allow-clear
@@ -612,8 +715,14 @@ onBeforeUnmount(() => {
           </template>
           <template v-else-if="column.key === 'actor'">
             <span class="ipam-cell-stack">
-              <span class="ipam-cell-title">{{ record.actor || 'anonymous' }}</span>
-              <span v-if="record.tokenSub" class="ipam-cell-meta" :title="record.tokenSub">
+              <span class="ipam-cell-title">{{
+                record.actor || 'anonymous'
+              }}</span>
+              <span
+                v-if="record.tokenSub"
+                class="ipam-cell-meta"
+                :title="record.tokenSub"
+              >
                 {{ record.tokenSub }}
               </span>
             </span>
@@ -630,14 +739,21 @@ onBeforeUnmount(() => {
           </template>
           <template v-else-if="column.key === 'resource'">
             <span class="ipam-cell-stack">
-              <span class="ipam-cell-title" :title="record.resource">{{ record.resource }}</span>
-              <span class="ipam-cell-meta ipam-mono" :title="`${record.method} ${record.path}`">
+              <span class="ipam-cell-title" :title="record.resource">{{
+                record.resource
+              }}</span>
+              <span
+                class="ipam-cell-meta ipam-mono"
+                :title="`${record.method} ${record.path}`"
+              >
                 {{ record.method }} {{ record.path }}
               </span>
             </span>
           </template>
           <template v-else-if="column.key === 'status'">
-            <Tag class="m-0" :color="statusTone(record.status)">{{ record.status }}</Tag>
+            <Tag class="m-0" :color="statusTone(record.status)">
+              {{ record.status }}
+            </Tag>
           </template>
         </template>
       </Table>
@@ -653,7 +769,9 @@ onBeforeUnmount(() => {
         >
           {{ $t('logs.audit.footer.loadMore') }}
         </Button>
-        <span v-else-if="rows.length > 0" class="ipam-hint">{{ $t('logs.audit.footer.lastPage') }}</span>
+        <span v-else-if="rows.length > 0" class="ipam-hint">{{
+          $t('logs.audit.footer.lastPage')
+        }}</span>
       </div>
     </Card>
 
@@ -666,59 +784,97 @@ onBeforeUnmount(() => {
           <Tag class="m-0" :color="ACTION_COLOR[detail.action] ?? 'default'">
             {{ detail.action }}
           </Tag>
-          <Tag class="m-0" :color="statusTone(detail.status)">{{ detail.status }}</Tag>
+          <Tag class="m-0" :color="statusTone(detail.status)">
+            {{ detail.status }}
+          </Tag>
           <span class="ipam-toolbar__spacer"></span>
           <Button size="small" @click="copyDetail">
-            <IconifyIcon icon="lucide:copy" class="mr-1 size-3.5" />{{ $t('logs.common.copyJson') }}
+            <IconifyIcon icon="lucide:copy" class="mr-1 size-3.5" />{{
+              $t('logs.common.copyJson')
+            }}
           </Button>
         </div>
 
         <div class="ipam-detail-grid">
           <div class="ipam-detail-item">
-            <div class="ipam-detail-item__label">{{ $t('logs.audit.detail.time') }}</div>
-            <div class="ipam-detail-item__value">{{ fmtDateTime(detail.ts) }}</div>
+            <div class="ipam-detail-item__label">
+              {{ $t('logs.audit.detail.time') }}
+            </div>
+            <div class="ipam-detail-item__value">
+              {{ fmtDateTime(detail.ts) }}
+            </div>
           </div>
           <div class="ipam-detail-item">
-            <div class="ipam-detail-item__label">{{ $t('logs.audit.detail.actor') }}</div>
-            <div class="ipam-detail-item__value">{{ detail.actor || 'anonymous' }}</div>
+            <div class="ipam-detail-item__label">
+              {{ $t('logs.audit.detail.actor') }}
+            </div>
+            <div class="ipam-detail-item__value">
+              {{ detail.actor || 'anonymous' }}
+            </div>
           </div>
           <div class="ipam-detail-item">
-            <div class="ipam-detail-item__label">{{ $t('logs.audit.detail.tokenSub') }}</div>
-            <div class="ipam-detail-item__value ipam-mono">{{ detail.tokenSub || '—' }}</div>
+            <div class="ipam-detail-item__label">
+              {{ $t('logs.audit.detail.tokenSub') }}
+            </div>
+            <div class="ipam-detail-item__value ipam-mono">
+              {{ detail.tokenSub || '—' }}
+            </div>
           </div>
           <div class="ipam-detail-item">
-            <div class="ipam-detail-item__label">{{ $t('logs.audit.detail.methodStatus') }}</div>
+            <div class="ipam-detail-item__label">
+              {{ $t('logs.audit.detail.methodStatus') }}
+            </div>
             <div class="ipam-detail-item__value ipam-mono">
               {{ detail.method }} · {{ detail.status }}
             </div>
           </div>
           <div class="ipam-detail-item ipam-detail-item--wide">
-            <div class="ipam-detail-item__label">{{ $t('logs.audit.detail.path') }}</div>
-            <div class="ipam-detail-item__value ipam-mono">{{ detail.path }}</div>
+            <div class="ipam-detail-item__label">
+              {{ $t('logs.audit.detail.path') }}
+            </div>
+            <div class="ipam-detail-item__value ipam-mono">
+              {{ detail.path }}
+            </div>
           </div>
           <div class="ipam-detail-item ipam-detail-item--wide">
-            <div class="ipam-detail-item__label">{{ $t('logs.audit.detail.resource') }}</div>
+            <div class="ipam-detail-item__label">
+              {{ $t('logs.audit.detail.resource') }}
+            </div>
             <div class="ipam-detail-item__value">{{ detail.resource }}</div>
           </div>
           <div class="ipam-detail-item ipam-detail-item--wide">
-            <div class="ipam-detail-item__label">{{ $t('logs.audit.detail.extra') }}</div>
-            <pre v-if="prettyDetail" class="ipam-code-block mt-1">{{ prettyDetail }}</pre>
+            <div class="ipam-detail-item__label">
+              {{ $t('logs.audit.detail.extra') }}
+            </div>
+            <pre v-if="prettyDetail" class="ipam-code-block mt-1">{{
+              prettyDetail
+            }}</pre>
             <div v-else class="ipam-detail-item__value">—</div>
           </div>
           <div class="ipam-detail-item ipam-detail-item--wide">
-            <div class="ipam-detail-item__label">{{ $t('logs.audit.detail.before') }}</div>
-            <pre v-if="prettyBefore" class="ipam-code-block mt-1">{{ prettyBefore }}</pre>
+            <div class="ipam-detail-item__label">
+              {{ $t('logs.audit.detail.before') }}
+            </div>
+            <pre v-if="prettyBefore" class="ipam-code-block mt-1">{{
+              prettyBefore
+            }}</pre>
             <div v-else class="ipam-detail-item__value">
               {{ $t('logs.audit.detail.beforeEmpty') }}
             </div>
           </div>
           <div class="ipam-detail-item ipam-detail-item--wide">
-            <div class="ipam-detail-item__label">{{ $t('logs.audit.detail.payload') }}</div>
-            <pre v-if="prettyPayload" class="ipam-code-block mt-1">{{ prettyPayload }}</pre>
+            <div class="ipam-detail-item__label">
+              {{ $t('logs.audit.detail.payload') }}
+            </div>
+            <pre v-if="prettyPayload" class="ipam-code-block mt-1">{{
+              prettyPayload
+            }}</pre>
             <div v-else class="ipam-detail-item__value">—</div>
           </div>
           <div class="ipam-detail-item ipam-detail-item--wide">
-            <div class="ipam-detail-item__label">{{ $t('logs.audit.detail.chainHash') }}</div>
+            <div class="ipam-detail-item__label">
+              {{ $t('logs.audit.detail.chainHash') }}
+            </div>
             <div class="ipam-detail-item__value ipam-mono break-all">
               {{ detail.chainHash || $t('logs.audit.detail.chainHashEmpty') }}
             </div>

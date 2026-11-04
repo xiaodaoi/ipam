@@ -86,6 +86,7 @@
 .ant-card {
   margin-bottom: var(--card-margin-base);
 }
+
 .flex > .ant-card,
 .grid > .ant-card {
   margin-bottom: 0;

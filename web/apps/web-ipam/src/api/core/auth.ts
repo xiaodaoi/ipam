@@ -11,9 +11,9 @@ export namespace AuthApi {
   /** 登录接口返回值 */
   export interface LoginResult {
     accessToken: string;
-    refreshToken: string;
     /** M6-001：首次登录/管理员重置后必须修改口令 */
     mustChangePassword?: boolean;
+    refreshToken: string;
   }
 
   /** 刷新令牌接口返回值（M5-032：baseRequestClient 为 raw 响应，data 体对齐 AuthRefreshResult） */
@@ -75,7 +75,7 @@ export async function enableTotpApi(code: string) {
 }
 
 export async function disableTotpApi(password: string) {
-  return requestClient.post<void>('/auth/2fa/disable', { password });
+  return requestClient.post<undefined>('/auth/2fa/disable', { password });
 }
 
 /** 恢复码（M6-007A）：一次性替代动态口令 */
@@ -94,7 +94,7 @@ export async function generateRecoveryCodesApi(body: {
 }
 
 export async function logoutAllApi() {
-  return requestClient.post<void>('/auth/logout-all');
+  return requestClient.post<undefined>('/auth/logout-all');
 }
 
 /**

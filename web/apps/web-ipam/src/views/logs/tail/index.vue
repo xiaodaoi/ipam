@@ -1,9 +1,24 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { Button, Card, Input, message, Select, Switch, Tag } from 'ant-design-vue';
+import {
+  Button,
+  Card,
+  Input,
+  message,
+  Select,
+  Switch,
+  Tag,
+} from 'ant-design-vue';
 
 import { openLogTail } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
@@ -66,7 +81,7 @@ function parseTs(v?: string): Date | undefined {
 function fmtTime(v?: string): string {
   const d = parseTs(v);
   if (!d) return '—';
-  return d.toLocaleTimeString('zh-CN', {
+  return d.toLocaleTimeString(undefined, {
     hour12: false,
     hour: '2-digit',
     minute: '2-digit',
@@ -75,7 +90,7 @@ function fmtTime(v?: string): string {
   });
 }
 function fmtInt(v?: number): string {
-  return (v ?? 0).toLocaleString('zh-CN');
+  return (v ?? 0).toLocaleString();
 }
 function fmtMac(mac?: string): string {
   if (!mac) return '';
@@ -252,15 +267,14 @@ function exportTxt() {
   });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const stamp = new Date()
-    .toISOString()
-    .slice(0, 19)
-    .replaceAll(/[:T]/g, '');
+  const stamp = new Date().toISOString().slice(0, 19).replaceAll(/[:T]/g, '');
   a.href = url;
   a.download = `ipam-tail-${stamp}.txt`;
   a.click();
   URL.revokeObjectURL(url);
-  message.success($t('logs.tail.messages.exported', { n: filtered.value.length }));
+  message.success(
+    $t('logs.tail.messages.exported', { n: filtered.value.length }),
+  );
 }
 
 async function copyVisible() {
@@ -269,11 +283,16 @@ async function copyVisible() {
     return;
   }
   const text = filtered.value
-    .map((r) => `${fmtTime(r.ts)} ${r.type} ${r.domain ?? ''} ${r.action ?? ''} ${r.detail ?? ''}`)
+    .map(
+      (r) =>
+        `${fmtTime(r.ts)} ${r.type} ${r.domain ?? ''} ${r.action ?? ''} ${r.detail ?? ''}`,
+    )
     .join('\n');
   try {
     await navigator.clipboard.writeText(text);
-    message.success($t('logs.tail.messages.copied', { n: filtered.value.length }));
+    message.success(
+      $t('logs.tail.messages.copied', { n: filtered.value.length }),
+    );
   } catch {
     message.warning($t('logs.tail.messages.clipboardDenied'));
   }
@@ -308,12 +327,25 @@ onBeforeUnmount(() => {
         <span class="ipam-page-header__meta">
           <span
             class="ipam-status-dot"
-            :data-state="status === 'live' ? 'up' : status === 'reconnecting' ? 'down' : 'unknown'"
+            :data-state="
+              status === 'live'
+                ? 'up'
+                : status === 'reconnecting'
+                  ? 'down'
+                  : 'unknown'
+            "
           ></span>
-          {{ $t('logs.tail.meta', { status: STATUS_META[status].text, n: fmtInt(received) }) }}
+          {{
+            $t('logs.tail.meta', {
+              status: STATUS_META[status].text,
+              n: fmtInt(received),
+            })
+          }}
         </span>
         <Button size="small" @click="reload">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{ $t('logs.tail.reconnect') }}
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{
+            $t('logs.tail.reconnect')
+          }}
         </Button>
       </template>
     </PageHeader>
@@ -323,22 +355,43 @@ onBeforeUnmount(() => {
         :label="$t('logs.tail.kpi.connection')"
         :value="STATUS_META[status].text"
         icon="lucide:plug-zap"
-        :tone="status === 'live' ? 'green' : status === 'reconnecting' ? 'amber' : 'blue'"
-        :hint="status === 'live' ? $t('logs.tail.kpi.liveHint') : $t('logs.tail.kpi.reconnectHint')"
+        :tone="
+          status === 'live'
+            ? 'green'
+            : status === 'reconnecting'
+              ? 'amber'
+              : 'blue'
+        "
+        :hint="
+          status === 'live'
+            ? $t('logs.tail.kpi.liveHint')
+            : $t('logs.tail.kpi.reconnectHint')
+        "
       />
       <StatCard
         :label="$t('logs.tail.kpi.received')"
         :value="fmtInt(received)"
         icon="lucide:inbox"
         tone="blue"
-        :hint="lastArrival ? $t('logs.tail.kpi.lastArrival', { time: fmtTime(lastArrival) }) : $t('logs.tail.kpi.waiting')"
+        :hint="
+          lastArrival
+            ? $t('logs.tail.kpi.lastArrival', { time: fmtTime(lastArrival) })
+            : $t('logs.tail.kpi.waiting')
+        "
       />
       <StatCard
         :label="$t('logs.tail.kpi.visible')"
         :value="fmtInt(filtered.length)"
         icon="lucide:list-filter"
         tone="cyan"
-        :hint="keyword || onlyBlocked ? $t('logs.tail.kpi.filtered') : $t('logs.tail.kpi.buffer', { used: rows.length, total: bufferSize })"
+        :hint="
+          keyword || onlyBlocked
+            ? $t('logs.tail.kpi.filtered')
+            : $t('logs.tail.kpi.buffer', {
+                used: rows.length,
+                total: bufferSize,
+              })
+        "
       />
       <StatCard
         :label="$t('logs.tail.kpi.rate')"
@@ -366,19 +419,32 @@ onBeforeUnmount(() => {
           <span v-if="paused" class="ipam-chip" data-tone="amber">
             {{ $t('logs.tail.card.paused', { n: pending.length }) }}
           </span>
-          <Button size="small" :type="paused ? 'primary' : 'default'" @click="togglePause">
-            <IconifyIcon :icon="paused ? 'lucide:play' : 'lucide:pause'" class="mr-1 size-3.5" />
-            {{ paused ? $t('logs.tail.card.resume') : $t('logs.tail.card.pause') }}
+          <Button
+            size="small"
+            :type="paused ? 'primary' : 'default'"
+            @click="togglePause"
+          >
+            <IconifyIcon
+              :icon="paused ? 'lucide:play' : 'lucide:pause'"
+              class="mr-1 size-3.5"
+            />
+            {{
+              paused ? $t('logs.tail.card.resume') : $t('logs.tail.card.pause')
+            }}
           </Button>
           <Button size="small" @click="clearRows">
-            <IconifyIcon icon="lucide:eraser" class="mr-1 size-3.5" />{{ $t('logs.tail.card.clear') }}
+            <IconifyIcon icon="lucide:eraser" class="mr-1 size-3.5" />{{
+              $t('logs.tail.card.clear')
+            }}
           </Button>
         </div>
       </template>
 
       <div class="ipam-toolbar mb-3">
         <div class="ipam-field">
-          <span class="ipam-field__label">{{ $t('logs.tail.filter.type') }}</span>
+          <span class="ipam-field__label">{{
+            $t('logs.tail.filter.type')
+          }}</span>
           <Select
             v-model:value="filterType"
             style="width: 120px"
@@ -392,7 +458,9 @@ onBeforeUnmount(() => {
           />
         </div>
         <div class="ipam-field">
-          <span class="ipam-field__label">{{ $t('logs.tail.filter.keyword') }}</span>
+          <span class="ipam-field__label">{{
+            $t('logs.tail.filter.keyword')
+          }}</span>
           <Input
             v-model:value="keyword"
             allow-clear
@@ -405,14 +473,20 @@ onBeforeUnmount(() => {
           :type="onlyBlocked ? 'primary' : 'default'"
           @click="onlyBlocked = !onlyBlocked"
         >
-          <IconifyIcon icon="lucide:shield-ban" class="mr-1 size-3.5" />{{ $t('logs.tail.filter.onlyBlocked') }}
+          <IconifyIcon icon="lucide:shield-ban" class="mr-1 size-3.5" />{{
+            $t('logs.tail.filter.onlyBlocked')
+          }}
         </Button>
         <div class="ipam-field">
-          <span class="ipam-field__label">{{ $t('logs.tail.filter.autoScroll') }}</span>
+          <span class="ipam-field__label">{{
+            $t('logs.tail.filter.autoScroll')
+          }}</span>
           <Switch v-model:checked="autoScroll" size="small" />
         </div>
         <div class="ipam-field">
-          <span class="ipam-field__label">{{ $t('logs.tail.filter.buffer') }}</span>
+          <span class="ipam-field__label">{{
+            $t('logs.tail.filter.buffer')
+          }}</span>
           <Select
             v-model:value="bufferSize"
             style="width: 118px"
@@ -422,10 +496,14 @@ onBeforeUnmount(() => {
         <div class="ipam-toolbar__spacer"></div>
         <div class="flex items-center gap-2">
           <Button size="small" @click="copyVisible">
-            <IconifyIcon icon="lucide:copy" class="mr-1 size-3.5" />{{ $t('logs.tail.copy') }}
+            <IconifyIcon icon="lucide:copy" class="mr-1 size-3.5" />{{
+              $t('logs.tail.copy')
+            }}
           </Button>
           <Button size="small" @click="exportTxt">
-            <IconifyIcon icon="lucide:download" class="mr-1 size-3.5" />{{ $t('logs.tail.export') }}
+            <IconifyIcon icon="lucide:download" class="mr-1 size-3.5" />{{
+              $t('logs.tail.export')
+            }}
           </Button>
         </div>
       </div>
@@ -436,7 +514,8 @@ onBeforeUnmount(() => {
           <span class="ipam-tail__title">tail -f /var/log/ipam/events</span>
           <span class="ipam-toolbar__spacer"></span>
           <span class="ipam-tail__meta">
-            {{ filterType ? filterType.toUpperCase() : 'ALL' }} · {{ rows.length }}/{{ bufferSize }}
+            {{ filterType ? filterType.toUpperCase() : 'ALL' }} ·
+            {{ rows.length }}/{{ bufferSize }}
           </span>
           <span v-if="autoScroll" class="ipam-tail__live">
             <span class="ipam-tail__live-dot"></span>AUTO
@@ -446,7 +525,9 @@ onBeforeUnmount(() => {
         <div ref="bodyRef" class="ipam-tail__body">
           <div v-if="filtered.length === 0" class="ipam-tail__empty">
             <IconifyIcon icon="lucide:satellite-dish" class="mb-2 size-6" />
-            <div v-if="keyword || onlyBlocked">{{ $t('logs.tail.emptyFiltered') }}</div>
+            <div v-if="keyword || onlyBlocked">
+              {{ $t('logs.tail.emptyFiltered') }}
+            </div>
             <div v-else-if="paused">{{ $t('logs.tail.emptyPaused') }}</div>
             <div v-else>{{ $t('logs.tail.emptyWaiting') }}</div>
           </div>
@@ -477,13 +558,18 @@ onBeforeUnmount(() => {
               {{ fmtMac(r.clientMac) }}
             </span>
             <span v-if="r.sip" class="ipam-tail__meta">← {{ r.sip }}</span>
-            <span v-if="r.answerIp" class="ipam-tail__ip">→ {{ r.answerIp }}</span>
+            <span v-if="r.answerIp" class="ipam-tail__ip"
+              >→ {{ r.answerIp }}</span
+            >
             <span v-if="r.rcode" class="ipam-tail__rcode">{{ r.rcode }}</span>
             <span v-if="r.action" class="ipam-tail__action">
               {{ r.action }}
             </span>
             <span v-if="r.detail" class="ipam-tail__detail" :title="r.detail">
-              <template v-for="(seg, si) in segments(shortDetail(r.detail))" :key="si">
+              <template
+                v-for="(seg, si) in segments(shortDetail(r.detail))"
+                :key="si"
+              >
                 <mark v-if="seg.hit">{{ seg.text }}</mark>
                 <template v-else>{{ seg.text }}</template>
               </template>

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { SessionRow } from '#/api/ipam';
+
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 
 import { useUserStore } from '@vben/stores';
@@ -22,11 +24,7 @@ import {
   logoutAllApi,
   setupTotpApi,
 } from '#/api';
-import {
-  listSessions,
-  revokeSession,
-  type SessionRow,
-} from '#/api/ipam';
+import { listSessions, revokeSession } from '#/api/ipam';
 import { $t } from '#/locales';
 import { useAuthStore } from '#/store';
 
@@ -84,7 +82,9 @@ async function regenerateRecovery() {
     message.success($t('core.profile.security.codeGenerated'));
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('core.profile.security.generateFail'),
+      error instanceof Error
+        ? error.message
+        : $t('core.profile.security.generateFail'),
     );
   } finally {
     loading.value = false;
@@ -127,7 +127,9 @@ async function generate() {
     message.success($t('core.profile.security.totpEnabledMsg'));
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('core.profile.security.generateFail'),
+      error instanceof Error
+        ? error.message
+        : $t('core.profile.security.generateFail'),
     );
   } finally {
     loading.value = false;
@@ -150,7 +152,9 @@ async function enable() {
     message.success($t('core.profile.security.totpOn'));
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('core.profile.security.enableFail'),
+      error instanceof Error
+        ? error.message
+        : $t('core.profile.security.enableFail'),
     );
   } finally {
     loading.value = false;
@@ -172,7 +176,9 @@ async function disable() {
     message.success($t('core.profile.security.totpOff'));
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('core.profile.security.disableFail'),
+      error instanceof Error
+        ? error.message
+        : $t('core.profile.security.disableFail'),
     );
   } finally {
     loading.value = false;
@@ -186,7 +192,9 @@ async function logoutAll() {
     await authStore.logout();
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('core.profile.security.opFail'),
+      error instanceof Error
+        ? error.message
+        : $t('core.profile.security.opFail'),
     );
   }
 }
@@ -202,7 +210,9 @@ async function loadSessions() {
     sessions.value = res.items ?? [];
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('core.profile.security.sessionLoadFail'),
+      error instanceof Error
+        ? error.message
+        : $t('core.profile.security.sessionLoadFail'),
     );
   } finally {
     sessionsLoading.value = false;
@@ -244,7 +254,9 @@ async function kickSession(row: SessionRow) {
     await loadSessions();
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('core.profile.security.kickFail'),
+      error instanceof Error
+        ? error.message
+        : $t('core.profile.security.kickFail'),
     );
   }
 }
@@ -259,9 +271,11 @@ onMounted(() => void loadSessions());
         <span class="ipam-card-title">
           <span>{{ $t('core.profile.security.totpTitle') }}</span>
           <Tag class="m-0" :color="enabled ? 'green' : 'default'">
-            {{ enabled
-              ? $t('core.profile.security.enabled')
-              : $t('core.profile.security.disabled') }}
+            {{
+              enabled
+                ? $t('core.profile.security.enabled')
+                : $t('core.profile.security.disabled')
+            }}
           </Tag>
         </span>
       </template>
@@ -292,15 +306,21 @@ onMounted(() => void loadSessions());
         </div>
         <div v-else class="ipam-form-grid">
           <div class="ipam-form-field ipam-form-field--wide">
-            <span class="ipam-form-field__label">{{ $t('core.profile.security.secretLabel') }}</span>
+            <span class="ipam-form-field__label">{{
+              $t('core.profile.security.secretLabel')
+            }}</span>
             <Input :value="setup.secret" readonly class="ipam-mono" />
           </div>
           <div class="ipam-form-field ipam-form-field--wide">
-            <span class="ipam-form-field__label">{{ $t('core.profile.security.otpauthLabel') }}</span>
+            <span class="ipam-form-field__label">{{
+              $t('core.profile.security.otpauthLabel')
+            }}</span>
             <Input :value="setup.otpauthUrl" readonly class="ipam-mono" />
           </div>
           <div class="ipam-form-field">
-            <span class="ipam-form-field__label">{{ $t('core.profile.security.totpLabel') }}</span>
+            <span class="ipam-form-field__label">{{
+              $t('core.profile.security.totpLabel')
+            }}</span>
             <Input
               v-model:value="code"
               :maxlength="6"
@@ -344,12 +364,16 @@ onMounted(() => void loadSessions());
         <span class="ipam-card-title">
           {{ $t('core.profile.security.recoveryTitle') }}
           <Tag class="m-0" :color="recovery.remaining > 0 ? 'blue' : 'orange'">
-            {{ $t('core.profile.security.remaining', { n: recovery.remaining }) }}
+            {{
+              $t('core.profile.security.remaining', { n: recovery.remaining })
+            }}
           </Tag>
         </span>
       </template>
       <template #extra>
-        <span class="ipam-hint">{{ $t('core.profile.security.recoveryHint') }}</span>
+        <span class="ipam-hint">{{
+          $t('core.profile.security.recoveryHint')
+        }}</span>
       </template>
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="ipam-hint max-w-xl">
@@ -370,7 +394,9 @@ onMounted(() => void loadSessions());
         <span class="ipam-card-title">
           {{ $t('core.profile.security.sessionTitle') }}
           <Tag class="m-0" :color="sessions.length > 1 ? 'blue' : 'default'">
-            {{ $t('core.profile.security.sessionCount', { n: sessions.length }) }}
+            {{
+              $t('core.profile.security.sessionCount', { n: sessions.length })
+            }}
           </Tag>
         </span>
       </template>
@@ -435,7 +461,9 @@ onMounted(() => void loadSessions());
         </span>
       </template>
       <template #extra>
-        <span class="ipam-hint">{{ $t('core.profile.security.securityHint') }}</span>
+        <span class="ipam-hint">{{
+          $t('core.profile.security.securityHint')
+        }}</span>
       </template>
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="ipam-hint max-w-xl">
@@ -472,14 +500,18 @@ onMounted(() => void loadSessions());
         />
         <div class="ipam-form-grid">
           <div class="ipam-form-field">
-            <span class="ipam-form-field__label">{{ $t('core.profile.security.recoveryPwdLabel') }}</span>
+            <span class="ipam-form-field__label">{{
+              $t('core.profile.security.recoveryPwdLabel')
+            }}</span>
             <Input.Password
               v-model:value="recovery.password"
               :placeholder="$t('core.profile.security.recoveryPwdPlaceholder')"
             />
           </div>
           <div class="ipam-form-field">
-            <span class="ipam-form-field__label">{{ $t('core.profile.security.recoveryTotpLabel') }}</span>
+            <span class="ipam-form-field__label">{{
+              $t('core.profile.security.recoveryTotpLabel')
+            }}</span>
             <Input
               v-model:value="recovery.totpCode"
               :maxlength="6"
@@ -509,8 +541,12 @@ onMounted(() => void loadSessions());
           </span>
         </div>
         <div class="mt-4 flex justify-end gap-2">
-          <Button @click="copyCodes">{{ $t('core.profile.security.copyAll') }}</Button>
-          <Button @click="downloadCodes">{{ $t('core.profile.security.downloadTxt') }}</Button>
+          <Button @click="copyCodes">
+            {{ $t('core.profile.security.copyAll') }}
+          </Button>
+          <Button @click="downloadCodes">
+            {{ $t('core.profile.security.downloadTxt') }}
+          </Button>
           <Button type="primary" @click="recovery.open = false">
             {{ $t('core.profile.security.saved') }}
           </Button>

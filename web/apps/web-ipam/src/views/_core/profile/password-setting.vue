@@ -23,7 +23,9 @@ const formSchema = computed((): VbenFormSchema[] => {
       componentProps: {
         placeholder: $t('core.profile.password.oldPlaceholder'),
       },
-      rules: z.string().min(1, { message: $t('core.profile.password.oldPlaceholder') }),
+      rules: z
+        .string()
+        .min(1, { message: $t('core.profile.password.oldPlaceholder') }),
     },
     {
       fieldName: 'newPassword',

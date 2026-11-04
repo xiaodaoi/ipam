@@ -95,7 +95,9 @@ async function load() {
     }
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('system.directory.msg.loadFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('system.directory.msg.loadFailed'),
     );
   } finally {
     loading.value = false;
@@ -120,7 +122,9 @@ async function save() {
     message.success($t('system.directory.msg.saved'));
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('system.directory.msg.saveFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('system.directory.msg.saveFailed'),
     );
   } finally {
     saving.value = false;
@@ -139,7 +143,9 @@ async function runTest() {
     message.success($t('system.directory.msg.testOk'));
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('system.directory.msg.testFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('system.directory.msg.testFailed'),
     );
   } finally {
     testing.value = false;
@@ -209,7 +215,9 @@ onMounted(load);
       />
       <StatCard
         :label="$t('system.directory.stat.mapping')"
-        :value="$t('system.directory.stat.mappingValue', { n: roleMapRows.length })"
+        :value="
+          $t('system.directory.stat.mappingValue', { n: roleMapRows.length })
+        "
         icon="lucide:shield-check"
         tone="cyan"
         :hint="
@@ -460,7 +468,10 @@ onMounted(load);
             </Button>
           </template>
         </template>
-        <Table.Column key="group" :title="$t('system.directory.mapping.colGroup')" />
+        <Table.Column
+          key="group"
+          :title="$t('system.directory.mapping.colGroup')"
+        />
         <Table.Column
           key="role"
           :title="$t('system.directory.mapping.colRole')"
@@ -477,7 +488,9 @@ onMounted(load);
     <Card>
       <template #title>
         <span class="ipam-card-title">
-          <IconifyIcon icon="lucide:plug-zap" />{{ $t('system.directory.test.title') }}
+          <IconifyIcon icon="lucide:plug-zap" />{{
+            $t('system.directory.test.title')
+          }}
         </span>
       </template>
       <template #extra>
@@ -523,13 +536,17 @@ onMounted(load);
           </span>
         </div>
         <div class="mt-2 flex flex-wrap items-center gap-2">
-          <span class="ipam-hint">{{ $t('system.directory.test.mappedRoles') }}</span>
+          <span class="ipam-hint">{{
+            $t('system.directory.test.mappedRoles')
+          }}</span>
           <Tag v-for="r in testResult.roles" :key="r" class="m-0" color="green">
             {{ r }}
           </Tag>
         </div>
         <div class="mt-2 flex flex-wrap items-center gap-2">
-          <span class="ipam-hint">{{ $t('system.directory.test.groups') }}</span>
+          <span class="ipam-hint">{{
+            $t('system.directory.test.groups')
+          }}</span>
           <Tag v-for="g in testResult.groups" :key="g" class="m-0">
             {{ g }}
           </Tag>

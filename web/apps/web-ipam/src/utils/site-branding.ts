@@ -3,9 +3,9 @@ import { updatePreferences } from '@vben/preferences';
 import { requestClient } from '#/api/request';
 
 export interface SiteBranding {
-  siteName: string;
   faviconUrl: string;
   logoUrl: string;
+  siteName: string;
 }
 
 /**
@@ -15,7 +15,7 @@ export interface SiteBranding {
  * 该区域会彻底空白；以站点名首字生成占位图标，折叠态即可见（如「DDI」→「D」）。
  */
 export function monogramLogo(text: string): string {
-  const ch = Array.from(text.trim())[0] ?? '?';
+  const ch = [...text.trim()][0] ?? '?';
   const svg =
     '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">' +
     '<rect width="64" height="64" rx="14" fill="#1677ff"/>' +
@@ -44,7 +44,7 @@ export function applyBranding(v: Partial<SiteBranding>): void {
     if (!link) {
       link = document.createElement('link');
       link.rel = 'icon';
-      document.head.appendChild(link);
+      document.head.append(link);
     }
     link.href = favicon;
   }

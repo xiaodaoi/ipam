@@ -52,11 +52,23 @@ const ACTION_OPTIONS = computed(() => [
   { label: $t('logs.search.actionOptions.blocked'), value: 'blocked' },
   { label: $t('logs.search.actionOptions.passthru'), value: 'passthru' },
   { label: $t('logs.search.actionOptions.cached'), value: 'cached' },
-  { label: $t('logs.search.actionOptions.lease_commit'), value: 'lease_commit' },
+  {
+    label: $t('logs.search.actionOptions.lease_commit'),
+    value: 'lease_commit',
+  },
   { label: $t('logs.search.actionOptions.lease_renew'), value: 'lease_renew' },
-  { label: $t('logs.search.actionOptions.lease_release'), value: 'lease_release' },
-  { label: $t('logs.search.actionOptions.lease_expire'), value: 'lease_expire' },
-  { label: $t('logs.search.actionOptions.lease_decline'), value: 'lease_decline' },
+  {
+    label: $t('logs.search.actionOptions.lease_release'),
+    value: 'lease_release',
+  },
+  {
+    label: $t('logs.search.actionOptions.lease_expire'),
+    value: 'lease_expire',
+  },
+  {
+    label: $t('logs.search.actionOptions.lease_decline'),
+    value: 'lease_decline',
+  },
 ]);
 
 const TYPE_META: Record<string, { color: string; label: string }> = {
@@ -87,7 +99,7 @@ const router = useRouter();
 const route = useRoute();
 
 function fmtInt(v?: number): string {
-  return (v ?? 0).toLocaleString('zh-CN');
+  return (v ?? 0).toLocaleString();
 }
 function parseTs(v?: string): Date | undefined {
   if (!v) return undefined;
@@ -95,19 +107,17 @@ function parseTs(v?: string): Date | undefined {
   return Number.isNaN(t) || t <= 0 ? undefined : new Date(t);
 }
 function fmtDate(v?: string): string {
-  return parseTs(v)?.toLocaleDateString('zh-CN') ?? '—';
+  return parseTs(v)?.toLocaleDateString() ?? '—';
 }
 function fmtTime(v?: string, ms = false): string {
   const d = parseTs(v);
   if (!d) return '—';
-  return d.toLocaleTimeString('zh-CN', {
+  return d.toLocaleTimeString(undefined, {
     hour12: false,
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    ...(ms
-      ? { fractionalSecondDigits: 3 as const }
-      : {}),
+    ...(ms ? { fractionalSecondDigits: 3 as const } : {}),
   });
 }
 function fmtDateTime(v?: string): string {
@@ -117,9 +127,7 @@ function fmtDateTime(v?: string): string {
 function fmtMac(mac?: string): string {
   if (!mac) return '';
   const hex = mac.replaceAll(/[^0-9a-f]/gi, '').toLowerCase();
-  return hex.length === 12
-    ? (hex.match(/.{2}/g) ?? []).join(':')
-    : mac;
+  return hex.length === 12 ? (hex.match(/.{2}/g) ?? []).join(':') : mac;
 }
 function pct(part: number, all: number): string {
   if (!all) return '0%';
@@ -145,7 +153,8 @@ function refreshWindow(): boolean {
     };
     return true;
   }
-  const p = PRESET_HOURS.find((x) => x.key === preset.value) ?? PRESET_HOURS[1]!;
+  const p = PRESET_HOURS.find((x) => x.key === preset.value) ?? PRESET_HOURS[1];
+  if (!p) return false;
   window.value = {
     from: new Date(Date.now() - p.hours * 3_600_000).toISOString(),
     to: new Date().toISOString(),
@@ -225,7 +234,8 @@ function applyRouteQuery() {
   if (str(q.answerIp)) filters.answerIp = str(q.answerIp);
   if (str(q.q)) filters.q = str(q.q);
   const range = str(q.range);
-  if (PRESET_HOURS.some((p) => p.key === range)) preset.value = range as PresetKey;
+  if (PRESET_HOURS.some((p) => p.key === range))
+    preset.value = range as PresetKey;
 }
 
 function syncRoute() {
@@ -245,7 +255,10 @@ const pageSize = ref(50);
 // 深分页护栏（M6-015）：后端最多允许 offset 1 万，前端同步收敛页码并提示。
 const MAX_OFFSET = 10_000;
 const reachableTotal = computed(() =>
-  Math.min(total.value, Math.floor(MAX_OFFSET / pageSize.value) * pageSize.value),
+  Math.min(
+    total.value,
+    Math.floor(MAX_OFFSET / pageSize.value) * pageSize.value,
+  ),
 );
 const deepPagingLimited = computed(() => total.value > reachableTotal.value);
 
@@ -265,7 +278,9 @@ async function fetchRows() {
     rows.value = [];
     total.value = 0;
     message.error(
-      error instanceof Error ? error.message : $t('logs.search.messages.queryFail'),
+      error instanceof Error
+        ? error.message
+        : $t('logs.search.messages.queryFail'),
     );
   } finally {
     loading.value = false;
@@ -396,7 +411,9 @@ async function onExport() {
     message.success($t('logs.search.messages.exportStarted'));
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('logs.search.messages.exportFail'),
+      error instanceof Error
+        ? error.message
+        : $t('logs.search.messages.exportFail'),
     );
   }
 }
@@ -432,23 +449,78 @@ async function copyDetail() {
 }
 
 const columns = computed(() => [
-  { dataIndex: 'ts', key: 'ts', title: $t('logs.search.columns.time'), width: 132 },
-  { dataIndex: 'type', key: 'type', title: $t('logs.search.columns.type'), width: 76 },
-  { dataIndex: 'domain', ellipsis: true, key: 'domain', title: $t('logs.search.columns.domain') },
-  { dataIndex: 'client', key: 'client', title: $t('logs.search.columns.client'), width: 178 },
-  { dataIndex: 'answer', key: 'answer', title: $t('logs.search.columns.answer'), width: 170 },
-  { dataIndex: 'sip', key: 'sip', title: $t('logs.search.columns.sip'), width: 132 },
-  { dataIndex: 'action', key: 'action', title: $t('logs.search.columns.action'), width: 118 },
+  {
+    dataIndex: 'ts',
+    key: 'ts',
+    title: $t('logs.search.columns.time'),
+    width: 132,
+  },
+  {
+    dataIndex: 'type',
+    key: 'type',
+    title: $t('logs.search.columns.type'),
+    width: 76,
+  },
+  {
+    dataIndex: 'domain',
+    ellipsis: true,
+    key: 'domain',
+    title: $t('logs.search.columns.domain'),
+  },
+  {
+    dataIndex: 'client',
+    key: 'client',
+    title: $t('logs.search.columns.client'),
+    width: 178,
+  },
+  {
+    dataIndex: 'answer',
+    key: 'answer',
+    title: $t('logs.search.columns.answer'),
+    width: 170,
+  },
+  {
+    dataIndex: 'sip',
+    key: 'sip',
+    title: $t('logs.search.columns.sip'),
+    width: 132,
+  },
+  {
+    dataIndex: 'action',
+    key: 'action',
+    title: $t('logs.search.columns.action'),
+    width: 118,
+  },
 ]);
 const topDomainColumns = computed(() => [
   { dataIndex: 'rank', key: 'rank', title: '#', width: 52 },
-  { dataIndex: 'key', key: 'key', title: $t('logs.search.aggColumns.domain'), ellipsis: true },
-  { dataIndex: 'count', key: 'count', title: $t('logs.search.aggColumns.count'), width: 110 },
+  {
+    dataIndex: 'key',
+    key: 'key',
+    title: $t('logs.search.aggColumns.domain'),
+    ellipsis: true,
+  },
+  {
+    dataIndex: 'count',
+    key: 'count',
+    title: $t('logs.search.aggColumns.count'),
+    width: 110,
+  },
 ]);
 const topClientColumns = computed(() => [
   { dataIndex: 'rank', key: 'rank', title: '#', width: 52 },
-  { dataIndex: 'key', key: 'key', title: $t('logs.search.aggColumns.mac'), width: 200 },
-  { dataIndex: 'count', key: 'count', title: $t('logs.search.aggColumns.count'), width: 110 },
+  {
+    dataIndex: 'key',
+    key: 'key',
+    title: $t('logs.search.aggColumns.mac'),
+    width: 200,
+  },
+  {
+    dataIndex: 'count',
+    key: 'count',
+    title: $t('logs.search.aggColumns.count'),
+    width: 110,
+  },
 ]);
 
 function withRank(list: TopEntry[]) {
@@ -513,10 +585,14 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           {{ $t('logs.search.hits', { range: windowLabel, n: fmtInt(total) }) }}
         </span>
         <Button size="small" @click="reload">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{ $t('logs.common.refresh') }}
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{
+            $t('logs.common.refresh')
+          }}
         </Button>
         <Button size="small" type="primary" @click="onExport">
-          <IconifyIcon icon="lucide:download" class="mr-1 size-3.5" />{{ $t('logs.common.exportCsv') }}
+          <IconifyIcon icon="lucide:download" class="mr-1 size-3.5" />{{
+            $t('logs.common.exportCsv')
+          }}
         </Button>
       </template>
     </PageHeader>
@@ -528,28 +604,47 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         icon="lucide:activity"
         tone="blue"
         :spark="stats?.spark"
-        :hint="$t('logs.search.kpi.totalHint', { range: windowLabel, n: stats?.buckets ?? 0 })"
+        :hint="
+          $t('logs.search.kpi.totalHint', {
+            range: windowLabel,
+            n: stats?.buckets ?? 0,
+          })
+        "
       />
       <StatCard
         :label="$t('logs.search.kpi.dns')"
         :value="kpiValue(stats?.dns)"
         icon="lucide:globe"
         tone="cyan"
-        :hint="$t('logs.common.share', { pct: pct(stats?.dns ?? 0, stats?.total ?? 0) })"
+        :hint="
+          $t('logs.common.share', {
+            pct: pct(stats?.dns ?? 0, stats?.total ?? 0),
+          })
+        "
       />
       <StatCard
         :label="$t('logs.search.kpi.dhcp')"
         :value="kpiValue(stats?.dhcp)"
         icon="lucide:network"
         tone="green"
-        :hint="$t('logs.common.share', { pct: pct(stats?.dhcp ?? 0, stats?.total ?? 0) })"
+        :hint="
+          $t('logs.common.share', {
+            pct: pct(stats?.dhcp ?? 0, stats?.total ?? 0),
+          })
+        "
       />
       <StatCard
         :label="$t('logs.search.kpi.blocked')"
         :value="kpiValue(stats?.blocked)"
         icon="lucide:shield-ban"
         :tone="(stats?.blocked ?? 0) > 0 ? 'red' : 'violet'"
-        :hint="(stats?.blocked ?? 0) > 0 ? $t('logs.common.blockedShare', { pct: pct(stats?.blocked ?? 0, stats?.dns ?? 0) }) : $t('logs.common.noBlocked')"
+        :hint="
+          (stats?.blocked ?? 0) > 0
+            ? $t('logs.common.blockedShare', {
+                pct: pct(stats?.blocked ?? 0, stats?.dns ?? 0),
+              })
+            : $t('logs.common.noBlocked')
+        "
       />
     </div>
 
@@ -562,7 +657,11 @@ onBeforeUnmount(() => timer && clearInterval(timer));
       </template>
       <template #extra>
         <span class="ipam-hint">
-          {{ activeFilterCount > 0 ? $t('logs.search.filters.active', { n: activeFilterCount }) : $t('logs.search.filters.inactive') }}
+          {{
+            activeFilterCount > 0
+              ? $t('logs.search.filters.active', { n: activeFilterCount })
+              : $t('logs.search.filters.inactive')
+          }}
         </span>
       </template>
 
@@ -591,23 +690,36 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           :show-time="{ format: 'HH:mm:ss' }"
           format="YYYY-MM-DD HH:mm:ss"
           style="width: 340px"
-          :placeholder="[$t('logs.common.startTime'), $t('logs.common.endTime')]"
+          :placeholder="[
+            $t('logs.common.startTime'),
+            $t('logs.common.endTime'),
+          ]"
           @change="onRangeChange"
         />
         <div class="ipam-toolbar__spacer"></div>
         <Button size="small" @click="advanced = !advanced">
           <IconifyIcon icon="lucide:list-filter" class="mr-1 size-3.5" />
-          {{ advanced ? $t('logs.search.filters.collapse') : $t('logs.search.filters.more') }}
+          {{
+            advanced
+              ? $t('logs.search.filters.collapse')
+              : $t('logs.search.filters.more')
+          }}
         </Button>
-        <Button size="small" @click="resetFilters">{{ $t('logs.common.reset') }}</Button>
+        <Button size="small" @click="resetFilters">
+          {{ $t('logs.common.reset') }}
+        </Button>
         <Button type="primary" size="small" @click="query">
-          <IconifyIcon icon="lucide:search" class="mr-1 size-3.5" />{{ $t('logs.common.query') }}
+          <IconifyIcon icon="lucide:search" class="mr-1 size-3.5" />{{
+            $t('logs.common.query')
+          }}
         </Button>
       </div>
 
       <div class="ipam-filter-grid">
         <label class="ipam-filter-field">
-          <span class="ipam-filter-field__label">{{ $t('logs.search.filters.keyword') }}</span>
+          <span class="ipam-filter-field__label">{{
+            $t('logs.search.filters.keyword')
+          }}</span>
           <Input
             v-model:value="filters.q"
             allow-clear
@@ -616,7 +728,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           />
         </label>
         <label class="ipam-filter-field">
-          <span class="ipam-filter-field__label">{{ $t('logs.search.filters.type') }}</span>
+          <span class="ipam-filter-field__label">{{
+            $t('logs.search.filters.type')
+          }}</span>
           <Select
             v-model:value="filters.type"
             allow-clear
@@ -628,7 +742,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           />
         </label>
         <label class="ipam-filter-field">
-          <span class="ipam-filter-field__label">{{ $t('logs.search.filters.action') }}</span>
+          <span class="ipam-filter-field__label">{{
+            $t('logs.search.filters.action')
+          }}</span>
           <Select
             v-model:value="filters.action"
             allow-clear
@@ -639,7 +755,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           />
         </label>
         <label class="ipam-filter-field">
-          <span class="ipam-filter-field__label">{{ $t('logs.search.filters.domain') }}</span>
+          <span class="ipam-filter-field__label">{{
+            $t('logs.search.filters.domain')
+          }}</span>
           <Input
             v-model:value="filters.domain"
             allow-clear
@@ -650,7 +768,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
 
         <template v-if="advanced">
           <label class="ipam-filter-field">
-            <span class="ipam-filter-field__label">{{ $t('logs.search.filters.mac') }}</span>
+            <span class="ipam-filter-field__label">{{
+              $t('logs.search.filters.mac')
+            }}</span>
             <Input
               v-model:value="filters.mac"
               allow-clear
@@ -659,7 +779,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             />
           </label>
           <label class="ipam-filter-field">
-            <span class="ipam-filter-field__label">{{ $t('logs.search.filters.clientIp') }}</span>
+            <span class="ipam-filter-field__label">{{
+              $t('logs.search.filters.clientIp')
+            }}</span>
             <Input
               v-model:value="filters.ip"
               allow-clear
@@ -668,7 +790,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             />
           </label>
           <label class="ipam-filter-field">
-            <span class="ipam-filter-field__label">{{ $t('logs.search.filters.sip') }}</span>
+            <span class="ipam-filter-field__label">{{
+              $t('logs.search.filters.sip')
+            }}</span>
             <Input
               v-model:value="filters.sip"
               allow-clear
@@ -677,7 +801,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             />
           </label>
           <label class="ipam-filter-field">
-            <span class="ipam-filter-field__label">{{ $t('logs.search.filters.answerIp') }}</span>
+            <span class="ipam-filter-field__label">{{
+              $t('logs.search.filters.answerIp')
+            }}</span>
             <Input
               v-model:value="filters.answerIp"
               allow-clear
@@ -694,7 +820,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         <span class="ipam-card-title">
           <IconifyIcon icon="lucide:scroll-text" />
           {{ $t('logs.search.results.title') }}
-          <em class="ipam-card-sub">{{ $t('logs.search.results.count', { n: fmtInt(total) }) }}</em>
+          <em class="ipam-card-sub">{{
+            $t('logs.search.results.count', { n: fmtInt(total) })
+          }}</em>
         </span>
       </template>
       <template #extra>
@@ -715,10 +843,14 @@ onBeforeUnmount(() => timer && clearInterval(timer));
               position: ['bottomLeft'],
               showSizeChanger: true,
               pageSizeOptions: ['20', '50', '100', '200'],
-              showTotal: (t: number) => $t('logs.search.results.total', { n: t }),
+              showTotal: (t: number) =>
+                $t('logs.search.results.total', { n: t }),
               onChange: onPageChange,
             }"
-            :row-key="(r: LogRow) => [r.ts, r.clientMac, r.domain, r.answerIp, r.action].join('|')"
+            :row-key="
+              (r: LogRow) =>
+                [r.ts, r.clientMac, r.domain, r.answerIp, r.action].join('|')
+            "
             :scroll="{ x: 920 }"
             :locale="{ emptyText: rowsEmpty }"
             size="small"
@@ -741,22 +873,44 @@ onBeforeUnmount(() => timer && clearInterval(timer));
                 </span>
               </template>
               <template v-else-if="column.key === 'client'">
-                <span v-if="record.clientMac || record.clientIp" class="ipam-cell-stack">
-                  <span v-if="record.clientMac" class="ipam-mono text-xs" :title="record.clientMac">
+                <span
+                  v-if="record.clientMac || record.clientIp"
+                  class="ipam-cell-stack"
+                >
+                  <span
+                    v-if="record.clientMac"
+                    class="ipam-mono text-xs"
+                    :title="record.clientMac"
+                  >
                     {{ fmtMac(record.clientMac) }}
                   </span>
-                  <span v-if="record.clientIp" class="ipam-cell-meta ipam-mono" :title="record.clientIp">
+                  <span
+                    v-if="record.clientIp"
+                    class="ipam-cell-meta ipam-mono"
+                    :title="record.clientIp"
+                  >
                     {{ record.clientIp }}
                   </span>
                 </span>
                 <span v-else class="ipam-hint">—</span>
               </template>
               <template v-else-if="column.key === 'answer'">
-                <span v-if="record.rcode || record.answerIp" class="ipam-cell-stack">
-                  <Tag v-if="record.rcode" class="m-0" :color="RCODE_COLOR[record.rcode] ?? 'default'">
+                <span
+                  v-if="record.rcode || record.answerIp"
+                  class="ipam-cell-stack"
+                >
+                  <Tag
+                    v-if="record.rcode"
+                    class="m-0"
+                    :color="RCODE_COLOR[record.rcode] ?? 'default'"
+                  >
                     {{ record.rcode }}
                   </Tag>
-                  <span v-if="record.answerIp" class="ipam-cell-meta ipam-mono" :title="record.answerIp">
+                  <span
+                    v-if="record.answerIp"
+                    class="ipam-cell-meta ipam-mono"
+                    :title="record.answerIp"
+                  >
                     {{ record.answerIp }}
                   </span>
                 </span>
@@ -766,7 +920,10 @@ onBeforeUnmount(() => timer && clearInterval(timer));
                 <span class="ipam-mono text-xs">{{ record.sip || '—' }}</span>
               </template>
               <template v-else-if="column.key === 'action'">
-                <Tag class="m-0" :color="ACTION_COLOR[record.action] ?? 'default'">
+                <Tag
+                  class="m-0"
+                  :color="ACTION_COLOR[record.action] ?? 'default'"
+                >
                   {{ record.action || '—' }}
                 </Tag>
               </template>
@@ -786,15 +943,25 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           >
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'rank'">
-                <span class="ipam-rank__no" :data-top="record.rank <= 3">{{ record.rank }}</span>
+                <span class="ipam-rank__no" :data-top="record.rank <= 3">{{
+                  record.rank
+                }}</span>
               </template>
               <template v-else-if="column.key === 'key'">
-                <span :title="record.key" class="ipam-mono text-xs">{{ record.key }}</span>
+                <span :title="record.key" class="ipam-mono text-xs">{{
+                  record.key
+                }}</span>
                 <div class="ipam-progress mt-1">
-                  <i :style="{ width: `${Math.max(4, (record.count / topDomainMax) * 100)}%` }"></i>
+                  <i
+                    :style="{
+                      width: `${Math.max(4, (record.count / topDomainMax) * 100)}%`,
+                    }"
+                  ></i>
                 </div>
               </template>
-              <template v-else-if="column.key === 'count'">{{ fmtInt(record.count) }}</template>
+              <template v-else-if="column.key === 'count'">
+                {{ fmtInt(record.count) }}
+              </template>
             </template>
           </Table>
         </TabPane>
@@ -811,15 +978,23 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           >
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'rank'">
-                <span class="ipam-rank__no" :data-top="record.rank <= 3">{{ record.rank }}</span>
+                <span class="ipam-rank__no" :data-top="record.rank <= 3">{{
+                  record.rank
+                }}</span>
               </template>
               <template v-else-if="column.key === 'key'">
                 <span class="ipam-mono text-xs">{{ fmtMac(record.key) }}</span>
                 <div class="ipam-progress mt-1">
-                  <i :style="{ width: `${Math.max(4, (record.count / topClientMax) * 100)}%` }"></i>
+                  <i
+                    :style="{
+                      width: `${Math.max(4, (record.count / topClientMax) * 100)}%`,
+                    }"
+                  ></i>
                 </div>
               </template>
-              <template v-else-if="column.key === 'count'">{{ fmtInt(record.count) }}</template>
+              <template v-else-if="column.key === 'count'">
+                {{ fmtInt(record.count) }}
+              </template>
             </template>
           </Table>
         </TabPane>
@@ -830,34 +1005,54 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             :data="qpsChart"
             :height="200"
             :markers="true"
-            :time-format="preset === '1h' || preset === '6h' ? 'HH:mm' : 'MM-DD HH:mm'"
+            :time-format="
+              preset === '1h' || preset === '6h' ? 'HH:mm' : 'MM-DD HH:mm'
+            "
             tone="blue"
             :unit="$t('logs.common.times')"
           />
           <div v-else-if="!aggLoading" class="ipam-empty ipam-empty--compact">
             <div class="ipam-empty__title">{{ $t('logs.common.noTrend') }}</div>
-            <div class="ipam-empty__desc">{{ $t('logs.search.qps.emptyDesc') }}</div>
+            <div class="ipam-empty__desc">
+              {{ $t('logs.search.qps.emptyDesc') }}
+            </div>
           </div>
           <div class="ipam-figure-row">
             <div class="ipam-figure">
-              <span class="ipam-figure__label">{{ $t('logs.common.figures.total') }}</span>
+              <span class="ipam-figure__label">{{
+                $t('logs.common.figures.total')
+              }}</span>
               <span class="ipam-figure__value">{{ fmtInt(qpsTotal) }}</span>
-              <span class="ipam-figure__unit">{{ $t('logs.common.times') }}</span>
+              <span class="ipam-figure__unit">{{
+                $t('logs.common.times')
+              }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">{{ $t('logs.common.figures.avg') }}</span>
+              <span class="ipam-figure__label">{{
+                $t('logs.common.figures.avg')
+              }}</span>
               <span class="ipam-figure__value">{{ qpsAvg.toFixed(1) }}</span>
-              <span class="ipam-figure__unit">{{ $t('logs.common.times') }}</span>
+              <span class="ipam-figure__unit">{{
+                $t('logs.common.times')
+              }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">{{ $t('logs.common.figures.peak') }}</span>
+              <span class="ipam-figure__label">{{
+                $t('logs.common.figures.peak')
+              }}</span>
               <span class="ipam-figure__value">{{ fmtInt(qpsPeak) }}</span>
-              <span class="ipam-figure__unit">{{ $t('logs.common.times') }}</span>
+              <span class="ipam-figure__unit">{{
+                $t('logs.common.times')
+              }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">{{ $t('logs.common.figures.bucket') }}</span>
+              <span class="ipam-figure__label">{{
+                $t('logs.common.figures.bucket')
+              }}</span>
               <span class="ipam-figure__value">{{ aggBucketSeconds() }}</span>
-              <span class="ipam-figure__unit">{{ $t('logs.common.seconds') }}</span>
+              <span class="ipam-figure__unit">{{
+                $t('logs.common.seconds')
+              }}</span>
             </div>
           </div>
         </TabPane>
@@ -870,59 +1065,104 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           <Tag class="m-0" :color="TYPE_META[detail.type]?.color">
             {{ TYPE_META[detail.type]?.label ?? detail.type }}
           </Tag>
-          <Tag class="m-0" :color="ACTION_COLOR[detail.action ?? ''] ?? 'default'">
+          <Tag
+            class="m-0"
+            :color="ACTION_COLOR[detail.action ?? ''] ?? 'default'"
+          >
             {{ detail.action || 'unknown' }}
           </Tag>
           <span class="ipam-mono text-xs">{{ fmtDateTime(detail.ts) }}</span>
           <span class="ipam-toolbar__spacer"></span>
           <Button size="small" @click="copyDetail">
-            <IconifyIcon icon="lucide:copy" class="mr-1 size-3.5" />{{ $t('logs.common.copyJson') }}
+            <IconifyIcon icon="lucide:copy" class="mr-1 size-3.5" />{{
+              $t('logs.common.copyJson')
+            }}
           </Button>
         </div>
 
         <div class="ipam-detail-grid">
           <div class="ipam-detail-item">
-            <div class="ipam-detail-item__label">{{ $t('logs.search.detail.time') }}</div>
-            <div class="ipam-detail-item__value">{{ fmtDateTime(detail.ts) }}</div>
+            <div class="ipam-detail-item__label">
+              {{ $t('logs.search.detail.time') }}
+            </div>
+            <div class="ipam-detail-item__value">
+              {{ fmtDateTime(detail.ts) }}
+            </div>
           </div>
           <div class="ipam-detail-item">
-            <div class="ipam-detail-item__label">{{ $t('logs.search.detail.severity') }}</div>
-            <div class="ipam-detail-item__value">{{ detail.severity || '—' }}</div>
+            <div class="ipam-detail-item__label">
+              {{ $t('logs.search.detail.severity') }}
+            </div>
+            <div class="ipam-detail-item__value">
+              {{ detail.severity || '—' }}
+            </div>
           </div>
           <div class="ipam-detail-item">
-            <div class="ipam-detail-item__label">{{ $t('logs.search.detail.domain') }}</div>
-            <div class="ipam-detail-item__value">{{ detail.domain || '—' }}</div>
+            <div class="ipam-detail-item__label">
+              {{ $t('logs.search.detail.domain') }}
+            </div>
+            <div class="ipam-detail-item__value">
+              {{ detail.domain || '—' }}
+            </div>
           </div>
           <div class="ipam-detail-item">
-            <div class="ipam-detail-item__label">{{ $t('logs.search.detail.action') }}</div>
-            <div class="ipam-detail-item__value">{{ detail.action || '—' }}</div>
+            <div class="ipam-detail-item__label">
+              {{ $t('logs.search.detail.action') }}
+            </div>
+            <div class="ipam-detail-item__value">
+              {{ detail.action || '—' }}
+            </div>
           </div>
           <div class="ipam-detail-item">
-            <div class="ipam-detail-item__label">{{ $t('logs.search.detail.mac') }}</div>
-            <div class="ipam-detail-item__value ipam-mono">{{ fmtMac(detail.clientMac) || '—' }}</div>
+            <div class="ipam-detail-item__label">
+              {{ $t('logs.search.detail.mac') }}
+            </div>
+            <div class="ipam-detail-item__value ipam-mono">
+              {{ fmtMac(detail.clientMac) || '—' }}
+            </div>
           </div>
           <div class="ipam-detail-item">
-            <div class="ipam-detail-item__label">{{ $t('logs.search.detail.clientIp') }}</div>
-            <div class="ipam-detail-item__value ipam-mono">{{ detail.clientIp || '—' }}</div>
+            <div class="ipam-detail-item__label">
+              {{ $t('logs.search.detail.clientIp') }}
+            </div>
+            <div class="ipam-detail-item__value ipam-mono">
+              {{ detail.clientIp || '—' }}
+            </div>
           </div>
           <div class="ipam-detail-item">
-            <div class="ipam-detail-item__label">{{ $t('logs.search.detail.sip') }}</div>
-            <div class="ipam-detail-item__value ipam-mono">{{ detail.sip || '—' }}</div>
+            <div class="ipam-detail-item__label">
+              {{ $t('logs.search.detail.sip') }}
+            </div>
+            <div class="ipam-detail-item__value ipam-mono">
+              {{ detail.sip || '—' }}
+            </div>
           </div>
           <div class="ipam-detail-item">
-            <div class="ipam-detail-item__label">{{ $t('logs.search.detail.rcode') }}</div>
+            <div class="ipam-detail-item__label">
+              {{ $t('logs.search.detail.rcode') }}
+            </div>
             <div class="ipam-detail-item__value">
               {{ detail.rcode || '—' }}
-              <span v-if="detail.category" class="ipam-hint"> · {{ detail.category }}</span>
+              <span v-if="detail.category" class="ipam-hint">
+                · {{ detail.category }}</span
+              >
             </div>
           </div>
           <div class="ipam-detail-item ipam-detail-item--wide">
-            <div class="ipam-detail-item__label">{{ $t('logs.search.detail.answerIp') }}</div>
-            <div class="ipam-detail-item__value ipam-mono">{{ detail.answerIp || '—' }}</div>
+            <div class="ipam-detail-item__label">
+              {{ $t('logs.search.detail.answerIp') }}
+            </div>
+            <div class="ipam-detail-item__value ipam-mono">
+              {{ detail.answerIp || '—' }}
+            </div>
           </div>
           <div class="ipam-detail-item ipam-detail-item--wide">
-            <div class="ipam-detail-item__label">{{ $t('logs.search.detail.raw') }}</div>
-            <div class="ipam-detail-item__value">{{ detail.detail || '—' }}</div>
+            <div class="ipam-detail-item__label">
+              {{ $t('logs.search.detail.raw') }}
+            </div>
+            <div class="ipam-detail-item__value">
+              {{ detail.detail || '—' }}
+            </div>
           </div>
         </div>
       </template>

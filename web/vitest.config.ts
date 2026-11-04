@@ -30,10 +30,7 @@ export default defineConfig({
         'apps/web-ipam/src/components/stat-card.vue',
         'apps/web-ipam/src/components/trend-chart.vue',
       ],
-      exclude: [
-        '**/*.test.ts',
-        'apps/web-ipam/src/utils/site-branding.ts',
-      ],
+      exclude: ['**/*.test.ts', 'apps/web-ipam/src/utils/site-branding.ts'],
       thresholds: {
         // 纯函数工具：高门槛，回归成本低。
         'apps/web-ipam/src/utils/*.ts': {
@@ -43,12 +40,13 @@ export default defineConfig({
           statements: 80,
         },
         // 展示型组件：已有 Vue Test Utils 用例的逐个门槛。
-        'apps/web-ipam/src/components/{metric-ring,page-header,stat-card,trend-chart}.vue': {
-          branches: 70,
-          functions: 75,
-          lines: 75,
-          statements: 75,
-        },
+        'apps/web-ipam/src/components/{metric-ring,page-header,stat-card,trend-chart}.vue':
+          {
+            branches: 70,
+            functions: 75,
+            lines: 75,
+            statements: 75,
+          },
       },
     },
     exclude: [

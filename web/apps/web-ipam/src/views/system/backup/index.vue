@@ -76,11 +76,17 @@ function fmtBytes(v?: null | number): string {
 function fmtTime(v?: string): string {
   if (!v) return '—';
   const t = Date.parse(v);
-  return Number.isNaN(t) ? '—' : new Date(t).toLocaleString('zh-CN', { hour12: false });
+  return Number.isNaN(t)
+    ? '—'
+    : new Date(t).toLocaleString(undefined, { hour12: false });
 }
 
-const successCount = computed(() => rows.value.filter((r) => r.status === 'success').length);
-const lastSuccess = computed(() => rows.value.find((r) => r.status === 'success'));
+const successCount = computed(
+  () => rows.value.filter((r) => r.status === 'success').length,
+);
+const lastSuccess = computed(() =>
+  rows.value.find((r) => r.status === 'success'),
+);
 const monthCount = computed(() => (lastSuccess.value?.months ?? []).length);
 
 async function load() {
@@ -90,7 +96,9 @@ async function load() {
     rows.value = data.items ?? [];
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('system.backup.msg.loadFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('system.backup.msg.loadFailed'),
     );
   } finally {
     loading.value = false;
@@ -119,7 +127,9 @@ async function saveSettings() {
     message.success($t('system.backup.msg.settingsSaved'));
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('system.backup.msg.saveFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('system.backup.msg.saveFailed'),
     );
   } finally {
     saving.value = false;
@@ -140,7 +150,9 @@ async function submitCreate() {
     await load();
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('system.backup.msg.createFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('system.backup.msg.createFailed'),
     );
   } finally {
     creating.value = false;
@@ -154,7 +166,9 @@ async function remove(rec: BackupRecord) {
     await load();
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('system.backup.msg.deleteFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('system.backup.msg.deleteFailed'),
     );
   }
 }
@@ -167,7 +181,9 @@ async function doRestore(rec: BackupRecord) {
     await load();
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('system.backup.msg.restoreFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('system.backup.msg.restoreFailed'),
     );
   } finally {
     restoringId.value = '';
@@ -191,7 +207,9 @@ async function download(rec: BackupRecord) {
     URL.revokeObjectURL(url);
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('system.backup.msg.downloadFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('system.backup.msg.downloadFailed'),
     );
   }
 }
@@ -203,7 +221,12 @@ const columns = computed(() => [
     title: $t('system.backup.col.startedAt'),
     width: 170,
   },
-  { dataIndex: 'kind', key: 'kind', title: $t('system.backup.col.kind'), width: 90 },
+  {
+    dataIndex: 'kind',
+    key: 'kind',
+    title: $t('system.backup.col.kind'),
+    width: 90,
+  },
   {
     dataIndex: 'status',
     key: 'status',
@@ -241,7 +264,9 @@ onMounted(() => {
   void load();
   void loadSettings();
   timer = setInterval(() => {
-    if (rows.value.some((r) => r.status === 'running' || r.status === 'restoring')) {
+    if (
+      rows.value.some((r) => r.status === 'running' || r.status === 'restoring')
+    ) {
       void load();
     }
   }, 5000);
@@ -281,7 +306,11 @@ onBeforeUnmount(() => clearInterval(timer));
       />
       <StatCard
         :label="$t('system.backup.stat.last')"
-        :value="lastSuccess ? fmtTime(lastSuccess.startedAt) : $t('system.backup.stat.none')"
+        :value="
+          lastSuccess
+            ? fmtTime(lastSuccess.startedAt)
+            : $t('system.backup.stat.none')
+        "
         icon="lucide:clock"
         tone="green"
         :hint="
@@ -307,7 +336,9 @@ onBeforeUnmount(() => clearInterval(timer));
         "
         icon="lucide:timer-reset"
         :tone="settings.enabled ? 'green' : 'violet'"
-        :hint="$t('system.backup.stat.retention', { n: settings.retentionCount })"
+        :hint="
+          $t('system.backup.stat.retention', { n: settings.retentionCount })
+        "
       />
     </div>
 
@@ -333,7 +364,9 @@ onBeforeUnmount(() => clearInterval(timer));
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'startedAt'">
             <div class="ipam-cell-stack">
-              <span class="ipam-cell-title">{{ fmtTime(record.startedAt) }}</span>
+              <span class="ipam-cell-title">{{
+                fmtTime(record.startedAt)
+              }}</span>
               <span v-if="record.finishedAt" class="ipam-cell-meta">
                 {{
                   $t('system.backup.list.finished', {
@@ -347,10 +380,17 @@ onBeforeUnmount(() => clearInterval(timer));
             <Tag class="m-0">{{ KIND_LABEL[record.kind] ?? record.kind }}</Tag>
           </template>
           <template v-else-if="column.key === 'status'">
-            <Tag class="m-0" :color="STATUS_META[record.status]?.color ?? 'default'">
+            <Tag
+              class="m-0"
+              :color="STATUS_META[record.status]?.color ?? 'default'"
+            >
               {{ STATUS_META[record.status]?.label ?? record.status }}
             </Tag>
-            <div v-if="record.error" class="ipam-cell-meta" :title="record.error">
+            <div
+              v-if="record.error"
+              class="ipam-cell-meta"
+              :title="record.error"
+            >
               {{ record.error }}
             </div>
           </template>
@@ -359,8 +399,12 @@ onBeforeUnmount(() => clearInterval(timer));
           </template>
           <template v-else-if="column.key === 'months'">
             <div class="flex flex-wrap gap-1">
-              <Tag v-for="m in record.months ?? []" :key="m" class="m-0">{{ m }}</Tag>
-              <span v-if="(record.months ?? []).length === 0" class="ipam-hint">—</span>
+              <Tag v-for="m in record.months ?? []" :key="m" class="m-0">
+                {{ m }}
+              </Tag>
+              <span v-if="(record.months ?? []).length === 0" class="ipam-hint"
+                >—</span
+              >
             </div>
           </template>
           <template v-else-if="column.key === 'note'">
@@ -403,7 +447,9 @@ onBeforeUnmount(() => clearInterval(timer));
                 <Button
                   size="small"
                   danger
-                  :disabled="record.status === 'running' || record.status === 'restoring'"
+                  :disabled="
+                    record.status === 'running' || record.status === 'restoring'
+                  "
                 >
                   {{ $t('system.backup.actions.delete') }}
                 </Button>
@@ -423,7 +469,9 @@ onBeforeUnmount(() => clearInterval(timer));
         </span>
       </template>
       <template #extra>
-        <span class="ipam-hint">{{ $t('system.backup.policy.scheduleHint') }}</span>
+        <span class="ipam-hint">{{
+          $t('system.backup.policy.scheduleHint')
+        }}</span>
       </template>
       <div class="ipam-form-grid">
         <div class="ipam-form-field">
@@ -443,13 +491,23 @@ onBeforeUnmount(() => clearInterval(timer));
           <span class="ipam-form-field__label">{{
             $t('system.backup.policy.hour')
           }}</span>
-          <InputNumber v-model:value="settings.scheduleHour" :min="0" :max="23" style="width: 100%" />
+          <InputNumber
+            v-model:value="settings.scheduleHour"
+            :min="0"
+            :max="23"
+            style="width: 100%"
+          />
         </div>
         <div class="ipam-form-field">
           <span class="ipam-form-field__label">{{
             $t('system.backup.policy.retention')
           }}</span>
-          <InputNumber v-model:value="settings.retentionCount" :min="1" :max="90" style="width: 100%" />
+          <InputNumber
+            v-model:value="settings.retentionCount"
+            :min="1"
+            :max="90"
+            style="width: 100%"
+          />
         </div>
         <div class="ipam-form-hint ipam-form-field--wide">
           {{ $t('system.backup.policy.retentionHint') }}

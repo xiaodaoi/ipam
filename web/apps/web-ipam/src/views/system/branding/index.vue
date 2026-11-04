@@ -88,7 +88,9 @@ async function save() {
     message.success($t('system.branding.msg.saved'));
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('system.branding.msg.saveFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('system.branding.msg.saveFailed'),
     );
   } finally {
     saving.value = false;
@@ -96,8 +98,7 @@ async function save() {
 }
 
 const previewName = computed(
-  () =>
-    form.siteName.trim() || $t('system.branding.defaultSiteName'),
+  () => form.siteName.trim() || $t('system.branding.defaultSiteName'),
 );
 const hasIcon = computed(() => Boolean(form.faviconUrl));
 

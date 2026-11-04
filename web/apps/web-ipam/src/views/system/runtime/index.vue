@@ -55,7 +55,7 @@ function fmtDateTime(v?: string): string {
   if (!v) return '—';
   const t = Date.parse(v);
   if (Number.isNaN(t) || t <= 0) return '—';
-  return new Date(t).toLocaleString('zh-CN', { hour12: false });
+  return new Date(t).toLocaleString(undefined, { hour12: false });
 }
 
 const uptimeText = computed(() => fmtUptime(metrics.value?.uptimeSec));
@@ -101,7 +101,9 @@ async function savePort() {
     message.success($t('system.runtime.msg.portSaved'));
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('system.runtime.msg.saveFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('system.runtime.msg.saveFailed'),
     );
   } finally {
     saving.value = false;
@@ -307,7 +309,9 @@ onMounted(load);
     <Card>
       <template #title>
         <span class="ipam-card-title">
-          <IconifyIcon icon="lucide:hard-drive" />{{ $t('system.runtime.host.title') }}
+          <IconifyIcon icon="lucide:hard-drive" />{{
+            $t('system.runtime.host.title')
+          }}
         </span>
       </template>
       <template #extra>
@@ -316,7 +320,9 @@ onMounted(load);
       <div v-if="metrics" class="ipam-figure-row">
         <div class="ipam-figure">
           <span class="ipam-figure__label">CPU</span>
-          <span class="ipam-figure__value">{{ Number(metrics.cpu.usagePct).toFixed(1) }}%</span>
+          <span class="ipam-figure__value"
+            >{{ Number(metrics.cpu.usagePct).toFixed(1) }}%</span
+          >
           <span class="ipam-figure__hint">{{
             $t('system.runtime.host.cores', { n: metrics.cpu.cores })
           }}</span>
@@ -325,17 +331,24 @@ onMounted(load);
           <span class="ipam-figure__label">{{
             $t('system.runtime.host.memory')
           }}</span>
-          <span class="ipam-figure__value">{{ Number(metrics.memory.usedPct).toFixed(1) }}%</span>
+          <span class="ipam-figure__value"
+            >{{ Number(metrics.memory.usedPct).toFixed(1) }}%</span
+          >
           <span class="ipam-figure__hint">
-            {{ (metrics.memory.usedBytes / 1024 ** 3).toFixed(1) }} / {{ (metrics.memory.totalBytes / 1024 ** 3).toFixed(1) }} GB
+            {{ (metrics.memory.usedBytes / 1024 ** 3).toFixed(1) }} /
+            {{ (metrics.memory.totalBytes / 1024 ** 3).toFixed(1) }} GB
           </span>
         </div>
         <div class="ipam-figure">
           <span class="ipam-figure__label">{{
             $t('system.runtime.host.load1')
           }}</span>
-          <span class="ipam-figure__value">{{ Number(metrics.cpu.load1).toFixed(2) }}</span>
-          <span class="ipam-figure__hint">5m {{ Number(metrics.cpu.load5).toFixed(2) }}</span>
+          <span class="ipam-figure__value">{{
+            Number(metrics.cpu.load1).toFixed(2)
+          }}</span>
+          <span class="ipam-figure__hint"
+            >5m {{ Number(metrics.cpu.load5).toFixed(2) }}</span
+          >
         </div>
         <div class="ipam-figure">
           <span class="ipam-figure__label">{{
@@ -346,15 +359,11 @@ onMounted(load);
       </div>
       <div v-else class="ipam-empty ipam-empty--compact">
         <div class="ipam-empty__title">
-{{
-          $t('system.runtime.host.emptyTitle')
-        }}
-</div>
+          {{ $t('system.runtime.host.emptyTitle') }}
+        </div>
         <div class="ipam-empty__desc">
-{{
-          $t('system.runtime.host.emptyDesc')
-        }}
-</div>
+          {{ $t('system.runtime.host.emptyDesc') }}
+        </div>
       </div>
     </Card>
   </div>

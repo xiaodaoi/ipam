@@ -16,11 +16,7 @@ import {
   Tag,
 } from 'ant-design-vue';
 
-import {
-  listDiscoveredTerminals,
-  listOrgTree,
-  upsertAsset,
-} from '#/api/ipam';
+import { listDiscoveredTerminals, listOrgTree, upsertAsset } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
 import { $t } from '#/locales';
@@ -35,7 +31,12 @@ const orgTree = ref<OrgTreeNode[]>([]);
 const claimOpen = ref(false);
 const claimTarget = ref<DiscoveredTerminal>();
 const claimSaving = ref(false);
-const claimForm = reactive({ dept: '', note: '', orgId: undefined as string | undefined, owner: '' });
+const claimForm = reactive({
+  dept: '',
+  note: '',
+  orgId: undefined as string | undefined,
+  owner: '',
+});
 
 const orgOptions = computed(() => {
   const out: { label: string; value: string }[] = [];
@@ -87,7 +88,11 @@ async function load() {
     const res = await listDiscoveredTerminals();
     rows.value = res.items ?? [];
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dhcpLedger.discovered.loadFailed'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dhcpLedger.discovered.loadFailed'),
+    );
   } finally {
     loading.value = false;
   }
@@ -132,19 +137,53 @@ async function submitClaim() {
     claimOpen.value = false;
     await load();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dhcpLedger.discovered.registerFailed'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dhcpLedger.discovered.registerFailed'),
+    );
   } finally {
     claimSaving.value = false;
   }
 }
 
 const columns = computed(() => [
-  { title: $t('dhcpLedger.discovered.colMac'), dataIndex: 'mac', key: 'mac', width: 170 },
-  { title: $t('dhcpLedger.discovered.colIpv4'), dataIndex: 'ipv4', key: 'ipv4', width: 140 },
-  { title: $t('dhcpLedger.discovered.colIpv6'), dataIndex: 'ipv6', key: 'ipv6', width: 240 },
-  { title: $t('dhcpLedger.discovered.colHostname'), dataIndex: 'hostname', key: 'hostname', ellipsis: true },
-  { title: $t('dhcpLedger.discovered.colState'), dataIndex: 'state', key: 'state', width: 100 },
-  { title: $t('dhcpLedger.discovered.colLastSeen'), dataIndex: 'lastSeen', key: 'lastSeen', width: 180 },
+  {
+    title: $t('dhcpLedger.discovered.colMac'),
+    dataIndex: 'mac',
+    key: 'mac',
+    width: 170,
+  },
+  {
+    title: $t('dhcpLedger.discovered.colIpv4'),
+    dataIndex: 'ipv4',
+    key: 'ipv4',
+    width: 140,
+  },
+  {
+    title: $t('dhcpLedger.discovered.colIpv6'),
+    dataIndex: 'ipv6',
+    key: 'ipv6',
+    width: 240,
+  },
+  {
+    title: $t('dhcpLedger.discovered.colHostname'),
+    dataIndex: 'hostname',
+    key: 'hostname',
+    ellipsis: true,
+  },
+  {
+    title: $t('dhcpLedger.discovered.colState'),
+    dataIndex: 'state',
+    key: 'state',
+    width: 100,
+  },
+  {
+    title: $t('dhcpLedger.discovered.colLastSeen'),
+    dataIndex: 'lastSeen',
+    key: 'lastSeen',
+    width: 180,
+  },
   { title: $t('dhcpLedger.discovered.colActions'), key: 'actions', width: 100 },
 ]);
 
@@ -167,7 +206,9 @@ onMounted(async () => {
           {{ $t('dhcpLedger.discovered.meta', { time: latestSeen }) }}
         </span>
         <Button size="small" :loading="loading" @click="load">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{ $t('dhcpLedger.common.refresh') }}
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{
+            $t('dhcpLedger.common.refresh')
+          }}
         </Button>
       </template>
     </PageHeader>
@@ -208,7 +249,9 @@ onMounted(async () => {
 
     <Card>
       <div class="ipam-toolbar ipam-toolbar--plain mb-3">
-        <span class="ipam-hint">{{ $t('dhcpLedger.discovered.listHint') }}</span>
+        <span class="ipam-hint">{{
+          $t('dhcpLedger.discovered.listHint')
+        }}</span>
         <span class="ipam-toolbar__spacer"></span>
         <Input
           v-model:value="keyword"
@@ -216,7 +259,9 @@ onMounted(async () => {
           :placeholder="$t('dhcpLedger.discovered.keywordPlaceholder')"
           style="width: 260px"
         >
-          <template #prefix><IconifyIcon icon="lucide:search" class="size-3.5" /></template>
+          <template #prefix>
+            <IconifyIcon icon="lucide:search" class="size-3.5" />
+          </template>
         </Input>
       </div>
 
@@ -229,7 +274,9 @@ onMounted(async () => {
         size="small"
       >
         <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'mac'"><span class="ipam-mono">{{ record.mac }}</span></template>
+          <template v-if="column.key === 'mac'">
+            <span class="ipam-mono">{{ record.mac }}</span>
+          </template>
           <template v-else-if="column.key === 'ipv4'">
             <span class="ipam-mono">{{ record.ipv4 || '—' }}</span>
           </template>
@@ -237,11 +284,17 @@ onMounted(async () => {
             <span class="ipam-mono">{{ record.ipv6 || '—' }}</span>
           </template>
           <template v-else-if="column.key === 'state'">
-            <Tag :color="stateColor(record.state)" class="m-0">{{ record.state || 'active' }}</Tag>
+            <Tag :color="stateColor(record.state)" class="m-0">
+              {{ record.state || 'active' }}
+            </Tag>
           </template>
-          <template v-else-if="column.key === 'lastSeen'">{{ fmtTime(record.lastSeen) }}</template>
+          <template v-else-if="column.key === 'lastSeen'">
+            {{ fmtTime(record.lastSeen) }}
+          </template>
           <template v-else-if="column.key === 'actions'">
-            <Button size="small" type="link" @click="openClaim(record)">{{ $t('dhcpLedger.discovered.register') }}</Button>
+            <Button size="small" type="link" @click="openClaim(record)">
+              {{ $t('dhcpLedger.discovered.register') }}
+            </Button>
           </template>
         </template>
       </Table>
@@ -257,25 +310,33 @@ onMounted(async () => {
     >
       <div class="ipam-form-grid">
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dhcpLedger.discovered.form.mac') }}</span>
+          <span class="ipam-form-field__label">{{
+            $t('dhcpLedger.discovered.form.mac')
+          }}</span>
           <Input :value="claimTarget?.mac" disabled />
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dhcpLedger.discovered.form.ownerLabel') }}</span>
+          <span class="ipam-form-field__label">{{
+            $t('dhcpLedger.discovered.form.ownerLabel')
+          }}</span>
           <Input
             v-model:value="claimForm.owner"
             :placeholder="$t('dhcpLedger.discovered.form.ownerPlaceholder')"
           />
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dhcpLedger.discovered.form.dept') }}</span>
+          <span class="ipam-form-field__label">{{
+            $t('dhcpLedger.discovered.form.dept')
+          }}</span>
           <Input
             v-model:value="claimForm.dept"
             :placeholder="$t('dhcpLedger.discovered.form.deptPlaceholder')"
           />
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dhcpLedger.discovered.form.org') }}</span>
+          <span class="ipam-form-field__label">{{
+            $t('dhcpLedger.discovered.form.org')
+          }}</span>
           <Select
             v-model:value="claimForm.orgId"
             allow-clear
@@ -284,7 +345,9 @@ onMounted(async () => {
           />
         </div>
         <div class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">{{ $t('dhcpLedger.discovered.form.note') }}</span>
+          <span class="ipam-form-field__label">{{
+            $t('dhcpLedger.discovered.form.note')
+          }}</span>
           <Input
             v-model:value="claimForm.note"
             :placeholder="$t('dhcpLedger.discovered.form.notePlaceholder')"

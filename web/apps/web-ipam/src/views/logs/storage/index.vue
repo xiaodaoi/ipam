@@ -23,7 +23,9 @@ import { $t } from '#/locales';
         </span>
         <RouterLink to="/logs-center/search">
           <Button size="small">
-            <IconifyIcon icon="lucide:search" class="mr-1 size-3.5" />{{ $t('logs.storage.page.queryOnline') }}
+            <IconifyIcon icon="lucide:search" class="mr-1 size-3.5" />{{
+              $t('logs.storage.page.queryOnline')
+            }}
           </Button>
         </RouterLink>
       </template>

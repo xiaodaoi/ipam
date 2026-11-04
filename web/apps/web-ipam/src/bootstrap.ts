@@ -9,8 +9,6 @@ import '@vben/styles/antd';
 
 import { useTitle } from '@vueuse/core';
 
-// M6-018：注册离线图标集合（须早于任何图标渲染，故置于模块顶层副作用导入）。
-import '#/icons/offline';
 import { $t, setupI18n } from '#/locales';
 import { applySiteBranding } from '#/utils/site-branding';
 
@@ -18,6 +16,9 @@ import { initComponentAdapter } from './adapter/component';
 import { initSetupVbenForm } from './adapter/form';
 import App from './app.vue';
 import { router } from './router';
+
+// M6-018：注册离线图标集合（须早于任何图标渲染，故置于模块顶层副作用导入）。
+import '#/icons/offline';
 
 import '#/styles/index.css';
 

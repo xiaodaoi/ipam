@@ -28,7 +28,9 @@ describe('metric-ring 指标环', () => {
   it('empty 显示占位且不渲染数值圆环', () => {
     const wrapper = mount(MetricRing, { props: { empty: true, value: 80 } });
     expect(wrapper.find('.ipam-ring__value-text').text()).toBe('—');
-    expect(wrapper.find('.ipam-ring__value-text').attributes('data-empty')).toBe('true');
+    expect(
+      wrapper.find('.ipam-ring__value-text').attributes('data-empty'),
+    ).toBe('true');
     expect(wrapper.find('.ipam-ring__value').exists()).toBe(false);
   });
 

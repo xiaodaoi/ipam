@@ -36,7 +36,9 @@ const props = withDefaults(
 const radius = computed(() => (props.size - props.thickness) / 2);
 const circumference = computed(() => 2 * Math.PI * radius.value);
 const pct = computed(() => Math.max(0, Math.min(100, props.value)));
-const dash = computed(() => `${(pct.value / 100) * circumference.value} ${circumference.value}`);
+const dash = computed(
+  () => `${(pct.value / 100) * circumference.value} ${circumference.value}`,
+);
 const accent = computed(() => `hsl(var(--ipam-tone-${props.tone}))`);
 const centerText = computed(() =>
   props.label === '' ? `${Math.round(pct.value)}%` : props.label,
@@ -48,7 +50,10 @@ const ringStyle = computed<CSSProperties>(() => ({
 
 <template>
   <div class="ipam-ring" :style="{ width: `${size}px` }">
-    <div class="ipam-ring__chart" :style="{ height: `${size}px`, width: `${size}px` }">
+    <div
+      class="ipam-ring__chart"
+      :style="{ height: `${size}px`, width: `${size}px` }"
+    >
       <svg :height="size" :viewBox="`0 0 ${size} ${size}`" :width="size">
         <circle
           fill="none"

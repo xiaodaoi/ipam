@@ -35,9 +35,7 @@ describe('parsePersistedLocale', () => {
 
 describe('readPersistedLocale', () => {
   it('读取成功时返回语言', () => {
-    expect(
-      readPersistedLocale('k', () => '{"value":"en-US"}'),
-    ).toBe('en-US');
+    expect(readPersistedLocale('k', () => '{"value":"en-US"}')).toBe('en-US');
   });
 
   it('storage 抛错时降级为 undefined', () => {

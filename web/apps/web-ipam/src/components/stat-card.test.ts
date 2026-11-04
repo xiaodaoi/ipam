@@ -29,10 +29,16 @@ describe('stat-card 指标卡', () => {
   });
 
   it('进度条宽度钳制在 0–100%', async () => {
-    const wrapper = mount(StatCard, { props: { label: '水位', progress: 150, value: 1 } });
-    expect(wrapper.find('.ipam-stat-card__progress i').attributes('style')).toContain('width: 100%');
+    const wrapper = mount(StatCard, {
+      props: { label: '水位', progress: 150, value: 1 },
+    });
+    expect(
+      wrapper.find('.ipam-stat-card__progress i').attributes('style'),
+    ).toContain('width: 100%');
     await wrapper.setProps({ progress: -5 });
-    expect(wrapper.find('.ipam-stat-card__progress i').attributes('style')).toContain('width: 0%');
+    expect(
+      wrapper.find('.ipam-stat-card__progress i').attributes('style'),
+    ).toContain('width: 0%');
   });
 
   it('未传 progress 时不渲染进度条', () => {
@@ -41,7 +47,9 @@ describe('stat-card 指标卡', () => {
   });
 
   it('spark 少于两个点时不渲染迷你趋势图', () => {
-    const wrapper = mount(StatCard, { props: { label: 'QPS', spark: [3], value: 3 } });
+    const wrapper = mount(StatCard, {
+      props: { label: 'QPS', spark: [3], value: 3 },
+    });
     expect(wrapper.find('.ipam-stat-card__spark').exists()).toBe(false);
   });
 
@@ -51,9 +59,13 @@ describe('stat-card 指标卡', () => {
     });
     const polyline = wrapper.find('.ipam-stat-card__spark polyline');
     expect(polyline.attributes('points')?.split(' ').length).toBe(3);
-    const firstId = wrapper.find('.ipam-stat-card__spark linearGradient').attributes('id');
+    const firstId = wrapper
+      .find('.ipam-stat-card__spark linearGradient')
+      .attributes('id');
     await wrapper.setProps({ tone: 'red' });
-    const secondId = wrapper.find('.ipam-stat-card__spark linearGradient').attributes('id');
+    const secondId = wrapper
+      .find('.ipam-stat-card__spark linearGradient')
+      .attributes('id');
     expect(secondId).toBe(firstId);
     expect(wrapper.find('.ipam-stat-card').attributes('data-tone')).toBe('red');
   });

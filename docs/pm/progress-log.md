@@ -4,6 +4,15 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-11-04 · 静态检查门禁归零（M6-027）
+- **问题**：`make lint` 实为红灯——stylelint 29、oxfmt 64 文件、oxlint 10、eslint 2058（其中 1645 来自生成物 `schema.d.ts`）。根因是「eslint 排版规则 ↔ oxfmt」方向相反导致互相回滚，以及生成物被当手写代码检查。
+- **决策**：oxfmt 为唯一格式化工具（关闭 `vue/html-closing-bracket-newline`、`vue/multiline-html-element-content-newline`、`unicorn/no-nested-ternary`、`unicorn/number-literal-case`）；生成物排除出 oxfmt/eslint；`*.d.ts` 关闭 `unicorn/require-module-specifiers`；底座 catalog 两条 pnpm 规则关闭；eslint 配置只保留 `web/eslint.config.mjs`。
+- **代码修复**：27+2 处 `req<void>`/`post<void>` → `<undefined>`；6 处非空断言改收窄；3 处 `type` 内联导入拆顶层；移除 vxe `computed` 内写 ref 的副作用；测试标题小写化。
+- **顺带修 i18n 残留**：23 处 `toLocale*('zh-CN')` 改locale-neutral，英文界面日期不再输出中文格式。
+- **踩坑**：`eslint --fix` 删掉 `src/types/user-info.d.ts` 的 `export {}`，使模块增强退化为整体替换，触发 84 个 `has no exported member`；恢复并在 `.d.ts` 关闭该规则，已写入约定文档。
+- **验证**：`make lint` 连跑两次 exit 0（golangci-lint `0 issues`）；typecheck 0；单测 33；`sync-webui.sh --build` 成功、镜像 healthy；E2E 17/17；i18n 双门禁 OK；`gen-openapi.sh --check` OK。
+- **文档**：新增 `docs/dev/M6-027-静态检查与格式化约定.md`、任务卡 M6-027、M6 计划 §12、GA 核对表发布前清单。
+
 ## 2026-11-04 · 组织名称校验与同父唯一约束一致性（M6-026）
 - **问题**：`POST /orgs` 接受空名称返回 201；PG `UNIQUE (parent_id, name)` 对根节点（`parent_id IS NULL`）完全失效且大小写敏感；唯一冲突冒泡 500 而非 409。
 - **服务层**：`normalizeOrgName`（`TrimFunc`+`unicode.IsSpace`，去半角/全角空白；`utf8.RuneCountInString` 限 1–64）+ `siblingNameTaken`（同父 `EqualFold`，可排除自身），`Create`/`Update` 统一走同一套规则；新增 `ORG_NAME_REQUIRED` / `ORG_NAME_TOO_LONG` 两个 400 错误码。

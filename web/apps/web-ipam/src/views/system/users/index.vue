@@ -83,7 +83,7 @@ function fmtDateTime(v?: string): string {
   if (!v) return '—';
   const t = Date.parse(v);
   if (Number.isNaN(t) || t <= 0) return '—';
-  return new Date(t).toLocaleString('zh-CN', { hour12: false });
+  return new Date(t).toLocaleString(undefined, { hour12: false });
 }
 const isSelf = (username?: string) => !!myUsername && username === myUsername;
 function roleMeta(r: string) {
@@ -100,7 +100,9 @@ async function load() {
     rows.value = d.items ?? [];
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('system.users.msg.loadFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('system.users.msg.loadFailed'),
     );
   } finally {
     loading.value = false;
@@ -111,7 +113,10 @@ async function load() {
 const filtered = computed(() => {
   const kw = keyword.value.trim().toLowerCase();
   return rows.value.filter((r) => {
-    if (roleFilter.value !== 'all' && !(r.roles as string[]).includes(roleFilter.value)) {
+    if (
+      roleFilter.value !== 'all' &&
+      !(r.roles as string[]).includes(roleFilter.value)
+    ) {
       return false;
     }
     if (statusFilter.value === 'enabled' && !r.enabled) return false;
@@ -204,7 +209,9 @@ async function add() {
     await load();
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('system.users.msg.createFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('system.users.msg.createFailed'),
     );
   }
 }
@@ -245,7 +252,9 @@ async function saveEdit() {
     await load();
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('system.users.msg.updateFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('system.users.msg.updateFailed'),
     );
   }
 }
@@ -286,7 +295,9 @@ async function doReset() {
     reset.open = false;
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('system.users.msg.resetFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('system.users.msg.resetFailed'),
     );
   }
 }
@@ -311,7 +322,9 @@ async function remove(row: UserRow) {
     message.success($t('system.users.msg.deleted', { name: row.username }));
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('system.users.msg.deleteFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('system.users.msg.deleteFailed'),
     );
   }
   await load();
@@ -400,7 +413,12 @@ const columns = computed(() => [
     title: $t('system.users.col.account'),
     minWidth: 220,
   },
-  { dataIndex: 'roles', key: 'roles', title: $t('system.users.col.roles'), width: 140 },
+  {
+    dataIndex: 'roles',
+    key: 'roles',
+    title: $t('system.users.col.roles'),
+    width: 140,
+  },
   {
     dataIndex: 'enabled',
     key: 'enabled',
@@ -473,9 +491,7 @@ onBeforeUnmount(() => clearInterval(timer));
         :value="total"
         icon="lucide:users"
         tone="blue"
-        :hint="
-          $t('system.users.stat.totalHint', { name: myUsername || '—' })
-        "
+        :hint="$t('system.users.stat.totalHint', { name: myUsername || '—' })"
       />
       <StatCard
         :label="$t('system.users.stat.enabled')"
@@ -592,24 +608,35 @@ onBeforeUnmount(() => clearInterval(timer));
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'account'">
             <div class="ipam-account">
-              <span class="ipam-account__avatar" :data-self="isSelf(record.username)">
+              <span
+                class="ipam-account__avatar"
+                :data-self="isSelf(record.username)"
+              >
                 {{ initial(record.displayName || record.username) }}
               </span>
               <div class="ipam-account__body">
                 <div class="ipam-account__line">
-                  <span class="ipam-account__name ipam-mono">{{ record.username }}</span>
+                  <span class="ipam-account__name ipam-mono">{{
+                    record.username
+                  }}</span>
                   <Tag v-if="isSelf(record.username)" class="m-0" color="blue">
-{{
-                    $t('system.users.tag.self')
-                  }}
-</Tag>
-                  <Tag v-if="record.mustChangePassword" class="m-0" color="orange">
-{{
-                    $t('system.users.tag.mustChange')
-                  }}
-</Tag>
-                  <Tag v-if="record.totpEnabled" class="m-0" color="green">2FA</Tag>
-                  <Tag v-if="record.authSource === 'ldap'" class="m-0" color="geekblue">
+                    {{ $t('system.users.tag.self') }}
+                  </Tag>
+                  <Tag
+                    v-if="record.mustChangePassword"
+                    class="m-0"
+                    color="orange"
+                  >
+                    {{ $t('system.users.tag.mustChange') }}
+                  </Tag>
+                  <Tag v-if="record.totpEnabled" class="m-0" color="green">
+                    2FA
+                  </Tag>
+                  <Tag
+                    v-if="record.authSource === 'ldap'"
+                    class="m-0"
+                    color="geekblue"
+                  >
                     {{ $t('system.users.tag.ldap') }}
                   </Tag>
                 </div>
@@ -679,9 +706,10 @@ onBeforeUnmount(() => clearInterval(timer));
                   :disabled="record.authSource === 'ldap'"
                   @click="openReset(record as UserRow)"
                 >
-                  <IconifyIcon icon="lucide:key-round" class="mr-1 size-3.5" />{{
-                    $t('system.users.action.resetPassword')
-                  }}
+                  <IconifyIcon
+                    icon="lucide:key-round"
+                    class="mr-1 size-3.5"
+                  />{{ $t('system.users.action.resetPassword') }}
                 </Button>
               </Tooltip>
               <Popconfirm
@@ -693,15 +721,17 @@ onBeforeUnmount(() => clearInterval(timer));
                 @confirm="resetTotp(record as UserRow)"
               >
                 <Button size="small">
-                  <IconifyIcon icon="lucide:shield-off" class="mr-1 size-3.5" />{{
-                    $t('system.users.action.resetTotp')
-                  }}
+                  <IconifyIcon
+                    icon="lucide:shield-off"
+                    class="mr-1 size-3.5"
+                  />{{ $t('system.users.action.resetTotp') }}
                 </Button>
               </Popconfirm>
               <Button size="small" @click="openSessions(record as UserRow)">
-                <IconifyIcon icon="lucide:monitor-smartphone" class="mr-1 size-3.5" />{{
-                  $t('system.users.action.sessions')
-                }}
+                <IconifyIcon
+                  icon="lucide:monitor-smartphone"
+                  class="mr-1 size-3.5"
+                />{{ $t('system.users.action.sessions') }}
               </Button>
               <Popconfirm
                 :title="$t('system.users.confirm.deleteTitle')"
@@ -710,11 +740,7 @@ onBeforeUnmount(() => clearInterval(timer));
                 :cancel-text="$t('system.users.action.cancel')"
                 @confirm="remove(record as UserRow)"
               >
-                <Button
-                  size="small"
-                  danger
-                  :disabled="isSelf(record.username)"
-                >
+                <Button size="small" danger :disabled="isSelf(record.username)">
                   {{ $t('system.users.action.delete') }}
                 </Button>
               </Popconfirm>
@@ -848,10 +874,8 @@ onBeforeUnmount(() => clearInterval(timer));
       :width="640"
     >
       <div v-if="sessions.loading" class="ipam-hint py-4">
-{{
-        $t('system.users.sessions.loading')
-      }}
-</div>
+        {{ $t('system.users.sessions.loading') }}
+      </div>
       <div v-else-if="sessions.rows.length === 0" class="ipam-hint py-4">
         {{ $t('system.users.sessions.empty') }}
       </div>
@@ -865,10 +889,8 @@ onBeforeUnmount(() => clearInterval(timer));
             <div class="flex items-center gap-2">
               <span class="font-medium">{{ deviceLabel(s.userAgent) }}</span>
               <Tag v-if="s.current" class="m-0" color="blue">
-{{
-                $t('system.users.sessions.current')
-              }}
-</Tag>
+                {{ $t('system.users.sessions.current') }}
+              </Tag>
             </div>
             <div class="ipam-hint break-all">
               {{
@@ -888,10 +910,8 @@ onBeforeUnmount(() => clearInterval(timer));
             @confirm="kickSession(s)"
           >
             <Button danger size="small">
-{{
-              $t('system.users.sessions.kick')
-            }}
-</Button>
+              {{ $t('system.users.sessions.kick') }}
+            </Button>
           </Popconfirm>
         </div>
       </div>

@@ -6,9 +6,37 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useVbenDrawer, useVbenModal } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Button, Card, Input, message, Modal, Popconfirm, Select, Switch, Table, Tag } from 'ant-design-vue';
+import {
+  Button,
+  Card,
+  Input,
+  message,
+  Modal,
+  Popconfirm,
+  Select,
+  Switch,
+  Table,
+  Tag,
+} from 'ant-design-vue';
 
-import { addBlocklistEntry, compilePolicyGroup, createBlocklist, createPolicyGroup, deleteBlocklist, deleteBlocklistEntry, exportBlocklistCsv, importBlocklistEntries, installBuiltinPack, listBlocklistEntries, listBlocklists, listBlocklistVersions, listBuiltinPacks, listPolicyGroups, rollbackBlocklist, syncBlocklist } from '#/api/ipam';
+import {
+  addBlocklistEntry,
+  compilePolicyGroup,
+  createBlocklist,
+  createPolicyGroup,
+  deleteBlocklist,
+  deleteBlocklistEntry,
+  exportBlocklistCsv,
+  importBlocklistEntries,
+  installBuiltinPack,
+  listBlocklistEntries,
+  listBlocklists,
+  listBlocklistVersions,
+  listBuiltinPacks,
+  listPolicyGroups,
+  rollbackBlocklist,
+  syncBlocklist,
+} from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
 import { $t } from '#/locales';
@@ -23,8 +51,16 @@ const entries = ref<BlocklistEntryRow[]>([]);
 const eLoading = ref(false);
 const selId = ref('');
 const selName = ref('');
-const eForm = ref<{ action: 'drop' | 'nxdomain' | 'redirect' | 'tcp_only'; pattern: string; triggerType: 'qname' | 'response_ip' }>({ pattern: '', triggerType: 'qname', action: 'nxdomain' });
-const cForm = ref<{ kind: 'builtin' | 'custom' | 'feed'; name: string; syncUrl: string }>({ name: '', kind: 'custom', syncUrl: '' });
+const eForm = ref<{
+  action: 'drop' | 'nxdomain' | 'redirect' | 'tcp_only';
+  pattern: string;
+  triggerType: 'qname' | 'response_ip';
+}>({ pattern: '', triggerType: 'qname', action: 'nxdomain' });
+const cForm = ref<{
+  kind: 'builtin' | 'custom' | 'feed';
+  name: string;
+  syncUrl: string;
+}>({ name: '', kind: 'custom', syncUrl: '' });
 const pgRows = ref<PolicyGroupRow[]>([]);
 const pgLoading = ref(false);
 const pgForm = ref<{
@@ -35,7 +71,15 @@ const pgForm = ref<{
   scheduleEnd: string;
   scheduleStart: string;
   viewName: string;
-}>({ name: '', viewName: 'recursor', cidrs: '', listIds: [], scheduleDays: [], scheduleStart: '', scheduleEnd: '' });
+}>({
+  name: '',
+  viewName: 'recursor',
+  cidrs: '',
+  listIds: [],
+  scheduleDays: [],
+  scheduleStart: '',
+  scheduleEnd: '',
+});
 const pgResult = ref<null | Record<string, unknown>>(null);
 const syncingId = ref('');
 
@@ -56,7 +100,11 @@ async function sync(id?: string) {
     message.success($t('dns.blocklist.msg.syncSubmitted'));
     await load();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dns.blocklist.msg.syncFailed'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dns.blocklist.msg.syncFailed'),
+    );
   } finally {
     syncingId.value = '';
   }
@@ -66,12 +114,19 @@ async function removeList(id: string) {
     await deleteBlocklist(id);
     message.success($t('dns.blocklist.msg.listDeleted'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dns.common.deleteFailed'));
+    message.error(
+      error instanceof Error ? error.message : $t('dns.common.deleteFailed'),
+    );
   }
   await load();
 }
 
-const [CreateModal, createModalApi] = useVbenModal({ draggable: true, title: $t('dns.blocklist.newList'), confirmText: $t('dns.blocklist.createConfirm'), onConfirm: () => createList() });
+const [CreateModal, createModalApi] = useVbenModal({
+  draggable: true,
+  title: $t('dns.blocklist.newList'),
+  confirmText: $t('dns.blocklist.createConfirm'),
+  onConfirm: () => createList(),
+});
 function openCreate() {
   cForm.value = { name: '', kind: 'custom', syncUrl: '' };
   createModalApi.open();
@@ -86,12 +141,18 @@ async function createList() {
     return;
   }
   try {
-    await createBlocklist({ name: cForm.value.name, kind: cForm.value.kind, syncUrl: cForm.value.syncUrl || undefined });
+    await createBlocklist({
+      name: cForm.value.name,
+      kind: cForm.value.kind,
+      syncUrl: cForm.value.syncUrl || undefined,
+    });
     message.success($t('dns.blocklist.msg.listCreated'));
     cForm.value = { name: '', kind: 'custom', syncUrl: '' };
     createModalApi.close();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dns.common.createFailed'));
+    message.error(
+      error instanceof Error ? error.message : $t('dns.common.createFailed'),
+    );
   }
   await load();
 }
@@ -105,7 +166,12 @@ async function loadPolicyGroups() {
     pgLoading.value = false;
   }
 }
-const [PgModal, pgModalApi] = useVbenModal({ draggable: true, title: $t('dns.blocklist.pgModal.title'), confirmText: $t('dns.blocklist.pgModal.createConfirm'), onConfirm: () => createPg() });
+const [PgModal, pgModalApi] = useVbenModal({
+  draggable: true,
+  title: $t('dns.blocklist.pgModal.title'),
+  confirmText: $t('dns.blocklist.pgModal.createConfirm'),
+  onConfirm: () => createPg(),
+});
 function openCreatePg() {
   pgForm.value = {
     name: '',
@@ -135,7 +201,10 @@ async function createPg() {
     await createPolicyGroup({
       name: pgForm.value.name,
       viewName: pgForm.value.viewName || 'recursor',
-      cidrs: pgForm.value.cidrs.split(',').map((s) => s.trim()).filter(Boolean),
+      cidrs: pgForm.value.cidrs
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
       listIds: pgForm.value.listIds,
       schedule,
     });
@@ -151,7 +220,9 @@ async function createPg() {
     };
     pgModalApi.close();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dns.common.createFailed'));
+    message.error(
+      error instanceof Error ? error.message : $t('dns.common.createFailed'),
+    );
   }
   await loadPolicyGroups();
 }
@@ -160,7 +231,11 @@ async function compilePg(id: string) {
     pgResult.value = await compilePolicyGroup(id);
     message.success($t('dns.blocklist.msg.compileOk'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dns.blocklist.msg.compileFailed'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dns.blocklist.msg.compileFailed'),
+    );
   }
 }
 
@@ -174,7 +249,9 @@ async function openEntries(r: Blocklist) {
   selId.value = r.id;
   selName.value = r.name;
   entries.value = [];
-  entriesDrawerApi.setState({ title: $t('dns.blocklist.entries.titleNamed', { name: r.name }) });
+  entriesDrawerApi.setState({
+    title: $t('dns.blocklist.entries.titleNamed', { name: r.name }),
+  });
   entriesDrawerApi.open();
   await loadEntries();
 }
@@ -194,12 +271,18 @@ async function addEntry() {
     return;
   }
   try {
-    await addBlocklistEntry(selId.value, { pattern: eForm.value.pattern, triggerType: eForm.value.triggerType, action: eForm.value.action });
+    await addBlocklistEntry(selId.value, {
+      pattern: eForm.value.pattern,
+      triggerType: eForm.value.triggerType,
+      action: eForm.value.action,
+    });
     message.success($t('dns.blocklist.msg.entryAdded'));
     eForm.value = { pattern: '', triggerType: 'qname', action: 'nxdomain' };
     await loadEntries();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dns.common.addFailed'));
+    message.error(
+      error instanceof Error ? error.message : $t('dns.common.addFailed'),
+    );
   }
 }
 async function removeEntry(listId: string, pattern: string) {
@@ -207,7 +290,9 @@ async function removeEntry(listId: string, pattern: string) {
     await deleteBlocklistEntry(listId, pattern);
     message.success($t('dns.blocklist.msg.entryDeleted'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dns.common.deleteFailed'));
+    message.error(
+      error instanceof Error ? error.message : $t('dns.common.deleteFailed'),
+    );
   }
   await loadEntries();
 }
@@ -230,13 +315,28 @@ async function submitCsv() {
   }
   csvImporting.value = true;
   try {
-    const r = await importBlocklistEntries(selId.value, csvContent.value, csvReplace.value);
-    message.success($t('dns.blocklist.msg.csvImportOk', { created: r.created, skipped: r.skipped, total: r.total }));
-    if (r.errors?.length) message.warning(r.errors.slice(0, 3).join($t('dns.common.listSep')));
+    const r = await importBlocklistEntries(
+      selId.value,
+      csvContent.value,
+      csvReplace.value,
+    );
+    message.success(
+      $t('dns.blocklist.msg.csvImportOk', {
+        created: r.created,
+        skipped: r.skipped,
+        total: r.total,
+      }),
+    );
+    if (r.errors?.length)
+      message.warning(r.errors.slice(0, 3).join($t('dns.common.listSep')));
     csvOpen.value = false;
     await Promise.all([loadEntries(), load()]);
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dns.blocklist.msg.csvImportFailed'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dns.blocklist.msg.csvImportFailed'),
+    );
   } finally {
     csvImporting.value = false;
   }
@@ -247,13 +347,19 @@ async function exportCsv(id?: string) {
   try {
     await exportBlocklistCsv(listId);
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dns.blocklist.msg.csvExportFailed'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dns.blocklist.msg.csvExportFailed'),
+    );
   }
 }
 
 const versionsOpen = ref(false);
 const versionsLoading = ref(false);
-const versions = ref<{ createdAt: string; entries: number; version: number; }[]>([]);
+const versions = ref<{ createdAt: string; entries: number; version: number }[]>(
+  [],
+);
 async function openVersions(r: Blocklist) {
   selId.value = r.id;
   selName.value = r.name;
@@ -264,7 +370,11 @@ async function openVersions(r: Blocklist) {
     const data = await listBlocklistVersions(r.id);
     versions.value = data.items ?? [];
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dns.blocklist.msg.versionsLoadFailed'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dns.blocklist.msg.versionsLoadFailed'),
+    );
   } finally {
     versionsLoading.value = false;
   }
@@ -276,13 +386,25 @@ async function doRollback(version: number) {
     versionsOpen.value = false;
     await Promise.all([load(), loadEntries()]);
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dns.blocklist.msg.rollbackFailed'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dns.blocklist.msg.rollbackFailed'),
+    );
   }
 }
 
 const builtinOpen = ref(false);
 const builtinLoading = ref(false);
-const packs = ref<{ categories?: string[]; description?: string; entryCount: number; key: string; name: string; }[]>([]);
+const packs = ref<
+  {
+    categories?: string[];
+    description?: string;
+    entryCount: number;
+    key: string;
+    name: string;
+  }[]
+>([]);
 async function openBuiltin() {
   builtinLoading.value = true;
   builtinOpen.value = true;
@@ -290,7 +412,11 @@ async function openBuiltin() {
     const data = await listBuiltinPacks();
     packs.value = data.items ?? [];
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dns.blocklist.msg.builtinLoadFailed'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dns.blocklist.msg.builtinLoadFailed'),
+    );
   } finally {
     builtinLoading.value = false;
   }
@@ -298,10 +424,19 @@ async function openBuiltin() {
 async function installPack(key: string) {
   try {
     const b = await installBuiltinPack(key);
-    message.success($t('dns.blocklist.msg.installed', { name: b.name, version: b.version ? `v${b.version}` : '' }));
+    message.success(
+      $t('dns.blocklist.msg.installed', {
+        name: b.name,
+        version: b.version ? `v${b.version}` : '',
+      }),
+    );
     await load();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dns.blocklist.msg.installFailed'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dns.blocklist.msg.installFailed'),
+    );
   }
 }
 
@@ -320,7 +455,11 @@ const KIND_TEXT = computed<Record<string, string>>(() => ({
   custom: $t('dns.blocklist.kind.custom'),
   feed: $t('dns.blocklist.kind.feed'),
 }));
-const KIND_COLOR: Record<string, string> = { builtin: 'default', custom: 'blue', feed: 'purple' };
+const KIND_COLOR: Record<string, string> = {
+  builtin: 'default',
+  custom: 'blue',
+  feed: 'purple',
+};
 const ACTION_TEXT = computed<Record<string, string>>(() => ({
   drop: $t('dns.blocklist.action.drop'),
   nxdomain: $t('dns.blocklist.action.nxdomain'),
@@ -331,7 +470,7 @@ function fmtSync(v?: string) {
   if (!v) return '—';
   const date = new Date(v);
   if (Number.isNaN(date.getTime()) || date.getFullYear() <= 1970) return '—';
-  return date.toLocaleString('zh-CN', { hour12: false });
+  return date.toLocaleString(undefined, { hour12: false });
 }
 
 // ── 指标与筛选 ──
@@ -368,18 +507,26 @@ const filteredGroups = computed(() => {
   const kw = pgKeyword.value.trim().toLowerCase();
   if (!kw) return pgRows.value;
   return pgRows.value.filter((r) =>
-    `${r.name} ${r.viewName} ${(r.cidrs ?? []).join(' ')}`.toLowerCase().includes(kw),
+    `${r.name} ${r.viewName} ${(r.cidrs ?? []).join(' ')}`
+      .toLowerCase()
+      .includes(kw),
   );
 });
-const pgListOptions = computed(() => rows.value.map((r) => ({
-  label: `${r.name}（${KIND_TEXT.value[r.kind] ?? r.kind}）`,
-  value: r.id,
-})));
+const pgListOptions = computed(() =>
+  rows.value.map((r) => ({
+    label: `${r.name}（${KIND_TEXT.value[r.kind] ?? r.kind}）`,
+    value: r.id,
+  })),
+);
 
 const listColumns = computed(() => [
   { title: $t('dns.blocklist.list.colName'), dataIndex: 'name', minWidth: 280 },
   { title: $t('dns.common.type'), dataIndex: 'kind', width: 100 },
-  { title: $t('dns.blocklist.list.colSync'), dataIndex: 'lastSync', minWidth: 200 },
+  {
+    title: $t('dns.blocklist.list.colSync'),
+    dataIndex: 'lastSync',
+    minWidth: 200,
+  },
   { title: $t('dns.common.actions'), key: 'op', width: 240 },
 ]);
 const pgColumns = computed(() => [
@@ -389,21 +536,57 @@ const pgColumns = computed(() => [
   { title: $t('dns.common.actions'), key: 'op', width: 120 },
 ]);
 const entryColumns = computed(() => [
-  { title: $t('dns.blocklist.entries.colPattern'), dataIndex: 'pattern', minWidth: 220 },
-  { title: $t('dns.blocklist.entries.colTrigger'), dataIndex: 'triggerType', width: 130 },
-  { title: $t('dns.blocklist.entries.colAction'), dataIndex: 'action', width: 120 },
-  { title: $t('dns.blocklist.entries.colCategory'), dataIndex: 'category', width: 110 },
+  {
+    title: $t('dns.blocklist.entries.colPattern'),
+    dataIndex: 'pattern',
+    minWidth: 220,
+  },
+  {
+    title: $t('dns.blocklist.entries.colTrigger'),
+    dataIndex: 'triggerType',
+    width: 130,
+  },
+  {
+    title: $t('dns.blocklist.entries.colAction'),
+    dataIndex: 'action',
+    width: 120,
+  },
+  {
+    title: $t('dns.blocklist.entries.colCategory'),
+    dataIndex: 'category',
+    width: 110,
+  },
   { title: $t('dns.common.actions'), key: 'op', width: 90 },
 ]);
 const versionColumns = computed(() => [
-  { title: $t('dns.blocklist.versions.colVersion'), dataIndex: 'version', width: 100 },
-  { title: $t('dns.blocklist.versions.colEntries'), dataIndex: 'entries', width: 100 },
-  { title: $t('dns.blocklist.versions.colTime'), dataIndex: 'createdAt', minWidth: 180 },
+  {
+    title: $t('dns.blocklist.versions.colVersion'),
+    dataIndex: 'version',
+    width: 100,
+  },
+  {
+    title: $t('dns.blocklist.versions.colEntries'),
+    dataIndex: 'entries',
+    width: 100,
+  },
+  {
+    title: $t('dns.blocklist.versions.colTime'),
+    dataIndex: 'createdAt',
+    minWidth: 180,
+  },
   { title: $t('dns.common.actions'), key: 'op', width: 110 },
 ]);
 const packColumns = computed(() => [
-  { title: $t('dns.blocklist.builtin.colPack'), dataIndex: 'name', minWidth: 200 },
-  { title: $t('dns.blocklist.builtin.colEntries'), dataIndex: 'entryCount', width: 80 },
+  {
+    title: $t('dns.blocklist.builtin.colPack'),
+    dataIndex: 'name',
+    minWidth: 200,
+  },
+  {
+    title: $t('dns.blocklist.builtin.colEntries'),
+    dataIndex: 'entryCount',
+    width: 80,
+  },
   { title: $t('dns.common.actions'), key: 'op', width: 100 },
 ]);
 
@@ -426,13 +609,29 @@ onBeforeUnmount(() => timer && clearInterval(timer));
       <template #actions>
         <span class="ipam-page-header__meta">
           <IconifyIcon icon="lucide:list-filter" class="size-3.5" />
-          {{ $t('dns.blocklist.header.meta', { lists: stats.total, groups: stats.groups }) }}
+          {{
+            $t('dns.blocklist.header.meta', {
+              lists: stats.total,
+              groups: stats.groups,
+            })
+          }}
         </span>
-        <Button size="small" :loading="loading" @click="load(); loadPolicyGroups()">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{ $t('dns.common.refresh') }}
+        <Button
+          size="small"
+          :loading="loading"
+          @click="
+            load();
+            loadPolicyGroups();
+          "
+        >
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{
+            $t('dns.common.refresh')
+          }}
         </Button>
         <Button type="primary" size="small" @click="openCreate">
-          <IconifyIcon icon="lucide:plus" class="mr-1" />{{ $t('dns.blocklist.newList') }}
+          <IconifyIcon icon="lucide:plus" class="mr-1" />{{
+            $t('dns.blocklist.newList')
+          }}
         </Button>
       </template>
     </PageHeader>
@@ -444,7 +643,12 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         :unit="$t('dns.common.unit.count')"
         icon="lucide:list-filter"
         tone="blue"
-        :hint="$t('dns.blocklist.stat.listsHint', { custom: stats.custom, feeds: stats.feeds })"
+        :hint="
+          $t('dns.blocklist.stat.listsHint', {
+            custom: stats.custom,
+            feeds: stats.feeds,
+          })
+        "
       />
       <StatCard
         :label="$t('dns.blocklist.stat.feeds')"
@@ -452,7 +656,11 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         :unit="$t('dns.common.unit.count')"
         icon="lucide:rss"
         tone="violet"
-        :hint="stats.feeds > 0 ? $t('dns.blocklist.stat.feedsHintOn') : $t('dns.blocklist.stat.feedsHintOff')"
+        :hint="
+          stats.feeds > 0
+            ? $t('dns.blocklist.stat.feedsHintOn')
+            : $t('dns.blocklist.stat.feedsHintOff')
+        "
       />
       <StatCard
         :label="$t('dns.blocklist.stat.groups')"
@@ -460,7 +668,11 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         :unit="$t('dns.common.unit.count')"
         icon="lucide:network"
         tone="cyan"
-        :hint="stats.groups > 0 ? $t('dns.blocklist.stat.groupsHintOn') : $t('dns.blocklist.stat.groupsHintOff')"
+        :hint="
+          stats.groups > 0
+            ? $t('dns.blocklist.stat.groupsHintOn')
+            : $t('dns.blocklist.stat.groupsHintOff')
+        "
       />
       <StatCard
         :label="$t('dns.blocklist.stat.builtin')"
@@ -468,7 +680,11 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         :unit="$t('dns.common.unit.count')"
         icon="lucide:lock"
         tone="green"
-        :hint="stats.builtin > 0 ? $t('dns.blocklist.stat.builtinHintOn') : $t('dns.blocklist.stat.builtinHintOff')"
+        :hint="
+          stats.builtin > 0
+            ? $t('dns.blocklist.stat.builtinHintOn')
+            : $t('dns.blocklist.stat.builtinHintOff')
+        "
       />
     </div>
 
@@ -477,7 +693,12 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         <span class="ipam-card-title">
           <IconifyIcon icon="lucide:shield-ban" />
           {{ $t('dns.blocklist.listCard.title') }}
-          <em class="ipam-card-sub">{{ $t('dns.blocklist.listCard.sub', { filtered: filteredLists.length, total: rows.length }) }}</em>
+          <em class="ipam-card-sub">{{
+            $t('dns.blocklist.listCard.sub', {
+              filtered: filteredLists.length,
+              total: rows.length,
+            })
+          }}</em>
         </span>
       </template>
       <template #extra>
@@ -487,19 +708,40 @@ onBeforeUnmount(() => timer && clearInterval(timer));
       <div class="ipam-toolbar mb-3">
         <div class="ipam-field">
           <span class="ipam-field__label">{{ $t('dns.common.keyword') }}</span>
-          <Input v-model:value="listKeyword" allow-clear :placeholder="$t('dns.blocklist.list.kwPlaceholder')" style="width: 240px" />
+          <Input
+            v-model:value="listKeyword"
+            allow-clear
+            :placeholder="$t('dns.blocklist.list.kwPlaceholder')"
+            style="width: 240px"
+          />
         </div>
         <div class="ipam-field">
           <span class="ipam-field__label">{{ $t('dns.common.type') }}</span>
-          <Select v-model:value="listKind" :options="kindOptions" style="width: 140px" />
+          <Select
+            v-model:value="listKind"
+            :options="kindOptions"
+            style="width: 140px"
+          />
         </div>
-        <Button size="small" @click="listKeyword = ''; listKind = 'all'">{{ $t('dns.common.reset') }}</Button>
+        <Button
+          size="small"
+          @click="
+            listKeyword = '';
+            listKind = 'all';
+          "
+        >
+          {{ $t('dns.common.reset') }}
+        </Button>
         <div class="ipam-toolbar__spacer"></div>
         <Button size="small" @click="openBuiltin">
-          <IconifyIcon icon="lucide:package" class="mr-1" />{{ $t('dns.blocklist.list.builtinLib') }}
+          <IconifyIcon icon="lucide:package" class="mr-1" />{{
+            $t('dns.blocklist.list.builtinLib')
+          }}
         </Button>
         <Button type="primary" size="small" @click="openCreate">
-          <IconifyIcon icon="lucide:plus" class="mr-1" />{{ $t('dns.blocklist.newList') }}
+          <IconifyIcon icon="lucide:plus" class="mr-1" />{{
+            $t('dns.blocklist.newList')
+          }}
         </Button>
       </div>
 
@@ -507,7 +749,12 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         :data-source="filteredLists"
         :loading="loading"
         :columns="listColumns"
-        :locale="{ emptyText: listKeyword || listKind !== 'all' ? $t('dns.blocklist.list.emptyFiltered') : $t('dns.blocklist.list.empty') }"
+        :locale="{
+          emptyText:
+            listKeyword || listKind !== 'all'
+              ? $t('dns.blocklist.list.emptyFiltered')
+              : $t('dns.blocklist.list.empty'),
+        }"
         :pagination="{ pageSize: 20, showSizeChanger: true, showTotal }"
         row-key="id"
         size="small"
@@ -516,7 +763,12 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           <template v-if="column.dataIndex === 'name'">
             <div class="ipam-cell-stack">
               <span class="ipam-cell-title">{{ record.name }}</span>
-              <span class="ipam-cell-meta ipam-mono">{{ record.syncUrl || (record.kind === 'builtin' ? $t('dns.blocklist.list.metaBuiltin') : $t('dns.blocklist.list.metaLocal')) }}</span>
+              <span class="ipam-cell-meta ipam-mono">{{
+                record.syncUrl ||
+                (record.kind === 'builtin'
+                  ? $t('dns.blocklist.list.metaBuiltin')
+                  : $t('dns.blocklist.list.metaLocal'))
+              }}</span>
             </div>
           </template>
           <template v-else-if="column.dataIndex === 'kind'">
@@ -526,15 +778,25 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           </template>
           <template v-else-if="column.dataIndex === 'lastSync'">
             <div class="ipam-cell-stack">
-              <span class="ipam-cell-title" style="font-weight: 400">{{ fmtSync(record.lastSync) }}</span>
-              <span class="ipam-cell-meta">{{ $t('dns.blocklist.list.version', { v: record.version }) }}</span>
+              <span class="ipam-cell-title" style="font-weight: 400">{{
+                fmtSync(record.lastSync)
+              }}</span>
+              <span class="ipam-cell-meta">{{
+                $t('dns.blocklist.list.version', { v: record.version })
+              }}</span>
             </div>
           </template>
           <template v-else-if="column.key === 'op'">
             <div class="flex items-center gap-1">
-              <Button size="small" @click="openEntries(record as Blocklist)">{{ $t('dns.blocklist.list.btnEntries') }}</Button>
-              <Button size="small" @click="exportCsv(record.id)">{{ $t('dns.blocklist.list.btnExport') }}</Button>
-              <Button size="small" @click="openVersions(record as Blocklist)">{{ $t('dns.blocklist.list.btnVersions') }}</Button>
+              <Button size="small" @click="openEntries(record as Blocklist)">
+                {{ $t('dns.blocklist.list.btnEntries') }}
+              </Button>
+              <Button size="small" @click="exportCsv(record.id)">
+                {{ $t('dns.blocklist.list.btnExport') }}
+              </Button>
+              <Button size="small" @click="openVersions(record as Blocklist)">
+                {{ $t('dns.blocklist.list.btnVersions') }}
+              </Button>
               <Button
                 v-if="record.kind === 'feed'"
                 size="small"
@@ -551,7 +813,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
                 :cancel-text="$t('dns.common.cancel')"
                 @confirm="removeList(record.id)"
               >
-                <Button size="small" danger>{{ $t('dns.common.delete') }}</Button>
+                <Button size="small" danger>
+                  {{ $t('dns.common.delete') }}
+                </Button>
               </Popconfirm>
             </div>
           </template>
@@ -569,7 +833,12 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         <span class="ipam-card-title">
           <IconifyIcon icon="lucide:network" />
           {{ $t('dns.blocklist.pg.title') }}
-          <em class="ipam-card-sub">{{ $t('dns.blocklist.pg.sub', { filtered: filteredGroups.length, total: pgRows.length }) }}</em>
+          <em class="ipam-card-sub">{{
+            $t('dns.blocklist.pg.sub', {
+              filtered: filteredGroups.length,
+              total: pgRows.length,
+            })
+          }}</em>
         </span>
       </template>
       <template #extra>
@@ -579,11 +848,18 @@ onBeforeUnmount(() => timer && clearInterval(timer));
       <div class="ipam-toolbar mb-3">
         <div class="ipam-field">
           <span class="ipam-field__label">{{ $t('dns.common.keyword') }}</span>
-          <Input v-model:value="pgKeyword" allow-clear :placeholder="$t('dns.blocklist.pg.kwPlaceholder')" style="width: 240px" />
+          <Input
+            v-model:value="pgKeyword"
+            allow-clear
+            :placeholder="$t('dns.blocklist.pg.kwPlaceholder')"
+            style="width: 240px"
+          />
         </div>
         <div class="ipam-toolbar__spacer"></div>
         <Button size="small" @click="openCreatePg">
-          <IconifyIcon icon="lucide:plus" class="mr-1" />{{ $t('dns.blocklist.pg.createBtn') }}
+          <IconifyIcon icon="lucide:plus" class="mr-1" />{{
+            $t('dns.blocklist.pg.createBtn')
+          }}
         </Button>
       </div>
 
@@ -591,7 +867,11 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         :data-source="filteredGroups"
         :loading="pgLoading"
         :columns="pgColumns"
-        :locale="{ emptyText: pgKeyword ? $t('dns.blocklist.pg.emptyFiltered') : $t('dns.blocklist.pg.empty') }"
+        :locale="{
+          emptyText: pgKeyword
+            ? $t('dns.blocklist.pg.emptyFiltered')
+            : $t('dns.blocklist.pg.empty'),
+        }"
         :pagination="{ pageSize: 10, showTotal }"
         row-key="id"
         size="small"
@@ -600,20 +880,37 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           <template v-if="column.dataIndex === 'name'">
             <div class="ipam-cell-stack">
               <span class="ipam-cell-title">{{ record.name }}</span>
-              <span class="ipam-cell-meta ipam-mono">view: {{ record.viewName }}</span>
+              <span class="ipam-cell-meta ipam-mono"
+                >view: {{ record.viewName }}</span
+              >
             </div>
           </template>
           <template v-else-if="column.dataIndex === 'cidrs'">
-            <div v-if="(record.cidrs ?? []).length > 0" class="flex flex-wrap gap-1">
-              <span v-for="c in record.cidrs" :key="c" class="ipam-chip ipam-mono" data-tone="muted">{{ c }}</span>
+            <div
+              v-if="(record.cidrs ?? []).length > 0"
+              class="flex flex-wrap gap-1"
+            >
+              <span
+                v-for="c in record.cidrs"
+                :key="c"
+                class="ipam-chip ipam-mono"
+                data-tone="muted"
+                >{{ c }}</span
+              >
             </div>
-            <span v-else class="ipam-hint">{{ $t('dns.blocklist.pg.allSources') }}</span>
+            <span v-else class="ipam-hint">{{
+              $t('dns.blocklist.pg.allSources')
+            }}</span>
           </template>
           <template v-else-if="column.dataIndex === 'listIds'">
-            <span class="ipam-chip" data-tone="blue">{{ $t('dns.common.count', { n: (record.listIds ?? []).length }) }}</span>
+            <span class="ipam-chip" data-tone="blue">{{
+              $t('dns.common.count', { n: (record.listIds ?? []).length })
+            }}</span>
           </template>
           <template v-else-if="column.key === 'op'">
-            <Button size="small" @click="compilePg(record.id)">{{ $t('dns.blocklist.pg.compile') }}</Button>
+            <Button size="small" @click="compilePg(record.id)">
+              {{ $t('dns.blocklist.pg.compile') }}
+            </Button>
           </template>
         </template>
       </Table>
@@ -624,9 +921,13 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             <IconifyIcon icon="lucide:file-code-2" />
             {{ $t('dns.blocklist.pg.compileResult') }}
           </span>
-          <Button size="small" @click="pgResult = null">{{ $t('dns.blocklist.pg.collapse') }}</Button>
+          <Button size="small" @click="pgResult = null">
+            {{ $t('dns.blocklist.pg.collapse') }}
+          </Button>
         </div>
-        <pre class="ipam-code-block">{{ JSON.stringify(pgResult, null, 2) }}</pre>
+        <pre class="ipam-code-block">{{
+          JSON.stringify(pgResult, null, 2)
+        }}</pre>
       </div>
     </Card>
 
@@ -634,22 +935,40 @@ onBeforeUnmount(() => timer && clearInterval(timer));
     <CreateModal class="w-[640px]">
       <div class="ipam-form-grid">
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dns.blocklist.createModal.nameLabel') }}<em>*</em></span>
-          <Input v-model:value="cForm.name" :placeholder="$t('dns.blocklist.createModal.namePlaceholder')" />
+          <span class="ipam-form-field__label"
+            >{{ $t('dns.blocklist.createModal.nameLabel') }}<em>*</em></span
+          >
+          <Input
+            v-model:value="cForm.name"
+            :placeholder="$t('dns.blocklist.createModal.namePlaceholder')"
+          />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dns.common.type') }}</span>
+          <span class="ipam-form-field__label">{{
+            $t('dns.common.type')
+          }}</span>
           <Select
             v-model:value="cForm.kind"
             :options="[
-              { value: 'custom', label: $t('dns.blocklist.createModal.optCustom') },
+              {
+                value: 'custom',
+                label: $t('dns.blocklist.createModal.optCustom'),
+              },
               { value: 'feed', label: $t('dns.blocklist.createModal.optFeed') },
             ]"
           />
         </label>
-        <label v-if="cForm.kind === 'feed'" class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">{{ $t('dns.blocklist.createModal.urlLabel') }}<em>*</em></span>
-          <Input v-model:value="cForm.syncUrl" placeholder="https://example.com/blocklist.txt" />
+        <label
+          v-if="cForm.kind === 'feed'"
+          class="ipam-form-field ipam-form-field--wide"
+        >
+          <span class="ipam-form-field__label"
+            >{{ $t('dns.blocklist.createModal.urlLabel') }}<em>*</em></span
+          >
+          <Input
+            v-model:value="cForm.syncUrl"
+            placeholder="https://example.com/blocklist.txt"
+          />
         </label>
         <div class="ipam-form-hint ipam-form-field--wide">
           {{ $t('dns.blocklist.createModal.hint') }}
@@ -661,32 +980,68 @@ onBeforeUnmount(() => timer && clearInterval(timer));
     <PgModal class="w-[680px]">
       <div class="ipam-form-grid">
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dns.blocklist.pgModal.nameLabel') }}<em>*</em></span>
-          <Input v-model:value="pgForm.name" :placeholder="$t('dns.blocklist.pgModal.namePlaceholder')" />
+          <span class="ipam-form-field__label"
+            >{{ $t('dns.blocklist.pgModal.nameLabel') }}<em>*</em></span
+          >
+          <Input
+            v-model:value="pgForm.name"
+            :placeholder="$t('dns.blocklist.pgModal.namePlaceholder')"
+          />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dns.blocklist.pgModal.viewLabel') }}</span>
+          <span class="ipam-form-field__label">{{
+            $t('dns.blocklist.pgModal.viewLabel')
+          }}</span>
           <Input v-model:value="pgForm.viewName" placeholder="recursor" />
         </label>
         <label class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">{{ $t('dns.blocklist.pgModal.cidrLabel') }}</span>
-          <Input v-model:value="pgForm.cidrs" :placeholder="$t('dns.blocklist.pgModal.cidrPlaceholder')" />
+          <span class="ipam-form-field__label">{{
+            $t('dns.blocklist.pgModal.cidrLabel')
+          }}</span>
+          <Input
+            v-model:value="pgForm.cidrs"
+            :placeholder="$t('dns.blocklist.pgModal.cidrPlaceholder')"
+          />
         </label>
         <label class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">{{ $t('dns.blocklist.pgModal.listsLabel') }}</span>
-          <Select v-model:value="pgForm.listIds" mode="multiple" :placeholder="$t('dns.blocklist.pgModal.listsPlaceholder')" :options="pgListOptions" />
+          <span class="ipam-form-field__label">{{
+            $t('dns.blocklist.pgModal.listsLabel')
+          }}</span>
+          <Select
+            v-model:value="pgForm.listIds"
+            mode="multiple"
+            :placeholder="$t('dns.blocklist.pgModal.listsPlaceholder')"
+            :options="pgListOptions"
+          />
         </label>
         <label class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">{{ $t('dns.blocklist.pgModal.weekLabel') }}</span>
-          <Select v-model:value="pgForm.scheduleDays" mode="multiple" :options="WEEK_OPTIONS" :placeholder="$t('dns.blocklist.pgModal.weekPlaceholder')" />
+          <span class="ipam-form-field__label">{{
+            $t('dns.blocklist.pgModal.weekLabel')
+          }}</span>
+          <Select
+            v-model:value="pgForm.scheduleDays"
+            mode="multiple"
+            :options="WEEK_OPTIONS"
+            :placeholder="$t('dns.blocklist.pgModal.weekPlaceholder')"
+          />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dns.blocklist.pgModal.startLabel') }}</span>
-          <Input v-model:value="pgForm.scheduleStart" :placeholder="$t('dns.blocklist.pgModal.startPlaceholder')" />
+          <span class="ipam-form-field__label">{{
+            $t('dns.blocklist.pgModal.startLabel')
+          }}</span>
+          <Input
+            v-model:value="pgForm.scheduleStart"
+            :placeholder="$t('dns.blocklist.pgModal.startPlaceholder')"
+          />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dns.blocklist.pgModal.endLabel') }}</span>
-          <Input v-model:value="pgForm.scheduleEnd" :placeholder="$t('dns.blocklist.pgModal.endPlaceholder')" />
+          <span class="ipam-form-field__label">{{
+            $t('dns.blocklist.pgModal.endLabel')
+          }}</span>
+          <Input
+            v-model:value="pgForm.scheduleEnd"
+            :placeholder="$t('dns.blocklist.pgModal.endPlaceholder')"
+          />
         </label>
         <div class="ipam-form-hint ipam-form-field--wide">
           {{ $t('dns.blocklist.pgModal.hint') }}
@@ -698,22 +1053,39 @@ onBeforeUnmount(() => timer && clearInterval(timer));
     <EntriesDrawer>
       <div class="mb-3 flex flex-wrap items-end gap-2">
         <div class="ipam-field">
-          <span class="ipam-field__label">{{ $t('dns.blocklist.entries.patternLabel') }}</span>
-          <Input v-model:value="eForm.pattern" :placeholder="$t('dns.blocklist.entries.patternPlaceholder')" style="width: 200px" @press-enter="addEntry" />
+          <span class="ipam-field__label">{{
+            $t('dns.blocklist.entries.patternLabel')
+          }}</span>
+          <Input
+            v-model:value="eForm.pattern"
+            :placeholder="$t('dns.blocklist.entries.patternPlaceholder')"
+            style="width: 200px"
+            @press-enter="addEntry"
+          />
         </div>
         <div class="ipam-field">
-          <span class="ipam-field__label">{{ $t('dns.blocklist.entries.triggerLabel') }}</span>
+          <span class="ipam-field__label">{{
+            $t('dns.blocklist.entries.triggerLabel')
+          }}</span>
           <Select
             v-model:value="eForm.triggerType"
             style="width: 150px"
             :options="[
-              { value: 'qname', label: $t('dns.blocklist.entries.triggerQname') },
-              { value: 'response_ip', label: $t('dns.blocklist.entries.triggerIp') },
+              {
+                value: 'qname',
+                label: $t('dns.blocklist.entries.triggerQname'),
+              },
+              {
+                value: 'response_ip',
+                label: $t('dns.blocklist.entries.triggerIp'),
+              },
             ]"
           />
         </div>
         <div class="ipam-field">
-          <span class="ipam-field__label">{{ $t('dns.blocklist.entries.actionLabel') }}</span>
+          <span class="ipam-field__label">{{
+            $t('dns.blocklist.entries.actionLabel')
+          }}</span>
           <Select
             v-model:value="eForm.action"
             style="width: 125px"
@@ -726,32 +1098,57 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           />
         </div>
         <Button type="primary" size="small" @click="addEntry">
-          <IconifyIcon icon="lucide:plus" class="mr-1" />{{ $t('dns.blocklist.entries.addBtn') }}
+          <IconifyIcon icon="lucide:plus" class="mr-1" />{{
+            $t('dns.blocklist.entries.addBtn')
+          }}
         </Button>
         <Button size="small" @click="openCsv">
-          <IconifyIcon icon="lucide:upload" class="mr-1" />{{ $t('dns.blocklist.entries.importCsv') }}
+          <IconifyIcon icon="lucide:upload" class="mr-1" />{{
+            $t('dns.blocklist.entries.importCsv')
+          }}
         </Button>
         <Button size="small" @click="exportCsv()">
-          <IconifyIcon icon="lucide:download" class="mr-1" />{{ $t('dns.blocklist.entries.exportCsv') }}
+          <IconifyIcon icon="lucide:download" class="mr-1" />{{
+            $t('dns.blocklist.entries.exportCsv')
+          }}
         </Button>
       </div>
 
       <div class="ipam-summary mb-3">
         <div class="ipam-summary__item">
-          <span class="ipam-summary__label">{{ $t('dns.blocklist.entries.currentList') }}</span>
-          <span class="ipam-summary__value" style="font-size: 14px">{{ selName }}</span>
+          <span class="ipam-summary__label">{{
+            $t('dns.blocklist.entries.currentList')
+          }}</span>
+          <span class="ipam-summary__value" style="font-size: 14px">{{
+            selName
+          }}</span>
         </div>
         <div class="ipam-summary__item">
-          <span class="ipam-summary__label">{{ $t('dns.blocklist.entries.totalEntries') }}</span>
-          <span class="ipam-summary__value">{{ entries.length }}<small>{{ $t('dns.common.unit.item') }}</small></span>
+          <span class="ipam-summary__label">{{
+            $t('dns.blocklist.entries.totalEntries')
+          }}</span>
+          <span class="ipam-summary__value"
+            >{{ entries.length
+            }}<small>{{ $t('dns.common.unit.item') }}</small></span
+          >
         </div>
         <div class="ipam-summary__item">
-          <span class="ipam-summary__label">{{ $t('dns.blocklist.entries.qnameEntries') }}</span>
-          <span class="ipam-summary__value">{{ entries.filter((e) => e.triggerType === 'qname').length }}<small>{{ $t('dns.common.unit.item') }}</small></span>
+          <span class="ipam-summary__label">{{
+            $t('dns.blocklist.entries.qnameEntries')
+          }}</span>
+          <span class="ipam-summary__value"
+            >{{ entries.filter((e) => e.triggerType === 'qname').length
+            }}<small>{{ $t('dns.common.unit.item') }}</small></span
+          >
         </div>
         <div class="ipam-summary__item">
-          <span class="ipam-summary__label">{{ $t('dns.blocklist.entries.ipEntries') }}</span>
-          <span class="ipam-summary__value">{{ entries.filter((e) => e.triggerType === 'response_ip').length }}<small>{{ $t('dns.common.unit.item') }}</small></span>
+          <span class="ipam-summary__label">{{
+            $t('dns.blocklist.entries.ipEntries')
+          }}</span>
+          <span class="ipam-summary__value"
+            >{{ entries.filter((e) => e.triggerType === 'response_ip').length
+            }}<small>{{ $t('dns.common.unit.item') }}</small></span
+          >
         </div>
       </div>
 
@@ -769,12 +1166,24 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             <span class="ipam-mono text-xs">{{ record.pattern }}</span>
           </template>
           <template v-else-if="column.dataIndex === 'triggerType'">
-            <Tag class="m-0" :color="record.triggerType === 'qname' ? 'blue' : 'cyan'">
+            <Tag
+              class="m-0"
+              :color="record.triggerType === 'qname' ? 'blue' : 'cyan'"
+            >
               {{ record.triggerType }}
             </Tag>
           </template>
           <template v-else-if="column.dataIndex === 'action'">
-            <span class="ipam-chip" :data-tone="record.action === 'drop' ? 'red' : record.action === 'nxdomain' ? 'amber' : 'muted'">
+            <span
+              class="ipam-chip"
+              :data-tone="
+                record.action === 'drop'
+                  ? 'red'
+                  : record.action === 'nxdomain'
+                    ? 'amber'
+                    : 'muted'
+              "
+            >
               {{ ACTION_TEXT[record.action] ?? record.action }}
             </span>
           </template>
@@ -782,7 +1191,13 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             <span class="ipam-hint">{{ record.category || '—' }}</span>
           </template>
           <template v-else-if="column.key === 'op'">
-            <Popconfirm :title="$t('dns.blocklist.entries.deleteTitle')" :description="$t('dns.blocklist.entries.deleteDesc')" :ok-text="$t('dns.common.delete')" :cancel-text="$t('dns.common.cancel')" @confirm="removeEntry(record.listId, record.pattern)">
+            <Popconfirm
+              :title="$t('dns.blocklist.entries.deleteTitle')"
+              :description="$t('dns.blocklist.entries.deleteDesc')"
+              :ok-text="$t('dns.common.delete')"
+              :cancel-text="$t('dns.common.cancel')"
+              @confirm="removeEntry(record.listId, record.pattern)"
+            >
               <Button size="small" danger>{{ $t('dns.common.delete') }}</Button>
             </Popconfirm>
           </template>
@@ -801,7 +1216,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
     >
       <div class="ipam-form-grid">
         <div class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">{{ $t('dns.blocklist.csv.contentLabel') }}</span>
+          <span class="ipam-form-field__label">{{
+            $t('dns.blocklist.csv.contentLabel')
+          }}</span>
           <Input.TextArea
             v-model:value="csvContent"
             :rows="8"
@@ -816,7 +1233,12 @@ onBeforeUnmount(() => timer && clearInterval(timer));
     </Modal>
 
     <!-- 版本回滚 -->
-    <Modal v-model:open="versionsOpen" :title="$t('dns.blocklist.versions.title')" :footer="null" width="560px">
+    <Modal
+      v-model:open="versionsOpen"
+      :title="$t('dns.blocklist.versions.title')"
+      :footer="null"
+      width="560px"
+    >
       <Table
         :data-source="versions"
         :loading="versionsLoading"
@@ -828,7 +1250,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.dataIndex === 'version'">
-            <span class="ipam-chip ipam-mono" data-tone="blue">v{{ record.version }}</span>
+            <span class="ipam-chip ipam-mono" data-tone="blue"
+              >v{{ record.version }}</span
+            >
           </template>
           <template v-else-if="column.dataIndex === 'createdAt'">
             <span class="ipam-hint">{{ fmtSync(record.createdAt) }}</span>
@@ -841,7 +1265,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
               :cancel-text="$t('dns.common.cancel')"
               @confirm="doRollback(record.version)"
             >
-              <Button size="small">{{ $t('dns.blocklist.versions.rollbackBtn') }}</Button>
+              <Button size="small">
+                {{ $t('dns.blocklist.versions.rollbackBtn') }}
+              </Button>
             </Popconfirm>
           </template>
         </template>
@@ -849,7 +1275,12 @@ onBeforeUnmount(() => timer && clearInterval(timer));
     </Modal>
 
     <!-- 内置分类库 -->
-    <Modal v-model:open="builtinOpen" :title="$t('dns.blocklist.list.builtinLib')" :footer="null" width="640px">
+    <Modal
+      v-model:open="builtinOpen"
+      :title="$t('dns.blocklist.list.builtinLib')"
+      :footer="null"
+      width="640px"
+    >
       <Table
         :data-source="packs"
         :loading="builtinLoading"
@@ -866,7 +1297,13 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             </div>
           </template>
           <template v-else-if="column.key === 'op'">
-            <Button size="small" type="primary" @click="installPack(record.key)">{{ $t('dns.blocklist.builtin.installBtn') }}</Button>
+            <Button
+              size="small"
+              type="primary"
+              @click="installPack(record.key)"
+            >
+              {{ $t('dns.blocklist.builtin.installBtn') }}
+            </Button>
           </template>
         </template>
       </Table>

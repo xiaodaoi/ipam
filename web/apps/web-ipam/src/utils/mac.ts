@@ -4,10 +4,10 @@
  *       C43D1A07EB2B / c4.3d.1a.07.eb.2b / 任意大小写混用。
  * 非法（hex 位 ≠ 12 或含非法字符）返回 null。
  */
-export function normalizeMacInput(raw: string): string | null {
+export function normalizeMacInput(raw: string): null | string {
   const s = String(raw ?? '').trim();
   if (!s || /[^0-9a-fA-F:\-.]/.test(s)) return null;
-  const hex = s.replace(/[:\-.]/g, '');
+  const hex = s.replaceAll(/[:\-.]/g, '');
   if (hex.length !== 12) return null;
   const p = hex.toLowerCase();
   return [
@@ -20,4 +20,5 @@ export function normalizeMacInput(raw: string): string | null {
   ].join(':');
 }
 
-export const MAC_PLACEHOLDER = '如 C4-3D-1A-07-EB-2B / C43D1A07EB2B / 冒号分隔均可';
+export const MAC_PLACEHOLDER =
+  '如 C4-3D-1A-07-EB-2B / C43D1A07EB2B / 冒号分隔均可';

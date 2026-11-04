@@ -6,7 +6,16 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useVbenModal } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Button, Card, Input, message, Popconfirm, Select, Table, Tag } from 'ant-design-vue';
+import {
+  Button,
+  Card,
+  Input,
+  message,
+  Popconfirm,
+  Select,
+  Table,
+  Tag,
+} from 'ant-design-vue';
 
 import { deleteAsset, listAssets, listOrgTree, upsertAsset } from '#/api/ipam';
 import OrgFilterCard from '#/components/org-filter-card.vue';
@@ -15,7 +24,8 @@ import StatCard from '#/components/stat-card.vue';
 import { $t } from '#/locales';
 import { normalizeMacInput } from '#/utils/mac';
 
-const showTotal = (t: number) => $t('dhcpLedger.common.showTotal', { total: t });
+const showTotal = (t: number) =>
+  $t('dhcpLedger.common.showTotal', { total: t });
 
 // ── 组织筛选（左侧树） ──
 const orgTree = ref<OrgTreeNode[]>([]);
@@ -91,13 +101,22 @@ function resetFilters() {
 
 const visibleRows = computed(() => {
   if (scope.value === 'unassigned') return rows.value.filter((r) => !r.orgId);
-  if (scope.value === 'tagged') return rows.value.filter((r) => (r.tags ?? []).length > 0);
+  if (scope.value === 'tagged')
+    return rows.value.filter((r) => (r.tags ?? []).length > 0);
   return rows.value;
 });
 
 const assetColumns = computed(() => [
-  { title: $t('dhcpLedger.assets.colTerminal'), dataIndex: 'mac', minWidth: 190 },
-  { title: $t('dhcpLedger.assets.colOwnerDept'), dataIndex: 'owner', minWidth: 130 },
+  {
+    title: $t('dhcpLedger.assets.colTerminal'),
+    dataIndex: 'mac',
+    minWidth: 190,
+  },
+  {
+    title: $t('dhcpLedger.assets.colOwnerDept'),
+    dataIndex: 'owner',
+    minWidth: 130,
+  },
   { title: $t('dhcpLedger.assets.colOrg'), dataIndex: 'orgId', minWidth: 180 },
   { title: $t('dhcpLedger.assets.colTags'), dataIndex: 'tags', width: 130 },
   { title: $t('dhcpLedger.common.actions'), key: 'op', width: 110 },
@@ -166,7 +185,9 @@ function exportCsv() {
   a.download = `assets-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
-  message.success($t('dhcpLedger.assets.exportDone', { count: visibleRows.value.length }));
+  message.success(
+    $t('dhcpLedger.assets.exportDone', { count: visibleRows.value.length }),
+  );
 }
 
 // ── 登记 / 编辑 ──
@@ -243,12 +264,18 @@ async function save() {
       note: form.note.trim() || undefined,
     });
     message.success(
-      editingMac.value ? $t('dhcpLedger.assets.updated') : $t('dhcpLedger.assets.created'),
+      editingMac.value
+        ? $t('dhcpLedger.assets.updated')
+        : $t('dhcpLedger.assets.created'),
     );
     formModalApi.close();
     await load();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dhcpLedger.assets.saveFailed'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dhcpLedger.assets.saveFailed'),
+    );
   }
 }
 
@@ -257,7 +284,11 @@ async function remove(mac: string) {
     await deleteAsset(mac);
     message.success($t('dhcpLedger.assets.deleted'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dhcpLedger.assets.deleteFailed'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dhcpLedger.assets.deleteFailed'),
+    );
   }
   await load();
 }
@@ -279,14 +310,21 @@ onMounted(async () => {
       <template #actions>
         <span class="ipam-page-header__meta">
           <IconifyIcon icon="lucide:contact-round" class="size-3.5" />
-          {{ $t('dhcpLedger.assets.meta', { total: stats.total, departments: stats.deptCount }) }}
+          {{
+            $t('dhcpLedger.assets.meta', {
+              total: stats.total,
+              departments: stats.deptCount,
+            })
+          }}
         </span>
         <Button size="small" :loading="loading" @click="load">
           <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />
           {{ $t('dhcpLedger.common.refresh') }}
         </Button>
         <Button type="primary" size="small" @click="openCreate">
-          <IconifyIcon icon="lucide:plus" class="mr-1" />{{ $t('dhcpLedger.assets.create') }}
+          <IconifyIcon icon="lucide:plus" class="mr-1" />{{
+            $t('dhcpLedger.assets.create')
+          }}
         </Button>
       </template>
     </PageHeader>
@@ -306,7 +344,9 @@ onMounted(async () => {
             :unit="$t('dhcpLedger.common.units.item')"
             icon="lucide:contact"
             tone="blue"
-            :hint="$t('dhcpLedger.assets.statTotalHint', { count: stats.ownerCount })"
+            :hint="
+              $t('dhcpLedger.assets.statTotalHint', { count: stats.ownerCount })
+            "
           />
           <StatCard
             :label="$t('dhcpLedger.assets.statAssigned')"
@@ -314,8 +354,14 @@ onMounted(async () => {
             :unit="$t('dhcpLedger.common.units.item')"
             icon="lucide:building-2"
             tone="cyan"
-            :progress="stats.total > 0 ? (stats.assigned / stats.total) * 100 : 0"
-            :hint="$t('dhcpLedger.assets.statAssignedHint', { count: stats.unassigned })"
+            :progress="
+              stats.total > 0 ? (stats.assigned / stats.total) * 100 : 0
+            "
+            :hint="
+              $t('dhcpLedger.assets.statAssignedHint', {
+                count: stats.unassigned,
+              })
+            "
           />
           <StatCard
             :label="$t('dhcpLedger.assets.statOwners')"
@@ -323,7 +369,9 @@ onMounted(async () => {
             :unit="$t('dhcpLedger.common.units.person')"
             icon="lucide:user-round"
             tone="green"
-            :hint="$t('dhcpLedger.assets.statOwnersHint', { count: stats.deptCount })"
+            :hint="
+              $t('dhcpLedger.assets.statOwnersHint', { count: stats.deptCount })
+            "
           />
           <StatCard
             :label="$t('dhcpLedger.assets.statTags')"
@@ -331,7 +379,9 @@ onMounted(async () => {
             :unit="$t('dhcpLedger.common.units.item')"
             icon="lucide:tags"
             :tone="stats.tagCount > 0 ? 'violet' : 'amber'"
-            :hint="$t('dhcpLedger.assets.statTagsHint', { count: stats.tagCount })"
+            :hint="
+              $t('dhcpLedger.assets.statTagsHint', { count: stats.tagCount })
+            "
           />
         </div>
 
@@ -341,17 +391,26 @@ onMounted(async () => {
               <IconifyIcon icon="lucide:clipboard-list" />
               {{ $t('dhcpLedger.assets.listCard') }}
               <em class="ipam-card-sub">
-                {{ $t('dhcpLedger.assets.listCardSub', { shown: visibleRows.length, total: rows.length }) }}
+                {{
+                  $t('dhcpLedger.assets.listCardSub', {
+                    shown: visibleRows.length,
+                    total: rows.length,
+                  })
+                }}
               </em>
             </span>
           </template>
           <template #extra>
-            <span class="ipam-hint">{{ $t('dhcpLedger.assets.listCardHint') }}</span>
+            <span class="ipam-hint">{{
+              $t('dhcpLedger.assets.listCardHint')
+            }}</span>
           </template>
 
           <div class="ipam-toolbar mb-3">
             <div class="ipam-field">
-              <span class="ipam-field__label">{{ $t('dhcpLedger.common.keyword') }}</span>
+              <span class="ipam-field__label">{{
+                $t('dhcpLedger.common.keyword')
+              }}</span>
               <Input
                 v-model:value="keyword"
                 allow-clear
@@ -361,17 +420,33 @@ onMounted(async () => {
               />
             </div>
             <div class="ipam-field">
-              <span class="ipam-field__label">{{ $t('dhcpLedger.common.scope') }}</span>
-              <Select v-model:value="scope" :options="scopeOptions" style="width: 150px" />
+              <span class="ipam-field__label">{{
+                $t('dhcpLedger.common.scope')
+              }}</span>
+              <Select
+                v-model:value="scope"
+                :options="scopeOptions"
+                style="width: 150px"
+              />
             </div>
-            <Button size="small" @click="load">{{ $t('dhcpLedger.common.query') }}</Button>
-            <Button size="small" @click="resetFilters">{{ $t('dhcpLedger.common.reset') }}</Button>
+            <Button size="small" @click="load">
+              {{ $t('dhcpLedger.common.query') }}
+            </Button>
+            <Button size="small" @click="resetFilters">
+              {{ $t('dhcpLedger.common.reset') }}
+            </Button>
             <div class="ipam-toolbar__spacer"></div>
-            <Button size="small" :disabled="visibleRows.length === 0" @click="exportCsv">
+            <Button
+              size="small"
+              :disabled="visibleRows.length === 0"
+              @click="exportCsv"
+            >
               <IconifyIcon icon="lucide:download" class="mr-1 size-3.5" />
               {{ $t('dhcpLedger.common.exportCsv') }}
             </Button>
-            <span class="ipam-hint">{{ $t('dhcpLedger.assets.hintDecoupled') }}</span>
+            <span class="ipam-hint">{{
+              $t('dhcpLedger.assets.hintDecoupled')
+            }}</span>
           </div>
 
           <Table
@@ -387,7 +462,11 @@ onMounted(async () => {
               <template v-if="column.dataIndex === 'mac'">
                 <div class="ipam-cell-stack">
                   <span class="ipam-mono">{{ record.mac }}</span>
-                  <span v-if="record.note" class="ipam-cell-meta" :title="record.note">
+                  <span
+                    v-if="record.note"
+                    class="ipam-cell-meta"
+                    :title="record.note"
+                  >
                     {{ record.note }}
                   </span>
                   <span v-else class="ipam-cell-meta">—</span>
@@ -396,7 +475,9 @@ onMounted(async () => {
               <template v-else-if="column.dataIndex === 'owner'">
                 <div class="ipam-cell-stack">
                   <span class="ipam-cell-title">{{ record.owner || '—' }}</span>
-                  <span class="ipam-cell-meta">{{ record.dept || $t('dhcpLedger.assets.noDept') }}</span>
+                  <span class="ipam-cell-meta">{{
+                    record.dept || $t('dhcpLedger.assets.noDept')
+                  }}</span>
                 </div>
               </template>
               <template v-else-if="column.dataIndex === 'orgId'">
@@ -405,23 +486,43 @@ onMounted(async () => {
                   class="ipam-org-path ipam-org-path--start"
                   :title="orgPathOf(record.orgId).join(' / ')"
                 >
-                  <template v-for="(seg, i) in orgPathOf(record.orgId)" :key="`${seg}-${i}`">
-                    <IconifyIcon v-if="i > 0" icon="lucide:chevron-right" class="size-3" />
-                    <b v-if="i === orgPathOf(record.orgId).length - 1">{{ seg }}</b>
+                  <template
+                    v-for="(seg, i) in orgPathOf(record.orgId)"
+                    :key="`${seg}-${i}`"
+                  >
+                    <IconifyIcon
+                      v-if="i > 0"
+                      icon="lucide:chevron-right"
+                      class="size-3"
+                    />
+                    <b v-if="i === orgPathOf(record.orgId).length - 1">{{
+                      seg
+                    }}</b>
                     <span v-else>{{ seg }}</span>
                   </template>
                 </span>
-                <span v-else class="ipam-chip" data-tone="amber">{{ $t('dhcpLedger.assets.unassigned') }}</span>
+                <span v-else class="ipam-chip" data-tone="amber">{{
+                  $t('dhcpLedger.assets.unassigned')
+                }}</span>
               </template>
               <template v-else-if="column.dataIndex === 'tags'">
                 <template v-if="record.tags?.length">
-                  <Tag v-for="t in record.tags" :key="t" color="blue" class="m-0">{{ t }}</Tag>
+                  <Tag
+                    v-for="t in record.tags"
+                    :key="t"
+                    color="blue"
+                    class="m-0"
+                  >
+                    {{ t }}
+                  </Tag>
                 </template>
                 <span v-else class="text-gray-400">—</span>
               </template>
               <template v-else-if="column.key === 'op'">
                 <div class="flex items-center gap-1">
-                  <Button size="small" @click="openEdit(record as Asset)">{{ $t('dhcpLedger.common.edit') }}</Button>
+                  <Button size="small" @click="openEdit(record as Asset)">
+                    {{ $t('dhcpLedger.common.edit') }}
+                  </Button>
                   <Popconfirm
                     :title="$t('dhcpLedger.assets.deleteConfirmTitle')"
                     :description="$t('dhcpLedger.assets.deleteConfirmDesc')"
@@ -429,7 +530,9 @@ onMounted(async () => {
                     :cancel-text="$t('dhcpLedger.common.cancel')"
                     @confirm="remove(record.mac)"
                   >
-                    <Button size="small" danger>{{ $t('dhcpLedger.common.delete') }}</Button>
+                    <Button size="small" danger>
+                      {{ $t('dhcpLedger.common.delete') }}
+                    </Button>
                   </Popconfirm>
                 </div>
               </template>
@@ -442,7 +545,9 @@ onMounted(async () => {
     <FormModal class="w-[560px]">
       <div class="space-y-2">
         <div class="flex items-center gap-2">
-          <span class="w-16 shrink-0 text-right text-xs text-gray-400">{{ $t('dhcpLedger.assets.form.mac') }}</span>
+          <span class="w-16 shrink-0 text-right text-xs text-gray-400">{{
+            $t('dhcpLedger.assets.form.mac')
+          }}</span>
           <Input
             v-model:value="form.mac"
             :disabled="!!editingMac"
@@ -451,7 +556,9 @@ onMounted(async () => {
           />
         </div>
         <div class="flex items-center gap-2">
-          <span class="w-16 shrink-0 text-right text-xs text-gray-400">{{ $t('dhcpLedger.assets.form.owner') }}</span>
+          <span class="w-16 shrink-0 text-right text-xs text-gray-400">{{
+            $t('dhcpLedger.assets.form.owner')
+          }}</span>
           <Input
             v-model:value="form.owner"
             :placeholder="$t('dhcpLedger.assets.form.ownerPlaceholder')"
@@ -459,7 +566,9 @@ onMounted(async () => {
           />
         </div>
         <div class="flex items-center gap-2">
-          <span class="w-16 shrink-0 text-right text-xs text-gray-400">{{ $t('dhcpLedger.assets.form.dept') }}</span>
+          <span class="w-16 shrink-0 text-right text-xs text-gray-400">{{
+            $t('dhcpLedger.assets.form.dept')
+          }}</span>
           <Input
             v-model:value="form.dept"
             :placeholder="$t('dhcpLedger.assets.form.deptPlaceholder')"
@@ -467,7 +576,9 @@ onMounted(async () => {
           />
         </div>
         <div class="flex items-center gap-2">
-          <span class="w-16 shrink-0 text-right text-xs text-gray-400">{{ $t('dhcpLedger.assets.form.org') }}</span>
+          <span class="w-16 shrink-0 text-right text-xs text-gray-400">{{
+            $t('dhcpLedger.assets.form.org')
+          }}</span>
           <Select
             v-model:value="form.orgId"
             :placeholder="$t('dhcpLedger.assets.form.orgPlaceholder')"
@@ -477,7 +588,9 @@ onMounted(async () => {
           />
         </div>
         <div class="flex items-center gap-2">
-          <span class="w-16 shrink-0 text-right text-xs text-gray-400">{{ $t('dhcpLedger.assets.form.tags') }}</span>
+          <span class="w-16 shrink-0 text-right text-xs text-gray-400">{{
+            $t('dhcpLedger.assets.form.tags')
+          }}</span>
           <Select
             v-model:value="form.tags"
             mode="tags"
@@ -487,7 +600,9 @@ onMounted(async () => {
           />
         </div>
         <div class="flex items-center gap-2">
-          <span class="w-16 shrink-0 text-right text-xs text-gray-400">{{ $t('dhcpLedger.assets.form.note') }}</span>
+          <span class="w-16 shrink-0 text-right text-xs text-gray-400">{{
+            $t('dhcpLedger.assets.form.note')
+          }}</span>
           <Input
             v-model:value="form.note"
             :placeholder="$t('dhcpLedger.assets.form.notePlaceholder')"

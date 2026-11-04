@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import type { VxeGridProps } from '@vben/plugins/vxe-table';
 
-import type { LedgerRow, ReservationBulkEntryIn, ReservationBulkResult, Subnet } from '#/api/ipam';
+import type {
+  LedgerRow,
+  ReservationBulkEntryIn,
+  ReservationBulkResult,
+  Subnet,
+} from '#/api/ipam';
 
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 
@@ -20,15 +25,29 @@ import {
 } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
-import { bindStatic, bulkReservations, listLedger, listSubnets, releaseAddress, updateBinding } from '#/api/ipam';
+import {
+  bindStatic,
+  bulkReservations,
+  listLedger,
+  listSubnets,
+  releaseAddress,
+  updateBinding,
+} from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import { $t } from '#/locales';
 import { normalizeMacInput } from '#/utils/mac';
 
 const subnets = ref<Subnet[]>([]);
 const selectedSubnet = ref<string>();
-type RowDraft = { address: string; kind: 'bind' | 'reserve'; mac: string; reason: string };
-const entries = ref<RowDraft[]>([{ address: '', kind: 'reserve', mac: '', reason: '' }]);
+type RowDraft = {
+  address: string;
+  kind: 'bind' | 'reserve';
+  mac: string;
+  reason: string;
+};
+const entries = ref<RowDraft[]>([
+  { address: '', kind: 'reserve', mac: '', reason: '' },
+]);
 const bulkResult = ref<ReservationBulkResult>();
 const submitting = ref(false);
 const allRows = ref<LedgerRow[]>([]);
@@ -56,7 +75,9 @@ function filterRows(rows: LedgerRow[]): LedgerRow[] {
   const kw = search.value.trim().toLowerCase();
   if (!kw) return rows;
   return rows.filter((r) =>
-    [r.address, r.mac, r.hostname].some((v) => (v ?? '').toLowerCase().includes(kw)),
+    [r.address, r.mac, r.hostname].some((v) =>
+      (v ?? '').toLowerCase().includes(kw),
+    ),
   );
 }
 const listRows = computed(() =>
@@ -159,7 +180,11 @@ const listGridOptions = computed<VxeGridProps>(() => ({
       width: 80,
       slots: { default: 'state' },
     },
-    { field: 'address', title: $t('dhcp.reservations.col.address'), minWidth: 160 },
+    {
+      field: 'address',
+      title: $t('dhcp.reservations.col.address'),
+      minWidth: 160,
+    },
     {
       field: 'mac',
       title: $t('dhcp.reservations.col.mac'),
@@ -192,7 +217,9 @@ watch(listGridOptions, (opts) => listGridApi.setState(opts as any));
 // ── 释放 ──
 async function releaseRow(row: LedgerRow) {
   Modal.confirm({
-    title: $t('dhcp.reservations.confirmReleaseTitle', { address: row.address }),
+    title: $t('dhcp.reservations.confirmReleaseTitle', {
+      address: row.address,
+    }),
     content: row.mac
       ? $t('dhcp.reservations.confirmReleaseStatic', { mac: row.mac })
       : $t('dhcp.reservations.confirmReleaseReserved'),
@@ -275,7 +302,6 @@ async function confirmEdit() {
     await loadLists();
   }
 }
-
 </script>
 
 <template>
@@ -300,7 +326,9 @@ async function confirmEdit() {
         <span class="ipam-hint">{{ $t('dhcp.reservations.bulkExtra') }}</span>
       </template>
       <div class="ipam-toolbar mb-4">
-        <span class="ipam-field__label">{{ $t('dhcp.reservations.targetSubnet') }}</span>
+        <span class="ipam-field__label">{{
+          $t('dhcp.reservations.targetSubnet')
+        }}</span>
         <Select
           v-model:value="selectedSubnet"
           :options="subnetOptions"
@@ -318,7 +346,11 @@ async function confirmEdit() {
           {{ $t('dhcp.reservations.submitBulk') }}
         </Button>
       </div>
-      <div v-for="(r, i) in entries" :key="i" class="mb-2 flex flex-wrap items-center gap-2">
+      <div
+        v-for="(r, i) in entries"
+        :key="i"
+        class="mb-2 flex flex-wrap items-center gap-2"
+      >
         <Select
           :options="kindOptions"
           :value="r.kind"
@@ -345,7 +377,10 @@ async function confirmEdit() {
           {{ $t('dhcp.common.remove') }}
         </Button>
       </div>
-      <div v-if="bulkResult && !bulkResult.ok" class="mt-2 rounded bg-red-50 p-2 text-xs text-red-600">
+      <div
+        v-if="bulkResult && !bulkResult.ok"
+        class="mt-2 rounded bg-red-50 p-2 text-xs text-red-600"
+      >
         {{ $t('dhcp.reservations.rollbackDetail') }}
         <div v-for="f in bulkResult.failures" :key="f.line">
           {{
@@ -372,7 +407,10 @@ async function confirmEdit() {
           v-model:value="familyTab"
           option-type="button"
           size="small"
-          :options="[{ label: 'IPv4', value: 'v4' }, { label: 'IPv6', value: 'v6' }]"
+          :options="[
+            { label: 'IPv4', value: 'v4' },
+            { label: 'IPv6', value: 'v6' },
+          ]"
         />
         <Input
           v-model:value="search"
@@ -391,12 +429,19 @@ async function confirmEdit() {
           </Tag>
         </template>
         <template #mac="{ row }">
-          <Tag v-if="row.mac" class="font-mono" color="default">{{ row.mac }}</Tag>
+          <Tag v-if="row.mac" class="font-mono" color="default">
+            {{ row.mac }}
+          </Tag>
           <span v-else>-</span>
         </template>
         <template #hostname="{ row }">{{ row.hostname || '-' }}</template>
         <template #actions="{ row }">
-          <Button v-if="row.state === 'static'" size="small" class="mr-2" @click="openEdit(row)">
+          <Button
+            v-if="row.state === 'static'"
+            size="small"
+            class="mr-2"
+            @click="openEdit(row)"
+          >
             {{ $t('dhcp.common.edit') }}
           </Button>
           <Button size="small" danger @click="releaseRow(row)">
@@ -414,12 +459,19 @@ async function confirmEdit() {
           </Tag>
         </template>
         <template #mac="{ row }">
-          <Tag v-if="row.mac" class="font-mono" color="default">{{ row.mac }}</Tag>
+          <Tag v-if="row.mac" class="font-mono" color="default">
+            {{ row.mac }}
+          </Tag>
           <span v-else>-</span>
         </template>
         <template #hostname="{ row }">{{ row.hostname || '-' }}</template>
         <template #actions="{ row }">
-          <Button v-if="row.state === 'static'" size="small" class="mr-2" @click="openEdit(row)">
+          <Button
+            v-if="row.state === 'static'"
+            size="small"
+            class="mr-2"
+            @click="openEdit(row)"
+          >
             {{ $t('dhcp.common.edit') }}
           </Button>
           <Button size="small" danger @click="releaseRow(row)">

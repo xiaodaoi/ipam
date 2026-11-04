@@ -31,7 +31,7 @@ describe('trend-chart 趋势图', () => {
     expect(paths[1]?.attributes('d')).toContain('C');
   });
 
-  it('X 轴刻度按 timeFormat 格式化', () => {
+  it('x 轴刻度按 timeFormat 格式化', () => {
     const wrapper = mount(TrendChart, {
       props: { data, timeFormat: 'HH:mm' },
     });
@@ -51,7 +51,9 @@ describe('trend-chart 趋势图', () => {
     const dashed = () =>
       wrapper
         .findAll('line')
-        .filter((l) => ['2 4', '4 4'].includes(l.attributes('stroke-dasharray') ?? '')).length;
+        .filter((l) =>
+          ['2 4', '4 4'].includes(l.attributes('stroke-dasharray') ?? ''),
+        ).length;
     expect(dashed()).toBe(2);
     await wrapper.setProps({ markers: false });
     expect(dashed()).toBe(0);

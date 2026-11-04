@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import type { VxeGridProps } from '@vben/plugins/vxe-table';
 
-import type { DhcpClassOptionIn, DhcpClassRow, DhcpOptionRow } from '#/api/ipam';
+import type {
+  DhcpClassOptionIn,
+  DhcpClassRow,
+  DhcpOptionRow,
+} from '#/api/ipam';
 
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
@@ -20,7 +24,16 @@ import {
 } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
-import { createDhcpClass, createDhcpOption, deleteDhcpClass, deleteDhcpOption, listDhcpClasses, listDhcpOptions, updateDhcpClass, updateDhcpOption } from '#/api/ipam';
+import {
+  createDhcpClass,
+  createDhcpOption,
+  deleteDhcpClass,
+  deleteDhcpOption,
+  listDhcpClasses,
+  listDhcpOptions,
+  updateDhcpClass,
+  updateDhcpOption,
+} from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
 import { $t } from '#/locales';
@@ -29,11 +42,25 @@ const optRows = ref<DhcpOptionRow[]>([]);
 const clsRows = ref<DhcpClassRow[]>([]);
 const loading = ref(false);
 const optForm = ref({ code: 3, name: 'routers', data: '' });
-const clsForm = ref({ name: '', test: "option[61].hex == option[61].hex", rows: [] as DhcpClassOptionIn[] });
+const clsForm = ref({
+  name: '',
+  test: 'option[61].hex == option[61].hex',
+  rows: [] as DhcpClassOptionIn[],
+});
 const editingOpt = ref<string>();
 const editingCls = ref<string>();
-const [OptModal, optModalApi] = useVbenModal({ draggable: true, title: $t('dhcp.options.modal.stdTitle'), confirmText: $t('dhcp.options.modal.createOption'), onConfirm: () => addOption() });
-const [ClsModal, clsModalApi] = useVbenModal({ draggable: true, title: $t('dhcp.options.classModal.title'), confirmText: $t('dhcp.options.classModal.createClass'), onConfirm: () => addClass() });
+const [OptModal, optModalApi] = useVbenModal({
+  draggable: true,
+  title: $t('dhcp.options.modal.stdTitle'),
+  confirmText: $t('dhcp.options.modal.createOption'),
+  onConfirm: () => addOption(),
+});
+const [ClsModal, clsModalApi] = useVbenModal({
+  draggable: true,
+  title: $t('dhcp.options.classModal.title'),
+  confirmText: $t('dhcp.options.classModal.createClass'),
+  onConfirm: () => addClass(),
+});
 let timer: ReturnType<typeof setInterval> | undefined;
 
 async function load() {
@@ -55,12 +82,16 @@ async function addOption() {
   try {
     if (editingOpt.value) {
       await updateDhcpOption(editingOpt.value, {
-        optionCode: optForm.value.code, name: optForm.value.name, data: optForm.value.data,
+        optionCode: optForm.value.code,
+        name: optForm.value.name,
+        data: optForm.value.data,
       });
       message.success($t('dhcp.options.messages.optUpdated'));
     } else {
       await createDhcpOption({
-        optionCode: optForm.value.code, name: optForm.value.name, data: optForm.value.data,
+        optionCode: optForm.value.code,
+        name: optForm.value.name,
+        data: optForm.value.data,
       });
       message.success($t('dhcp.options.messages.optCreated'));
     }
@@ -68,31 +99,47 @@ async function addOption() {
     optModalApi.close();
     optForm.value = { code: optForm.value.code, name: 'routers', data: '' };
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dhcp.options.messages.opFailed'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dhcp.options.messages.opFailed'),
+    );
   }
   await load();
 }
 async function toggleOption(r: DhcpOptionRow, enabled: boolean) {
   try {
     await updateDhcpOption(r.id, { enabled });
-    message.success(enabled
-      ? $t('dhcp.options.messages.optEnabled')
-      : $t('dhcp.options.messages.optDisabled'));
+    message.success(
+      enabled
+        ? $t('dhcp.options.messages.optEnabled')
+        : $t('dhcp.options.messages.optDisabled'),
+    );
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dhcp.options.messages.opFailed'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dhcp.options.messages.opFailed'),
+    );
   }
   await load();
 }
 function editOpt(r: DhcpOptionRow) {
   editingOpt.value = r.id;
-  optModalApi.setState({ title: $t('dhcp.options.modal.editTitle'), confirmText: $t('dhcp.options.modal.saveEdit') });
+  optModalApi.setState({
+    title: $t('dhcp.options.modal.editTitle'),
+    confirmText: $t('dhcp.options.modal.saveEdit'),
+  });
   optModalApi.open();
   optForm.value = { code: r.optionCode, name: r.name, data: r.data };
 }
 function openAddOption() {
   editingOpt.value = undefined;
   optForm.value = { code: 3, name: 'routers', data: '' };
-  optModalApi.setState({ title: $t('dhcp.options.modal.addTitle'), confirmText: $t('dhcp.options.modal.createOption') });
+  optModalApi.setState({
+    title: $t('dhcp.options.modal.addTitle'),
+    confirmText: $t('dhcp.options.modal.createOption'),
+  });
   optModalApi.open();
 }
 async function removeOption(id?: string) {
@@ -101,7 +148,11 @@ async function removeOption(id?: string) {
     await deleteDhcpOption(id);
     message.success($t('dhcp.options.messages.deleted'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dhcp.options.messages.deleteFailed'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dhcp.options.messages.deleteFailed'),
+    );
   }
   await load();
 }
@@ -123,7 +174,10 @@ async function addClass() {
   }
   try {
     if (editingCls.value) {
-      await updateDhcpClass(editingCls.value, { test: clsForm.value.test, options: clsForm.value.rows });
+      await updateDhcpClass(editingCls.value, {
+        test: clsForm.value.test,
+        options: clsForm.value.rows,
+      });
       message.success($t('dhcp.options.messages.clsUpdated'));
     } else {
       await createDhcpClass({
@@ -137,31 +191,51 @@ async function addClass() {
     clsModalApi.close();
     clsForm.value = { name: '', test: clsForm.value.test, rows: [] };
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dhcp.options.messages.opFailed'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dhcp.options.messages.opFailed'),
+    );
   }
   await load();
 }
 async function toggleClass(r: DhcpClassRow, enabled: boolean) {
   try {
     await updateDhcpClass(r.id, { enabled });
-    message.success(enabled
-      ? $t('dhcp.options.messages.optEnabled')
-      : $t('dhcp.options.messages.optDisabled'));
+    message.success(
+      enabled
+        ? $t('dhcp.options.messages.optEnabled')
+        : $t('dhcp.options.messages.optDisabled'),
+    );
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dhcp.options.messages.opFailed'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dhcp.options.messages.opFailed'),
+    );
   }
   await load();
 }
 function editCls(r: DhcpClassRow) {
   editingCls.value = r.id;
-  clsModalApi.setState({ title: $t('dhcp.options.classModal.editTitle'), confirmText: $t('dhcp.options.modal.saveEdit') });
+  clsModalApi.setState({
+    title: $t('dhcp.options.classModal.editTitle'),
+    confirmText: $t('dhcp.options.modal.saveEdit'),
+  });
   clsModalApi.open();
   clsForm.value = { name: r.name, test: r.test, rows: [...(r.options ?? [])] };
 }
 function openAddClass() {
   editingCls.value = undefined;
-  clsForm.value = { name: '', test: "option[61].hex == option[61].hex", rows: [] };
-  clsModalApi.setState({ title: $t('dhcp.options.classModal.addTitle'), confirmText: $t('dhcp.options.classModal.createClass') });
+  clsForm.value = {
+    name: '',
+    test: 'option[61].hex == option[61].hex',
+    rows: [],
+  };
+  clsModalApi.setState({
+    title: $t('dhcp.options.classModal.addTitle'),
+    confirmText: $t('dhcp.options.classModal.createClass'),
+  });
   clsModalApi.open();
 }
 async function removeClass(id?: string) {
@@ -170,7 +244,11 @@ async function removeClass(id?: string) {
     await deleteDhcpClass(id);
     message.success($t('dhcp.options.messages.deleted'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dhcp.options.messages.deleteFailed'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dhcp.options.messages.deleteFailed'),
+    );
   }
   await load();
 }
@@ -180,16 +258,52 @@ const optsSummary = (options?: DhcpClassOptionIn[]) =>
 // ── 常用选项预设（写库仍走后端校验）──
 const PRESETS = computed(() => [
   { code: 3, name: 'routers', hint: $t('dhcp.options.presets.routers') },
-  { code: 6, name: 'domain-name-servers', hint: $t('dhcp.options.presets.dnsServers') },
-  { code: 15, name: 'domain-name', hint: $t('dhcp.options.presets.domainName') },
-  { code: 28, name: 'broadcast-address', hint: $t('dhcp.options.presets.broadcastAddress') },
-  { code: 42, name: 'ntp-servers', hint: $t('dhcp.options.presets.ntpServers') },
+  {
+    code: 6,
+    name: 'domain-name-servers',
+    hint: $t('dhcp.options.presets.dnsServers'),
+  },
+  {
+    code: 15,
+    name: 'domain-name',
+    hint: $t('dhcp.options.presets.domainName'),
+  },
+  {
+    code: 28,
+    name: 'broadcast-address',
+    hint: $t('dhcp.options.presets.broadcastAddress'),
+  },
+  {
+    code: 42,
+    name: 'ntp-servers',
+    hint: $t('dhcp.options.presets.ntpServers'),
+  },
   { code: 51, name: 'lease-time', hint: $t('dhcp.options.presets.leaseTime') },
-  { code: 66, name: 'tftp-server-name', hint: $t('dhcp.options.presets.tftpServer') },
-  { code: 67, name: 'boot-file-name', hint: $t('dhcp.options.presets.bootFileName') },
-  { code: 119, name: 'domain-search', hint: $t('dhcp.options.presets.domainSearch') },
-  { code: 121, name: 'classless-static-route', hint: $t('dhcp.options.presets.classlessRoute') },
-  { code: 150, name: 'tftp-server-address', hint: $t('dhcp.options.presets.tftpAddress') },
+  {
+    code: 66,
+    name: 'tftp-server-name',
+    hint: $t('dhcp.options.presets.tftpServer'),
+  },
+  {
+    code: 67,
+    name: 'boot-file-name',
+    hint: $t('dhcp.options.presets.bootFileName'),
+  },
+  {
+    code: 119,
+    name: 'domain-search',
+    hint: $t('dhcp.options.presets.domainSearch'),
+  },
+  {
+    code: 121,
+    name: 'classless-static-route',
+    hint: $t('dhcp.options.presets.classlessRoute'),
+  },
+  {
+    code: 150,
+    name: 'tftp-server-address',
+    hint: $t('dhcp.options.presets.tftpAddress'),
+  },
   { code: 252, name: 'wpad-url', hint: $t('dhcp.options.presets.wpadUrl') },
 ]);
 const presetOptions = computed(() =>
@@ -213,7 +327,10 @@ function applyPreset(code: unknown) {
 const stats = computed(() => {
   const optEnabled = optRows.value.filter((o) => o.enabled).length;
   const clsEnabled = clsRows.value.filter((c) => c.enabled).length;
-  const classOptions = clsRows.value.reduce((n, c) => n + (c.options ?? []).length, 0);
+  const classOptions = clsRows.value.reduce(
+    (n, c) => n + (c.options ?? []).length,
+    0,
+  );
   return {
     clsEnabled,
     classOptions,
@@ -253,7 +370,9 @@ const filteredClasses = computed(() => {
     if (clsStatus.value === 'enabled' && !r.enabled) return false;
     if (clsStatus.value === 'disabled' && r.enabled) return false;
     if (!kw) return true;
-    return `${r.name} ${r.test} ${optsSummary(r.options)}`.toLowerCase().includes(kw);
+    return `${r.name} ${r.test} ${optsSummary(r.options)}`
+      .toLowerCase()
+      .includes(kw);
   });
 });
 function resetClsFilters() {
@@ -269,7 +388,12 @@ const optGridOptions = computed<VxeGridProps>(() => ({
       minWidth: 210,
       slots: { default: 'name' },
     },
-    { field: 'data', title: $t('dhcp.options.colValue'), minWidth: 200, showOverflow: true },
+    {
+      field: 'data',
+      title: $t('dhcp.options.colValue'),
+      minWidth: 200,
+      showOverflow: true,
+    },
     {
       field: 'enabled',
       title: $t('dhcp.options.colStatus'),
@@ -384,7 +508,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         :unit="$t('dhcp.common.unitCount')"
         icon="lucide:toggle-right"
         tone="green"
-        :progress="stats.optTotal > 0 ? (stats.optEnabled / stats.optTotal) * 100 : 0"
+        :progress="
+          stats.optTotal > 0 ? (stats.optEnabled / stats.optTotal) * 100 : 0
+        "
         :hint="
           $t('dhcp.options.stat.optEnabledHint', {
             n: stats.optTotal - stats.optEnabled,
@@ -433,7 +559,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
 
       <div class="ipam-toolbar mb-3">
         <div class="ipam-field">
-          <span class="ipam-field__label">{{ $t('dhcp.options.keyword') }}</span>
+          <span class="ipam-field__label">{{
+            $t('dhcp.options.keyword')
+          }}</span>
           <Input
             v-model:value="optKeyword"
             allow-clear
@@ -443,7 +571,11 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         </div>
         <div class="ipam-field">
           <span class="ipam-field__label">{{ $t('dhcp.options.status') }}</span>
-          <Select v-model:value="optStatus" :options="statusOptions" style="width: 130px" />
+          <Select
+            v-model:value="optStatus"
+            :options="statusOptions"
+            style="width: 130px"
+          />
         </div>
         <Button size="small" @click="resetOptFilters">
           {{ $t('dhcp.common.reset') }}
@@ -465,7 +597,11 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           </div>
         </template>
         <template #enabled="{ row }">
-          <Switch :checked="row.enabled" size="small" @change="(v: any) => toggleOption(row as DhcpOptionRow, !!v)" />
+          <Switch
+            :checked="row.enabled"
+            size="small"
+            @change="(v: any) => toggleOption(row as DhcpOptionRow, !!v)"
+          />
         </template>
         <template #op="{ row }">
           <div class="flex items-center gap-1">
@@ -479,7 +615,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
               :cancel-text="$t('dhcp.common.cancel')"
               @confirm="removeOption(row.id)"
             >
-              <Button size="small" danger>{{ $t('dhcp.common.delete') }}</Button>
+              <Button size="small" danger>
+                {{ $t('dhcp.common.delete') }}
+              </Button>
             </Popconfirm>
           </div>
         </template>
@@ -503,7 +641,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
 
       <div class="ipam-toolbar mb-3">
         <div class="ipam-field">
-          <span class="ipam-field__label">{{ $t('dhcp.options.keyword') }}</span>
+          <span class="ipam-field__label">{{
+            $t('dhcp.options.keyword')
+          }}</span>
           <Input
             v-model:value="clsKeyword"
             allow-clear
@@ -513,7 +653,11 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         </div>
         <div class="ipam-field">
           <span class="ipam-field__label">{{ $t('dhcp.options.status') }}</span>
-          <Select v-model:value="clsStatus" :options="statusOptions" style="width: 130px" />
+          <Select
+            v-model:value="clsStatus"
+            :options="statusOptions"
+            style="width: 130px"
+          />
         </div>
         <Button size="small" @click="resetClsFilters">
           {{ $t('dhcp.common.reset') }}
@@ -532,10 +676,16 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           <span class="ipam-mono text-xs">{{ optsSummary(row.options) }}</span>
         </template>
         <template #test="{ row }">
-          <span class="ipam-chip ipam-mono" data-tone="violet">{{ row.test || '-' }}</span>
+          <span class="ipam-chip ipam-mono" data-tone="violet">{{
+            row.test || '-'
+          }}</span>
         </template>
         <template #enabled="{ row }">
-          <Switch :checked="row.enabled" size="small" @change="(v: any) => toggleClass(row as DhcpClassRow, !!v)" />
+          <Switch
+            :checked="row.enabled"
+            size="small"
+            @change="(v: any) => toggleClass(row as DhcpClassRow, !!v)"
+          />
         </template>
         <template #op="{ row }">
           <div class="flex items-center gap-1">
@@ -549,7 +699,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
               :cancel-text="$t('dhcp.common.cancel')"
               @confirm="removeClass(row.id)"
             >
-              <Button size="small" danger>{{ $t('dhcp.common.delete') }}</Button>
+              <Button size="small" danger>
+                {{ $t('dhcp.common.delete') }}
+              </Button>
             </Popconfirm>
           </div>
         </template>
@@ -559,7 +711,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
     <OptModal class="w-[760px]">
       <div class="ipam-form-grid">
         <label class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">{{ $t('dhcp.options.modal.quickFill') }}</span>
+          <span class="ipam-form-field__label">{{
+            $t('dhcp.options.modal.quickFill')
+          }}</span>
           <Select
             :options="presetOptions"
             allow-clear
@@ -569,15 +723,26 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dhcp.options.modal.code') }}<em>*</em></span>
-          <InputNumber v-model:value="optForm.code" :min="1" :max="255" style="width: 100%" />
+          <span class="ipam-form-field__label"
+            >{{ $t('dhcp.options.modal.code') }}<em>*</em></span
+          >
+          <InputNumber
+            v-model:value="optForm.code"
+            :min="1"
+            :max="255"
+            style="width: 100%"
+          />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dhcp.options.modal.keaName') }}<em>*</em></span>
+          <span class="ipam-form-field__label"
+            >{{ $t('dhcp.options.modal.keaName') }}<em>*</em></span
+          >
           <Input v-model:value="optForm.name" placeholder="routers" />
         </label>
         <label class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">{{ $t('dhcp.options.modal.value') }}<em>*</em></span>
+          <span class="ipam-form-field__label"
+            >{{ $t('dhcp.options.modal.value') }}<em>*</em></span
+          >
           <Input
             v-model:value="optForm.data"
             :placeholder="$t('dhcp.options.modal.valuePlaceholder')"
@@ -592,12 +757,23 @@ onBeforeUnmount(() => timer && clearInterval(timer));
     <ClsModal class="w-[820px]">
       <div class="ipam-form-grid">
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dhcp.options.classModal.className') }}<em>*</em></span>
-          <Input v-model:value="clsForm.name" :disabled="!!editingCls" placeholder="printers" />
+          <span class="ipam-form-field__label"
+            >{{ $t('dhcp.options.classModal.className') }}<em>*</em></span
+          >
+          <Input
+            v-model:value="clsForm.name"
+            :disabled="!!editingCls"
+            placeholder="printers"
+          />
         </label>
         <label class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">{{ $t('dhcp.options.classModal.testExpr') }}<em>*</em></span>
-          <Input v-model:value="clsForm.test" placeholder="option[61].hex == option[61].hex" />
+          <span class="ipam-form-field__label"
+            >{{ $t('dhcp.options.classModal.testExpr') }}<em>*</em></span
+          >
+          <Input
+            v-model:value="clsForm.test"
+            placeholder="option[61].hex == option[61].hex"
+          />
         </label>
         <div class="ipam-form-hint ipam-form-field--wide">
           {{ $t('dhcp.options.classModal.hint') }}
@@ -613,7 +789,10 @@ onBeforeUnmount(() => timer && clearInterval(timer));
               }}
             </Button>
           </div>
-          <div v-if="clsForm.rows.length === 0" class="ipam-empty ipam-empty--compact">
+          <div
+            v-if="clsForm.rows.length === 0"
+            class="ipam-empty ipam-empty--compact"
+          >
             <div class="ipam-empty__title">
               {{ $t('dhcp.options.classModal.emptyTitle') }}
             </div>
@@ -622,9 +801,22 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             </div>
           </div>
           <div v-for="(r, i) in clsForm.rows" :key="i" class="ipam-class-row">
-            <InputNumber v-model:value="r.optionCode" :min="1" :max="255" style="width: 90px" />
-            <Input v-model:value="r.name" style="width: 180px" placeholder="routers" />
-            <Input v-model:value="r.data" style="flex: 1; min-width: 200px" placeholder="192.168.9.254" />
+            <InputNumber
+              v-model:value="r.optionCode"
+              :min="1"
+              :max="255"
+              style="width: 90px"
+            />
+            <Input
+              v-model:value="r.name"
+              style="width: 180px"
+              placeholder="routers"
+            />
+            <Input
+              v-model:value="r.data"
+              style="flex: 1; min-width: 200px"
+              placeholder="192.168.9.254"
+            />
             <Button size="small" danger @click="removeClassRow(i)">
               {{ $t('dhcp.options.classModal.remove') }}
             </Button>

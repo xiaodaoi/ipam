@@ -23,7 +23,9 @@ async function load() {
     security.forcePasswordChange = Boolean(s.forcePasswordChange);
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('system.security.msg.loadFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('system.security.msg.loadFailed'),
     );
   } finally {
     loading.value = false;
@@ -42,7 +44,9 @@ async function save() {
     );
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('system.security.msg.saveFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('system.security.msg.saveFailed'),
     );
   } finally {
     saving.value = false;
@@ -160,7 +164,9 @@ onMounted(load);
       </div>
 
       <div class="ipam-toolbar ipam-toolbar--plain mt-3">
-        <span class="ipam-hint">{{ $t('system.security.card.footerHint') }}</span>
+        <span class="ipam-hint">{{
+          $t('system.security.card.footerHint')
+        }}</span>
         <span class="ipam-toolbar__spacer"></span>
         <Button type="primary" :loading="saving" @click="save">
           <IconifyIcon icon="lucide:save" class="mr-1 size-3.5" />{{
@@ -187,7 +193,9 @@ onMounted(load);
             $t('system.security.fixed.length')
           }}</span>
           <div class="ipam-service-value">
-            <span class="ipam-mono">{{ $t('system.security.fixed.lengthValue') }}</span>
+            <span class="ipam-mono">{{
+              $t('system.security.fixed.lengthValue')
+            }}</span>
           </div>
         </div>
         <div class="ipam-form-field">

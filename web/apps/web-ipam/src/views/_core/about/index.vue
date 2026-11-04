@@ -5,7 +5,14 @@ import { computed, onMounted, ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { Button, Card, Descriptions, message, Skeleton, Tag } from 'ant-design-vue';
+import {
+  Button,
+  Card,
+  Descriptions,
+  message,
+  Skeleton,
+  Tag,
+} from 'ant-design-vue';
 
 import { getSystemInfo, getSystemMetrics } from '#/api/ipam';
 import MetricRing from '#/components/metric-ring.vue';
@@ -101,7 +108,9 @@ function toneOfPct(pct: number): 'amber' | 'green' | 'red' {
 const cpuPct = computed(() => Number(metrics.value?.cpu.usagePct ?? 0));
 const memPct = computed(() => Number(metrics.value?.memory.usedPct ?? 0));
 const rootDisk = computed(
-  () => metrics.value?.disks.find((d) => d.mount === '/') ?? metrics.value?.disks[0],
+  () =>
+    metrics.value?.disks.find((d) => d.mount === '/') ??
+    metrics.value?.disks[0],
 );
 const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
 const ready = computed(() => info.value?.ready);
@@ -125,7 +134,10 @@ const readyLabel = computed(() => {
 async function load() {
   loading.value = true;
   failed.value = false;
-  const [i, m] = await Promise.allSettled([getSystemInfo(), getSystemMetrics()]);
+  const [i, m] = await Promise.allSettled([
+    getSystemInfo(),
+    getSystemMetrics(),
+  ]);
   info.value = i.status === 'fulfilled' ? i.value : undefined;
   metrics.value = m.status === 'fulfilled' ? m.value : undefined;
   failed.value = i.status !== 'fulfilled';
@@ -195,15 +207,21 @@ onMounted(load);
         <span class="ipam-page-header__meta">
           <span
             class="ipam-status-dot"
-            :data-state="ready === undefined ? 'unknown' : ready ? 'up' : 'down'"
+            :data-state="
+              ready === undefined ? 'unknown' : ready ? 'up' : 'down'
+            "
           ></span>
           {{ readyLabel }}
         </span>
         <Button size="small" @click="copyDiagnosis">
-          <IconifyIcon icon="lucide:clipboard-copy" class="mr-1 size-3.5" />{{ $t('system.about.header.copy') }}
+          <IconifyIcon icon="lucide:clipboard-copy" class="mr-1 size-3.5" />{{
+            $t('system.about.header.copy')
+          }}
         </Button>
         <Button size="small" :loading="loading" @click="load">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{ $t('system.about.header.refresh') }}
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{
+            $t('system.about.header.refresh')
+          }}
         </Button>
       </template>
     </PageHeader>
@@ -283,17 +301,27 @@ onMounted(load);
           </div>
         </div>
         <div class="ipam-about-hero__meta">
-        <div class="ipam-figure">
-          <span class="ipam-figure__label">{{ $t('system.about.meta.serverTime') }}</span>
-          <span class="ipam-figure__value ipam-mono">{{ fmtDateTime(info?.now) }}</span>
-        </div>
-        <div class="ipam-figure">
-          <span class="ipam-figure__label">{{ $t('system.about.meta.mode') }}</span>
-          <span class="ipam-figure__value">{{ mode }}</span>
-        </div>
           <div class="ipam-figure">
-            <span class="ipam-figure__label">{{ $t('system.about.meta.license') }}</span>
-            <span class="ipam-figure__value">{{ $t('system.about.meta.licenseValue') }}</span>
+            <span class="ipam-figure__label">{{
+              $t('system.about.meta.serverTime')
+            }}</span>
+            <span class="ipam-figure__value ipam-mono">{{
+              fmtDateTime(info?.now)
+            }}</span>
+          </div>
+          <div class="ipam-figure">
+            <span class="ipam-figure__label">{{
+              $t('system.about.meta.mode')
+            }}</span>
+            <span class="ipam-figure__value">{{ mode }}</span>
+          </div>
+          <div class="ipam-figure">
+            <span class="ipam-figure__label">{{
+              $t('system.about.meta.license')
+            }}</span>
+            <span class="ipam-figure__value">{{
+              $t('system.about.meta.licenseValue')
+            }}</span>
           </div>
         </div>
       </div>
@@ -303,7 +331,9 @@ onMounted(load);
       <Card>
         <template #title>
           <span class="ipam-card-title">
-            <IconifyIcon icon="lucide:info" />{{ $t('system.about.info.title') }}
+            <IconifyIcon icon="lucide:info" />{{
+              $t('system.about.info.title')
+            }}
           </span>
         </template>
         <template #extra>
@@ -328,7 +358,10 @@ onMounted(load);
           <Descriptions.Item :label="$t('system.about.info.lang')">
             {{ $t('system.about.info.langValue') }}
           </Descriptions.Item>
-          <Descriptions.Item :label="$t('system.about.info.serverTime')" :span="2">
+          <Descriptions.Item
+            :label="$t('system.about.info.serverTime')"
+            :span="2"
+          >
             <span class="ipam-mono">{{ fmtDateTime(info?.now) }}</span>
           </Descriptions.Item>
           <Descriptions.Item :label="$t('system.about.info.license')" :span="2">
@@ -336,11 +369,12 @@ onMounted(load);
           </Descriptions.Item>
         </Descriptions>
         <div v-if="failed" class="ipam-note mt-3">
-          <IconifyIcon icon="lucide:triangle-alert" class="mt-0.5 size-3.5 shrink-0" />
+          <IconifyIcon
+            icon="lucide:triangle-alert"
+            class="mt-0.5 size-3.5 shrink-0"
+          />
           <span>
-            {{
-              $t('system.about.info.fail', { code: '/system/info' })
-            }}
+            {{ $t('system.about.info.fail', { code: '/system/info' }) }}
           </span>
         </div>
       </Card>
@@ -348,7 +382,9 @@ onMounted(load);
       <Card>
         <template #title>
           <span class="ipam-card-title">
-            <IconifyIcon icon="lucide:activity" />{{ $t('system.about.host.title') }}
+            <IconifyIcon icon="lucide:activity" />{{
+              $t('system.about.host.title')
+            }}
           </span>
         </template>
         <template #extra>
@@ -384,7 +420,8 @@ onMounted(load);
               <div class="ipam-gauge__caption">
                 <span>{{ $t('system.about.host.memory') }}</span>
                 <small>
-                  {{ fmtBytes(metrics.memory.usedBytes) }} / {{ fmtBytes(metrics.memory.totalBytes) }}
+                  {{ fmtBytes(metrics.memory.usedBytes) }} /
+                  {{ fmtBytes(metrics.memory.totalBytes) }}
                 </small>
               </div>
             </div>
@@ -397,9 +434,12 @@ onMounted(load);
                 :value="diskPct"
               />
               <div class="ipam-gauge__caption">
-                <span>{{ rootDisk?.mount ?? $t('system.about.host.rootfs') }}</span>
+                <span>{{
+                  rootDisk?.mount ?? $t('system.about.host.rootfs')
+                }}</span>
                 <small>
-                  {{ fmtBytes(rootDisk?.usedBytes) }} / {{ fmtBytes(rootDisk?.totalBytes) }}
+                  {{ fmtBytes(rootDisk?.usedBytes) }} /
+                  {{ fmtBytes(rootDisk?.totalBytes) }}
                 </small>
               </div>
             </div>
@@ -409,39 +449,66 @@ onMounted(load);
             <div v-for="d in metrics.disks" :key="d.mount" class="ipam-disk">
               <div class="ipam-disk__head">
                 <span class="ipam-disk__mount">{{ d.mount }}</span>
-                <span class="ipam-disk__meta">{{ d.device }} · {{ d.fsType }}</span>
+                <span class="ipam-disk__meta"
+                  >{{ d.device }} · {{ d.fsType }}</span
+                >
                 <span class="ipam-disk__size">
                   {{ fmtBytes(d.usedBytes) }} / {{ fmtBytes(d.totalBytes) }}
                 </span>
                 <span class="ipam-disk__pct">{{ fmtPct(d.usedPct) }}</span>
               </div>
-              <div class="ipam-progress" :data-tone="toneOfPct(Number(d.usedPct) || 0)">
-                <i :style="{ width: `${Math.min(100, Number(d.usedPct) || 0)}%` }"></i>
+              <div
+                class="ipam-progress"
+                :data-tone="toneOfPct(Number(d.usedPct) || 0)"
+              >
+                <i
+                  :style="{
+                    width: `${Math.min(100, Number(d.usedPct) || 0)}%`,
+                  }"
+                ></i>
               </div>
             </div>
           </div>
 
           <div class="ipam-figure-row">
             <div class="ipam-figure">
-              <span class="ipam-figure__label">{{ $t('system.about.host.load1') }}</span>
-              <span class="ipam-figure__value">{{ fmtDecimal(metrics.cpu.load1) }}</span>
+              <span class="ipam-figure__label">{{
+                $t('system.about.host.load1')
+              }}</span>
+              <span class="ipam-figure__value">{{
+                fmtDecimal(metrics.cpu.load1)
+              }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">{{ $t('system.about.host.load5') }}</span>
-              <span class="ipam-figure__value">{{ fmtDecimal(metrics.cpu.load5) }}</span>
+              <span class="ipam-figure__label">{{
+                $t('system.about.host.load5')
+              }}</span>
+              <span class="ipam-figure__value">{{
+                fmtDecimal(metrics.cpu.load5)
+              }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">{{ $t('system.about.host.load15') }}</span>
-              <span class="ipam-figure__value">{{ fmtDecimal(metrics.cpu.load15) }}</span>
+              <span class="ipam-figure__label">{{
+                $t('system.about.host.load15')
+              }}</span>
+              <span class="ipam-figure__value">{{
+                fmtDecimal(metrics.cpu.load15)
+              }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">{{ $t('system.about.host.uptime') }}</span>
-              <span class="ipam-figure__value">{{ fmtUptime(metrics.uptimeSec) }}</span>
+              <span class="ipam-figure__label">{{
+                $t('system.about.host.uptime')
+              }}</span>
+              <span class="ipam-figure__value">{{
+                fmtUptime(metrics.uptimeSec)
+              }}</span>
             </div>
           </div>
         </template>
         <div v-else class="ipam-empty ipam-empty--compact">
-          <div class="ipam-empty__title">{{ $t('system.about.host.emptyTitle') }}</div>
+          <div class="ipam-empty__title">
+            {{ $t('system.about.host.emptyTitle') }}
+          </div>
           <div class="ipam-empty__desc">
             {{ $t('system.about.host.emptyDesc') }}
           </div>
@@ -453,11 +520,17 @@ onMounted(load);
       <Card>
         <template #title>
           <span class="ipam-card-title">
-            <IconifyIcon icon="lucide:sparkles" />{{ $t('system.about.cap.title') }}
+            <IconifyIcon icon="lucide:sparkles" />{{
+              $t('system.about.cap.title')
+            }}
           </span>
         </template>
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div v-for="item in capabilities" :key="item.label" class="ipam-health-item">
+          <div
+            v-for="item in capabilities"
+            :key="item.label"
+            class="ipam-health-item"
+          >
             <span class="about-cap-icon">
               <IconifyIcon :icon="item.icon" class="size-4" />
             </span>
@@ -472,7 +545,9 @@ onMounted(load);
       <Card>
         <template #title>
           <span class="ipam-card-title">
-            <IconifyIcon icon="lucide:layers" />{{ $t('system.about.stack.title') }}
+            <IconifyIcon icon="lucide:layers" />{{
+              $t('system.about.stack.title')
+            }}
           </span>
         </template>
         <template #extra>
@@ -481,7 +556,9 @@ onMounted(load);
         <div class="ipam-metric-row">
           <div v-for="item in stack" :key="item.name" class="ipam-metric">
             <div class="ipam-metric__label">{{ item.name }}</div>
-            <div class="mt-1 text-sm text-[hsl(var(--foreground))]">{{ item.role }}</div>
+            <div class="mt-1 text-sm text-[hsl(var(--foreground))]">
+              {{ item.role }}
+            </div>
           </div>
         </div>
       </Card>
@@ -492,30 +569,30 @@ onMounted(load);
 <style scoped>
 .about-logo {
   display: flex;
-  width: 64px;
-  height: 64px;
   flex: none;
   align-items: center;
   justify-content: center;
-  border: 1px solid hsl(var(--primary) / 20%);
-  border-radius: 16px;
+  width: 64px;
+  height: 64px;
+  color: hsl(var(--primary));
   background: linear-gradient(
     135deg,
     hsl(var(--primary) / 16%),
     hsl(var(--primary) / 4%)
   );
-  color: hsl(var(--primary));
+  border: 1px solid hsl(var(--primary) / 20%);
+  border-radius: 16px;
 }
 
 .about-cap-icon {
   display: flex;
-  width: 30px;
-  height: 30px;
   flex: none;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
-  background: hsl(var(--primary) / 10%);
+  width: 30px;
+  height: 30px;
   color: hsl(var(--primary));
+  background: hsl(var(--primary) / 10%);
+  border-radius: 8px;
 }
 </style>

@@ -112,7 +112,9 @@ const orgTreeData = computed(() =>
 );
 
 const effectiveExpandedKeys = computed(() =>
-  orgSearch.value.trim() ? collectAntKeys(orgTreeData.value) : orgExpandedKeys.value,
+  orgSearch.value.trim()
+    ? collectAntKeys(orgTreeData.value)
+    : orgExpandedKeys.value,
 );
 
 function collectAntKeys(nodes: OrgAntNode[]): string[] {
@@ -139,7 +141,10 @@ function collectOrgKeys(nodes: OrgTreeNode[]): string[] {
   return out;
 }
 
-function collectSubtreeIds(nodes: OrgTreeNode[], target: string): null | Set<string> {
+function collectSubtreeIds(
+  nodes: OrgTreeNode[],
+  target: string,
+): null | Set<string> {
   for (const n of nodes) {
     if (n.id === target) {
       const ids = new Set<string>();
@@ -277,16 +282,27 @@ function syncQuery() {
 }
 
 // ── 汇总指标 ───────────────────────────────────────────────────────────
-const v4Count = computed(() => allRows.value.filter((r) => r.family === 4).length);
-const v6Count = computed(() => allRows.value.filter((r) => r.family === 6).length);
+const v4Count = computed(
+  () => allRows.value.filter((r) => r.family === 4).length,
+);
+const v6Count = computed(
+  () => allRows.value.filter((r) => r.family === 6).length,
+);
 const issuedCount = computed(
-  () => allRows.value.filter((r) => r.keaSubnetId !== null && r.keaSubnetId !== undefined).length,
+  () =>
+    allRows.value.filter(
+      (r) => r.keaSubnetId !== null && r.keaSubnetId !== undefined,
+    ).length,
 );
 const pendingKea = computed(() => allRows.value.length - issuedCount.value);
 const keaRatio = computed(() =>
-  allRows.value.length === 0 ? 0 : (issuedCount.value / allRows.value.length) * 100,
+  allRows.value.length === 0
+    ? 0
+    : (issuedCount.value / allRows.value.length) * 100,
 );
-const totalOnline = computed(() => onlineTotals.value.v4 + onlineTotals.value.v6);
+const totalOnline = computed(
+  () => onlineTotals.value.v4 + onlineTotals.value.v6,
+);
 const v4PoolCount = computed(() =>
   allRows.value.reduce(
     (n, r) => n + (r.pools ?? []).filter((p) => p.kind !== 'pd').length,
@@ -322,7 +338,10 @@ const familyCards = computed(() =>
 
 const summaryItems = computed(() => {
   const list = visibleRows.value;
-  const online = list.reduce((n, r) => n + (onlineBySubnet.value[r.id] ?? 0), 0);
+  const online = list.reduce(
+    (n, r) => n + (onlineBySubnet.value[r.id] ?? 0),
+    0,
+  );
   const issued = list.filter(
     (r) => r.keaSubnetId !== null && r.keaSubnetId !== undefined,
   ).length;
@@ -404,9 +423,7 @@ function capacityUnit(list: Subnet[]): string {
     (r.pools ?? []).some((p) => p.kind !== 'pd'),
   );
   if (hasPd && hasDynamic) return $t('dhcp.common.unitCount');
-  return hasPd
-    ? $t('dhcp.common.unitPrefix')
-    : $t('dhcp.common.unitAddress');
+  return hasPd ? $t('dhcp.common.unitPrefix') : $t('dhcp.common.unitAddress');
 }
 
 function utilizationText(used: number, capacity: bigint): string {
@@ -507,7 +524,7 @@ function fmtBig(value: bigint | null): string {
   if (value >= B1B) return `${trimNum(Number(value) / 1e9)}B`;
   if (value >= B1M) return `${trimNum(Number(value) / 1e6)}M`;
   if (value >= B10K) return `${trimNum(Number(value) / 1e3)}K`;
-  return value.toLocaleString('zh-CN');
+  return value.toLocaleString();
 }
 
 function trimNum(n: number): string {
@@ -522,8 +539,7 @@ function fmtLifetime(sec?: number): string {
     return $t('dhcp.common.durationDays', { n: sec / 86_400 });
   if (sec % 3600 === 0)
     return $t('dhcp.common.durationHours', { n: sec / 3600 });
-  if (sec % 60 === 0)
-    return $t('dhcp.common.durationMinutes', { n: sec / 60 });
+  if (sec % 60 === 0) return $t('dhcp.common.durationMinutes', { n: sec / 60 });
   return $t('dhcp.common.durationSeconds', { n: sec });
 }
 
@@ -790,9 +806,7 @@ async function add() {
     }
   } catch (error) {
     message.error(
-      error instanceof Error
-        ? error.message
-        : $t('dhcp.subnets.form.failed'),
+      error instanceof Error ? error.message : $t('dhcp.subnets.form.failed'),
     );
     return; // 保留弹窗与已填内容，便于修正后重试
   }
@@ -972,7 +986,11 @@ const lease6GridOptions = computed<VxeGridProps>(() => ({
       width: 100,
       slots: { default: 'lease6Type' },
     },
-    { field: 'prefixLen', title: $t('dhcp.subnets.lease6.prefixLen'), width: 90 },
+    {
+      field: 'prefixLen',
+      title: $t('dhcp.subnets.lease6.prefixLen'),
+      width: 90,
+    },
     { field: 'duid', title: 'DUID', minWidth: 190, showOverflow: 'tooltip' },
     { field: 'hwAddress', title: 'MAC', minWidth: 140 },
     {
@@ -1140,7 +1158,9 @@ onMounted(async () => {
             <span class="ipam-org-node">
               <span class="ipam-org-node__name">{{ title }}</span>
               <span class="ipam-org-node__stats">
-                <span class="ipam-org-badge">{{ statsOf(String(key)).subnets }}</span>
+                <span class="ipam-org-badge">{{
+                  statsOf(String(key)).subnets
+                }}</span>
                 <span class="ipam-org-badge ipam-org-badge--online">
                   {{ statsOf(String(key)).online }}
                 </span>
@@ -1198,12 +1218,18 @@ onMounted(async () => {
                 <em class="ipam-fam-card__tag">{{ f.tag }}</em>
               </span>
               <span class="ipam-fam-card__stats">
-                <span><b>{{ f.subnets }}</b>
-                  {{ $t('dhcp.subnets.family.subnetsUnit') }}</span>
-                <span><b>{{ f.online }}</b>
-                  {{ $t('dhcp.subnets.family.onlineUnit') }}</span>
-                <span><b>{{ f.issued }}</b>
-                  {{ $t('dhcp.subnets.family.issuedUnit') }}</span>
+                <span
+                  ><b>{{ f.subnets }}</b>
+                  {{ $t('dhcp.subnets.family.subnetsUnit') }}</span
+                >
+                <span
+                  ><b>{{ f.online }}</b>
+                  {{ $t('dhcp.subnets.family.onlineUnit') }}</span
+                >
+                <span
+                  ><b>{{ f.issued }}</b>
+                  {{ $t('dhcp.subnets.family.issuedUnit') }}</span
+                >
               </span>
             </span>
             <span class="ipam-fam-card__check">
@@ -1235,7 +1261,10 @@ onMounted(async () => {
           </template>
           <template #extra>
             <div class="ipam-card-tools">
-              <span class="ipam-chip" :data-tone="familyTab === 'v6' ? 'violet' : 'blue'">
+              <span
+                class="ipam-chip"
+                :data-tone="familyTab === 'v6' ? 'violet' : 'blue'"
+              >
                 {{
                   familyTab === 'v6'
                     ? $t('dhcp.subnets.family.v6Tag')
@@ -1254,7 +1283,11 @@ onMounted(async () => {
           </template>
 
           <div class="ipam-summary">
-            <div v-for="item in summaryItems" :key="item.label" class="ipam-summary__item">
+            <div
+              v-for="item in summaryItems"
+              :key="item.label"
+              class="ipam-summary__item"
+            >
               <span class="ipam-summary__label">{{ item.label }}</span>
               <span class="ipam-summary__value">
                 {{ item.value }}<small v-if="item.unit">{{ item.unit }}</small>
@@ -1298,10 +1331,8 @@ onMounted(async () => {
                   <template v-if="row.family === 4">
                     {{
                       $t('dhcp.subnets.grid.gateway', {
-                        value:
-                          row.gateway || $t('dhcp.common.notConfigured'),
-                        dns:
-                          row.dnsServers || $t('dhcp.common.notConfigured'),
+                        value: row.gateway || $t('dhcp.common.notConfigured'),
+                        dns: row.dnsServers || $t('dhcp.common.notConfigured'),
                       })
                     }}
                   </template>
@@ -1313,7 +1344,11 @@ onMounted(async () => {
                       })
                     }}
                   </template>
-                  {{ $t('dhcp.subnets.grid.lease', { value: fmtLifetime(row.validLifetime) }) }}
+                  {{
+                    $t('dhcp.subnets.grid.lease', {
+                      value: fmtLifetime(row.validLifetime),
+                    })
+                  }}
                 </span>
                 <span
                   v-if="row.vlan || row.site || row.purpose || row.owner"
@@ -1326,7 +1361,9 @@ onMounted(async () => {
                     {{ $t('dhcp.subnets.grid.site', { value: row.site }) }}
                   </template>
                   <template v-if="row.purpose">
-                    {{ $t('dhcp.subnets.grid.purpose', { value: row.purpose }) }}
+                    {{
+                      $t('dhcp.subnets.grid.purpose', { value: row.purpose })
+                    }}
                   </template>
                   <template v-if="row.owner">
                     {{ $t('dhcp.subnets.grid.owner', { value: row.owner }) }}
@@ -1336,8 +1373,14 @@ onMounted(async () => {
             </template>
 
             <template #orgId="{ row }">
-              <span class="ipam-org-path" :title="orgPathOf(row.orgId).join(' / ')">
-                <template v-for="(seg, i) in orgPathOf(row.orgId)" :key="`${seg}-${i}`">
+              <span
+                class="ipam-org-path"
+                :title="orgPathOf(row.orgId).join(' / ')"
+              >
+                <template
+                  v-for="(seg, i) in orgPathOf(row.orgId)"
+                  :key="`${seg}-${i}`"
+                >
                   <IconifyIcon
                     v-if="i > 0"
                     icon="lucide:chevron-right"
@@ -1389,7 +1432,10 @@ onMounted(async () => {
                     {{ capacityUnit([row as Subnet]) }}
                   </span>
                 </template>
-                <span v-else class="ipam-capacity__value ipam-capacity__value--empty">
+                <span
+                  v-else
+                  class="ipam-capacity__value ipam-capacity__value--empty"
+                >
                   —
                 </span>
               </div>
@@ -1475,16 +1521,24 @@ onMounted(async () => {
                 <IconifyIcon icon="lucide:radio-tower" />
                 {{ $t('dhcp.subnets.lease6.title') }}
                 <em class="ipam-card-sub">
-                  Kea lease_cmds · NA {{ lease6NaCount }} / PD {{ lease6PdCount }}
+                  Kea lease_cmds · NA {{ lease6NaCount }} / PD
+                  {{ lease6PdCount }}
                 </em>
               </span>
-              <Button size="small" :loading="lease6Loading" @click="loadLeases6">
+              <Button
+                size="small"
+                :loading="lease6Loading"
+                @click="loadLeases6"
+              >
                 <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />
                 {{ $t('dhcp.subnets.lease6.refresh') }}
               </Button>
             </div>
             <div class="ipam-note mb-3">
-              <IconifyIcon icon="lucide:info" class="mt-0.5 size-3.5 shrink-0" />
+              <IconifyIcon
+                icon="lucide:info"
+                class="mt-0.5 size-3.5 shrink-0"
+              />
               <span>
                 {{ $t('dhcp.subnets.lease6.note') }}
               </span>
@@ -1502,7 +1556,9 @@ onMounted(async () => {
                 </span>
               </template>
               <template #lease6Life="{ row }">
-                <span class="ipam-hint">{{ fmtLifetime(row.validLifetime) }}</span>
+                <span class="ipam-hint">{{
+                  fmtLifetime(row.validLifetime)
+                }}</span>
               </template>
             </Lease6Grid>
           </template>
@@ -1528,7 +1584,9 @@ onMounted(async () => {
             v-model:value="form.orgId"
             :placeholder="$t('dhcp.subnets.form.orgPlaceholder')"
             style="width: 240px"
-            :options="orgOptions.map((o) => ({ label: o.label, value: o.value }))"
+            :options="
+              orgOptions.map((o) => ({ label: o.label, value: o.value }))
+            "
           />
         </div>
         <div>
@@ -1747,9 +1805,7 @@ onMounted(async () => {
           <Input
             v-model:value="form.dnsServers"
             style="width: 260px"
-            :placeholder="
-              isV6 ? '2406:172::53' : '223.5.5.5, 114.114.114.114'
-            "
+            :placeholder="isV6 ? '2406:172::53' : '223.5.5.5, 114.114.114.114'"
           />
         </div>
       </div>

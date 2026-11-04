@@ -53,8 +53,12 @@ const now = ref(Math.floor(Date.now() / 1000));
 const v4Filtered = computed(() => filterLeases(v4.value, keyword.value));
 const v6Filtered = computed(() => filterLeases(v6.value, keyword.value));
 
-const declined = computed(() => v4.value.filter((r) => (r.state ?? 0) !== 0).length);
-const pdCount = computed(() => v6.value.filter((r) => r.leaseType === 'IA_PD').length);
+const declined = computed(
+  () => v4.value.filter((r) => (r.state ?? 0) !== 0).length,
+);
+const pdCount = computed(
+  () => v6.value.filter((r) => r.leaseType === 'IA_PD').length,
+);
 
 function fmtTime(ts?: number) {
   if (!ts) return '—';
@@ -94,13 +98,17 @@ async function submitExtend() {
   }
   extendSaving.value = true;
   try {
-    await updateDhcpLease4(extendTarget.value.ipAddress, { validLifetime: extendValue.value });
+    await updateDhcpLease4(extendTarget.value.ipAddress, {
+      validLifetime: extendValue.value,
+    });
     message.success($t('dhcp.leases.messages.extended'));
     extendOpen.value = false;
     await load();
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('dhcp.leases.messages.extendFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('dhcp.leases.messages.extendFailed'),
     );
   } finally {
     extendSaving.value = false;
@@ -131,7 +139,9 @@ async function submitRebind() {
     await load();
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('dhcp.leases.messages.rebindFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('dhcp.leases.messages.rebindFailed'),
     );
   } finally {
     rebindSaving.value = false;
@@ -146,7 +156,9 @@ async function release4(row: Partial<DhcpLease4Row>) {
     await load();
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('dhcp.leases.messages.releaseFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('dhcp.leases.messages.releaseFailed'),
     );
   }
 }
@@ -159,29 +171,66 @@ async function release6(row: Partial<DhcpLease6Row>) {
     await load();
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('dhcp.leases.messages.releaseFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('dhcp.leases.messages.releaseFailed'),
     );
   }
 }
 
 const v4Columns = computed(() => [
-  { title: $t('dhcp.leases.col.ip'), dataIndex: 'ipAddress', key: 'ip', width: 150 },
+  {
+    title: $t('dhcp.leases.col.ip'),
+    dataIndex: 'ipAddress',
+    key: 'ip',
+    width: 150,
+  },
   { title: 'MAC', dataIndex: 'hwAddress', key: 'mac', width: 160 },
-  { title: $t('dhcp.leases.col.hostname'), dataIndex: 'hostname', key: 'hostname', ellipsis: true },
+  {
+    title: $t('dhcp.leases.col.hostname'),
+    dataIndex: 'hostname',
+    key: 'hostname',
+    ellipsis: true,
+  },
   { title: $t('dhcp.leases.col.relay'), key: 'relay', width: 220 },
-  { title: $t('dhcp.leases.col.subnet'), dataIndex: 'subnetId', key: 'subnet', width: 90 },
-  { title: $t('dhcp.leases.col.cltt'), dataIndex: 'cltt', key: 'cltt', width: 170 },
+  {
+    title: $t('dhcp.leases.col.subnet'),
+    dataIndex: 'subnetId',
+    key: 'subnet',
+    width: 90,
+  },
+  {
+    title: $t('dhcp.leases.col.cltt'),
+    dataIndex: 'cltt',
+    key: 'cltt',
+    width: 170,
+  },
   { title: $t('dhcp.leases.col.remaining'), key: 'remaining', width: 100 },
   { title: $t('dhcp.leases.col.state'), key: 'state', width: 100 },
   { title: $t('dhcp.leases.col.actions'), key: 'actions', width: 210 },
 ]);
 
 const v6Columns = computed(() => [
-  { title: $t('dhcp.leases.col.addr'), dataIndex: 'ipAddress', key: 'ip', width: 260 },
-  { title: $t('dhcp.leases.col.type'), dataIndex: 'leaseType', key: 'type', width: 90 },
+  {
+    title: $t('dhcp.leases.col.addr'),
+    dataIndex: 'ipAddress',
+    key: 'ip',
+    width: 260,
+  },
+  {
+    title: $t('dhcp.leases.col.type'),
+    dataIndex: 'leaseType',
+    key: 'type',
+    width: 90,
+  },
   { title: 'MAC', dataIndex: 'hwAddress', key: 'mac', width: 160 },
   { title: 'DUID', dataIndex: 'duid', key: 'duid', ellipsis: true },
-  { title: $t('dhcp.leases.col.cltt'), dataIndex: 'cltt', key: 'cltt', width: 170 },
+  {
+    title: $t('dhcp.leases.col.cltt'),
+    dataIndex: 'cltt',
+    key: 'cltt',
+    width: 170,
+  },
   { title: $t('dhcp.leases.col.remaining'), key: 'remaining', width: 100 },
   { title: $t('dhcp.leases.col.actions'), key: 'actions', width: 100 },
 ]);
@@ -265,7 +314,9 @@ onMounted(load);
           :placeholder="$t('dhcp.leases.searchPlaceholder')"
           style="width: 280px"
         >
-          <template #prefix><IconifyIcon icon="lucide:search" class="size-3.5" /></template>
+          <template #prefix>
+            <IconifyIcon icon="lucide:search" class="size-3.5" />
+          </template>
         </Input>
       </div>
 
@@ -286,14 +337,26 @@ onMounted(load);
             </span>
             <span v-else class="text-gray-400">—</span>
           </template>
-          <template v-else-if="column.key === 'cltt'">{{ fmtTime(record.cltt) }}</template>
+          <template v-else-if="column.key === 'cltt'">
+            {{ fmtTime(record.cltt) }}
+          </template>
           <template v-else-if="column.key === 'remaining'">
-            <Tag :color="(record.cltt + (record.validLifetime ?? 0)) > now ? 'green' : 'default'" class="m-0">
+            <Tag
+              :color="
+                record.cltt + (record.validLifetime ?? 0) > now
+                  ? 'green'
+                  : 'default'
+              "
+              class="m-0"
+            >
               {{ remaining(record) }}
             </Tag>
           </template>
           <template v-else-if="column.key === 'state'">
-            <Tag :color="(record.state ?? 0) === 0 ? 'green' : 'red'" class="m-0">
+            <Tag
+              :color="(record.state ?? 0) === 0 ? 'green' : 'red'"
+              class="m-0"
+            >
               {{
                 (record.state ?? 0) === 0
                   ? $t('dhcp.leases.stateOk')
@@ -341,10 +404,19 @@ onMounted(load);
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'type'">
-            <Tag :color="record.leaseType === 'IA_PD' ? 'orange' : 'blue'" class="m-0">{{ record.leaseType }}</Tag>
+            <Tag
+              :color="record.leaseType === 'IA_PD' ? 'orange' : 'blue'"
+              class="m-0"
+            >
+              {{ record.leaseType }}
+            </Tag>
           </template>
-          <template v-else-if="column.key === 'cltt'">{{ fmtTime(record.cltt) }}</template>
-          <template v-else-if="column.key === 'remaining'">{{ remaining(record) }}</template>
+          <template v-else-if="column.key === 'cltt'">
+            {{ fmtTime(record.cltt) }}
+          </template>
+          <template v-else-if="column.key === 'remaining'">
+            {{ remaining(record) }}
+          </template>
           <template v-else-if="column.key === 'actions'">
             <Popconfirm
               :title="$t('dhcp.leases.confirmRelease6')"
@@ -377,14 +449,22 @@ onMounted(load);
     >
       <div class="ipam-form-grid">
         <div class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">{{ $t('dhcp.leases.address') }}</span>
+          <span class="ipam-form-field__label">{{
+            $t('dhcp.leases.address')
+          }}</span>
           <Input :value="extendTarget?.ipAddress" disabled />
         </div>
         <div class="ipam-form-field ipam-form-field--wide">
           <span class="ipam-form-field__label">
             {{ $t('dhcp.leases.newLifetime') }}
           </span>
-          <InputNumber v-model:value="extendValue" :min="60" :max="31536000" :step="600" style="width: 100%" />
+          <InputNumber
+            v-model:value="extendValue"
+            :min="60"
+            :max="31536000"
+            :step="600"
+            style="width: 100%"
+          />
         </div>
         <div class="ipam-form-hint ipam-form-field--wide">
           {{ $t('dhcp.leases.extendHint') }}
@@ -402,12 +482,19 @@ onMounted(load);
     >
       <div class="ipam-form-grid">
         <div class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">{{ $t('dhcp.leases.address') }}</span>
+          <span class="ipam-form-field__label">{{
+            $t('dhcp.leases.address')
+          }}</span>
           <Input :value="rebindTarget?.ipAddress" disabled />
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dhcp.leases.newMac') }}</span>
-          <Input v-model:value="rebindForm.mac" placeholder="aa:bb:cc:dd:ee:ff" />
+          <span class="ipam-form-field__label">{{
+            $t('dhcp.leases.newMac')
+          }}</span>
+          <Input
+            v-model:value="rebindForm.mac"
+            placeholder="aa:bb:cc:dd:ee:ff"
+          />
         </div>
         <div class="ipam-form-field">
           <span class="ipam-form-field__label">

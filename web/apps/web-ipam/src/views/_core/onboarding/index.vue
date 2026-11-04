@@ -90,7 +90,10 @@ const percent = computed(() =>
 
 async function checkOrg(): Promise<OnboardingCheck> {
   const orgs = await listOrgs();
-  return { done: orgs.length > 0, hint: $t('page.onboarding.hints.orgs', { n: orgs.length }) };
+  return {
+    done: orgs.length > 0,
+    hint: $t('page.onboarding.hints.orgs', { n: orgs.length }),
+  };
 }
 async function checkSubnet(): Promise<OnboardingCheck> {
   const data = await listSubnets();
@@ -118,7 +121,10 @@ async function checkRecords(): Promise<OnboardingCheck> {
       // 单个区域读取失败不影响整体判断。
     }
   }
-  return { done: records > 0, hint: $t('page.onboarding.hints.records', { n: records }) };
+  return {
+    done: records > 0,
+    hint: $t('page.onboarding.hints.records', { n: records }),
+  };
 }
 function checkSecurity(): OnboardingCheck {
   const info = userStore.userInfo;
@@ -128,7 +134,10 @@ function checkSecurity(): OnboardingCheck {
 
 async function runChecks() {
   loading.value = true;
-  const checks: Record<string, () => OnboardingCheck | Promise<OnboardingCheck>> = {
+  const checks: Record<
+    string,
+    () => OnboardingCheck | Promise<OnboardingCheck>
+  > = {
     org: checkOrg,
     subnet: checkSubnet,
     upstream: checkUpstream,
@@ -203,19 +212,27 @@ onMounted(() => {
       <div class="flex flex-wrap items-center gap-6">
         <div class="min-w-[220px] flex-1">
           <div class="mb-2 flex items-center justify-between text-sm">
-            <span class="font-medium">{{ $t('page.onboarding.progress') }}</span>
+            <span class="font-medium">{{
+              $t('page.onboarding.progress')
+            }}</span>
             <span class="ipam-hint">{{ doneCount }} / {{ steps.length }}</span>
           </div>
           <Progress :percent="percent" :show-info="false" />
           <div class="ipam-hint mt-2">
-            {{ allDone ? $t('page.onboarding.allDone') : $t('page.onboarding.inProgress') }}
+            {{
+              allDone
+                ? $t('page.onboarding.allDone')
+                : $t('page.onboarding.inProgress')
+            }}
           </div>
         </div>
         <div class="flex items-center gap-2">
           <Button v-if="state.completed || state.dismissed" @click="reset">
             {{ $t('page.onboarding.restart') }}
           </Button>
-          <Button v-else @click="dismiss">{{ $t('page.onboarding.dismiss') }}</Button>
+          <Button v-else @click="dismiss">
+            {{ $t('page.onboarding.dismiss') }}
+          </Button>
           <Button type="primary" :disabled="!allDone" @click="finish">
             {{ $t('page.onboarding.finish') }}
           </Button>
@@ -244,9 +261,16 @@ onMounted(() => {
                 :color="results[step.key]?.done ? 'green' : 'default'"
                 class="m-0"
               >
-                {{ results[step.key]?.done ? $t('page.onboarding.done') : $t('page.onboarding.todo') }}
+                {{
+                  results[step.key]?.done
+                    ? $t('page.onboarding.done')
+                    : $t('page.onboarding.todo')
+                }}
               </Tag>
-              <span v-if="results[step.key]?.error" class="ipam-hint text-amber-600">
+              <span
+                v-if="results[step.key]?.error"
+                class="ipam-hint text-amber-600"
+              >
                 {{ results[step.key]?.error }}
               </span>
               <span v-else-if="results[step.key]?.hint" class="ipam-hint">
@@ -272,26 +296,26 @@ onMounted(() => {
 <style scoped>
 .ipam-onboarding-step {
   display: flex;
-  align-items: center;
   gap: 12px;
+  align-items: center;
   padding: 12px;
   border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
   border-radius: 10px;
 }
 
 .ipam-onboarding-step[data-done='true'] {
-  border-color: var(--ant-color-success-border, #b7eb8f);
   background: var(--ant-color-success-bg, #f6ffed);
+  border-color: var(--ant-color-success-border, #b7eb8f);
 }
 
 .ipam-onboarding-step__index {
   display: grid;
-  width: 32px;
-  height: 32px;
   flex: none;
   place-items: center;
-  border-radius: 50%;
-  background: var(--ant-color-fill-secondary, #f5f5f5);
+  width: 32px;
+  height: 32px;
   color: var(--ant-color-primary, #1677ff);
+  background: var(--ant-color-fill-secondary, #f5f5f5);
+  border-radius: 50%;
 }
 </style>

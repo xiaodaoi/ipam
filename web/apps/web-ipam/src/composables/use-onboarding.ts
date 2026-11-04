@@ -24,7 +24,11 @@ export function writeOnboarding(
   username: string | undefined,
   patch: Partial<OnboardingState>,
 ): OnboardingState {
-  const next = { ...readOnboarding(username), ...patch, updatedAt: new Date().toISOString() };
+  const next = {
+    ...readOnboarding(username),
+    ...patch,
+    updatedAt: new Date().toISOString(),
+  };
   try {
     localStorage.setItem(onboardingKey(username), JSON.stringify(next));
   } catch {

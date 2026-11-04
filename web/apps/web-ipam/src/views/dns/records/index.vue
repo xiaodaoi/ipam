@@ -21,7 +21,18 @@ import {
   Tag,
 } from 'ant-design-vue';
 
-import { createDnsRecord, createDnsZone, deleteDnsRecord, deleteDnsZone, importDnsHosts, listDnsRecords, listDnsZones, listLinkedRecords, updateDnsRecord, updateDnsZone } from '#/api/ipam';
+import {
+  createDnsRecord,
+  createDnsZone,
+  deleteDnsRecord,
+  deleteDnsZone,
+  importDnsHosts,
+  listDnsRecords,
+  listDnsZones,
+  listLinkedRecords,
+  updateDnsRecord,
+  updateDnsZone,
+} from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
 import { $t } from '#/locales';
@@ -37,7 +48,9 @@ const records = ref<DnsRecord[]>([]);
 const linked = ref<any[]>([]);
 const loading = ref(false);
 
-const activeZone = computed(() => zones.value.find((z) => z.id === zoneId.value));
+const activeZone = computed(() =>
+  zones.value.find((z) => z.id === zoneId.value),
+);
 
 // 完整域名：记录名 + 区域（名称已含区域后缀则只补尾点）
 function fqdnOf(name: string): string {
@@ -86,8 +99,16 @@ function selectZone(id: string) {
 const recTab = ref<'linked' | 'rec'>('rec');
 
 // ── 新增记录表单 ──
-const recForm = reactive<{ name: string; rdata: string; recType: RecType; ttl: number }>({
-  name: '', recType: 'A', rdata: '', ttl: 300,
+const recForm = reactive<{
+  name: string;
+  rdata: string;
+  recType: RecType;
+  ttl: number;
+}>({
+  name: '',
+  recType: 'A',
+  rdata: '',
+  ttl: 300,
 });
 const [AddRecordModal, addRecordModalApi] = useVbenModal({
   draggable: true,
@@ -105,7 +126,11 @@ function openAddRecord() {
   recForm.recType = 'A';
   recForm.rdata = '';
   recForm.ttl = 300;
-  addRecordModalApi.setState({ title: $t('dns.records.msg.addTitleNamed', { name: activeZone.value?.name ?? '' }) });
+  addRecordModalApi.setState({
+    title: $t('dns.records.msg.addTitleNamed', {
+      name: activeZone.value?.name ?? '',
+    }),
+  });
   addRecordModalApi.open();
 }
 
@@ -123,14 +148,26 @@ async function addRecord() {
     recForm.rdata = '';
     await loadRecords();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dns.common.addFailed'));
+    message.error(
+      error instanceof Error ? error.message : $t('dns.common.addFailed'),
+    );
   }
 }
 
 // ── 编辑记录 ──
 const editRecord = ref<DnsRecord>();
-const recordEdit = reactive<{ enabled: boolean; name: string; rdata: string; recType: RecType; ttl: number }>({
-  name: '', recType: 'A', rdata: '', ttl: 300, enabled: true,
+const recordEdit = reactive<{
+  enabled: boolean;
+  name: string;
+  rdata: string;
+  recType: RecType;
+  ttl: number;
+}>({
+  name: '',
+  recType: 'A',
+  rdata: '',
+  ttl: 300,
+  enabled: true,
 });
 const [RecordModal, recordModalApi] = useVbenModal({
   draggable: true,
@@ -141,9 +178,15 @@ const [RecordModal, recordModalApi] = useVbenModal({
 function openEditRecord(r: DnsRecord) {
   editRecord.value = r;
   Object.assign(recordEdit, {
-    name: r.name, recType: r.recType, rdata: r.rdata, ttl: r.ttl, enabled: r.enabled,
+    name: r.name,
+    recType: r.recType,
+    rdata: r.rdata,
+    ttl: r.ttl,
+    enabled: r.enabled,
   });
-  recordModalApi.setState({ title: $t('dns.records.msg.editTitleNamed', { name: r.name }) });
+  recordModalApi.setState({
+    title: $t('dns.records.msg.editTitleNamed', { name: r.name }),
+  });
   recordModalApi.open();
 }
 
@@ -160,7 +203,9 @@ async function confirmEditRecord() {
     recordModalApi.close();
     await loadRecords();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dns.common.updateFailed'));
+    message.error(
+      error instanceof Error ? error.message : $t('dns.common.updateFailed'),
+    );
   }
 }
 
@@ -170,14 +215,20 @@ async function toggleRecord(r: DnsRecord, enabled: boolean) {
     await updateDnsRecord(zoneId.value, r.id, { enabled });
     await loadRecords();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dns.common.actionFailed'));
+    message.error(
+      error instanceof Error ? error.message : $t('dns.common.actionFailed'),
+    );
   }
 }
 
 function removeRecord(r: DnsRecord) {
   Modal.confirm({
     title: $t('dns.records.msg.deleteTitle', { name: r.name }),
-    content: $t('dns.records.msg.deleteContent', { zone: activeZone.value?.name ?? '', name: r.name, type: r.recType }),
+    content: $t('dns.records.msg.deleteContent', {
+      zone: activeZone.value?.name ?? '',
+      name: r.name,
+      type: r.recType,
+    }),
     okText: $t('dns.common.delete'),
     okType: 'danger',
     onOk: async () => {
@@ -187,14 +238,22 @@ function removeRecord(r: DnsRecord) {
         message.success($t('dns.records.msg.deleted'));
         await loadRecords();
       } catch (error) {
-        message.error(error instanceof Error ? error.message : $t('dns.common.deleteFailed'));
+        message.error(
+          error instanceof Error
+            ? error.message
+            : $t('dns.common.deleteFailed'),
+        );
       }
     },
   });
 }
 
 // ── 新建/编辑 zone ──
-const zoneForm = reactive<{ kind: 'auth' | 'local' | 'secondary'; name: string; primary: string }>({
+const zoneForm = reactive<{
+  kind: 'auth' | 'local' | 'secondary';
+  name: string;
+  primary: string;
+}>({
   name: '',
   kind: 'auth',
   primary: '',
@@ -211,7 +270,10 @@ function openCreateZone() {
   zoneForm.name = '';
   zoneForm.kind = 'auth';
   zoneForm.primary = '';
-  zoneModalApi.setState({ title: $t('dns.records.msg.zoneCreateTitle'), confirmText: $t('dns.records.msg.zoneCreateConfirm') });
+  zoneModalApi.setState({
+    title: $t('dns.records.msg.zoneCreateTitle'),
+    confirmText: $t('dns.records.msg.zoneCreateConfirm'),
+  });
   zoneModalApi.open();
 }
 
@@ -220,7 +282,10 @@ function openEditZone(z: DnsZone) {
   zoneForm.name = z.name.replace(/\.$/, '');
   zoneForm.kind = z.kind as 'auth' | 'local' | 'secondary';
   zoneForm.primary = z.primary ?? '';
-  zoneModalApi.setState({ title: $t('dns.records.msg.zoneEditTitle', { name: z.name }), confirmText: $t('dns.records.msg.saveChanges') });
+  zoneModalApi.setState({
+    title: $t('dns.records.msg.zoneEditTitle', { name: z.name }),
+    confirmText: $t('dns.records.msg.saveChanges'),
+  });
   zoneModalApi.open();
 }
 
@@ -247,7 +312,9 @@ async function confirmZone() {
     zoneModalApi.close();
     await loadZones();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dns.common.saveFailed'));
+    message.error(
+      error instanceof Error ? error.message : $t('dns.common.saveFailed'),
+    );
   }
 }
 
@@ -256,7 +323,9 @@ async function toggleZone(z: DnsZone, enabled: boolean) {
     await updateDnsZone(z.id, { enabled });
     await loadZones();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dns.common.actionFailed'));
+    message.error(
+      error instanceof Error ? error.message : $t('dns.common.actionFailed'),
+    );
   }
 }
 
@@ -273,7 +342,11 @@ function removeZone(z: DnsZone) {
         message.success($t('dns.records.msg.zoneDeleted'));
         await loadZones();
       } catch (error) {
-        message.error(error instanceof Error ? error.message : $t('dns.common.deleteFailed'));
+        message.error(
+          error instanceof Error
+            ? error.message
+            : $t('dns.common.deleteFailed'),
+        );
       }
     },
   });
@@ -287,7 +360,8 @@ const stats = computed(() => {
   const zoneEnabled = zones.value.filter((z) => z.enabled).length;
   const disabled = records.value.filter((r) => !r.enabled).length;
   const typeCount = new Map<string, number>();
-  for (const r of records.value) typeCount.set(r.recType, (typeCount.get(r.recType) ?? 0) + 1);
+  for (const r of records.value)
+    typeCount.set(r.recType, (typeCount.get(r.recType) ?? 0) + 1);
   return {
     disabled,
     enabledRecords: records.value.length - disabled,
@@ -334,12 +408,22 @@ async function submitHostsImport() {
   importing.value = true;
   try {
     const r = await importDnsHosts(zoneId.value, hostsContent.value);
-    message.success($t('dns.records.hosts.importOk', { created: r.created, skipped: r.skipped }));
-    if (r.errors?.length) message.warning(r.errors.slice(0, 3).join($t('dns.common.listSep')));
+    message.success(
+      $t('dns.records.hosts.importOk', {
+        created: r.created,
+        skipped: r.skipped,
+      }),
+    );
+    if (r.errors?.length)
+      message.warning(r.errors.slice(0, 3).join($t('dns.common.listSep')));
     hostsOpen.value = false;
     await loadRecords();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('dns.records.hosts.importFailed'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dns.records.hosts.importFailed'),
+    );
   } finally {
     importing.value = false;
   }
@@ -354,7 +438,8 @@ const typeOptions = computed(() => [
 const recFiltered = computed(() => {
   const kw = recKeyword.value.trim().toLowerCase();
   return records.value.filter((r) => {
-    if (recTypeFilter.value !== 'all' && r.recType !== recTypeFilter.value) return false;
+    if (recTypeFilter.value !== 'all' && r.recType !== recTypeFilter.value)
+      return false;
     if (recStatus.value === 'enabled' && !r.enabled) return false;
     if (recStatus.value === 'disabled' && r.enabled) return false;
     if (!kw) return true;
@@ -366,7 +451,9 @@ const linkedFiltered = computed(() => {
   const kw = linkedKeyword.value.trim().toLowerCase();
   if (!kw) return linked.value;
   return linked.value.filter((r) =>
-    `${r.name ?? ''} ${r.rdata ?? ''} ${r.mac ?? ''}`.toLowerCase().includes(kw),
+    `${r.name ?? ''} ${r.rdata ?? ''} ${r.mac ?? ''}`
+      .toLowerCase()
+      .includes(kw),
   );
 });
 function resetRecFilters() {
@@ -376,17 +463,41 @@ function resetRecFilters() {
 }
 
 const recColumns = computed(() => [
-  { title: $t('dns.records.recordCard.colName'), dataIndex: 'name', minWidth: 260 },
-  { title: $t('dns.records.recordCard.colType'), dataIndex: 'recType', width: 80 },
+  {
+    title: $t('dns.records.recordCard.colName'),
+    dataIndex: 'name',
+    minWidth: 260,
+  },
+  {
+    title: $t('dns.records.recordCard.colType'),
+    dataIndex: 'recType',
+    width: 80,
+  },
   { title: $t('dns.records.recordCard.colTtl'), dataIndex: 'ttl', width: 90 },
-  { title: $t('dns.records.recordCard.colValue'), dataIndex: 'rdata', minWidth: 200 },
-  { title: $t('dns.records.recordCard.colEnabled'), dataIndex: 'enabled', width: 80 },
+  {
+    title: $t('dns.records.recordCard.colValue'),
+    dataIndex: 'rdata',
+    minWidth: 200,
+  },
+  {
+    title: $t('dns.records.recordCard.colEnabled'),
+    dataIndex: 'enabled',
+    width: 80,
+  },
   { title: $t('dns.common.actions'), key: 'op', width: 140 },
 ]);
 const linkedColumns = computed(() => [
   { title: $t('dns.records.linked.colName'), dataIndex: 'name', minWidth: 200 },
-  { title: $t('dns.records.recordCard.colType'), dataIndex: 'recType', width: 90 },
-  { title: $t('dns.records.linked.colValue'), dataIndex: 'rdata', minWidth: 200 },
+  {
+    title: $t('dns.records.recordCard.colType'),
+    dataIndex: 'recType',
+    width: 90,
+  },
+  {
+    title: $t('dns.records.linked.colValue'),
+    dataIndex: 'rdata',
+    minWidth: 200,
+  },
   { title: $t('dns.records.linked.colMac'), dataIndex: 'mac', minWidth: 160 },
 ]);
 </script>
@@ -402,19 +513,32 @@ const linkedColumns = computed(() => [
       <template #actions>
         <span class="ipam-page-header__meta">
           <IconifyIcon icon="lucide:layers" class="size-3.5" />
-          {{ $t('dns.records.header.meta', { zones: stats.zoneTotal, records: stats.records }) }}
+          {{
+            $t('dns.records.header.meta', {
+              zones: stats.zoneTotal,
+              records: stats.records,
+            })
+          }}
         </span>
         <Button size="small" :loading="loading" @click="loadZones()">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{ $t('dns.common.refresh') }}
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{
+            $t('dns.common.refresh')
+          }}
         </Button>
         <Button size="small" @click="openCreateZone">
-          <IconifyIcon icon="lucide:folder-plus" class="mr-1" />{{ $t('dns.records.actions.newZone') }}
+          <IconifyIcon icon="lucide:folder-plus" class="mr-1" />{{
+            $t('dns.records.actions.newZone')
+          }}
         </Button>
         <Button size="small" @click="openHostsImport">
-          <IconifyIcon icon="lucide:upload" class="mr-1" />{{ $t('dns.records.actions.importHosts') }}
+          <IconifyIcon icon="lucide:upload" class="mr-1" />{{
+            $t('dns.records.actions.importHosts')
+          }}
         </Button>
         <Button type="primary" size="small" @click="openAddRecord">
-          <IconifyIcon icon="lucide:plus" class="mr-1" />{{ $t('dns.records.actions.addRecord') }}
+          <IconifyIcon icon="lucide:plus" class="mr-1" />{{
+            $t('dns.records.actions.addRecord')
+          }}
         </Button>
       </template>
     </PageHeader>
@@ -426,7 +550,12 @@ const linkedColumns = computed(() => [
         :unit="$t('dns.common.unit.count')"
         icon="lucide:layers"
         tone="blue"
-        :hint="$t('dns.records.stat.zoneHint', { enabled: stats.zoneEnabled, disabled: stats.zoneTotal - stats.zoneEnabled })"
+        :hint="
+          $t('dns.records.stat.zoneHint', {
+            enabled: stats.zoneEnabled,
+            disabled: stats.zoneTotal - stats.zoneEnabled,
+          })
+        "
       />
       <StatCard
         :label="$t('dns.records.stat.records')"
@@ -434,7 +563,14 @@ const linkedColumns = computed(() => [
         :unit="$t('dns.common.unit.item')"
         icon="lucide:book-open"
         tone="cyan"
-        :hint="activeZone ? $t('dns.records.stat.recordsHint', { zone: activeZone.name, enabled: stats.enabledRecords }) : $t('dns.records.stat.selectZone')"
+        :hint="
+          activeZone
+            ? $t('dns.records.stat.recordsHint', {
+                zone: activeZone.name,
+                enabled: stats.enabledRecords,
+              })
+            : $t('dns.records.stat.selectZone')
+        "
       />
       <StatCard
         :label="$t('dns.records.stat.linked')"
@@ -442,7 +578,11 @@ const linkedColumns = computed(() => [
         :unit="$t('dns.common.unit.item')"
         icon="lucide:git-compare-arrows"
         tone="violet"
-        :hint="stats.linked > 0 ? $t('dns.records.stat.linkedHintOn') : $t('dns.records.stat.linkedHintOff')"
+        :hint="
+          stats.linked > 0
+            ? $t('dns.records.stat.linkedHintOn')
+            : $t('dns.records.stat.linkedHintOff')
+        "
       />
       <StatCard
         :label="$t('dns.records.stat.disabled')"
@@ -450,7 +590,13 @@ const linkedColumns = computed(() => [
         :unit="$t('dns.common.unit.item')"
         icon="lucide:eye-off"
         :tone="stats.disabled > 0 ? 'amber' : 'green'"
-        :hint="stats.records > 0 ? $t('dns.records.stat.disabledHint', { pct: Math.round((stats.enabledRecords / stats.records) * 100) }) : $t('dns.records.stat.disabledHintOff')"
+        :hint="
+          stats.records > 0
+            ? $t('dns.records.stat.disabledHint', {
+                pct: Math.round((stats.enabledRecords / stats.records) * 100),
+              })
+            : $t('dns.records.stat.disabledHintOff')
+        "
       />
     </div>
 
@@ -461,26 +607,51 @@ const linkedColumns = computed(() => [
           <span class="ipam-card-title">
             <IconifyIcon icon="lucide:layers" />
             {{ $t('dns.records.zoneCard.title') }}
-            <em class="ipam-card-sub">{{ filteredZones.length }} / {{ zones.length }}</em>
+            <em class="ipam-card-sub"
+              >{{ filteredZones.length }} / {{ zones.length }}</em
+            >
           </span>
         </template>
 
         <div class="mb-2 flex flex-col gap-2">
-          <Input v-model:value="zoneKeyword" allow-clear :placeholder="$t('dns.records.zoneCard.searchPlaceholder')" size="small" />
+          <Input
+            v-model:value="zoneKeyword"
+            allow-clear
+            :placeholder="$t('dns.records.zoneCard.searchPlaceholder')"
+            size="small"
+          />
           <Select
             v-model:value="zoneStatus"
             size="small"
             :options="[
               { label: $t('dns.common.allStatus'), value: 'all' },
-              { label: $t('dns.records.zoneCard.statusEnabled'), value: 'enabled' },
+              {
+                label: $t('dns.records.zoneCard.statusEnabled'),
+                value: 'enabled',
+              },
               { label: $t('dns.common.disabled'), value: 'disabled' },
             ]"
           />
         </div>
 
-        <div v-if="filteredZones.length === 0" class="ipam-empty ipam-empty--compact">
-          <div class="ipam-empty__title">{{ zones.length === 0 ? $t('dns.records.zoneCard.emptyTitleNoZone') : $t('dns.records.zoneCard.emptyTitleNoMatch') }}</div>
-          <div class="ipam-empty__desc">{{ zones.length === 0 ? $t('dns.records.zoneCard.emptyDescNoZone') : $t('dns.records.zoneCard.emptyDescNoMatch') }}</div>
+        <div
+          v-if="filteredZones.length === 0"
+          class="ipam-empty ipam-empty--compact"
+        >
+          <div class="ipam-empty__title">
+            {{
+              zones.length === 0
+                ? $t('dns.records.zoneCard.emptyTitleNoZone')
+                : $t('dns.records.zoneCard.emptyTitleNoMatch')
+            }}
+          </div>
+          <div class="ipam-empty__desc">
+            {{
+              zones.length === 0
+                ? $t('dns.records.zoneCard.emptyDescNoZone')
+                : $t('dns.records.zoneCard.emptyDescNoMatch')
+            }}
+          </div>
         </div>
 
         <div
@@ -491,15 +662,31 @@ const linkedColumns = computed(() => [
           @click="selectZone(z.id)"
         >
           <div class="flex items-center justify-between gap-1">
-            <span class="truncate text-sm font-medium" :title="z.name">{{ z.name }}</span>
-            <Tag :color="z.kind === 'auth' ? 'blue' : 'purple'" class="m-0">{{ z.kind }}</Tag>
+            <span class="truncate text-sm font-medium" :title="z.name">{{
+              z.name
+            }}</span>
+            <Tag :color="z.kind === 'auth' ? 'blue' : 'purple'" class="m-0">
+              {{ z.kind }}
+            </Tag>
           </div>
           <div class="mt-1 flex items-center justify-between">
-            <span class="ipam-hint">{{ z.enabled ? $t('dns.records.zoneCard.statusEnabled') : $t('dns.common.disabled') }}</span>
+            <span class="ipam-hint">{{
+              z.enabled
+                ? $t('dns.records.zoneCard.statusEnabled')
+                : $t('dns.common.disabled')
+            }}</span>
             <div class="flex items-center gap-1" @click.stop>
-              <Switch :checked="z.enabled" size="small" @change="(v: any) => toggleZone(z as DnsZone, !!v)" />
-              <Button size="small" type="text" @click="openEditZone(z)">{{ $t('dns.common.edit') }}</Button>
-              <Button size="small" type="text" danger @click="removeZone(z)">{{ $t('dns.common.delete') }}</Button>
+              <Switch
+                :checked="z.enabled"
+                size="small"
+                @change="(v: any) => toggleZone(z as DnsZone, !!v)"
+              />
+              <Button size="small" type="text" @click="openEditZone(z)">
+                {{ $t('dns.common.edit') }}
+              </Button>
+              <Button size="small" type="text" danger @click="removeZone(z)">
+                {{ $t('dns.common.delete') }}
+              </Button>
             </div>
           </div>
         </div>
@@ -511,7 +698,9 @@ const linkedColumns = computed(() => [
           <span class="ipam-card-title">
             <IconifyIcon icon="lucide:list-tree" />
             {{ $t('dns.records.recordCard.title') }}
-            <em class="ipam-card-sub">{{ activeZone ? activeZone.name : $t('dns.records.recordCard.noZone') }}</em>
+            <em class="ipam-card-sub">{{
+              activeZone ? activeZone.name : $t('dns.records.recordCard.noZone')
+            }}</em>
           </span>
         </template>
 
@@ -522,51 +711,103 @@ const linkedColumns = computed(() => [
               option-type="button"
               size="small"
               :options="[
-                { label: $t('dns.records.recordCard.tabRec', { n: records.length }), value: 'rec' },
-                { label: $t('dns.records.recordCard.tabLinked', { n: linked.length }), value: 'linked' },
+                {
+                  label: $t('dns.records.recordCard.tabRec', {
+                    n: records.length,
+                  }),
+                  value: 'rec',
+                },
+                {
+                  label: $t('dns.records.recordCard.tabLinked', {
+                    n: linked.length,
+                  }),
+                  value: 'linked',
+                },
               ]"
             />
             <div class="flex flex-wrap items-center gap-2">
-              <span class="ipam-chip" data-tone="muted">A {{ stats.typeCount.get('A') ?? 0 }}</span>
-              <span class="ipam-chip" data-tone="muted">AAAA {{ stats.typeCount.get('AAAA') ?? 0 }}</span>
-              <span class="ipam-chip" data-tone="muted">CNAME {{ stats.typeCount.get('CNAME') ?? 0 }}</span>
-              <span class="ipam-chip" data-tone="muted">PTR {{ stats.typeCount.get('PTR') ?? 0 }}</span>
-              <span class="ipam-chip" data-tone="muted">TXT {{ stats.typeCount.get('TXT') ?? 0 }}</span>
-              <span class="ipam-chip" data-tone="muted">SRV {{ stats.typeCount.get('SRV') ?? 0 }}</span>
-              <span class="ipam-chip" data-tone="muted">MX {{ stats.typeCount.get('MX') ?? 0 }}</span>
+              <span class="ipam-chip" data-tone="muted"
+                >A {{ stats.typeCount.get('A') ?? 0 }}</span
+              >
+              <span class="ipam-chip" data-tone="muted"
+                >AAAA {{ stats.typeCount.get('AAAA') ?? 0 }}</span
+              >
+              <span class="ipam-chip" data-tone="muted"
+                >CNAME {{ stats.typeCount.get('CNAME') ?? 0 }}</span
+              >
+              <span class="ipam-chip" data-tone="muted"
+                >PTR {{ stats.typeCount.get('PTR') ?? 0 }}</span
+              >
+              <span class="ipam-chip" data-tone="muted"
+                >TXT {{ stats.typeCount.get('TXT') ?? 0 }}</span
+              >
+              <span class="ipam-chip" data-tone="muted"
+                >SRV {{ stats.typeCount.get('SRV') ?? 0 }}</span
+              >
+              <span class="ipam-chip" data-tone="muted"
+                >MX {{ stats.typeCount.get('MX') ?? 0 }}</span
+              >
             </div>
           </div>
 
           <template v-if="recTab === 'rec'">
             <div class="ipam-toolbar mb-3">
               <div class="ipam-field">
-                <span class="ipam-field__label">{{ $t('dns.common.keyword') }}</span>
-                <Input v-model:value="recKeyword" allow-clear :placeholder="$t('dns.records.recordCard.kwPlaceholder')" style="width: 240px" />
+                <span class="ipam-field__label">{{
+                  $t('dns.common.keyword')
+                }}</span>
+                <Input
+                  v-model:value="recKeyword"
+                  allow-clear
+                  :placeholder="$t('dns.records.recordCard.kwPlaceholder')"
+                  style="width: 240px"
+                />
               </div>
               <div class="ipam-field">
-                <span class="ipam-field__label">{{ $t('dns.common.type') }}</span>
-                <Select v-model:value="recTypeFilter" :options="typeOptions" style="width: 120px" />
+                <span class="ipam-field__label">{{
+                  $t('dns.common.type')
+                }}</span>
+                <Select
+                  v-model:value="recTypeFilter"
+                  :options="typeOptions"
+                  style="width: 120px"
+                />
               </div>
               <div class="ipam-field">
-                <span class="ipam-field__label">{{ $t('dns.common.status') }}</span>
+                <span class="ipam-field__label">{{
+                  $t('dns.common.status')
+                }}</span>
                 <Select
                   v-model:value="recStatus"
                   :options="[
                     { label: $t('dns.common.allStatus'), value: 'all' },
-                    { label: $t('dns.records.recordCard.statusEnabled'), value: 'enabled' },
-                    { label: $t('dns.records.recordCard.statusDisabled'), value: 'disabled' },
+                    {
+                      label: $t('dns.records.recordCard.statusEnabled'),
+                      value: 'enabled',
+                    },
+                    {
+                      label: $t('dns.records.recordCard.statusDisabled'),
+                      value: 'disabled',
+                    },
                   ]"
                   style="width: 120px"
                 />
               </div>
-              <Button size="small" @click="resetRecFilters">{{ $t('dns.common.reset') }}</Button>
+              <Button size="small" @click="resetRecFilters">
+                {{ $t('dns.common.reset') }}
+              </Button>
             </div>
 
             <Table
               :data-source="recFiltered"
               :loading="loading"
               :columns="recColumns"
-              :locale="{ emptyText: records.length === 0 ? $t('dns.records.recordCard.emptyNoRecords') : $t('dns.records.recordCard.emptyFiltered') }"
+              :locale="{
+                emptyText:
+                  records.length === 0
+                    ? $t('dns.records.recordCard.emptyNoRecords')
+                    : $t('dns.records.recordCard.emptyFiltered'),
+              }"
               :pagination="{ pageSize: 20, showSizeChanger: true, showTotal }"
               row-key="id"
               size="small"
@@ -574,12 +815,30 @@ const linkedColumns = computed(() => [
               <template #bodyCell="{ column, record }">
                 <template v-if="column.dataIndex === 'name'">
                   <div class="ipam-cell-stack">
-                    <span class="ipam-cell-title ipam-mono">{{ record.name }}</span>
-                    <span class="ipam-cell-meta ipam-mono">{{ fqdnOf(record.name) }}</span>
+                    <span class="ipam-cell-title ipam-mono">{{
+                      record.name
+                    }}</span>
+                    <span class="ipam-cell-meta ipam-mono">{{
+                      fqdnOf(record.name)
+                    }}</span>
                   </div>
                 </template>
                 <template v-else-if="column.dataIndex === 'recType'">
-                  <Tag class="m-0" :color="record.recType === 'AAAA' ? 'cyan' : record.recType === 'CNAME' ? 'purple' : record.recType === 'TXT' ? 'green' : record.recType === 'SRV' || record.recType === 'MX' ? 'orange' : 'blue'">
+                  <Tag
+                    class="m-0"
+                    :color="
+                      record.recType === 'AAAA'
+                        ? 'cyan'
+                        : record.recType === 'CNAME'
+                          ? 'purple'
+                          : record.recType === 'TXT'
+                            ? 'green'
+                            : record.recType === 'SRV' ||
+                                record.recType === 'MX'
+                              ? 'orange'
+                              : 'blue'
+                    "
+                  >
                     {{ record.recType }}
                   </Tag>
                 </template>
@@ -590,13 +849,30 @@ const linkedColumns = computed(() => [
                   <span class="ipam-mono text-xs">{{ record.rdata }}</span>
                 </template>
                 <template v-else-if="column.dataIndex === 'enabled'">
-                  <Switch :checked="record.enabled" size="small" @change="(v: any) => toggleRecord(record as DnsRecord, !!v)" />
+                  <Switch
+                    :checked="record.enabled"
+                    size="small"
+                    @change="(v: any) => toggleRecord(record as DnsRecord, !!v)"
+                  />
                 </template>
                 <template v-else-if="column.key === 'op'">
                   <div class="flex items-center gap-1">
-                    <Button size="small" @click="openEditRecord(record as DnsRecord)">{{ $t('dns.common.edit') }}</Button>
-                    <Popconfirm :title="$t('dns.records.recordCard.deleteTitle')" :description="$t('dns.records.recordCard.deleteDesc')" :ok-text="$t('dns.common.delete')" :cancel-text="$t('dns.common.cancel')" @confirm="removeRecord(record as DnsRecord)">
-                      <Button size="small" danger>{{ $t('dns.common.delete') }}</Button>
+                    <Button
+                      size="small"
+                      @click="openEditRecord(record as DnsRecord)"
+                    >
+                      {{ $t('dns.common.edit') }}
+                    </Button>
+                    <Popconfirm
+                      :title="$t('dns.records.recordCard.deleteTitle')"
+                      :description="$t('dns.records.recordCard.deleteDesc')"
+                      :ok-text="$t('dns.common.delete')"
+                      :cancel-text="$t('dns.common.cancel')"
+                      @confirm="removeRecord(record as DnsRecord)"
+                    >
+                      <Button size="small" danger>
+                        {{ $t('dns.common.delete') }}
+                      </Button>
                     </Popconfirm>
                   </div>
                 </template>
@@ -607,15 +883,25 @@ const linkedColumns = computed(() => [
           <template v-else>
             <div class="ipam-toolbar mb-3">
               <div class="ipam-field">
-                <span class="ipam-field__label">{{ $t('dns.common.keyword') }}</span>
-                <Input v-model:value="linkedKeyword" allow-clear :placeholder="$t('dns.records.linked.kwPlaceholder')" style="width: 240px" />
+                <span class="ipam-field__label">{{
+                  $t('dns.common.keyword')
+                }}</span>
+                <Input
+                  v-model:value="linkedKeyword"
+                  allow-clear
+                  :placeholder="$t('dns.records.linked.kwPlaceholder')"
+                  style="width: 240px"
+                />
               </div>
               <div class="ipam-toolbar__spacer"></div>
               <span class="ipam-hint">{{ $t('dns.records.linked.hint') }}</span>
             </div>
 
             <div class="ipam-note mb-3">
-              <IconifyIcon icon="lucide:info" class="mt-0.5 size-3.5 shrink-0" />
+              <IconifyIcon
+                icon="lucide:info"
+                class="mt-0.5 size-3.5 shrink-0"
+              />
               <span>{{ $t('dns.records.linked.note') }}</span>
             </div>
 
@@ -623,7 +909,12 @@ const linkedColumns = computed(() => [
               :data-source="linkedFiltered"
               :loading="loading"
               :columns="linkedColumns"
-              :locale="{ emptyText: linked.length === 0 ? $t('dns.records.linked.emptyNoRecords') : $t('dns.records.linked.emptyFiltered') }"
+              :locale="{
+                emptyText:
+                  linked.length === 0
+                    ? $t('dns.records.linked.emptyNoRecords')
+                    : $t('dns.records.linked.emptyFiltered'),
+              }"
               :pagination="{ pageSize: 20, showSizeChanger: true, showTotal }"
               row-key="name"
               size="small"
@@ -633,21 +924,32 @@ const linkedColumns = computed(() => [
                   <span class="ipam-mono text-xs">{{ record.name }}</span>
                 </template>
                 <template v-else-if="column.dataIndex === 'recType'">
-                  <Tag class="m-0" :color="record.recType === 'AAAA' ? 'cyan' : 'blue'">{{ record.recType }}</Tag>
+                  <Tag
+                    class="m-0"
+                    :color="record.recType === 'AAAA' ? 'cyan' : 'blue'"
+                  >
+                    {{ record.recType }}
+                  </Tag>
                 </template>
                 <template v-else-if="column.dataIndex === 'rdata'">
                   <span class="ipam-mono text-xs">{{ record.rdata }}</span>
                 </template>
                 <template v-else-if="column.dataIndex === 'mac'">
-                  <span class="ipam-chip ipam-mono" data-tone="muted">{{ record.mac || '—' }}</span>
+                  <span class="ipam-chip ipam-mono" data-tone="muted">{{
+                    record.mac || '—'
+                  }}</span>
                 </template>
               </template>
             </Table>
           </template>
         </div>
         <div v-else class="ipam-empty">
-          <div class="ipam-empty__title">{{ $t('dns.records.emptyNoZone.title') }}</div>
-          <div class="ipam-empty__desc">{{ $t('dns.records.emptyNoZone.desc') }}</div>
+          <div class="ipam-empty__title">
+            {{ $t('dns.records.emptyNoZone.title') }}
+          </div>
+          <div class="ipam-empty__desc">
+            {{ $t('dns.records.emptyNoZone.desc') }}
+          </div>
         </div>
       </Card>
     </div>
@@ -656,26 +958,54 @@ const linkedColumns = computed(() => [
     <AddRecordModal class="w-[680px]">
       <div class="ipam-form-grid">
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dns.records.addModal.nameLabel') }}<em>*</em></span>
-          <Input v-model:value="recForm.name" :placeholder="$t('dns.records.addModal.namePlaceholder')" />
-          <span class="ipam-hint">{{ $t('dns.records.addModal.nameHint') }}</span>
+          <span class="ipam-form-field__label"
+            >{{ $t('dns.records.addModal.nameLabel') }}<em>*</em></span
+          >
+          <Input
+            v-model:value="recForm.name"
+            :placeholder="$t('dns.records.addModal.namePlaceholder')"
+          />
+          <span class="ipam-hint">{{
+            $t('dns.records.addModal.nameHint')
+          }}</span>
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dns.records.addModal.typeLabel') }}<em>*</em></span>
-          <Select v-model:value="recForm.recType" :options="REC_TYPES.map((v) => ({ value: v, label: v }))" />
+          <span class="ipam-form-field__label"
+            >{{ $t('dns.records.addModal.typeLabel') }}<em>*</em></span
+          >
+          <Select
+            v-model:value="recForm.recType"
+            :options="REC_TYPES.map((v) => ({ value: v, label: v }))"
+          />
         </label>
         <label class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">{{ $t('dns.records.addModal.valueLabel') }}<em>*</em></span>
-          <Input v-model:value="recForm.rdata" :placeholder="$t('dns.records.addModal.valuePlaceholder')" />
+          <span class="ipam-form-field__label"
+            >{{ $t('dns.records.addModal.valueLabel') }}<em>*</em></span
+          >
+          <Input
+            v-model:value="recForm.rdata"
+            :placeholder="$t('dns.records.addModal.valuePlaceholder')"
+          />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dns.records.addModal.ttlLabel') }}</span>
-          <InputNumber v-model:value="recForm.ttl" :min="1" :max="86400" style="width: 100%" />
+          <span class="ipam-form-field__label">{{
+            $t('dns.records.addModal.ttlLabel')
+          }}</span>
+          <InputNumber
+            v-model:value="recForm.ttl"
+            :min="1"
+            :max="86400"
+            style="width: 100%"
+          />
         </label>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dns.records.addModal.fqdnLabel') }}</span>
+          <span class="ipam-form-field__label">{{
+            $t('dns.records.addModal.fqdnLabel')
+          }}</span>
           <div class="flex h-8 items-center">
-            <span class="ipam-chip ipam-mono" data-tone="blue">{{ fqdnOf(recForm.name || $t('dns.records.addModal.nameFallback')) }}</span>
+            <span class="ipam-chip ipam-mono" data-tone="blue">{{
+              fqdnOf(recForm.name || $t('dns.records.addModal.nameFallback'))
+            }}</span>
           </div>
         </div>
         <div class="ipam-form-hint ipam-form-field--wide">
@@ -688,27 +1018,57 @@ const linkedColumns = computed(() => [
     <RecordModal class="w-[680px]">
       <div class="ipam-form-grid">
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dns.records.editModal.nameLabel') }}<em>*</em></span>
-          <Input v-model:value="recordEdit.name" :placeholder="$t('dns.records.addModal.namePlaceholder')" />
-          <span class="ipam-hint">{{ $t('dns.records.editModal.nameHint') }}</span>
+          <span class="ipam-form-field__label"
+            >{{ $t('dns.records.editModal.nameLabel') }}<em>*</em></span
+          >
+          <Input
+            v-model:value="recordEdit.name"
+            :placeholder="$t('dns.records.addModal.namePlaceholder')"
+          />
+          <span class="ipam-hint">{{
+            $t('dns.records.editModal.nameHint')
+          }}</span>
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dns.common.type') }}</span>
-          <Select v-model:value="recordEdit.recType" :options="REC_TYPES.map((v) => ({ value: v, label: v }))" />
+          <span class="ipam-form-field__label">{{
+            $t('dns.common.type')
+          }}</span>
+          <Select
+            v-model:value="recordEdit.recType"
+            :options="REC_TYPES.map((v) => ({ value: v, label: v }))"
+          />
         </label>
         <label class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">{{ $t('dns.records.addModal.valueLabel') }}<em>*</em></span>
-          <Input v-model:value="recordEdit.rdata" :placeholder="$t('dns.records.editModal.valuePlaceholder')" />
+          <span class="ipam-form-field__label"
+            >{{ $t('dns.records.addModal.valueLabel') }}<em>*</em></span
+          >
+          <Input
+            v-model:value="recordEdit.rdata"
+            :placeholder="$t('dns.records.editModal.valuePlaceholder')"
+          />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dns.records.addModal.ttlLabel') }}</span>
-          <InputNumber v-model:value="recordEdit.ttl" :min="1" :max="86400" style="width: 100%" />
+          <span class="ipam-form-field__label">{{
+            $t('dns.records.addModal.ttlLabel')
+          }}</span>
+          <InputNumber
+            v-model:value="recordEdit.ttl"
+            :min="1"
+            :max="86400"
+            style="width: 100%"
+          />
         </label>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dns.records.editModal.enabledLabel') }}</span>
+          <span class="ipam-form-field__label">{{
+            $t('dns.records.editModal.enabledLabel')
+          }}</span>
           <div class="flex h-8 items-center gap-2">
             <Switch v-model:checked="recordEdit.enabled" size="small" />
-            <span class="ipam-hint">{{ recordEdit.enabled ? $t('dns.records.editModal.enabledHintOn') : $t('dns.records.editModal.enabledHintOff') }}</span>
+            <span class="ipam-hint">{{
+              recordEdit.enabled
+                ? $t('dns.records.editModal.enabledHintOn')
+                : $t('dns.records.editModal.enabledHintOff')
+            }}</span>
           </div>
         </div>
       </div>
@@ -718,17 +1078,27 @@ const linkedColumns = computed(() => [
     <ZoneModal class="w-[600px]">
       <div class="ipam-form-grid">
         <label class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">{{ $t('dns.records.zoneModal.domainLabel') }}<em>*</em></span>
-          <Input v-model:value="zoneForm.name" :placeholder="$t('dns.records.zoneModal.domainPlaceholder')" />
+          <span class="ipam-form-field__label"
+            >{{ $t('dns.records.zoneModal.domainLabel') }}<em>*</em></span
+          >
+          <Input
+            v-model:value="zoneForm.name"
+            :placeholder="$t('dns.records.zoneModal.domainPlaceholder')"
+          />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">{{ $t('dns.records.zoneModal.kindLabel') }}</span>
+          <span class="ipam-form-field__label">{{
+            $t('dns.records.zoneModal.kindLabel')
+          }}</span>
           <Select
             v-model:value="zoneForm.kind"
             :options="[
               { value: 'auth', label: $t('dns.records.zoneModal.kindAuth') },
               { value: 'local', label: $t('dns.records.zoneModal.kindLocal') },
-              { value: 'secondary', label: $t('dns.records.zoneModal.kindSecondary') },
+              {
+                value: 'secondary',
+                label: $t('dns.records.zoneModal.kindSecondary'),
+              },
             ]"
           />
         </label>
@@ -736,7 +1106,9 @@ const linkedColumns = computed(() => [
           v-if="zoneForm.kind === 'secondary'"
           class="ipam-form-field ipam-form-field--wide"
         >
-          <span class="ipam-form-field__label">{{ $t('dns.records.zoneModal.primaryLabel') }}<em>*</em></span>
+          <span class="ipam-form-field__label"
+            >{{ $t('dns.records.zoneModal.primaryLabel') }}<em>*</em></span
+          >
           <Input
             v-model:value="zoneForm.primary"
             :placeholder="$t('dns.records.zoneModal.primaryPlaceholder')"
@@ -758,7 +1130,9 @@ const linkedColumns = computed(() => [
     >
       <div class="ipam-form-grid">
         <div class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">{{ $t('dns.records.hosts.contentLabel') }}</span>
+          <span class="ipam-form-field__label">{{
+            $t('dns.records.hosts.contentLabel')
+          }}</span>
           <Input.TextArea
             v-model:value="hostsContent"
             :rows="10"

@@ -6,9 +6,23 @@ import { computed, onMounted, ref } from 'vue';
 import { useVbenModal } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Button, Card, Input, message, Popconfirm, Tag, Tree } from 'ant-design-vue';
+import {
+  Button,
+  Card,
+  Input,
+  message,
+  Popconfirm,
+  Tag,
+  Tree,
+} from 'ant-design-vue';
 
-import { createOrg, deleteOrg, listOrgTree, reorderOrgs, updateOrg } from '#/api/ipam';
+import {
+  createOrg,
+  deleteOrg,
+  listOrgTree,
+  reorderOrgs,
+  updateOrg,
+} from '#/api/ipam';
 import { $t } from '#/locales';
 
 const tree = ref<OrgTreeNode[]>([]);
@@ -18,11 +32,11 @@ const expandedKeys = ref<string[]>([]);
 const dragId = ref<string>();
 
 interface AntNode {
-  key: string;
-  title: string;
-  isLeaf?: boolean;
   children?: AntNode[];
+  isLeaf?: boolean;
+  key: string;
   org?: OrgTreeNode;
+  title: string;
 }
 
 function toAntTree(nodes: OrgTreeNode[]): AntNode[] {
@@ -83,7 +97,10 @@ function onSelect(_keys: unknown[], info: unknown) {
 }
 
 // ── 同级拖拽排序 ──
-function findChildrenOf(nodes: OrgTreeNode[], parentId: null | string): null | OrgTreeNode[] {
+function findChildrenOf(
+  nodes: OrgTreeNode[],
+  parentId: null | string,
+): null | OrgTreeNode[] {
   if (parentId === null || parentId === undefined || parentId === '') {
     return nodes;
   }
@@ -154,16 +171,28 @@ async function onDrop(info: any) {
     await reorderOrgs(parentId, arr);
     message.success($t('shared.orgManage.reorderOk'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('shared.orgManage.reorderFail'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('shared.orgManage.reorderFail'),
+    );
   }
   await load();
 }
 
 const nameInput = ref('');
 const nameAction = ref<((name: string) => Promise<void>) | null>(null);
-const [NameModal, nameModalApi] = useVbenModal({ draggable: true, confirmText: $t('shared.orgManage.confirmText'), onConfirm: () => confirmName() });
+const [NameModal, nameModalApi] = useVbenModal({
+  draggable: true,
+  confirmText: $t('shared.orgManage.confirmText'),
+  onConfirm: () => confirmName(),
+});
 
-function askName(title: string, initial: string, action: (name: string) => Promise<void>) {
+function askName(
+  title: string,
+  initial: string,
+  action: (name: string) => Promise<void>,
+) {
   nameInput.value = initial;
   nameAction.value = action;
   nameModalApi.setState({ title });
@@ -185,7 +214,11 @@ async function confirmName() {
   try {
     await action(name);
   } catch (error) {
-    message.error(error instanceof Error ? error.message : $t('shared.orgManage.actionFail'));
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('shared.orgManage.actionFail'),
+    );
   }
 }
 
@@ -198,10 +231,14 @@ function addRoot() {
 function addChild() {
   const sel = selected.value;
   if (!sel) return;
-  askName($t('shared.orgManage.childName', { name: sel.name }), '', async (name) => {
-    await createOrg({ parentId: sel.id, name });
-    await load();
-  });
+  askName(
+    $t('shared.orgManage.childName', { name: sel.name }),
+    '',
+    async (name) => {
+      await createOrg({ parentId: sel.id, name });
+      await load();
+    },
+  );
 }
 function rename() {
   const sel = selected.value;
@@ -227,120 +264,134 @@ onMounted(() => load(false));
 
 <template>
   <Card :title="$t('shared.orgManage.title')">
-      <template #extra>
-        <div class="flex flex-wrap items-center justify-end gap-2">
-          <Button type="primary" size="small" @click="addRoot">
-            <IconifyIcon icon="lucide:folder-plus" class="mr-1" />{{ $t('shared.orgManage.addRoot') }}
+    <template #extra>
+      <div class="flex flex-wrap items-center justify-end gap-2">
+        <Button type="primary" size="small" @click="addRoot">
+          <IconifyIcon icon="lucide:folder-plus" class="mr-1" />{{
+            $t('shared.orgManage.addRoot')
+          }}
+        </Button>
+        <Button size="small" :disabled="!selected" @click="addChild">
+          <IconifyIcon icon="lucide:folder-tree" class="mr-1" />{{
+            $t('shared.orgManage.addChild')
+          }}
+        </Button>
+        <Button size="small" :disabled="!selected" @click="rename">
+          <IconifyIcon icon="lucide:pencil" class="mr-1" />{{
+            $t('shared.orgManage.renameBtn')
+          }}
+        </Button>
+        <Popconfirm
+          :title="$t('shared.orgManage.deleteTitle')"
+          :description="$t('shared.orgManage.deleteDesc')"
+          :ok-text="$t('shared.orgManage.delete')"
+          :cancel-text="$t('shared.orgManage.cancel')"
+          @confirm="remove"
+        >
+          <Button size="small" danger :disabled="!selected">
+            <IconifyIcon icon="lucide:trash-2" class="mr-1" />{{
+              $t('shared.orgManage.deleteBtn')
+            }}
           </Button>
-          <Button size="small" :disabled="!selected" @click="addChild">
-            <IconifyIcon icon="lucide:folder-tree" class="mr-1" />{{ $t('shared.orgManage.addChild') }}
-          </Button>
-          <Button size="small" :disabled="!selected" @click="rename">
-            <IconifyIcon icon="lucide:pencil" class="mr-1" />{{ $t('shared.orgManage.renameBtn') }}
-          </Button>
-          <Popconfirm
-            :title="$t('shared.orgManage.deleteTitle')"
-            :description="$t('shared.orgManage.deleteDesc')"
-            :ok-text="$t('shared.orgManage.delete')"
-            :cancel-text="$t('shared.orgManage.cancel')"
-            @confirm="remove"
-          >
-            <Button size="small" danger :disabled="!selected">
-              <IconifyIcon icon="lucide:trash-2" class="mr-1" />{{ $t('shared.orgManage.deleteBtn') }}
-            </Button>
-          </Popconfirm>
+        </Popconfirm>
+      </div>
+    </template>
+
+    <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <div class="ipam-hint">
+        {{ $t('shared.orgManage.treeHint') }}
+        <span class="mx-1 font-medium text-primary">
+          {{ $t('shared.orgManage.treeHintDrag') }}
+        </span>
+        {{ $t('shared.orgManage.treeHintTail') }}
+      </div>
+      <div class="flex shrink-0 items-center gap-2">
+        <Tag color="blue" class="m-0">
+          {{ $t('shared.orgManage.orgCount', { n: totalCount }) }}
+        </Tag>
+        <Button size="small" @click="expandAll">
+          {{ $t('shared.orgManage.expandAll') }}
+        </Button>
+        <Button size="small" @click="collapseAll">
+          {{ $t('shared.orgManage.collapseAll') }}
+        </Button>
+      </div>
+    </div>
+
+    <Tree
+      v-if="antTreeData.length > 0"
+      class="org-tree"
+      :tree-data="antTreeData"
+      :selected-keys="selected ? [selected.id] : []"
+      :expanded-keys="expandedKeys"
+      :draggable="true"
+      :allow-drop="allowDrop"
+      block-node
+      show-line
+      :loading="loading"
+      @select="onSelect"
+      @dragstart="(n: any) => (dragId = n.node?.org?.id)"
+      @drop="onDrop"
+      @expand="(keys: (string | number)[]) => (expandedKeys = keys as string[])"
+    >
+      <template #title="node">
+        <div
+          class="flex items-center gap-1.5 py-0.5"
+          :class="dragId === node.org?.id ? 'opacity-60' : ''"
+        >
+          <IconifyIcon
+            :icon="
+              node.isLeaf ? 'lucide:corner-down-right' : 'lucide:building-2'
+            "
+            class="shrink-0"
+            :class="node.isLeaf ? 'text-muted-foreground' : 'text-primary'"
+          />
+          <span class="truncate">{{ node.title }}</span>
+          <Tag v-if="!node.isLeaf" color="processing" class="m-0 scale-90">
+            {{ (node.children ?? []).length }}
+          </Tag>
         </div>
       </template>
-
-      <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div class="ipam-hint">
-          {{ $t('shared.orgManage.treeHint') }}
-          <span class="mx-1 font-medium text-primary">
-            {{ $t('shared.orgManage.treeHintDrag') }}
-          </span>
-          {{ $t('shared.orgManage.treeHintTail') }}
-        </div>
-        <div class="flex shrink-0 items-center gap-2">
-          <Tag color="blue" class="m-0">
-            {{ $t('shared.orgManage.orgCount', { n: totalCount }) }}
-          </Tag>
-          <Button size="small" @click="expandAll">
-            {{ $t('shared.orgManage.expandAll') }}
-          </Button>
-          <Button size="small" @click="collapseAll">
-            {{ $t('shared.orgManage.collapseAll') }}
-          </Button>
-        </div>
-      </div>
-
-      <Tree
-        v-if="antTreeData.length > 0"
-        class="org-tree"
-        :tree-data="antTreeData"
-        :selected-keys="selected ? [selected.id] : []"
-        :expanded-keys="expandedKeys"
-        :draggable="true"
-        :allow-drop="allowDrop"
-        block-node
-        show-line
-        :loading="loading"
-        @select="onSelect"
-        @dragstart="(n: any) => (dragId = n.node?.org?.id)"
-        @drop="onDrop"
-        @expand="(keys: (string | number)[]) => (expandedKeys = keys as string[])"
-      >
-        <template #title="node">
-          <div
-            class="flex items-center gap-1.5 py-0.5"
-            :class="dragId === node.org?.id ? 'opacity-60' : ''"
-          >
-            <IconifyIcon
-              :icon="node.isLeaf ? 'lucide:corner-down-right' : 'lucide:building-2'"
-              class="shrink-0"
-              :class="node.isLeaf ? 'text-muted-foreground' : 'text-primary'"
-            />
-            <span class="truncate">{{ node.title }}</span>
-            <Tag v-if="!node.isLeaf" color="processing" class="m-0 scale-90">
-              {{ (node.children ?? []).length }}
-            </Tag>
-          </div>
-        </template>
-      </Tree>
-      <div v-else class="py-8 text-center text-muted-foreground">
-        {{ $t('shared.orgManage.empty') }}
-      </div>
-    </Card>
-    <NameModal>
-      <div class="flex items-center gap-2">
-        <span class="shrink-0 text-sm font-medium text-muted-foreground">
-          {{ $t('shared.orgManage.nameLabel') }}
-        </span>
-        <Input
-          v-model:value="nameInput"
-          :maxlength="64"
-          :placeholder="$t('shared.orgManage.namePlaceholder')"
-          autofocus
-          class="flex-1"
-          @press-enter="confirmName"
-        />
-      </div>
-    </NameModal>
+    </Tree>
+    <div v-else class="py-8 text-center text-muted-foreground">
+      {{ $t('shared.orgManage.empty') }}
+    </div>
+  </Card>
+  <NameModal>
+    <div class="flex items-center gap-2">
+      <span class="shrink-0 text-sm font-medium text-muted-foreground">
+        {{ $t('shared.orgManage.nameLabel') }}
+      </span>
+      <Input
+        v-model:value="nameInput"
+        :maxlength="64"
+        :placeholder="$t('shared.orgManage.namePlaceholder')"
+        autofocus
+        class="flex-1"
+        @press-enter="confirmName"
+      />
+    </div>
+  </NameModal>
 </template>
 
 <style scoped>
 .org-tree :deep(.ant-tree-treenode) {
   padding: 2px 0;
 }
+
 .org-tree :deep(.ant-tree-node-content-wrapper) {
   border-radius: 6px;
   transition: background-color 0.15s ease;
 }
+
 .org-tree :deep(.ant-tree-node-content-wrapper:hover) {
   background: var(--color-accent);
 }
+
 .org-tree :deep(.ant-tree-node-selected) {
   background: var(--color-accent) !important;
 }
+
 .org-tree :deep(.ant-tree-node-content-wrapper:hover .drag-hint) {
   opacity: 1;
 }

@@ -15,10 +15,7 @@ import {
   Tag,
 } from 'ant-design-vue';
 
-import {
-  getSubnetUtilization,
-  listSubnetUtilization,
-} from '#/api/ipam';
+import { getSubnetUtilization, listSubnetUtilization } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
 import TrendChart from '#/components/trend-chart.vue';
@@ -75,12 +72,16 @@ async function load() {
     const res = await listSubnetUtilization();
     rows.value = res.items ?? [];
     if (selected.value) {
-      const keep = rows.value.find((r) => r.subnetId === selected.value?.subnetId);
+      const keep = rows.value.find(
+        (r) => r.subnetId === selected.value?.subnetId,
+      );
       if (keep) selected.value = keep;
     }
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('dhcp.utilization.messages.loadFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('dhcp.utilization.messages.loadFailed'),
     );
   } finally {
     loading.value = false;
@@ -96,11 +97,16 @@ async function loadSeries() {
   if (!selected.value) return;
   seriesLoading.value = true;
   try {
-    const res = await getSubnetUtilization(selected.value.subnetId, hours.value);
+    const res = await getSubnetUtilization(
+      selected.value.subnetId,
+      hours.value,
+    );
     series.value = res.points ?? [];
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('dhcp.utilization.messages.trendFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('dhcp.utilization.messages.trendFailed'),
     );
   } finally {
     seriesLoading.value = false;
@@ -108,12 +114,22 @@ async function loadSeries() {
 }
 
 const columns = computed(() => [
-  { title: $t('dhcp.utilization.col.subnet'), dataIndex: 'subnetName', key: 'name', ellipsis: true },
+  {
+    title: $t('dhcp.utilization.col.subnet'),
+    dataIndex: 'subnetName',
+    key: 'name',
+    ellipsis: true,
+  },
   { title: 'CIDR', dataIndex: 'cidr', key: 'cidr', width: 180 },
   { title: $t('dhcp.utilization.col.usage'), key: 'usage', width: 140 },
   { title: $t('dhcp.utilization.col.pct'), key: 'pct', width: 220 },
   { title: $t('dhcp.utilization.col.state'), key: 'state', width: 100 },
-  { title: $t('dhcp.utilization.col.ts'), dataIndex: 'ts', key: 'ts', width: 180 },
+  {
+    title: $t('dhcp.utilization.col.ts'),
+    dataIndex: 'ts',
+    key: 'ts',
+    width: 180,
+  },
   { title: $t('dhcp.utilization.col.actions'), key: 'actions', width: 100 },
 ]);
 
@@ -177,7 +193,9 @@ onMounted(load);
     <Card>
       <template #title>
         <span class="ipam-card-title">
-          <IconifyIcon icon="lucide:table" />{{ $t('dhcp.utilization.snapshot') }}
+          <IconifyIcon icon="lucide:table" />{{
+            $t('dhcp.utilization.snapshot')
+          }}
         </span>
       </template>
       <Table
@@ -190,19 +208,31 @@ onMounted(load);
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'usage'">
-            <span class="ipam-mono">{{ record.used }} / {{ record.capacity }}</span>
+            <span class="ipam-mono"
+              >{{ record.used }} / {{ record.capacity }}</span
+            >
           </template>
           <template v-else-if="column.key === 'pct'">
             <Progress
               :percent="Number(record.pct.toFixed(1))"
-              :stroke-color="record.pct >= 90 ? '#cf1322' : record.pct >= 85 ? '#d46b08' : '#1677ff'"
+              :stroke-color="
+                record.pct >= 90
+                  ? '#cf1322'
+                  : record.pct >= 85
+                    ? '#d46b08'
+                    : '#1677ff'
+              "
               size="small"
             />
           </template>
           <template v-else-if="column.key === 'state'">
-            <Tag :color="tone(record.pct)" class="m-0">{{ statusText(record.pct) }}</Tag>
+            <Tag :color="tone(record.pct)" class="m-0">
+              {{ statusText(record.pct) }}
+            </Tag>
           </template>
-          <template v-else-if="column.key === 'ts'">{{ fmtTime(record.ts) }}</template>
+          <template v-else-if="column.key === 'ts'">
+            {{ fmtTime(record.ts) }}
+          </template>
           <template v-else-if="column.key === 'actions'">
             <Button size="small" type="link" @click="openTrend(record)">
               {{ $t('dhcp.utilization.trend') }}

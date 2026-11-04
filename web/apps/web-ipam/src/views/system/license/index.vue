@@ -7,11 +7,7 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Button, Card, Input, message, Popconfirm, Tag } from 'ant-design-vue';
 
-import {
-  activateLicense,
-  getLicenseStatus,
-  removeLicense,
-} from '#/api/ipam';
+import { activateLicense, getLicenseStatus, removeLicense } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
 import { $t } from '#/locales';
@@ -42,7 +38,7 @@ const expiry = computed(() => {
   if (!status.value?.expiresAt) return $t('system.license.value.permanent');
   const t = Date.parse(status.value.expiresAt);
   if (Number.isNaN(t)) return '—';
-  return new Date(t).toLocaleDateString('zh-CN');
+  return new Date(t).toLocaleDateString();
 });
 const terminalsUsed = computed(() => status.value?.terminalsUsed ?? 0);
 const overLimit = computed(() => Boolean(status.value?.terminalsOverLimit));
@@ -90,7 +86,9 @@ async function load() {
     }
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('system.license.msg.loadFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('system.license.msg.loadFailed'),
     );
   } finally {
     loading.value = false;
@@ -126,7 +124,9 @@ async function remove() {
     message.success($t('system.license.msg.removed'));
   } catch (error) {
     message.error(
-      error instanceof Error ? error.message : $t('system.license.msg.removeFailed'),
+      error instanceof Error
+        ? error.message
+        : $t('system.license.msg.removeFailed'),
     );
   } finally {
     removing.value = false;
@@ -214,10 +214,8 @@ onMounted(load);
       <template #extra>
         <div class="flex items-center gap-2">
           <Tag v-if="overLimit" class="m-0" color="orange">
-{{
-            $t('system.license.card.overLimit')
-          }}
-</Tag>
+            {{ $t('system.license.card.overLimit') }}
+          </Tag>
           <Tag class="m-0" :color="licensed ? 'green' : 'default'">
             {{
               licensed
@@ -239,15 +237,21 @@ onMounted(load);
           <span class="ipam-form-field__label">{{
             $t('system.license.card.licenseId')
           }}</span>
-          <div class="ipam-service-value ipam-mono">{{ status?.licenseId || '—' }}</div>
+          <div class="ipam-service-value ipam-mono">
+            {{ status?.licenseId || '—' }}
+          </div>
         </div>
         <div class="ipam-form-field">
           <span class="ipam-form-field__label">{{
             $t('system.license.card.features')
           }}</span>
           <div class="flex flex-wrap gap-1">
-            <Tag v-for="f in status?.features ?? []" :key="f" class="m-0">{{ f }}</Tag>
-            <span v-if="(status?.features ?? []).length === 0" class="ipam-hint">—</span>
+            <Tag v-for="f in status?.features ?? []" :key="f" class="m-0">
+              {{ f }}
+            </Tag>
+            <span v-if="(status?.features ?? []).length === 0" class="ipam-hint"
+              >—</span
+            >
           </div>
         </div>
         <div class="ipam-form-field">
@@ -257,9 +261,7 @@ onMounted(load);
           <div class="ipam-service-value">
             {{ terminalUsedText }}
             <span v-if="maxTerminals > 0" class="ipam-hint">
-              {{
-                $t('system.license.card.limit', { n: maxTerminals })
-              }}
+              {{ $t('system.license.card.limit', { n: maxTerminals }) }}
             </span>
           </div>
         </div>
@@ -267,7 +269,9 @@ onMounted(load);
           <span class="ipam-form-field__label">{{
             $t('system.license.card.filePath')
           }}</span>
-          <div class="ipam-service-value ipam-mono">{{ status?.filePath || '—' }}</div>
+          <div class="ipam-service-value ipam-mono">
+            {{ status?.filePath || '—' }}
+          </div>
         </div>
         <div class="ipam-form-hint ipam-form-field--wide">
           {{ status?.message || $t('system.license.card.inactive') }}
@@ -303,7 +307,9 @@ onMounted(load);
         </div>
       </div>
       <div class="ipam-toolbar ipam-toolbar--plain mt-3">
-        <span class="ipam-hint">{{ $t('system.license.activate.footerHint') }}</span>
+        <span class="ipam-hint">{{
+          $t('system.license.activate.footerHint')
+        }}</span>
         <span class="ipam-toolbar__spacer"></span>
         <Button type="primary" :loading="activating" @click="activate">
           <IconifyIcon icon="lucide:check" class="mr-1 size-3.5" />{{

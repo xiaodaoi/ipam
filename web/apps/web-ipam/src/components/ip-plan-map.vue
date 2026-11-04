@@ -33,7 +33,12 @@ const props = withDefaults(
     readOnly?: boolean;
     subnets?: { cidr: string; name?: string }[];
   }>(),
-  { cidr: '10.59.193.0/24', ips: undefined, subnets: undefined, readOnly: false },
+  {
+    cidr: '10.59.193.0/24',
+    ips: undefined,
+    subnets: undefined,
+    readOnly: false,
+  },
 );
 const emit = defineEmits<{
   (e: 'change', selected: string[], meta: { lastIp: null | string }): void;
@@ -44,46 +49,64 @@ const emit = defineEmits<{
 
 // ── IP 工具（纯函数）──
 function ipToInt(ip: string): number {
-  return ip.split('.').reduce((acc, o) => ((acc << 8) >>> 0) + Number.parseInt(o, 10), 0) >>> 0;
+  return (
+    ip
+      .split('.')
+      .reduce((acc, o) => ((acc << 8) >>> 0) + Number.parseInt(o, 10), 0) >>> 0
+  );
 }
 function intToIp(n: number): string {
   return [n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.');
 }
 function parseCidr(cidr: string): {
-  bits: number; broadcast: number; hostCount: number; ip: string; ipInt: number; mask: number; network: number;
+  bits: number;
+  broadcast: number;
+  hostCount: number;
+  ip: string;
+  ipInt: number;
+  mask: number;
+  network: number;
 } {
   const parts = String(cidr).split('/');
   const bits = Number.parseInt(parts[1] || '32', 10);
   const ipInt = ipToInt(parts[0] || '0.0.0.0');
-  const mask = bits === 0 ? 0 : (0xFF_FF_FF_FF << (32 - bits)) >>> 0;
+  const mask = bits === 0 ? 0 : (0xff_ff_ff_ff << (32 - bits)) >>> 0;
   const network = (ipInt & mask) >>> 0;
   const broadcast = (network | (~mask >>> 0)) >>> 0;
-  return { ip: parts[0] || '', bits, ipInt, mask, network, broadcast, hostCount: broadcast - network + 1 };
+  return {
+    ip: parts[0] || '',
+    bits,
+    ipInt,
+    mask,
+    network,
+    broadcast,
+    hostCount: broadcast - network + 1,
+  };
 }
 
 // ── 类型 ──
 interface IpCell {
-  ip: string;
-  host: number;
-  status: string;
-  overlays?: string[];
-  hostname?: string;
-  mac?: string;
-  leaseStatus?: string;
-  leaseStart?: string;
-  leaseEnd?: string;
-  deviceName?: string;
-  switchPort?: string;
-  purpose?: string;
-  user?: string;
-  phone?: string;
-  vlan?: number;
-  site?: string;
   customAttrs?: Record<string, string>;
+  deviceName?: string;
+  host: number;
+  hostname?: string;
+  ip: string;
+  leaseEnd?: string;
+  leaseStart?: string;
+  leaseStatus?: string;
+  mac?: string;
+  overlays?: string[];
+  phone?: string;
+  purpose?: string;
   remark?: string;
+  site?: string;
+  status: string;
+  switchPort?: string;
+  user?: string;
+  vlan?: number;
 }
 
-const IP_STATUS: Record<string, { color: string; }> = {
+const IP_STATUS: Record<string, { color: string }> = {
   network: { color: '#637196' },
   broadcast: { color: '#637196' },
   available: { color: '#9DBEFF' },
@@ -92,20 +115,16 @@ const IP_STATUS: Record<string, { color: string; }> = {
   dynamic: { color: '#FFD666' },
   reserved: { color: '#FF9C6E' },
 };
-const OVERLAY_STATUS: Record<string, { color: string; }> = {
+const OVERLAY_STATUS: Record<string, { color: string }> = {
   zombie: { color: '#C41D7F' },
   conflict: { color: '#FF6262' },
   online: { color: '#21BF86' },
 };
 function statusText(key: string): string {
-  return IP_STATUS[key]
-    ? $t(`shared.ipMap.status.${key}`)
-    : key;
+  return IP_STATUS[key] ? $t(`shared.ipMap.status.${key}`) : key;
 }
 function overlayText(key: string): string {
-  return OVERLAY_STATUS[key]
-    ? $t(`shared.ipMap.overlay.${key}`)
-    : key;
+  return OVERLAY_STATUS[key] ? $t(`shared.ipMap.overlay.${key}`) : key;
 }
 const STATUS_DISABLED = new Set(['broadcast', 'network']);
 const MAX_CELLS = 2048;
@@ -119,11 +138,20 @@ function makeDefaultIps(cidr: string): IpCell[] {
     list.push({
       ip,
       host: n - network,
-      status: n === network ? 'network' : (n === broadcast ? 'broadcast' : 'available'),
+      status:
+        n === network ? 'network' : n === broadcast ? 'broadcast' : 'available',
       overlays: [],
-      hostname: '', leaseStatus: '', leaseStart: '', leaseEnd: '',
-      deviceName: '', switchPort: '', purpose: '', user: '', phone: '',
-      customAttrs: {}, remark: '',
+      hostname: '',
+      leaseStatus: '',
+      leaseStart: '',
+      leaseEnd: '',
+      deviceName: '',
+      switchPort: '',
+      purpose: '',
+      user: '',
+      phone: '',
+      customAttrs: {},
+      remark: '',
     });
   }
   return list;
@@ -143,9 +171,11 @@ const pagedIps = computed<IpCell[]>(() =>
 const pageCidr = computed(() => {
   const first = pagedIps.value[0];
   if (!first) return '';
-  return `${intToIp((ipToInt(first.ip) & 0xFF_FF_FF_00) >>> 0)}/24`;
+  return `${intToIp((ipToInt(first.ip) & 0xff_ff_ff_00) >>> 0)}/24`;
 });
-watch(currentCidr, () => { page.value = 1; });
+watch(currentCidr, () => {
+  page.value = 1;
+});
 
 const selected = ref<string[]>([]);
 const selectedSet = computed(() => new Set(selected.value));
@@ -163,7 +193,9 @@ const ipToCell = computed(() => {
   return m;
 });
 const selectedIps = computed(() =>
-  selected.value.map((ip) => ipToCell.value.get(ip)).filter((x): x is IpCell => !!x),
+  selected.value
+    .map((ip) => ipToCell.value.get(ip))
+    .filter((x): x is IpCell => !!x),
 );
 
 function updateSelected(next: string[], lastIp: null | string) {
@@ -194,12 +226,28 @@ function handleCellClick(ipObj: IpCell, evt: MouseEvent) {
 
 // ── 统计 ──
 const stats = computed(() => {
-  const planned = ipList.value.filter((p) => ['dynamic', 'planned', 'reserved', 'static'].includes(p.status)).length;
-  const online = ipList.value.filter((p) => (p.overlays || []).includes('online') || p.status === 'online').length;
+  const planned = ipList.value.filter((p) =>
+    ['dynamic', 'planned', 'reserved', 'static'].includes(p.status),
+  ).length;
+  const online = ipList.value.filter(
+    (p) => (p.overlays || []).includes('online') || p.status === 'online',
+  ).length;
   const staticCount = ipList.value.filter((p) => p.status === 'static').length;
-  const reservedCount = ipList.value.filter((p) => p.status === 'reserved').length;
-  const conflictCount = ipList.value.filter((p) => (p.overlays || []).includes('conflict')).length;
-  return { total: ipList.value.length, planned, online, static: staticCount, reserved: reservedCount, conflict: conflictCount, selected: selected.value.length };
+  const reservedCount = ipList.value.filter(
+    (p) => p.status === 'reserved',
+  ).length;
+  const conflictCount = ipList.value.filter((p) =>
+    (p.overlays || []).includes('conflict'),
+  ).length;
+  return {
+    total: ipList.value.length,
+    planned,
+    online,
+    static: staticCount,
+    reserved: reservedCount,
+    conflict: conflictCount,
+    selected: selected.value.length,
+  };
 });
 
 const summaryItems = computed(() => [
@@ -252,23 +300,39 @@ function changeSubnet(next: number | string | undefined) {
 function prevSubnet() {
   const subs = props.subnets || [];
   const idx = subs.findIndex((s) => s.cidr === currentCidr.value);
-  if (subs.length > 0 && idx > 0) { const s = subs[idx - 1]; if (s) changeSubnet(s.cidr); }
+  if (subs.length > 0 && idx > 0) {
+    const s = subs[idx - 1];
+    if (s) changeSubnet(s.cidr);
+  }
 }
 function nextSubnet() {
   const subs = props.subnets || [];
   const idx = subs.findIndex((s) => s.cidr === currentCidr.value);
-  if (subs.length > 0 && idx !== -1 && idx < subs.length - 1) { const s = subs[idx + 1]; if (s) changeSubnet(s.cidr); }
+  if (subs.length > 0 && idx !== -1 && idx < subs.length - 1) {
+    const s = subs[idx + 1];
+    if (s) changeSubnet(s.cidr);
+  }
 }
 const subnetOptions = computed(() =>
-  (props.subnets || []).map((s) => ({ label: s.name ? `${s.name}（${s.cidr}）` : s.cidr, value: s.cidr })),
+  (props.subnets || []).map((s) => ({
+    label: s.name ? `${s.name}（${s.cidr}）` : s.cidr,
+    value: s.cidr,
+  })),
 );
 
 // ── 编辑弹窗 ──
 const editOpen = ref(false);
 const editing = ref<IpCell[]>([]);
 const editForm = reactive({
-  hostname: '', status: 'static', purpose: '', user: '', phone: '', site: '',
-  vlan: undefined as number | undefined, customAttrText: '', remark: '',
+  hostname: '',
+  status: 'static',
+  purpose: '',
+  user: '',
+  phone: '',
+  site: '',
+  vlan: undefined as number | undefined,
+  customAttrText: '',
+  remark: '',
 });
 function openEdit() {
   if (props.readOnly || selectedIps.value.length === 0) return;
@@ -283,17 +347,22 @@ function openEdit() {
     phone: first.phone || '',
     site: first.site || '',
     vlan: first.vlan,
-    customAttrText: Object.entries(first.customAttrs || {}).map(([k, v]) => `${k}=${v}`).join('\n'),
+    customAttrText: Object.entries(first.customAttrs || {})
+      .map(([k, v]) => `${k}=${v}`)
+      .join('\n'),
     remark: first.remark || '',
   });
   editOpen.value = true;
 }
 function handleEditOk() {
   const customAttrs: Record<string, string> = {};
-  String(editForm.customAttrText || '').split('\n').forEach((line) => {
-    const i = line.indexOf('=');
-    if (i > 0) customAttrs[line.slice(0, i).trim()] = line.slice(i + 1).trim();
-  });
+  String(editForm.customAttrText || '')
+    .split('\n')
+    .forEach((line) => {
+      const i = line.indexOf('=');
+      if (i > 0)
+        customAttrs[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+    });
   emit('save', editing.value, { ...editForm, customAttrs });
   editOpen.value = false;
 }
@@ -302,7 +371,8 @@ function handleEditOk() {
 const detail = ref<IpCell | null>(null);
 function openDetail() {
   if (props.readOnly) return;
-  if (selectedIps.value.length === 1) detail.value = selectedIps.value[0] ?? null;
+  if (selectedIps.value.length === 1)
+    detail.value = selectedIps.value[0] ?? null;
   else message.info($t('shared.ipMap.needOne'));
 }
 
@@ -311,16 +381,22 @@ function applyStatus(status: string) {
   if (props.readOnly || selectedIps.value.length === 0) return;
   const ids = new Set(selectedIps.value.map((p) => p.ip));
   if (!props.ips) {
-    internalIps.value = internalIps.value.map((p) => (ids.has(p.ip) ? { ...p, status } : p));
+    internalIps.value = internalIps.value.map((p) =>
+      ids.has(p.ip) ? { ...p, status } : p,
+    );
   }
-  const actionName = { static: 'toStatic', reserved: 'toReserve', available: 'toRelease' }[status] || status;
+  const actionName =
+    { static: 'toStatic', reserved: 'toReserve', available: 'toRelease' }[
+      status
+    ] || status;
   emit('action', actionName, selectedIps.value);
 }
 
 // ── 渲染辅助 ──
 const parsed = computed(() => parseCidr(currentCidr.value));
 onMounted(() => {
-  if (!props.ips) internalIps.value = makeDefaultIps(currentCidr.value || '10.59.193.0/24');
+  if (!props.ips)
+    internalIps.value = makeDefaultIps(currentCidr.value || '10.59.193.0/24');
 });
 </script>
 
@@ -336,7 +412,11 @@ onMounted(() => {
     </template>
     <template #extra>
       <Space :size="4" v-if="(subnets?.length || 0) > 0">
-        <Button size="small" @click="prevSubnet" :aria-label="$t('shared.ipMap.prevSubnet')">
+        <Button
+          size="small"
+          @click="prevSubnet"
+          :aria-label="$t('shared.ipMap.prevSubnet')"
+        >
           <IconifyIcon icon="lucide:chevron-left" />
         </Button>
         <Select
@@ -347,14 +427,23 @@ onMounted(() => {
           style="width: 220px"
           :placeholder="$t('shared.ipMap.selectSubnet')"
         />
-        <Button size="small" @click="nextSubnet" :aria-label="$t('shared.ipMap.nextSubnet')">
+        <Button
+          size="small"
+          @click="nextSubnet"
+          :aria-label="$t('shared.ipMap.nextSubnet')"
+        >
           <IconifyIcon icon="lucide:chevron-right" />
         </Button>
       </Space>
     </template>
 
     <!-- 边界保护 -->
-    <Alert v-if="Number.isNaN(parsed.hostCount) || parsed.hostCount < 1" type="error" show-icon :message="$t('shared.ipMap.badCidr', { cidr: currentCidr })" />
+    <Alert
+      v-if="Number.isNaN(parsed.hostCount) || parsed.hostCount < 1"
+      type="error"
+      show-icon
+      :message="$t('shared.ipMap.badCidr', { cidr: currentCidr })"
+    />
     <Alert
       v-else-if="parsed.hostCount > MAX_CELLS"
       type="warning"
@@ -371,38 +460,91 @@ onMounted(() => {
     <template v-else>
       <!-- 统计 -->
       <div class="ipam-summary mb-3">
-        <div v-for="item in summaryItems" :key="item.key" class="ipam-summary__item">
+        <div
+          v-for="item in summaryItems"
+          :key="item.key"
+          class="ipam-summary__item"
+        >
           <span class="ipam-summary__label">
-            <i class="ipam-fam-dot" :style="{ backgroundColor: item.color }"></i>
+            <i
+              class="ipam-fam-dot"
+              :style="{ backgroundColor: item.color }"
+            ></i>
             {{ item.label }}
           </span>
-          <span class="ipam-summary__value">{{ item.value }}<small>{{ $t('shared.ipMap.unit.address') }}</small></span>
+          <span class="ipam-summary__value"
+            >{{ item.value
+            }}<small>{{ $t('shared.ipMap.unit.address') }}</small></span
+          >
         </div>
         <div class="ipam-summary__item">
-          <span class="ipam-summary__label">{{ $t('shared.ipMap.stat.total') }}</span>
-          <span class="ipam-summary__value">{{ stats.total }}<small>{{ $t('shared.ipMap.unit.address') }}</small></span>
+          <span class="ipam-summary__label">{{
+            $t('shared.ipMap.stat.total')
+          }}</span>
+          <span class="ipam-summary__value"
+            >{{ stats.total
+            }}<small>{{ $t('shared.ipMap.unit.address') }}</small></span
+          >
         </div>
       </div>
 
       <!-- 操作栏 -->
       <div class="ipam-toolbar mb-3">
-        <Button size="small" :disabled="readOnly || !stats.selected" @click="applyStatus('static')">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1" />{{ $t('shared.ipMap.toStatic') }}
+        <Button
+          size="small"
+          :disabled="readOnly || !stats.selected"
+          @click="applyStatus('static')"
+        >
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1" />{{
+            $t('shared.ipMap.toStatic')
+          }}
         </Button>
-        <Button size="small" danger :disabled="readOnly || !stats.selected" @click="applyStatus('available')">
-          <IconifyIcon icon="lucide:unlock" class="mr-1" />{{ $t('shared.ipMap.release') }}
+        <Button
+          size="small"
+          danger
+          :disabled="readOnly || !stats.selected"
+          @click="applyStatus('available')"
+        >
+          <IconifyIcon icon="lucide:unlock" class="mr-1" />{{
+            $t('shared.ipMap.release')
+          }}
         </Button>
-        <Button size="small" :disabled="readOnly || !stats.selected" @click="applyStatus('reserved')">
-          <IconifyIcon icon="lucide:lock" class="mr-1" />{{ $t('shared.ipMap.toReserved') }}
+        <Button
+          size="small"
+          :disabled="readOnly || !stats.selected"
+          @click="applyStatus('reserved')"
+        >
+          <IconifyIcon icon="lucide:lock" class="mr-1" />{{
+            $t('shared.ipMap.toReserved')
+          }}
         </Button>
-        <Button size="small" :disabled="readOnly || !stats.selected" @click="openEdit">
-          <IconifyIcon icon="lucide:pencil" class="mr-1" />{{ $t('shared.ipMap.edit') }}
+        <Button
+          size="small"
+          :disabled="readOnly || !stats.selected"
+          @click="openEdit"
+        >
+          <IconifyIcon icon="lucide:pencil" class="mr-1" />{{
+            $t('shared.ipMap.edit')
+          }}
         </Button>
-        <Button size="small" :disabled="readOnly || stats.selected !== 1" @click="openDetail">
-          <IconifyIcon icon="lucide:info" class="mr-1" />{{ $t('shared.ipMap.detail') }}
+        <Button
+          size="small"
+          :disabled="readOnly || stats.selected !== 1"
+          @click="openDetail"
+        >
+          <IconifyIcon icon="lucide:info" class="mr-1" />{{
+            $t('shared.ipMap.detail')
+          }}
         </Button>
-        <Button v-if="stats.selected > 0" size="small" danger @click="updateSelected([], null)">
-          <IconifyIcon icon="lucide:eraser" class="mr-1" />{{ $t('shared.ipMap.clear') }}
+        <Button
+          v-if="stats.selected > 0"
+          size="small"
+          danger
+          @click="updateSelected([], null)"
+        >
+          <IconifyIcon icon="lucide:eraser" class="mr-1" />{{
+            $t('shared.ipMap.clear')
+          }}
         </Button>
         <div class="ipam-toolbar__spacer"></div>
         <span class="ipam-hint">
@@ -416,16 +558,29 @@ onMounted(() => {
 
       <!-- 图例 -->
       <div class="ipam-legend mb-3">
-        <span v-for="k in Object.keys(IP_STATUS)" :key="k" class="ipam-legend__item">
+        <span
+          v-for="k in Object.keys(IP_STATUS)"
+          :key="k"
+          class="ipam-legend__item"
+        >
           <i
             class="ipam-legend__swatch"
-            :style="{ backgroundColor: IP_STATUS[k]?.color || '#ccc', opacity: STATUS_DISABLED.has(k) ? 0.75 : 1 }"
+            :style="{
+              backgroundColor: IP_STATUS[k]?.color || '#ccc',
+              opacity: STATUS_DISABLED.has(k) ? 0.75 : 1,
+            }"
           ></i>
           {{ statusText(k) }}
         </span>
         <span class="ipam-legend__divider"></span>
-        <span class="ipam-legend__item">{{ $t('shared.ipMap.overlayGroup') }}</span>
-        <span v-for="k in Object.keys(OVERLAY_STATUS)" :key="k" class="ipam-legend__item">
+        <span class="ipam-legend__item">{{
+          $t('shared.ipMap.overlayGroup')
+        }}</span>
+        <span
+          v-for="k in Object.keys(OVERLAY_STATUS)"
+          :key="k"
+          class="ipam-legend__item"
+        >
           <i
             class="ipam-legend__swatch"
             data-shape="dot"
@@ -485,7 +640,9 @@ onMounted(() => {
             @click="handleCellClick(ipObj, $event)"
             :style="{
               backgroundColor: IP_STATUS[ipObj.status]?.color ?? '#9DBEFF',
-              border: selectedSet.has(ipObj.ip) ? '2px dashed #000' : '1px solid #e6e9f4',
+              border: selectedSet.has(ipObj.ip)
+                ? '2px dashed #000'
+                : '1px solid #e6e9f4',
               opacity: readOnly || STATUS_DISABLED.has(ipObj.status) ? 0.8 : 1,
             }"
           >
@@ -494,9 +651,14 @@ onMounted(() => {
               v-for="(ov, i) in (ipObj.overlays || []).slice(0, 2)"
               :key="ov"
               :style="{
-                position: 'absolute', right: `${2 + i * 9}px`, bottom: '2px',
-                width: '7px', height: '7px', borderRadius: '50%',
-                backgroundColor: OVERLAY_STATUS[ov]?.color || '#999', border: '1px solid #fff',
+                position: 'absolute',
+                right: `${2 + i * 9}px`,
+                bottom: '2px',
+                width: '7px',
+                height: '7px',
+                borderRadius: '50%',
+                backgroundColor: OVERLAY_STATUS[ov]?.color || '#999',
+                border: '1px solid #fff',
               }"
             ></span>
           </div>
@@ -504,7 +666,16 @@ onMounted(() => {
       </div>
 
       <!-- 分页（超过一个 /24 时显示，右下角） -->
-      <div v-if="ipList.length > PAGE_SIZE" style="display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 12px">
+      <div
+        v-if="ipList.length > PAGE_SIZE"
+        style="
+          display: flex;
+          gap: 12px;
+          align-items: center;
+          justify-content: flex-end;
+          margin-top: 12px;
+        "
+      >
         <span class="ipam-hint">{{ pageCidr }}</span>
         <Pagination
           v-if="ipList.length > PAGE_SIZE"
@@ -514,7 +685,11 @@ onMounted(() => {
           :show-size-changer="false"
           show-quick-jumper
           size="small"
-          @change="(p: number) => { page = p }"
+          @change="
+            (p: number) => {
+              page = p;
+            }
+          "
         />
       </div>
 
@@ -541,15 +716,25 @@ onMounted(() => {
           <Form.Item :label="$t('shared.ipMap.form.status')">
             <Select
               v-model:value="editForm.status"
-              :options="Object.entries(IP_STATUS).filter(([k]) => !STATUS_DISABLED.has(k)).map(([k]) => ({ label: statusText(k), value: k }))"
+              :options="
+                Object.entries(IP_STATUS)
+                  .filter(([k]) => !STATUS_DISABLED.has(k))
+                  .map(([k]) => ({ label: statusText(k), value: k }))
+              "
             />
           </Form.Item>
           <div class="grid grid-cols-2 gap-x-3 gap-y-0">
             <Form.Item :label="$t('shared.ipMap.form.hostname')">
-              <Input v-model:value="editForm.hostname" :placeholder="$t('shared.ipMap.ph.hostname')" />
+              <Input
+                v-model:value="editForm.hostname"
+                :placeholder="$t('shared.ipMap.ph.hostname')"
+              />
             </Form.Item>
             <Form.Item :label="$t('shared.ipMap.form.purpose')">
-              <Input v-model:value="editForm.purpose" :placeholder="$t('shared.ipMap.ph.purpose')" />
+              <Input
+                v-model:value="editForm.purpose"
+                :placeholder="$t('shared.ipMap.ph.purpose')"
+              />
             </Form.Item>
             <Form.Item :label="$t('shared.ipMap.form.user')">
               <Input v-model:value="editForm.user" />
@@ -558,17 +743,29 @@ onMounted(() => {
               <Input v-model:value="editForm.phone" />
             </Form.Item>
             <Form.Item :label="$t('shared.ipMap.form.site')">
-              <Input v-model:value="editForm.site" :placeholder="$t('shared.ipMap.ph.site')" />
+              <Input
+                v-model:value="editForm.site"
+                :placeholder="$t('shared.ipMap.ph.site')"
+              />
             </Form.Item>
             <Form.Item label="VLAN">
-              <InputNumber v-model:value="editForm.vlan" :min="0" :max="4094" style="width: 100%" />
+              <InputNumber
+                v-model:value="editForm.vlan"
+                :min="0"
+                :max="4094"
+                style="width: 100%"
+              />
             </Form.Item>
           </div>
           <Form.Item
             :label="$t('shared.ipMap.form.custom')"
             :extra="$t('shared.ipMap.form.customExtra')"
           >
-            <Input.TextArea v-model:value="editForm.customAttrText" :rows="2" :placeholder="$t('shared.ipMap.ph.custom')" />
+            <Input.TextArea
+              v-model:value="editForm.customAttrText"
+              :rows="2"
+              :placeholder="$t('shared.ipMap.ph.custom')"
+            />
           </Form.Item>
           <Form.Item :label="$t('shared.ipMap.form.remark')" class="mb-0">
             <Input.TextArea v-model:value="editForm.remark" :rows="2" />
@@ -577,48 +774,94 @@ onMounted(() => {
       </Modal>
 
       <!-- 详情抽屉 -->
-      <Drawer :open="!!detail" :title="$t('shared.ipMap.detailTitle', { ip: detail?.ip || '' })" :width="420" @close="detail = null">
+      <Drawer
+        :open="!!detail"
+        :title="$t('shared.ipMap.detailTitle', { ip: detail?.ip || '' })"
+        :width="420"
+        @close="detail = null"
+      >
         <template v-if="detail">
           <Space wrap style="margin-bottom: 12px">
             <Tag :color="IP_STATUS[detail.status]?.color">
               {{ statusText(detail.status) }}
             </Tag>
-            <Tag v-for="o in (detail.overlays || [])" :key="o" :color="OVERLAY_STATUS[o]?.color">
+            <Tag
+              v-for="o in detail.overlays || []"
+              :key="o"
+              :color="OVERLAY_STATUS[o]?.color"
+            >
               {{ overlayText(o) }}
             </Tag>
           </Space>
 
-          <Divider orientation="left" plain style="margin: 8px 0">{{ $t('shared.ipMap.section.assign') }}</Divider>
+          <Divider orientation="left" plain style="margin: 8px 0">
+            {{ $t('shared.ipMap.section.assign') }}
+          </Divider>
           <Descriptions :column="1" size="small" bordered>
-            <Descriptions.Item :label="$t('shared.ipMap.field.address')">{{ detail.ip }}</Descriptions.Item>
+            <Descriptions.Item :label="$t('shared.ipMap.field.address')">
+              {{ detail.ip }}
+            </Descriptions.Item>
             <Descriptions.Item :label="$t('shared.ipMap.field.hostname')">
               {{ detail.hostname || '-' }}
             </Descriptions.Item>
-            <Descriptions.Item :label="$t('shared.ipMap.field.leaseStatus')">{{ detail.leaseStatus || '-' }}</Descriptions.Item>
-            <Descriptions.Item :label="$t('shared.ipMap.field.leaseStart')">{{ detail.leaseStart || '-' }}</Descriptions.Item>
-            <Descriptions.Item :label="$t('shared.ipMap.field.leaseEnd')">{{ detail.leaseEnd || '-' }}</Descriptions.Item>
+            <Descriptions.Item :label="$t('shared.ipMap.field.leaseStatus')">
+              {{ detail.leaseStatus || '-' }}
+            </Descriptions.Item>
+            <Descriptions.Item :label="$t('shared.ipMap.field.leaseStart')">
+              {{ detail.leaseStart || '-' }}
+            </Descriptions.Item>
+            <Descriptions.Item :label="$t('shared.ipMap.field.leaseEnd')">
+              {{ detail.leaseEnd || '-' }}
+            </Descriptions.Item>
           </Descriptions>
 
-          <Divider orientation="left" plain style="margin: 12px 0">{{ $t('shared.ipMap.section.scan') }}</Divider>
+          <Divider orientation="left" plain style="margin: 12px 0">
+            {{ $t('shared.ipMap.section.scan') }}
+          </Divider>
           <Descriptions :column="1" size="small" bordered>
-            <Descriptions.Item :label="$t('shared.ipMap.field.deviceName')">{{ detail.deviceName || '-' }}</Descriptions.Item>
-            <Descriptions.Item :label="$t('shared.ipMap.field.switchPort')">{{ detail.switchPort || '-' }}</Descriptions.Item>
+            <Descriptions.Item :label="$t('shared.ipMap.field.deviceName')">
+              {{ detail.deviceName || '-' }}
+            </Descriptions.Item>
+            <Descriptions.Item :label="$t('shared.ipMap.field.switchPort')">
+              {{ detail.switchPort || '-' }}
+            </Descriptions.Item>
           </Descriptions>
 
-          <Divider orientation="left" plain style="margin: 12px 0">{{ $t('shared.ipMap.section.asset') }}</Divider>
+          <Divider orientation="left" plain style="margin: 12px 0">
+            {{ $t('shared.ipMap.section.asset') }}
+          </Divider>
           <Descriptions :column="1" size="small" bordered>
-            <Descriptions.Item v-if="Object.keys(detail.customAttrs || {}).length === 0" :label="$t('shared.ipMap.field.asset')">
+            <Descriptions.Item
+              v-if="Object.keys(detail.customAttrs || {}).length === 0"
+              :label="$t('shared.ipMap.field.asset')"
+            >
               -
             </Descriptions.Item>
-            <Descriptions.Item v-for="(v, k) in detail.customAttrs || {}" :key="k" :label="String(k)">{{ String(v) }}</Descriptions.Item>
+            <Descriptions.Item
+              v-for="(v, k) in detail.customAttrs || {}"
+              :key="k"
+              :label="String(k)"
+            >
+              {{ String(v) }}
+            </Descriptions.Item>
           </Descriptions>
 
-          <Divider orientation="left" plain style="margin: 12px 0">{{ $t('shared.ipMap.section.manage') }}</Divider>
+          <Divider orientation="left" plain style="margin: 12px 0">
+            {{ $t('shared.ipMap.section.manage') }}
+          </Divider>
           <Descriptions :column="1" size="small" bordered>
-            <Descriptions.Item :label="$t('shared.ipMap.field.purpose')">{{ detail.purpose || '-' }}</Descriptions.Item>
-            <Descriptions.Item :label="$t('shared.ipMap.field.user')">{{ detail.user || '-' }}</Descriptions.Item>
-            <Descriptions.Item :label="$t('shared.ipMap.field.phone')">{{ detail.phone || '-' }}</Descriptions.Item>
-            <Descriptions.Item :label="$t('shared.ipMap.field.remark')">{{ detail.remark || '-' }}</Descriptions.Item>
+            <Descriptions.Item :label="$t('shared.ipMap.field.purpose')">
+              {{ detail.purpose || '-' }}
+            </Descriptions.Item>
+            <Descriptions.Item :label="$t('shared.ipMap.field.user')">
+              {{ detail.user || '-' }}
+            </Descriptions.Item>
+            <Descriptions.Item :label="$t('shared.ipMap.field.phone')">
+              {{ detail.phone || '-' }}
+            </Descriptions.Item>
+            <Descriptions.Item :label="$t('shared.ipMap.field.remark')">
+              {{ detail.remark || '-' }}
+            </Descriptions.Item>
           </Descriptions>
         </template>
       </Drawer>
@@ -631,24 +874,25 @@ onMounted(() => {
   flex-wrap: wrap;
   gap: 4px;
   max-height: 420px;
-  overflow: auto;
   padding-bottom: 4px;
+  overflow: auto;
 }
+
 .ip-cell {
-  width: 32px;
-  height: 32px;
-  font-size: 11px;
-  border-radius: 4px;
+  position: relative;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  user-select: none;
-  position: relative;
+  width: 32px;
+  height: 32px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
   line-height: 1;
-  box-sizing: border-box;
-  border: 1px solid #e6e9f4;
+  color: #fff;
   cursor: pointer;
+  user-select: none;
+  border: 1px solid #e6e9f4;
+  border-radius: 4px;
 }
 </style>
