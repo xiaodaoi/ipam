@@ -2,6 +2,7 @@ package backup
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -27,19 +28,32 @@ func (f *fakePg) Restore(_ context.Context, src string) error {
 
 type fakeLogs struct {
 	months   []string
+	rows     map[string]int64
 	exports  []string
 	restored []string
 	reset    bool
 }
 
-func (f *fakeLogs) Months(context.Context) ([]string, error) { return f.months, nil }
+func (f *fakeLogs) MonthRows(context.Context) (map[string]int64, error) {
+	out := map[string]int64{}
+	if f.rows != nil {
+		for m, n := range f.rows {
+			out[m] = n
+		}
+		return out, nil
+	}
+	for _, m := range f.months {
+		out[m] = 1
+	}
+	return out, nil
+}
 func (f *fakeLogs) ExportMonth(_ context.Context, month, dir string) (int64, int64, string, error) {
 	p := filepath.Join(dir, "logs-"+month+".parquet")
-	if err := os.WriteFile(p, []byte("PARQUET"), 0o640); err != nil {
+	if err := os.WriteFile(p, []byte("PARQUETPAR1"), 0o640); err != nil {
 		return 0, 0, "", err
 	}
 	f.exports = append(f.exports, month)
-	return 1, 7, "hash", nil
+	return 1, 11, "hash", nil
 }
 func (f *fakeLogs) Reset(context.Context) error { f.reset = true; return nil }
 func (f *fakeLogs) RestoreMonth(_ context.Context, file string) error {
@@ -180,5 +194,140 @@ func TestBackupTimeoutPersistsFailedStatus(t *testing.T) {
 	}
 	if _, err := os.Stat(done.Dir); !os.IsNotExist(err) {
 		t.Fatalf("partial backup dir should be removed: %v", err)
+	}
+}
+
+// seedBackup 构造一份历史成功备份，用于验证复用逻辑。
+func seedBackup(t *testing.T, repo Repo, baseDir, id string, months []string, rows map[string]int64, parquet []byte, withMonthRows bool) Record {
+	t.Helper()
+	dir := filepath.Join(baseDir, id)
+	if err := os.MkdirAll(filepath.Join(dir, "clickhouse"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range months {
+		if err := os.WriteFile(filepath.Join(dir, "clickhouse", "logs-"+m+".parquet"), parquet, 0o640); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mf := manifest{ID: id, Months: months, ConfigDirs: []string{}}
+	if withMonthRows {
+		mf.MonthRows = rows
+	}
+	raw, err := json.Marshal(mf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), raw, 0o640); err != nil {
+		t.Fatal(err)
+	}
+	rec := Record{ID: id, Status: StatusSuccess, Dir: dir, Months: months}
+	if err := repo.Create(context.Background(), &rec); err != nil {
+		t.Fatal(err)
+	}
+	return rec
+}
+
+func TestBackupReusesUnchangedMonths(t *testing.T) {
+	base := t.TempDir()
+	repo := NewMemRepo()
+	logs := &fakeLogs{rows: map[string]int64{"2026-09": 10, "2026-11": 20}}
+	svc := NewService(repo, NewMemSettings(), &fakePg{}, logs, base, nil)
+
+	first, err := svc.Create(context.Background(), KindManual, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r1 := waitStatus(t, repo, first.ID, StatusSuccess)
+	if len(logs.exports) != 2 {
+		t.Fatalf("first backup exports=%v, want 2", logs.exports)
+	}
+
+	logs.exports = nil
+	second, err := svc.Create(context.Background(), KindManual, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r2 := waitStatus(t, repo, second.ID, StatusSuccess)
+	if len(logs.exports) != 0 {
+		t.Fatalf("second backup should reuse all months, exports=%v", logs.exports)
+	}
+	for _, m := range []string{"2026-09", "2026-11"} {
+		f1 := filepath.Join(r1.Dir, "clickhouse", "logs-"+m+".parquet")
+		f2 := filepath.Join(r2.Dir, "clickhouse", "logs-"+m+".parquet")
+		s1, err := os.Stat(f1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s2, err := os.Stat(f2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !os.SameFile(s1, s2) {
+			t.Fatalf("%s should be hard-linked", m)
+		}
+	}
+	raw, err := os.ReadFile(filepath.Join(r2.Dir, "manifest.json"))
+	if err != nil || !strings.Contains(string(raw), `"monthRows"`) {
+		t.Fatalf("manifest should contain monthRows: %s %v", raw, err)
+	}
+}
+
+func TestBackupReexportsChangedMonth(t *testing.T) {
+	base := t.TempDir()
+	repo := NewMemRepo()
+	logs := &fakeLogs{rows: map[string]int64{"2026-09": 10}}
+	svc := NewService(repo, NewMemSettings(), &fakePg{}, logs, base, nil)
+
+	first, err := svc.Create(context.Background(), KindManual, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitStatus(t, repo, first.ID, StatusSuccess)
+
+	logs.rows = map[string]int64{"2026-09": 11}
+	logs.exports = nil
+	second, err := svc.Create(context.Background(), KindManual, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitStatus(t, repo, second.ID, StatusSuccess)
+	if len(logs.exports) != 1 || logs.exports[0] != "2026-09" {
+		t.Fatalf("changed month must be re-exported, got %v", logs.exports)
+	}
+}
+
+func TestBackupDoesNotReuseLegacyManifest(t *testing.T) {
+	base := t.TempDir()
+	repo := NewMemRepo()
+	seedBackup(t, repo, base, "legacy", []string{"2026-09"},
+		map[string]int64{"2026-09": 10}, []byte("PARQUETPAR1"), false)
+
+	logs := &fakeLogs{rows: map[string]int64{"2026-09": 10}}
+	svc := NewService(repo, NewMemSettings(), &fakePg{}, logs, base, nil)
+	rec, err := svc.Create(context.Background(), KindManual, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitStatus(t, repo, rec.ID, StatusSuccess)
+	if len(logs.exports) != 1 {
+		t.Fatalf("legacy manifest must not be reused, exports=%v", logs.exports)
+	}
+}
+
+func TestBackupDoesNotReuseTruncatedParquet(t *testing.T) {
+	base := t.TempDir()
+	repo := NewMemRepo()
+	seedBackup(t, repo, base, "truncated", []string{"2026-09"},
+		map[string]int64{"2026-09": 10}, []byte("PARTIAL-DATA"), true)
+
+	logs := &fakeLogs{rows: map[string]int64{"2026-09": 10}}
+	svc := NewService(repo, NewMemSettings(), &fakePg{}, logs, base, nil)
+	rec, err := svc.Create(context.Background(), KindManual, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitStatus(t, repo, rec.ID, StatusSuccess)
+	if len(logs.exports) != 1 {
+		t.Fatalf("truncated parquet must not be reused, exports=%v", logs.exports)
 	}
 }

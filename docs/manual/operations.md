@@ -26,7 +26,8 @@ docker compose -f observability/compose.observability.yaml --profile observabili
 - 自动：每日 UTC 指定小时，保留 N 份；
 - 下载：页面“下载”或 `GET /system/backups/{id}/download`；
 - 超时预算（M6-028）：`IPAM_CH_EXPORT_TIMEOUT`（单月日志导出/恢复，默认 `30m`）、`IPAM_BACKUP_TIMEOUT`（单次备份总预算，默认 `2h`）；大日志量部署按实测调大并同步放大；
-- 失败处理：状态置 `failed` 并给出可读原因，半成品目录自动删除；导出文件会校验 Parquet 结束标记，避免把 ClickHouse 流式超时的半截文件记录为成功备份。
+- 失败处理：状态置 `failed` 并给出可读原因，半成品目录自动删除；导出文件会校验 Parquet 结束标记，避免把 ClickHouse 流式超时的半截文件记录为成功备份；
+- 增量复用（M6-030）：历史月份行数未变化时硬链接上一份备份的 Parquet，仅重导有新增数据的月份；记录里的 `sizeBytes` 为逻辑大小，实际占用用 `du`/`df` 查看。
 
 ## 恢复
 

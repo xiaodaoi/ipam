@@ -46,6 +46,84 @@ type Record struct {
 	FinishedAt *time.Time
 }
 
+// manifest 为备份目录清单（M6-002）；MonthRows 是复用历史月份的指纹（M6-030）。
+type manifest struct {
+	ID               string           `json:"id"`
+	Kind             string           `json:"kind"`
+	CreatedAt        time.Time        `json:"createdAt"`
+	PostgresChecksum string           `json:"postgresChecksum"`
+	Months           []string         `json:"months"`
+	MonthRows        map[string]int64 `json:"monthRows,omitempty"`
+	ConfigDirs       []string         `json:"configDirs"`
+}
+
+// reuseCandidate 指向某份成功备份中的月度 Parquet。
+type reuseCandidate struct {
+	dir  string
+	path string
+}
+
+// reusableMonthFiles 收集最近成功备份中的月度 Parquet（同月以最新备份为准）。
+func (s *Service) reusableMonthFiles() map[string]reuseCandidate {
+	out := map[string]reuseCandidate{}
+	list, err := s.repo.List(context.Background(), 200)
+	if err != nil {
+		log.Printf("[backup] list for reuse: %v", err)
+		return out
+	}
+	for _, r := range list {
+		if r.Status != StatusSuccess || r.Dir == "" {
+			continue
+		}
+		for _, m := range r.Months {
+			if _, ok := out[m]; ok {
+				continue
+			}
+			p := filepath.Join(r.Dir, "clickhouse", "logs-"+m+".parquet")
+			if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() {
+				out[m] = reuseCandidate{dir: r.Dir, path: p}
+			}
+		}
+	}
+	return out
+}
+
+// monthReusable 判断历史 Parquet 能否直接复用：
+// 行数指纹一致（防迟到日志/回填），且文件以 PAR1 结尾（防 M6-028 的截断文件）。
+// 旧版本 manifest 没有 monthRows，返回 false，会重新导出一次形成新基线。
+func (s *Service) monthReusable(c reuseCandidate, month string, wantRows int64) bool {
+	raw, err := os.ReadFile(filepath.Join(c.dir, "manifest.json"))
+	if err != nil {
+		return false
+	}
+	var mf manifest
+	if err := json.Unmarshal(raw, &mf); err != nil || mf.MonthRows == nil {
+		return false
+	}
+	if mf.MonthRows[month] != wantRows {
+		return false
+	}
+	return parquetComplete(c.path)
+}
+
+// parquetComplete 校验文件以 4 字节 PAR1 结尾（Parquet 页脚魔数）。
+func parquetComplete(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = f.Close() }()
+	st, err := f.Stat()
+	if err != nil || st.Size() < 8 {
+		return false
+	}
+	buf := make([]byte, 4)
+	if _, err := f.ReadAt(buf, st.Size()-4); err != nil {
+		return false
+	}
+	return string(buf) == "PAR1"
+}
+
 type Settings struct {
 	Enabled        bool
 	ScheduleHour   int
@@ -74,7 +152,8 @@ type PgRunner interface {
 
 // LogStore ClickHouse 日志导出/恢复（按月 Parquet）。
 type LogStore interface {
-	Months(ctx context.Context) ([]string, error)
+	// MonthRows 返回每月有效行数，作为复用历史备份的指纹（M6-030）。
+	MonthRows(ctx context.Context) (map[string]int64, error)
 	ExportMonth(ctx context.Context, month, dir string) (rows, size int64, hash string, err error)
 	Reset(ctx context.Context) error
 	RestoreMonth(ctx context.Context, file string) error
@@ -189,12 +268,16 @@ func (s *Service) execute(rec Record) {
 		return
 	}
 	months := []string{}
+	monthRows := map[string]int64{}
 	if s.logs != nil {
 		var err error
-		months, err = s.logs.Months(ctx)
+		monthRows, err = s.logs.MonthRows(ctx)
 		if err != nil {
 			fail(fmt.Errorf("clickhouse months: %w", err))
 			return
+		}
+		for m := range monthRows {
+			months = append(months, m)
 		}
 		sort.Strings(months)
 		chDir := filepath.Join(rec.Dir, "clickhouse")
@@ -202,7 +285,18 @@ func (s *Service) execute(rec Record) {
 			fail(err)
 			return
 		}
+		// 历史月份数据未变化时，硬链接上一份成功备份的 Parquet，避免每晚重导全量日志（M6-030）。
+		reusable := s.reusableMonthFiles()
 		for _, m := range months {
+			dst := filepath.Join(chDir, "logs-"+m+".parquet")
+			if c, ok := reusable[m]; ok && s.monthReusable(c, m, monthRows[m]) {
+				if lerr := os.Link(c.path, dst); lerr == nil {
+					log.Printf("[backup] %s reuse %s from %s", rec.ID, m, c.dir)
+					continue
+				} else {
+					log.Printf("[backup] %s link %s: %v（改为重新导出）", rec.ID, m, lerr)
+				}
+			}
 			if _, _, _, err := s.logs.ExportMonth(ctx, m, chDir); err != nil {
 				fail(fmt.Errorf("clickhouse export %s: %w", m, err))
 				return
@@ -211,12 +305,12 @@ func (s *Service) execute(rec Record) {
 	}
 	rec.Months = months
 
-	manifest := map[string]any{
-		"id": rec.ID, "kind": rec.Kind, "createdAt": rec.StartedAt,
-		"postgresChecksum": checksum, "months": months,
-		"configDirs": s.configDirs,
+	mf := manifest{
+		ID: rec.ID, Kind: rec.Kind, CreatedAt: rec.StartedAt,
+		PostgresChecksum: checksum, Months: months, MonthRows: monthRows,
+		ConfigDirs: s.configDirs,
 	}
-	raw, _ := json.MarshalIndent(manifest, "", "  ")
+	raw, _ := json.MarshalIndent(mf, "", "  ")
 	if err := os.WriteFile(filepath.Join(rec.Dir, "manifest.json"), raw, 0o640); err != nil {
 		fail(err)
 		return

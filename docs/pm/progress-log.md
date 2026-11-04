@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-11-04 · 备份复用历史月份 Parquet（M6-030）
+- **问题**：每次备份全量重导所有月份；180 天 ≈ 40GB 日志时单次备份超窗口、7 份保留 ≈280GB，商业化部署不可持续。
+- **方案**：用 `system.parts` 每月行数作为指纹写入 manifest；最近成功备份同月行数一致且文件尾 `PAR1` 时用 `os.Link` 硬链接复用，行数变化（含迟到/回填）自动重导；旧 manifest 无指纹则全量重导一次形成基线。
+- **实现**：`ChAdmin.MonthRows`；`backup.LogStore` 接口改用 `MonthRows`；新增 `manifest{monthRows}`、`reusableMonthFiles`、`monthReusable`、`parquetComplete`。
+- **验证**：单测 4 个新用例（复用/行数变化/旧 manifest/截断文件）；真实栈基线 55s 全量、第二次 10s 且日志 `reuse 2026-08/09/10`，inode 相同，11 月因新增日志重导；复用目录实际占用 65M（vs 597M），读回 3932 行一致；`go test ./...`、golangci-lint、make test/lint、E2E 17/17 全绿。
+- **文档**：M6-002 实现说明、operations、GA 核对表、任务卡、§12。
+
 ## 2026-11-04 · GA 发布前检查（pre-flight）实测收口
 - **工具链/构建/测试/静态/契约**：`doctor.sh` exit 0（corepack/spectral 缺失但可 npx 替代，未达 `--strict`）；`make-part.sh build` exit 0；`make-part.sh test` exit 0；`make-part.sh lint` exit 0（golangci-lint `0 issues`）；`gen-openapi.sh --check` OK。
 - **E2E**：17/17（含英文切换、图标零外链）。

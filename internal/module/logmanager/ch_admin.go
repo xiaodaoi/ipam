@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -311,14 +312,29 @@ func checkParquetComplete(f *os.File) error {
 
 // Months 返回 logs 表存在数据的月份（升序）。
 func (a *ChAdmin) Months(ctx context.Context) ([]string, error) {
+	rows, err := a.MonthRows(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(rows))
+	for m := range rows {
+		out = append(out, m)
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+// MonthRows 返回每月有效数据行数（来自 system.parts 元数据，轻量）。
+// 备份用行数作为「该月数据是否变化」的指纹：一致才复用上一份备份的 Parquet（M6-030）。
+func (a *ChAdmin) MonthRows(ctx context.Context) (map[string]int64, error) {
 	_, _, _, parts, err := a.Stats(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]string, 0, len(parts))
+	out := make(map[string]int64, len(parts))
 	for _, p := range parts {
 		if p.RowCount > 0 {
-			out = append(out, p.Month)
+			out[p.Month] = p.RowCount
 		}
 	}
 	return out, nil
