@@ -2,8 +2,10 @@ package backup
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -117,5 +119,66 @@ func TestBackupCleanupRetention(t *testing.T) {
 	list, _ := repo.List(context.Background(), 10)
 	if len(list) != 2 {
 		t.Fatalf("retention 2, got %d", len(list))
+	}
+}
+
+// failingLogs 写出半成品后返回错误，用于验证失败清理（M6-028）。
+type failingLogs struct{ fakeLogs }
+
+func (f *failingLogs) ExportMonth(_ context.Context, month, dir string) (int64, int64, string, error) {
+	if err := os.WriteFile(filepath.Join(dir, "logs-"+month+".parquet"), []byte("PARTIAL"), 0o640); err != nil {
+		return 0, 0, "", err
+	}
+	return 0, 0, "", errors.New("ch http export: simulated failure")
+}
+
+// slowLogs 阻塞到 ctx 结束，用于验证总预算超时后状态仍能落库（M6-028）。
+type slowLogs struct{ fakeLogs }
+
+func (s *slowLogs) ExportMonth(ctx context.Context, _, _ string) (int64, int64, string, error) {
+	<-ctx.Done()
+	return 0, 0, "", ctx.Err()
+}
+
+func TestBackupExportFailureCleansPartialDir(t *testing.T) {
+	dir := t.TempDir()
+	repo := NewMemRepo()
+	logs := &failingLogs{fakeLogs{months: []string{"2026-10"}}}
+	svc := NewService(repo, NewMemSettings(), &fakePg{}, logs, dir, nil)
+
+	rec, err := svc.Create(context.Background(), KindManual, "fail")
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := waitStatus(t, repo, rec.ID, StatusFailed)
+	if !strings.Contains(done.Error, "clickhouse export 2026-10") {
+		t.Fatalf("error=%q", done.Error)
+	}
+	if done.SizeBytes != 0 || done.FinishedAt == nil {
+		t.Fatalf("record=%+v", done)
+	}
+	if _, err := os.Stat(done.Dir); !os.IsNotExist(err) {
+		t.Fatalf("partial backup dir should be removed: %v", err)
+	}
+}
+
+func TestBackupTimeoutPersistsFailedStatus(t *testing.T) {
+	dir := t.TempDir()
+	repo := NewMemRepo()
+	logs := &slowLogs{fakeLogs{months: []string{"2026-10"}}}
+	svc := NewService(repo, NewMemSettings(), &fakePg{}, logs, dir, nil)
+	svc.SetTimeout(200 * time.Millisecond)
+
+	rec, err := svc.Create(context.Background(), KindManual, "timeout")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 若 fail() 用已失效的 ctx 写库，记录会卡在 running，这里会超时失败。
+	done := waitStatus(t, repo, rec.ID, StatusFailed)
+	if !strings.Contains(done.Error, "context deadline exceeded") {
+		t.Fatalf("error=%q", done.Error)
+	}
+	if _, err := os.Stat(done.Dir); !os.IsNotExist(err) {
+		t.Fatalf("partial backup dir should be removed: %v", err)
 	}
 }

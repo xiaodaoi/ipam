@@ -4,6 +4,14 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-11-04 · 备份日志导出超时与完整性修复（M6-028）
+- **现象**：GA 抽测手动备份在 `clickhouse export 2026-10` 失败，客户端 5 分钟超时；`system.query_log` 显示同一查询在空闲时 142.9s、负载下 746s 后触发服务端 `max_execution_time=600`。根因是客户端 `Timeout=5m`、URL `max_execution_time=600`、备份总预算 30m 三者硬编码且矛盾。
+- **修复**：新增 `IPAM_CH_EXPORT_TIMEOUT`（默认 30m）与 `IPAM_BACKUP_TIMEOUT`（默认 2h）；导出预算同时决定客户端 context 与服务端 `max_execution_time`（服务端少 30s），去掉固定 `http.Client.Timeout`；`httpQuery`（恢复/清空）共用同一预算。
+- **发现并修复数据完整性漏洞**：ClickHouse 在已发送 200 后超时会把握手文本追加到响应体，旧代码把「24MB 半截 Parquet（正常 504MB）+ `Code: 159`」记为 success。新增 `checkParquetComplete` 校验文件尾 `PAR1` 并回读异常文本，失败即删除半成品。
+- **健壮性**：备份失败删除整个半成品目录、`sizeBytes` 置 0；`fail()` 改用独立 10s context 落库，超时不再卡 `running`。
+- **验证**：单测 5 个新用例；`go test ./...`/`golangci-lint`/`make lint`/`make test` 全绿；真实栈备份 `success`（4 个月 / 623,615,501 字节 / 4 个 Parquet 均以 `PAR1` 结尾，`2026-08` 读回 3932 行与库一致）；`IPAM_CH_EXPORT_TIMEOUT=2s` → 可读超时错误且目录清理；`35s` → HTTP 408 `Code: 159` 且目录清理；E2E 17/17、i18n 双门禁、gen-check OK。
+- **文档**：M6-002 实现说明新增「超时预算」、`operations.md` 备份章节、GA 核对表 Gate 2、任务卡 M6-028、§12。
+
 ## 2026-11-04 · 静态检查门禁归零（M6-027）
 - **问题**：`make lint` 实为红灯——stylelint 29、oxfmt 64 文件、oxlint 10、eslint 2058（其中 1645 来自生成物 `schema.d.ts`）。根因是「eslint 排版规则 ↔ oxfmt」方向相反导致互相回滚，以及生成物被当手写代码检查。
 - **决策**：oxfmt 为唯一格式化工具（关闭 `vue/html-closing-bracket-newline`、`vue/multiline-html-element-content-newline`、`unicorn/no-nested-ternary`、`unicorn/number-literal-case`）；生成物排除出 oxfmt/eslint；`*.d.ts` 关闭 `unicorn/require-module-specifiers`；底座 catalog 两条 pnpm 规则关闭；eslint 配置只保留 `web/eslint.config.mjs`。

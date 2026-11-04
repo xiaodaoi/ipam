@@ -687,9 +687,17 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	}
 	var chAdmin *logmanager.ChAdmin
 	if chCfg.Addr != "" {
+		chExportTimeout := logmanager.DefaultExportTimeout
+		if v := os.Getenv("IPAM_CH_EXPORT_TIMEOUT"); v != "" {
+			if d, err := time.ParseDuration(v); err == nil && d > 0 {
+				chExportTimeout = d
+			} else {
+				log.Printf("[logmanager] invalid IPAM_CH_EXPORT_TIMEOUT=%q, fallback %s", v, chExportTimeout)
+			}
+		}
 		ca, err := logmanager.OpenChAdmin(logmanager.ChConfig{
 			Addr: chCfg.Addr, DB: chCfg.DB, User: chCfg.User, Password: chCfg.Password,
-			HTTPAddr: os.Getenv("IPAM_CH_HTTP"),
+			HTTPAddr: os.Getenv("IPAM_CH_HTTP"), ExportTimeout: chExportTimeout,
 		})
 		if err != nil {
 			log.Fatalf("ch admin: %v", err)
@@ -734,6 +742,13 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		backupLogs = chAdmin
 	}
 	backupSvc := backupmodule.NewService(backupRepo, backupSettingsRepo, pgRunner, backupLogs, backupDir, configDirs)
+	if v := os.Getenv("IPAM_BACKUP_TIMEOUT"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			backupSvc.SetTimeout(d)
+		} else {
+			log.Printf("[backup] invalid IPAM_BACKUP_TIMEOUT=%q, fallback %s", v, backupmodule.DefaultTimeout)
+		}
+	}
 	licenseSvc := platform.NewLicenseService(
 		os.Getenv("IPAM_LICENSE_FILE"), os.Getenv("IPAM_LICENSE_PUBKEY"))
 	// 活跃终端计量（M6-004B）：近 24h 去重客户端 MAC，60s 缓存，避免 /metrics 抓取放大。

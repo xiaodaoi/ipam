@@ -80,6 +80,10 @@ type LogStore interface {
 	RestoreMonth(ctx context.Context, file string) error
 }
 
+// DefaultTimeout 单次备份总预算（PG dump + 配置归档 + 所有月份日志导出）。
+// 大月份日志在并发负载下导出可能超过 10 分钟，旧固定 30 分钟会在多月份时误杀（M6-028）。
+const DefaultTimeout = 2 * time.Hour
+
 type Service struct {
 	repo       Repo
 	settings   SettingsRepo
@@ -87,6 +91,7 @@ type Service struct {
 	logs       LogStore
 	baseDir    string
 	configDirs []string
+	timeout    time.Duration
 	now        func() time.Time
 }
 
@@ -95,7 +100,14 @@ func NewService(repo Repo, settings SettingsRepo, pg PgRunner, logs LogStore, ba
 		baseDir = "/srv/log-exports/backups"
 	}
 	return &Service{repo: repo, settings: settings, pg: pg, logs: logs, baseDir: baseDir,
-		configDirs: configDirs, now: time.Now}
+		configDirs: configDirs, timeout: DefaultTimeout, now: time.Now}
+}
+
+// SetTimeout 覆盖单次备份总预算（<=0 时忽略，保持默认）。
+func (s *Service) SetTimeout(d time.Duration) {
+	if d > 0 {
+		s.timeout = d
+	}
 }
 
 func (s *Service) List(ctx context.Context, limit int) ([]Record, error) {
@@ -130,14 +142,28 @@ func (s *Service) Create(ctx context.Context, kind, note string) (Record, error)
 }
 
 func (s *Service) execute(rec Record) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	timeout := s.timeout
+	if timeout <= 0 {
+		timeout = DefaultTimeout
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	fail := func(err error) {
 		rec.Status = StatusFailed
 		rec.Error = err.Error()
 		t := s.now().UTC()
 		rec.FinishedAt = &t
-		if uerr := s.repo.Update(ctx, &rec); uerr != nil {
+		rec.SizeBytes = 0
+		// 备份未完成时整份产物不可用于恢复：删除半成品，避免占用磁盘或被误判为可恢复。
+		if rec.Dir != "" {
+			if rerr := os.RemoveAll(rec.Dir); rerr != nil {
+				log.Printf("[backup] cleanup %s: %v", rec.ID, rerr)
+			}
+		}
+		// 超时/取消后原 ctx 已失效，必须用独立短超时落库，否则记录会永远停在 running。
+		uctx, ucancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer ucancel()
+		if uerr := s.repo.Update(uctx, &rec); uerr != nil {
 			log.Printf("[backup] update failed %s: %v", rec.ID, uerr)
 		}
 		log.Printf("[backup] %s failed: %v", rec.ID, err)

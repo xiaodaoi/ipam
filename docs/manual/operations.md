@@ -24,7 +24,9 @@ docker compose -f observability/compose.observability.yaml --profile observabili
 - 页面：系统管理 → 备份与恢复；
 - 内容：PostgreSQL custom dump + 配置 tar + ClickHouse 日志按月 Parquet；
 - 自动：每日 UTC 指定小时，保留 N 份；
-- 下载：页面“下载”或 `GET /system/backups/{id}/download`。
+- 下载：页面“下载”或 `GET /system/backups/{id}/download`；
+- 超时预算（M6-028）：`IPAM_CH_EXPORT_TIMEOUT`（单月日志导出/恢复，默认 `30m`）、`IPAM_BACKUP_TIMEOUT`（单次备份总预算，默认 `2h`）；大日志量部署按实测调大并同步放大；
+- 失败处理：状态置 `failed` 并给出可读原因，半成品目录自动删除；导出文件会校验 Parquet 结束标记，避免把 ClickHouse 流式超时的半截文件记录为成功备份。
 
 ## 恢复
 
