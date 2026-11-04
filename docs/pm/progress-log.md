@@ -9,9 +9,10 @@
 - **机制**：展示型常量（表格列/状态映射/Tab/选项/统计卡）统一改 `computed`，切换语言即时生效；vxe 表格在语言变化后 `setState` 同步列头与空态；日期数字格式去掉硬编码 `zh-CN`。
 - **持久化修复**：上游 `initPreferences()` 合并策略让默认 `app.locale=zh-CN` 恒覆盖缓存，刷新后语言回退。新增 `src/utils/persisted-locale.ts` + `main.ts` 在初始化前读 `preferences-locale`、初始化后回填（不修改上游包），并补 6 条单测。
 - **清理**：删除未挂路由的上游演示页 `views/dashboard/{analytics,workspace}`（死代码，1000+ 行）。
-- **门禁**：`check-ui-i18n.py` OK（71 文件）、`check-i18n-keys.py` OK（9 文件）、`vue-tsc` 0 error、改动 50 文件 eslint 0 error、`sync-webui.sh --build` 11 任务（5.4M）、web 单测 33 用例、E2E 16/16。
+- **门禁**：`check-ui-i18n.py` OK（71 文件）、`check-i18n-keys.py` OK（9 文件）、`vue-tsc` 0 error、改动 50 文件 eslint 0 error、`sync-webui.sh --build` 11 任务（5.4M）、web 单测 33 用例、E2E 17/17（新增「英文界面切换（i18n）」步骤，含刷新保持与四页抽样）。
 - **语言切换证据**：zh→en 即时生效 + 刷新保持 + 个人中心（含安全设置 TOTP/会话）+ DHCP/DNS/日志/系统四页抽样 + 切回 zh 刷新保持，全部通过。
 - **文档**：`docs/dev/M6-025-i18n实现规范与术语表.md`（新增持久化、vxe、新增文案工作流章节）、任务卡 M6-025、计划表。
+- **GA 核对**：新增 `docs/dev/M6-GA就绪核对表.md`，10 条 GA Gate 逐条给出现状/证据/本地命令/剩余阻塞，并附 12 项发布前检查清单；明确单机可交付候选与 4 项外部环境阻塞（HA、Helm、B5、CI 扫描）及客户试用。
 
 ## 2026-11-04 · 首次使用向导（M6-024）
 - **入口**：仪表盘 banner（继续配置 / 稍后再说），完成或忽略后隐藏；向导页可「重新显示向导」复位。

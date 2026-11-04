@@ -48,6 +48,18 @@ async function waitText(page, text, timeout = 15_000) {
   await page.getByText(text, { exact: false }).first().waitFor({ state: 'visible', timeout });
 }
 
+async function switchLocale(page, label) {
+  await page.locator('svg.lucide-languages').first().click();
+  await page.waitForTimeout(500);
+  const item = page
+    .locator('[role="menuitem"], .ant-dropdown-menu-item')
+    .filter({ hasText: label })
+    .first();
+  if (await item.count()) await item.click();
+  else await page.getByText(label, { exact: true }).last().click();
+  await page.waitForTimeout(1200);
+}
+
 async function login(page) {
   await page.goto(`${base}/auth/login`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
   await page.waitForSelector('input', { timeout: 20_000 });
@@ -69,7 +81,8 @@ async function login(page) {
   }
   await page.mouse.move(pb.x + pb.width - 2, hb.y + hb.height / 2);
   await page.mouse.up();
-  await page.locator('button', { hasText: '登录' }).last().click();
+  // 语言可能被上次运行留在英文，登录按钮文案随之变化。
+  await page.locator('button').filter({ hasText: /登录|Login/ }).last().click();
   // 生产构建使用 hash 路由：URL 可能保留 /auth/login，以页面内容为准。
   await page.locator('.ipam-page').first().waitFor({ state: 'visible', timeout: 30_000 });
   await page.waitForTimeout(800);
@@ -243,6 +256,37 @@ async function main() {
       await page.getByText('安全设置', { exact: true }).first().click();
       await waitText(page, '登录会话');
       await waitText(page, '当前会话');
+    });
+
+    await step('英文界面切换（i18n）', async () => {
+      await page.goto(urlFor('/overview'), { waitUntil: 'domcontentloaded' });
+      await waitText(page, '运行概览');
+      try {
+        // 1. 即时切换：无需刷新
+        await switchLocale(page, 'English');
+        await waitText(page, 'Overview');
+        await waitText(page, 'Active devices today');
+        // 2. 刷新后保持（偏好持久化）
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await waitText(page, 'Overview');
+        assert(
+          (await page.evaluate(() => document.documentElement.lang)) === 'en-US',
+          'html lang 未切换为 en-US',
+        );
+        // 3. 业务页抽样：页头、表格列、表单均应为英文
+        await page.goto(urlFor('/dns-service/records'), { waitUntil: 'domcontentloaded' });
+        await waitText(page, 'DNS records');
+        await page.goto(urlFor('/logs-center/search'), { waitUntil: 'domcontentloaded' });
+        await waitText(page, 'Search');
+        await page.goto(urlFor('/system/users'), { waitUntil: 'domcontentloaded' });
+        await waitText(page, 'Account management');
+      } finally {
+        // 4. 恢复中文基线，保证重复执行与后续步骤稳定
+        await page.goto(urlFor('/overview'), { waitUntil: 'domcontentloaded' });
+        await page.waitForTimeout(600);
+        await switchLocale(page, '简体中文');
+        await waitText(page, '运行概览');
+      }
     });
 
     await step('图标离线渲染与零外链', async () => {
