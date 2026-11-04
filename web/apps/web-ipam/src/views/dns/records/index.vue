@@ -24,10 +24,11 @@ import {
 import { createDnsRecord, createDnsZone, deleteDnsRecord, deleteDnsZone, importDnsHosts, listDnsRecords, listDnsZones, listLinkedRecords, updateDnsRecord, updateDnsZone } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import { $t } from '#/locales';
 
 type RecType = 'A' | 'AAAA' | 'CNAME' | 'MX' | 'PTR' | 'SRV' | 'TXT';
 
-const showTotal = (t: number) => `共 ${t} 条`;
+const showTotal = (t: number) => $t('dns.common.total', { n: t });
 const REC_TYPES: RecType[] = ['A', 'AAAA', 'CNAME', 'PTR', 'TXT', 'SRV', 'MX'];
 
 const zones = ref<DnsZone[]>([]);
@@ -90,39 +91,39 @@ const recForm = reactive<{ name: string; rdata: string; recType: RecType; ttl: n
 });
 const [AddRecordModal, addRecordModalApi] = useVbenModal({
   draggable: true,
-  title: '新增解析记录',
-  confirmText: '创建记录',
+  title: $t('dns.records.msg.addTitle'),
+  confirmText: $t('dns.records.msg.addConfirm'),
   onConfirm: () => addRecord(),
 });
 
 function openAddRecord() {
   if (!zoneId.value) {
-    message.warning('请先选择或新建区域');
+    message.warning($t('dns.records.msg.warnNoZone'));
     return;
   }
   recForm.name = '';
   recForm.recType = 'A';
   recForm.rdata = '';
   recForm.ttl = 300;
-  addRecordModalApi.setState({ title: `新增记录 · ${activeZone.value?.name ?? ''}` });
+  addRecordModalApi.setState({ title: $t('dns.records.msg.addTitleNamed', { name: activeZone.value?.name ?? '' }) });
   addRecordModalApi.open();
 }
 
 async function addRecord() {
   if (!zoneId.value) return;
   if (!recForm.name || !recForm.rdata) {
-    message.warning('请填写记录名称与记录值');
+    message.warning($t('dns.records.msg.warnNameValue'));
     return;
   }
   try {
     await createDnsRecord(zoneId.value, { ...recForm, enabled: true });
-    message.success('记录已创建');
+    message.success($t('dns.records.msg.created'));
     addRecordModalApi.close();
     recForm.name = '';
     recForm.rdata = '';
     await loadRecords();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '添加失败');
+    message.error(error instanceof Error ? error.message : $t('dns.common.addFailed'));
   }
 }
 
@@ -133,7 +134,7 @@ const recordEdit = reactive<{ enabled: boolean; name: string; rdata: string; rec
 });
 const [RecordModal, recordModalApi] = useVbenModal({
   draggable: true,
-  confirmText: '保存',
+  confirmText: $t('dns.common.save'),
   onConfirm: () => confirmEditRecord(),
 });
 
@@ -142,7 +143,7 @@ function openEditRecord(r: DnsRecord) {
   Object.assign(recordEdit, {
     name: r.name, recType: r.recType, rdata: r.rdata, ttl: r.ttl, enabled: r.enabled,
   });
-  recordModalApi.setState({ title: `编辑记录 · ${r.name}` });
+  recordModalApi.setState({ title: $t('dns.records.msg.editTitleNamed', { name: r.name }) });
   recordModalApi.open();
 }
 
@@ -150,16 +151,16 @@ async function confirmEditRecord() {
   const r = editRecord.value;
   if (!r || !zoneId.value) return;
   if (!recordEdit.name || !recordEdit.rdata) {
-    message.warning('名称与值必填');
+    message.warning($t('dns.records.msg.warnNameValueRequired'));
     return;
   }
   try {
     await updateDnsRecord(zoneId.value, r.id, { ...recordEdit });
-    message.success('记录已更新');
+    message.success($t('dns.records.msg.updated'));
     recordModalApi.close();
     await loadRecords();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '更新失败');
+    message.error(error instanceof Error ? error.message : $t('dns.common.updateFailed'));
   }
 }
 
@@ -169,24 +170,24 @@ async function toggleRecord(r: DnsRecord, enabled: boolean) {
     await updateDnsRecord(zoneId.value, r.id, { enabled });
     await loadRecords();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '操作失败');
+    message.error(error instanceof Error ? error.message : $t('dns.common.actionFailed'));
   }
 }
 
 function removeRecord(r: DnsRecord) {
   Modal.confirm({
-    title: `删除记录 ${r.name}`,
-    content: `将删除 ${activeZone.value?.name ?? ''} 下的 ${r.name} ${r.recType} 记录。`,
-    okText: '删除',
+    title: $t('dns.records.msg.deleteTitle', { name: r.name }),
+    content: $t('dns.records.msg.deleteContent', { zone: activeZone.value?.name ?? '', name: r.name, type: r.recType }),
+    okText: $t('dns.common.delete'),
     okType: 'danger',
     onOk: async () => {
       if (!zoneId.value) return;
       try {
         await deleteDnsRecord(zoneId.value, r.id);
-        message.success('记录已删除');
+        message.success($t('dns.records.msg.deleted'));
         await loadRecords();
       } catch (error) {
-        message.error(error instanceof Error ? error.message : '删除失败');
+        message.error(error instanceof Error ? error.message : $t('dns.common.deleteFailed'));
       }
     },
   });
@@ -201,7 +202,7 @@ const zoneForm = reactive<{ kind: 'auth' | 'local' | 'secondary'; name: string; 
 const editingZoneId = ref<string>();
 const [ZoneModal, zoneModalApi] = useVbenModal({
   draggable: true,
-  confirmText: '保存',
+  confirmText: $t('dns.common.save'),
   onConfirm: () => confirmZone(),
 });
 
@@ -210,7 +211,7 @@ function openCreateZone() {
   zoneForm.name = '';
   zoneForm.kind = 'auth';
   zoneForm.primary = '';
-  zoneModalApi.setState({ title: '新建 DNS 区域', confirmText: '创建区域' });
+  zoneModalApi.setState({ title: $t('dns.records.msg.zoneCreateTitle'), confirmText: $t('dns.records.msg.zoneCreateConfirm') });
   zoneModalApi.open();
 }
 
@@ -219,7 +220,7 @@ function openEditZone(z: DnsZone) {
   zoneForm.name = z.name.replace(/\.$/, '');
   zoneForm.kind = z.kind as 'auth' | 'local' | 'secondary';
   zoneForm.primary = z.primary ?? '';
-  zoneModalApi.setState({ title: `编辑区域 · ${z.name}`, confirmText: '保存修改' });
+  zoneModalApi.setState({ title: $t('dns.records.msg.zoneEditTitle', { name: z.name }), confirmText: $t('dns.records.msg.saveChanges') });
   zoneModalApi.open();
 }
 
@@ -234,19 +235,19 @@ async function confirmZone() {
         kind: zoneForm.kind,
         primary: zoneForm.kind === 'secondary' ? zoneForm.primary : '',
       });
-      message.success('区域已更新');
+      message.success($t('dns.records.msg.zoneUpdated'));
     } else {
       await createDnsZone({
         name: fqdn,
         kind: zoneForm.kind,
         primary: zoneForm.kind === 'secondary' ? zoneForm.primary : undefined,
       });
-      message.success('区域已创建');
+      message.success($t('dns.records.msg.zoneCreated'));
     }
     zoneModalApi.close();
     await loadZones();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '保存失败');
+    message.error(error instanceof Error ? error.message : $t('dns.common.saveFailed'));
   }
 }
 
@@ -255,24 +256,24 @@ async function toggleZone(z: DnsZone, enabled: boolean) {
     await updateDnsZone(z.id, { enabled });
     await loadZones();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '操作失败');
+    message.error(error instanceof Error ? error.message : $t('dns.common.actionFailed'));
   }
 }
 
 function removeZone(z: DnsZone) {
   Modal.confirm({
-    title: `删除区域 ${z.name}`,
-    content: '其下全部解析记录将一并删除，且从 resolver 配置移除。',
-    okText: '删除',
+    title: $t('dns.records.msg.zoneDeleteTitle', { name: z.name }),
+    content: $t('dns.records.msg.zoneDeleteContent'),
+    okText: $t('dns.common.delete'),
     okType: 'danger',
     onOk: async () => {
       try {
         await deleteDnsZone(z.id);
         if (zoneId.value === z.id) zoneId.value = undefined;
-        message.success('区域已删除');
+        message.success($t('dns.records.msg.zoneDeleted'));
         await loadZones();
       } catch (error) {
-        message.error(error instanceof Error ? error.message : '删除失败');
+        message.error(error instanceof Error ? error.message : $t('dns.common.deleteFailed'));
       }
     },
   });
@@ -318,7 +319,7 @@ const importing = ref(false);
 
 function openHostsImport() {
   if (!zoneId.value) {
-    message.warning('请先选择区域');
+    message.warning($t('dns.records.msg.warnZone'));
     return;
   }
   hostsContent.value = '';
@@ -327,18 +328,18 @@ function openHostsImport() {
 
 async function submitHostsImport() {
   if (!zoneId.value || !hostsContent.value.trim()) {
-    message.warning('请粘贴 hosts 内容');
+    message.warning($t('dns.records.hosts.needContent'));
     return;
   }
   importing.value = true;
   try {
     const r = await importDnsHosts(zoneId.value, hostsContent.value);
-    message.success(`导入完成：新增 ${r.created}，跳过 ${r.skipped}`);
-    if (r.errors?.length) message.warning(r.errors.slice(0, 3).join('；'));
+    message.success($t('dns.records.hosts.importOk', { created: r.created, skipped: r.skipped }));
+    if (r.errors?.length) message.warning(r.errors.slice(0, 3).join($t('dns.common.listSep')));
     hostsOpen.value = false;
     await loadRecords();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '导入失败');
+    message.error(error instanceof Error ? error.message : $t('dns.records.hosts.importFailed'));
   } finally {
     importing.value = false;
   }
@@ -346,7 +347,10 @@ async function submitHostsImport() {
 
 const recTypeFilter = ref<'all' | RecType>('all');
 const recStatus = ref<'all' | 'disabled' | 'enabled'>('all');
-const typeOptions = [{ label: '全部类型', value: 'all' }, ...REC_TYPES.map((t) => ({ label: t, value: t }))];
+const typeOptions = computed(() => [
+  { label: $t('dns.common.allTypes'), value: 'all' },
+  ...REC_TYPES.map((t) => ({ label: t, value: t })),
+]);
 const recFiltered = computed(() => {
   const kw = recKeyword.value.trim().toLowerCase();
   return records.value.filter((r) => {
@@ -370,6 +374,21 @@ function resetRecFilters() {
   recTypeFilter.value = 'all';
   recStatus.value = 'all';
 }
+
+const recColumns = computed(() => [
+  { title: $t('dns.records.recordCard.colName'), dataIndex: 'name', minWidth: 260 },
+  { title: $t('dns.records.recordCard.colType'), dataIndex: 'recType', width: 80 },
+  { title: $t('dns.records.recordCard.colTtl'), dataIndex: 'ttl', width: 90 },
+  { title: $t('dns.records.recordCard.colValue'), dataIndex: 'rdata', minWidth: 200 },
+  { title: $t('dns.records.recordCard.colEnabled'), dataIndex: 'enabled', width: 80 },
+  { title: $t('dns.common.actions'), key: 'op', width: 140 },
+]);
+const linkedColumns = computed(() => [
+  { title: $t('dns.records.linked.colName'), dataIndex: 'name', minWidth: 200 },
+  { title: $t('dns.records.recordCard.colType'), dataIndex: 'recType', width: 90 },
+  { title: $t('dns.records.linked.colValue'), dataIndex: 'rdata', minWidth: 200 },
+  { title: $t('dns.records.linked.colMac'), dataIndex: 'mac', minWidth: 160 },
+]);
 </script>
 
 <template>
@@ -377,61 +396,61 @@ function resetRecFilters() {
     <PageHeader
       eyebrow="DNS Service"
       icon="lucide:book-open"
-      title="解析记录"
-      description="按区域维护 A / AAAA / CNAME / PTR / TXT / SRV / MX 记录，并查看 DHCP 双栈联动自动生成的记录。"
+      :title="$t('dns.records.header.title')"
+      :description="$t('dns.records.header.desc')"
     >
       <template #actions>
         <span class="ipam-page-header__meta">
           <IconifyIcon icon="lucide:layers" class="size-3.5" />
-          {{ stats.zoneTotal }} 个区域 · {{ stats.records }} 条记录
+          {{ $t('dns.records.header.meta', { zones: stats.zoneTotal, records: stats.records }) }}
         </span>
         <Button size="small" :loading="loading" @click="loadZones()">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />刷新
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{ $t('dns.common.refresh') }}
         </Button>
         <Button size="small" @click="openCreateZone">
-          <IconifyIcon icon="lucide:folder-plus" class="mr-1" />新建区域
+          <IconifyIcon icon="lucide:folder-plus" class="mr-1" />{{ $t('dns.records.actions.newZone') }}
         </Button>
         <Button size="small" @click="openHostsImport">
-          <IconifyIcon icon="lucide:upload" class="mr-1" />导入 hosts
+          <IconifyIcon icon="lucide:upload" class="mr-1" />{{ $t('dns.records.actions.importHosts') }}
         </Button>
         <Button type="primary" size="small" @click="openAddRecord">
-          <IconifyIcon icon="lucide:plus" class="mr-1" />新增记录
+          <IconifyIcon icon="lucide:plus" class="mr-1" />{{ $t('dns.records.actions.addRecord') }}
         </Button>
       </template>
     </PageHeader>
 
     <div class="ipam-stat-grid">
       <StatCard
-        label="DNS 区域"
+        :label="$t('dns.records.stat.zones')"
         :value="stats.zoneTotal"
-        unit="个"
+        :unit="$t('dns.common.unit.count')"
         icon="lucide:layers"
         tone="blue"
-        :hint="`${stats.zoneEnabled} 个启用 · ${stats.zoneTotal - stats.zoneEnabled} 个停用`"
+        :hint="$t('dns.records.stat.zoneHint', { enabled: stats.zoneEnabled, disabled: stats.zoneTotal - stats.zoneEnabled })"
       />
       <StatCard
-        label="当前区域记录"
+        :label="$t('dns.records.stat.records')"
         :value="stats.records"
-        unit="条"
+        :unit="$t('dns.common.unit.item')"
         icon="lucide:book-open"
         tone="cyan"
-        :hint="activeZone ? `${activeZone.name} · 启用 ${stats.enabledRecords} 条` : '请选择区域'"
+        :hint="activeZone ? $t('dns.records.stat.recordsHint', { zone: activeZone.name, enabled: stats.enabledRecords }) : $t('dns.records.stat.selectZone')"
       />
       <StatCard
-        label="联动记录"
+        :label="$t('dns.records.stat.linked')"
         :value="stats.linked"
-        unit="条"
+        :unit="$t('dns.common.unit.item')"
         icon="lucide:git-compare-arrows"
         tone="violet"
-        :hint="stats.linked > 0 ? '由 DHCP 双栈联动自动派生' : '暂无联动记录'"
+        :hint="stats.linked > 0 ? $t('dns.records.stat.linkedHintOn') : $t('dns.records.stat.linkedHintOff')"
       />
       <StatCard
-        label="停用记录"
+        :label="$t('dns.records.stat.disabled')"
         :value="stats.disabled"
-        unit="条"
+        :unit="$t('dns.common.unit.item')"
         icon="lucide:eye-off"
         :tone="stats.disabled > 0 ? 'amber' : 'green'"
-        :hint="stats.records > 0 ? `启用率 ${Math.round((stats.enabledRecords / stats.records) * 100)}%` : '当前区域暂无记录'"
+        :hint="stats.records > 0 ? $t('dns.records.stat.disabledHint', { pct: Math.round((stats.enabledRecords / stats.records) * 100) }) : $t('dns.records.stat.disabledHintOff')"
       />
     </div>
 
@@ -441,27 +460,27 @@ function resetRecFilters() {
         <template #title>
           <span class="ipam-card-title">
             <IconifyIcon icon="lucide:layers" />
-            DNS 区域
+            {{ $t('dns.records.zoneCard.title') }}
             <em class="ipam-card-sub">{{ filteredZones.length }} / {{ zones.length }}</em>
           </span>
         </template>
 
         <div class="mb-2 flex flex-col gap-2">
-          <Input v-model:value="zoneKeyword" allow-clear placeholder="搜索区域" size="small" />
+          <Input v-model:value="zoneKeyword" allow-clear :placeholder="$t('dns.records.zoneCard.searchPlaceholder')" size="small" />
           <Select
             v-model:value="zoneStatus"
             size="small"
             :options="[
-              { label: '全部状态', value: 'all' },
-              { label: '启用中', value: 'enabled' },
-              { label: '已停用', value: 'disabled' },
+              { label: $t('dns.common.allStatus'), value: 'all' },
+              { label: $t('dns.records.zoneCard.statusEnabled'), value: 'enabled' },
+              { label: $t('dns.common.disabled'), value: 'disabled' },
             ]"
           />
         </div>
 
         <div v-if="filteredZones.length === 0" class="ipam-empty ipam-empty--compact">
-          <div class="ipam-empty__title">{{ zones.length === 0 ? '暂无 DNS 区域' : '没有匹配的区域' }}</div>
-          <div class="ipam-empty__desc">{{ zones.length === 0 ? '点击右上角「新建区域」创建第一个权威或本地区域' : '调整搜索关键字或状态筛选' }}</div>
+          <div class="ipam-empty__title">{{ zones.length === 0 ? $t('dns.records.zoneCard.emptyTitleNoZone') : $t('dns.records.zoneCard.emptyTitleNoMatch') }}</div>
+          <div class="ipam-empty__desc">{{ zones.length === 0 ? $t('dns.records.zoneCard.emptyDescNoZone') : $t('dns.records.zoneCard.emptyDescNoMatch') }}</div>
         </div>
 
         <div
@@ -476,11 +495,11 @@ function resetRecFilters() {
             <Tag :color="z.kind === 'auth' ? 'blue' : 'purple'" class="m-0">{{ z.kind }}</Tag>
           </div>
           <div class="mt-1 flex items-center justify-between">
-            <span class="ipam-hint">{{ z.enabled ? '启用中' : '已停用' }}</span>
+            <span class="ipam-hint">{{ z.enabled ? $t('dns.records.zoneCard.statusEnabled') : $t('dns.common.disabled') }}</span>
             <div class="flex items-center gap-1" @click.stop>
               <Switch :checked="z.enabled" size="small" @change="(v: any) => toggleZone(z as DnsZone, !!v)" />
-              <Button size="small" type="text" @click="openEditZone(z)">编辑</Button>
-              <Button size="small" type="text" danger @click="removeZone(z)">删除</Button>
+              <Button size="small" type="text" @click="openEditZone(z)">{{ $t('dns.common.edit') }}</Button>
+              <Button size="small" type="text" danger @click="removeZone(z)">{{ $t('dns.common.delete') }}</Button>
             </div>
           </div>
         </div>
@@ -491,8 +510,8 @@ function resetRecFilters() {
         <template #title>
           <span class="ipam-card-title">
             <IconifyIcon icon="lucide:list-tree" />
-            解析记录
-            <em class="ipam-card-sub">{{ activeZone ? activeZone.name : '未选择区域' }}</em>
+            {{ $t('dns.records.recordCard.title') }}
+            <em class="ipam-card-sub">{{ activeZone ? activeZone.name : $t('dns.records.recordCard.noZone') }}</em>
           </span>
         </template>
 
@@ -503,8 +522,8 @@ function resetRecFilters() {
               option-type="button"
               size="small"
               :options="[
-                { label: `静态记录（${records.length}）`, value: 'rec' },
-                { label: `联动记录（${linked.length}）`, value: 'linked' },
+                { label: $t('dns.records.recordCard.tabRec', { n: records.length }), value: 'rec' },
+                { label: $t('dns.records.recordCard.tabLinked', { n: linked.length }), value: 'linked' },
               ]"
             />
             <div class="flex flex-wrap items-center gap-2">
@@ -521,40 +540,33 @@ function resetRecFilters() {
           <template v-if="recTab === 'rec'">
             <div class="ipam-toolbar mb-3">
               <div class="ipam-field">
-                <span class="ipam-field__label">关键字</span>
-                <Input v-model:value="recKeyword" allow-clear placeholder="记录名 / 完整域名 / 记录值" style="width: 240px" />
+                <span class="ipam-field__label">{{ $t('dns.common.keyword') }}</span>
+                <Input v-model:value="recKeyword" allow-clear :placeholder="$t('dns.records.recordCard.kwPlaceholder')" style="width: 240px" />
               </div>
               <div class="ipam-field">
-                <span class="ipam-field__label">类型</span>
+                <span class="ipam-field__label">{{ $t('dns.common.type') }}</span>
                 <Select v-model:value="recTypeFilter" :options="typeOptions" style="width: 120px" />
               </div>
               <div class="ipam-field">
-                <span class="ipam-field__label">状态</span>
+                <span class="ipam-field__label">{{ $t('dns.common.status') }}</span>
                 <Select
                   v-model:value="recStatus"
                   :options="[
-                    { label: '全部状态', value: 'all' },
-                    { label: '已启用', value: 'enabled' },
-                    { label: '已停用', value: 'disabled' },
+                    { label: $t('dns.common.allStatus'), value: 'all' },
+                    { label: $t('dns.records.recordCard.statusEnabled'), value: 'enabled' },
+                    { label: $t('dns.records.recordCard.statusDisabled'), value: 'disabled' },
                   ]"
                   style="width: 120px"
                 />
               </div>
-              <Button size="small" @click="resetRecFilters">重置</Button>
+              <Button size="small" @click="resetRecFilters">{{ $t('dns.common.reset') }}</Button>
             </div>
 
             <Table
               :data-source="recFiltered"
               :loading="loading"
-              :columns="[
-                { title: '记录（相对名 / 完整域名）', dataIndex: 'name', minWidth: 260 },
-                { title: '类型', dataIndex: 'recType', width: 80 },
-                { title: 'TTL', dataIndex: 'ttl', width: 90 },
-                { title: '记录值', dataIndex: 'rdata', minWidth: 200 },
-                { title: '启用', dataIndex: 'enabled', width: 80 },
-                { title: '操作', key: 'op', width: 140 },
-              ]"
-              :locale="{ emptyText: records.length === 0 ? '该区域暂无解析记录，点击「新增记录」创建' : '没有匹配的解析记录' }"
+              :columns="recColumns"
+              :locale="{ emptyText: records.length === 0 ? $t('dns.records.recordCard.emptyNoRecords') : $t('dns.records.recordCard.emptyFiltered') }"
               :pagination="{ pageSize: 20, showSizeChanger: true, showTotal }"
               row-key="id"
               size="small"
@@ -582,9 +594,9 @@ function resetRecFilters() {
                 </template>
                 <template v-else-if="column.key === 'op'">
                   <div class="flex items-center gap-1">
-                    <Button size="small" @click="openEditRecord(record as DnsRecord)">编辑</Button>
-                    <Popconfirm title="确认删除该解析记录？" description="删除后不可恢复。" ok-text="删除" cancel-text="取消" @confirm="removeRecord(record as DnsRecord)">
-                      <Button size="small" danger>删除</Button>
+                    <Button size="small" @click="openEditRecord(record as DnsRecord)">{{ $t('dns.common.edit') }}</Button>
+                    <Popconfirm :title="$t('dns.records.recordCard.deleteTitle')" :description="$t('dns.records.recordCard.deleteDesc')" :ok-text="$t('dns.common.delete')" :cancel-text="$t('dns.common.cancel')" @confirm="removeRecord(record as DnsRecord)">
+                      <Button size="small" danger>{{ $t('dns.common.delete') }}</Button>
                     </Popconfirm>
                   </div>
                 </template>
@@ -595,31 +607,23 @@ function resetRecFilters() {
           <template v-else>
             <div class="ipam-toolbar mb-3">
               <div class="ipam-field">
-                <span class="ipam-field__label">关键字</span>
-                <Input v-model:value="linkedKeyword" allow-clear placeholder="记录名 / 值 / 来源 MAC" style="width: 240px" />
+                <span class="ipam-field__label">{{ $t('dns.common.keyword') }}</span>
+                <Input v-model:value="linkedKeyword" allow-clear :placeholder="$t('dns.records.linked.kwPlaceholder')" style="width: 240px" />
               </div>
               <div class="ipam-toolbar__spacer"></div>
-              <span class="ipam-hint">只读 · 由 DHCP 双栈联动维护</span>
+              <span class="ipam-hint">{{ $t('dns.records.linked.hint') }}</span>
             </div>
 
             <div class="ipam-note mb-3">
               <IconifyIcon icon="lucide:info" class="mt-0.5 size-3.5 shrink-0" />
-              <span>
-                联动记录由 DHCP 双栈联动自动生成：终端通过 DHCP 获取地址时，控制面按「主机名 → IP」自动派生
-                A / AAAA 记录并随租约实时同步。此处只读，修改请到 DHCP 侧变更主机名或绑定。
-              </span>
+              <span>{{ $t('dns.records.linked.note') }}</span>
             </div>
 
             <Table
               :data-source="linkedFiltered"
               :loading="loading"
-              :columns="[
-                { title: '名称', dataIndex: 'name', minWidth: 200 },
-                { title: '类型', dataIndex: 'recType', width: 90 },
-                { title: '值', dataIndex: 'rdata', minWidth: 200 },
-                { title: '来源 MAC', dataIndex: 'mac', minWidth: 160 },
-              ]"
-              :locale="{ emptyText: linked.length === 0 ? '该区域暂无联动记录' : '没有匹配的联动记录' }"
+              :columns="linkedColumns"
+              :locale="{ emptyText: linked.length === 0 ? $t('dns.records.linked.emptyNoRecords') : $t('dns.records.linked.emptyFiltered') }"
               :pagination="{ pageSize: 20, showSizeChanger: true, showTotal }"
               row-key="name"
               size="small"
@@ -642,8 +646,8 @@ function resetRecFilters() {
           </template>
         </div>
         <div v-else class="ipam-empty">
-          <div class="ipam-empty__title">尚未选择区域</div>
-          <div class="ipam-empty__desc">在左侧选择一个区域查看解析记录，或点击「新建区域」创建</div>
+          <div class="ipam-empty__title">{{ $t('dns.records.emptyNoZone.title') }}</div>
+          <div class="ipam-empty__desc">{{ $t('dns.records.emptyNoZone.desc') }}</div>
         </div>
       </Card>
     </div>
@@ -652,30 +656,30 @@ function resetRecFilters() {
     <AddRecordModal class="w-[680px]">
       <div class="ipam-form-grid">
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">记录名称<em>*</em></span>
-          <Input v-model:value="recForm.name" placeholder="如 www、api.corp.local 或 *.example.com" />
-          <span class="ipam-hint">通配仅允许最左标签（*.example.com）；* 单独使用表示区顶点泛解析</span>
+          <span class="ipam-form-field__label">{{ $t('dns.records.addModal.nameLabel') }}<em>*</em></span>
+          <Input v-model:value="recForm.name" :placeholder="$t('dns.records.addModal.namePlaceholder')" />
+          <span class="ipam-hint">{{ $t('dns.records.addModal.nameHint') }}</span>
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">类型<em>*</em></span>
+          <span class="ipam-form-field__label">{{ $t('dns.records.addModal.typeLabel') }}<em>*</em></span>
           <Select v-model:value="recForm.recType" :options="REC_TYPES.map((v) => ({ value: v, label: v }))" />
         </label>
         <label class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">记录值<em>*</em></span>
-          <Input v-model:value="recForm.rdata" placeholder="A/AAAA 填 IP；CNAME/PTR 填域名（尾点）" />
+          <span class="ipam-form-field__label">{{ $t('dns.records.addModal.valueLabel') }}<em>*</em></span>
+          <Input v-model:value="recForm.rdata" :placeholder="$t('dns.records.addModal.valuePlaceholder')" />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">TTL（秒）</span>
+          <span class="ipam-form-field__label">{{ $t('dns.records.addModal.ttlLabel') }}</span>
           <InputNumber v-model:value="recForm.ttl" :min="1" :max="86400" style="width: 100%" />
         </label>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">解析后完整域名</span>
+          <span class="ipam-form-field__label">{{ $t('dns.records.addModal.fqdnLabel') }}</span>
           <div class="flex h-8 items-center">
-            <span class="ipam-chip ipam-mono" data-tone="blue">{{ fqdnOf(recForm.name || '记录名') }}</span>
+            <span class="ipam-chip ipam-mono" data-tone="blue">{{ fqdnOf(recForm.name || $t('dns.records.addModal.nameFallback')) }}</span>
           </div>
         </div>
         <div class="ipam-form-hint ipam-form-field--wide">
-          记录创建后立即可解析；若与联动记录冲突，静态记录优先。
+          {{ $t('dns.records.addModal.hint') }}
         </div>
       </div>
     </AddRecordModal>
@@ -684,27 +688,27 @@ function resetRecFilters() {
     <RecordModal class="w-[680px]">
       <div class="ipam-form-grid">
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">名称<em>*</em></span>
-          <Input v-model:value="recordEdit.name" placeholder="如 www、api.corp.local 或 *.example.com" />
-          <span class="ipam-hint">通配仅允许最左标签（*.example.com）</span>
+          <span class="ipam-form-field__label">{{ $t('dns.records.editModal.nameLabel') }}<em>*</em></span>
+          <Input v-model:value="recordEdit.name" :placeholder="$t('dns.records.addModal.namePlaceholder')" />
+          <span class="ipam-hint">{{ $t('dns.records.editModal.nameHint') }}</span>
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">类型</span>
+          <span class="ipam-form-field__label">{{ $t('dns.common.type') }}</span>
           <Select v-model:value="recordEdit.recType" :options="REC_TYPES.map((v) => ({ value: v, label: v }))" />
         </label>
         <label class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">记录值<em>*</em></span>
-          <Input v-model:value="recordEdit.rdata" placeholder="A=IP / CNAME=域名（尾点）" />
+          <span class="ipam-form-field__label">{{ $t('dns.records.addModal.valueLabel') }}<em>*</em></span>
+          <Input v-model:value="recordEdit.rdata" :placeholder="$t('dns.records.editModal.valuePlaceholder')" />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">TTL（秒）</span>
+          <span class="ipam-form-field__label">{{ $t('dns.records.addModal.ttlLabel') }}</span>
           <InputNumber v-model:value="recordEdit.ttl" :min="1" :max="86400" style="width: 100%" />
         </label>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">启用</span>
+          <span class="ipam-form-field__label">{{ $t('dns.records.editModal.enabledLabel') }}</span>
           <div class="flex h-8 items-center gap-2">
             <Switch v-model:checked="recordEdit.enabled" size="small" />
-            <span class="ipam-hint">{{ recordEdit.enabled ? '参与解析应答' : '保留配置但不参与应答' }}</span>
+            <span class="ipam-hint">{{ recordEdit.enabled ? $t('dns.records.editModal.enabledHintOn') : $t('dns.records.editModal.enabledHintOff') }}</span>
           </div>
         </div>
       </div>
@@ -714,17 +718,17 @@ function resetRecFilters() {
     <ZoneModal class="w-[600px]">
       <div class="ipam-form-grid">
         <label class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">域名<em>*</em></span>
-          <Input v-model:value="zoneForm.name" placeholder="如 office.local 或 crphbz.com" />
+          <span class="ipam-form-field__label">{{ $t('dns.records.zoneModal.domainLabel') }}<em>*</em></span>
+          <Input v-model:value="zoneForm.name" :placeholder="$t('dns.records.zoneModal.domainPlaceholder')" />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">区域类型</span>
+          <span class="ipam-form-field__label">{{ $t('dns.records.zoneModal.kindLabel') }}</span>
           <Select
             v-model:value="zoneForm.kind"
             :options="[
-              { value: 'auth', label: 'auth（权威）' },
-              { value: 'local', label: 'local（本地）' },
-              { value: 'secondary', label: 'secondary（AXFR 从区）' },
+              { value: 'auth', label: $t('dns.records.zoneModal.kindAuth') },
+              { value: 'local', label: $t('dns.records.zoneModal.kindLocal') },
+              { value: 'secondary', label: $t('dns.records.zoneModal.kindSecondary') },
             ]"
           />
         </label>
@@ -732,39 +736,38 @@ function resetRecFilters() {
           v-if="zoneForm.kind === 'secondary'"
           class="ipam-form-field ipam-form-field--wide"
         >
-          <span class="ipam-form-field__label">主服务器<em>*</em></span>
+          <span class="ipam-form-field__label">{{ $t('dns.records.zoneModal.primaryLabel') }}<em>*</em></span>
           <Input
             v-model:value="zoneForm.primary"
-            placeholder="如 10.61.40.53 或 10.61.40.53:5353（多个用逗号分隔）"
+            :placeholder="$t('dns.records.zoneModal.primaryPlaceholder')"
           />
         </label>
         <div class="ipam-form-hint ipam-form-field--wide">
-          权威区域对外应答；本地区域仅对内网客户端生效；secondary 区从主服务器 AXFR
-          同步（本地区域记录只读，由主服务器维护）。域名保存时自动补尾点。
+          {{ $t('dns.records.zoneModal.hint') }}
         </div>
       </div>
     </ZoneModal>
 
     <Modal
       v-model:open="hostsOpen"
-      title="导入 hosts"
-      ok-text="开始导入"
-      cancel-text="取消"
+      :title="$t('dns.records.hosts.title')"
+      :ok-text="$t('dns.records.hosts.ok')"
+      :cancel-text="$t('dns.common.cancel')"
       :confirm-loading="importing"
       @ok="submitHostsImport"
     >
       <div class="ipam-form-grid">
         <div class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">hosts 内容（IP name [alias...]）</span>
+          <span class="ipam-form-field__label">{{ $t('dns.records.hosts.contentLabel') }}</span>
           <Input.TextArea
             v-model:value="hostsContent"
             :rows="10"
             class="ipam-mono"
-            placeholder="# 注释&#10;10.0.0.10 app.corp.local app&#10;fd00::10 v6.corp.local"
+            :placeholder="$t('dns.records.hosts.contentPlaceholder')"
           />
         </div>
         <div class="ipam-form-hint ipam-form-field--wide">
-          每个名称创建 A/AAAA 记录（TTL 300）；重复记录自动跳过；导入后自动重渲染 zonefile。
+          {{ $t('dns.records.hosts.hint') }}
         </div>
       </div>
     </Modal>

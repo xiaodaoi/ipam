@@ -1,0 +1,678 @@
+{
+  "common": {
+    "total": "Total {n}",
+    "refresh": "Refresh",
+    "reset": "Reset",
+    "edit": "Edit",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "save": "Save",
+    "on": "On",
+    "off": "Off",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "allStatus": "All statuses",
+    "allTypes": "All types",
+    "actions": "Actions",
+    "keyword": "Keyword",
+    "type": "Type",
+    "status": "Status",
+    "count": "{n}",
+    "listSep": "; ",
+    "deleteFailed": "Delete failed",
+    "createFailed": "Create failed",
+    "updateFailed": "Update failed",
+    "saveFailed": "Save failed",
+    "addFailed": "Add failed",
+    "actionFailed": "Operation failed",
+    "deletedToast": "Deleted",
+    "removedSuffix": " (removed)",
+    "unit": {
+      "count": "",
+      "item": "",
+      "times": ""
+    }
+  },
+  "blocklist": {
+    "header": {
+      "title": "Blocklist control",
+      "desc": "Maintain blocklists and policy groups, published to the resolver via RPZ to block domains and answer IPs.",
+      "meta": "{lists} lists · {groups} groups"
+    },
+    "newList": "New blocklist",
+    "createConfirm": "Create blocklist",
+    "stat": {
+      "lists": "Blocklists",
+      "feeds": "Feed lists",
+      "groups": "Policy groups",
+      "builtin": "Built-in lists",
+      "listsHint": "Custom {custom} · Feeds {feeds}",
+      "feedsHintOn": "Sync is checked every 30 seconds",
+      "feedsHintOff": "No feed configured",
+      "groupsHintOn": "Applies RPZ per view",
+      "groupsHintOff": "No group created",
+      "builtinHintOn": "Built-in lists cannot be deleted",
+      "builtinHintOff": "No built-in list"
+    },
+    "listCard": {
+      "title": "Blocklist library",
+      "sub": "{filtered} / {total}",
+      "hint": "Feeds sync every 30 seconds · the previous version is kept on failure"
+    },
+    "list": {
+      "kwPlaceholder": "List name / feed URL",
+      "builtinLib": "Built-in packs",
+      "colName": "List (name / feed URL)",
+      "colSync": "Sync info",
+      "emptyFiltered": "No matching blocklist",
+      "empty": "No blocklist yet. Click New blocklist in the top right to create one",
+      "metaBuiltin": "Built into the product, read-only",
+      "metaLocal": "Maintained locally, no feed URL",
+      "version": "Version v{v}",
+      "btnEntries": "Entries",
+      "btnExport": "Export",
+      "btnVersions": "Versions",
+      "btnSync": "Sync now",
+      "deleteTitle": "Delete this blocklist?",
+      "deleteDesc": "The list and all its entries will be deleted permanently."
+    },
+    "note": "Built-in lists cannot be deleted; feed syncs save a version snapshot first, so any version can be rolled back with one click;  the block page text and IP are configured under Security & diagnostics.",
+    "pg": {
+      "title": "Policy groups",
+      "sub": "{filtered} / {total}",
+      "hint": "View-level RPZ application · allowlist first",
+      "kwPlaceholder": "Group name / view / CIDR",
+      "createBtn": "Create group",
+      "colName": "Group (name / view)",
+      "colCidrs": "Source CIDRs",
+      "colLists": "Lists",
+      "emptyFiltered": "No matching policy group",
+      "empty": "No policy group yet. Click Create group to apply RPZ per view",
+      "allSources": "All sources",
+      "compile": "Compile",
+      "compileResult": "Compile result",
+      "collapse": "Collapse"
+    },
+    "week": {
+      "sun": "Sunday",
+      "mon": "Monday",
+      "tue": "Tuesday",
+      "wed": "Wednesday",
+      "thu": "Thursday",
+      "fri": "Friday",
+      "sat": "Saturday"
+    },
+    "kind": {
+      "builtin": "Built-in",
+      "custom": "Custom",
+      "feed": "Feed"
+    },
+    "action": {
+      "drop": "Drop",
+      "nxdomain": "NXDOMAIN",
+      "redirect": "Redirect",
+      "tcpOnly": "TCP only"
+    },
+    "kindOptions": {
+      "builtin": "Built-in list",
+      "custom": "Custom",
+      "feed": "Feed"
+    },
+    "createModal": {
+      "nameLabel": "List name",
+      "namePlaceholder": "e.g. Malicious domains",
+      "optCustom": "Custom (maintained locally)",
+      "optFeed": "Feed (fetched over HTTP)",
+      "urlLabel": "Feed URL",
+      "hint": "Feeds are checked every 30 seconds; the previous version is kept if sync fails. Add entries to the list after creating it."
+    },
+    "pgModal": {
+      "title": "New policy group",
+      "createConfirm": "Create group",
+      "nameLabel": "Group name",
+      "namePlaceholder": "e.g. Guest network",
+      "viewLabel": "View name",
+      "cidrLabel": "Source CIDRs",
+      "cidrPlaceholder": "Comma separated, e.g. 10.0.0.0/8,192.168.0.0/16",
+      "listsLabel": "Linked lists",
+      "listsPlaceholder": "Select the blocklists to apply",
+      "weekLabel": "Active days (empty = every day)",
+      "weekPlaceholder": "e.g. weekdays only",
+      "startLabel": "Start time",
+      "startPlaceholder": "09:00",
+      "endLabel": "End time",
+      "endPlaceholder": "18:00",
+      "hint": "View names are unique per resolver; the allowlist takes precedence over the blocklist. An empty time window means all day; start > end means crossing midnight (e.g. 22:00→06:00) and blocking is lifted outside the window."
+    },
+    "entries": {
+      "title": "List entries",
+      "titleNamed": "List entries · {name}",
+      "colPattern": "Pattern",
+      "colTrigger": "Trigger",
+      "colAction": "Action",
+      "colCategory": "Category",
+      "patternLabel": "Pattern",
+      "patternPlaceholder": "e.g. *.gamble.com or 203.0.113.0/24",
+      "triggerLabel": "Trigger",
+      "triggerQname": "qname (domain)",
+      "triggerIp": "response_ip (answer IP)",
+      "actionLabel": "Action",
+      "addBtn": "Add entry",
+      "importCsv": "Import CSV",
+      "exportCsv": "Export CSV",
+      "currentList": "Current list",
+      "totalEntries": "Total entries",
+      "qnameEntries": "Domain matches",
+      "ipEntries": "Answer IPs",
+      "empty": "This list has no entries yet. Use the form above to add the first rule.",
+      "deleteTitle": "Delete this entry?",
+      "deleteDesc": "This cannot be undone."
+    },
+    "csv": {
+      "title": "Import blocklist entries from CSV",
+      "ok": "Start import",
+      "contentLabel": "CSV content (pattern[,action[,category]])",
+      "hint": "Clear the existing entries of this list before importing (a version snapshot is saved first, so it can be rolled back)"
+    },
+    "versions": {
+      "title": "Snapshots and rollback",
+      "colVersion": "Version",
+      "colEntries": "Entries",
+      "colTime": "Time",
+      "empty": "No snapshot yet: one is saved automatically before feed syncs and CSV imports",
+      "rollbackTitle": "Roll back to this version?",
+      "rollbackDesc": "Current entries will be replaced by the snapshot content; the version number keeps increasing.",
+      "rollbackBtn": "Roll back"
+    },
+    "builtin": {
+      "colPack": "Pack",
+      "colEntries": "Entries",
+      "installBtn": "Install",
+      "note": "Built-in packs are baseline seeds (not exhaustive). Once installed they become builtin lists that you can extend, trim or combine with feeds."
+    },
+    "msg": {
+      "syncSubmitted": "Sync task submitted",
+      "syncFailed": "Sync failed",
+      "listDeleted": "Blocklist deleted",
+      "nameRequired": "List name is required",
+      "feedUrlRequired": "A feed URL is required for feed lists",
+      "listCreated": "Blocklist created",
+      "pgNameRequired": "Group name is required",
+      "pgCreated": "Policy group created",
+      "compileOk": "RPZ compiled",
+      "compileFailed": "Compile failed",
+      "patternRequired": "Please enter a match pattern",
+      "entryAdded": "Entry added",
+      "entryDeleted": "Entry deleted",
+      "csvNeedContent": "Please paste CSV content",
+      "csvImportOk": "Import finished: {created} added, {skipped} skipped, {total} total",
+      "csvImportFailed": "Import failed",
+      "csvExportFailed": "Export failed",
+      "versionsLoadFailed": "Failed to load versions",
+      "rollbackOk": "Rolled back to v{version} (the version number keeps increasing)",
+      "rollbackFailed": "Rollback failed",
+      "builtinLoadFailed": "Failed to load built-in packs",
+      "installed": "Installed {name} ({version})",
+      "installFailed": "Install failed"
+    }
+  },
+  "records": {
+    "header": {
+      "title": "DNS records",
+      "desc": "Maintain A / AAAA / CNAME / PTR / TXT / SRV / MX records per zone and review records derived automatically by DHCP dual-stack linkage.",
+      "meta": "{zones} zones · {records} records"
+    },
+    "actions": {
+      "newZone": "New zone",
+      "importHosts": "Import hosts",
+      "addRecord": "Add record"
+    },
+    "stat": {
+      "zones": "DNS zones",
+      "zoneHint": "{enabled} enabled · {disabled} disabled",
+      "records": "Records in zone",
+      "recordsHint": "{zone} · {enabled} enabled",
+      "selectZone": "Select a zone",
+      "linked": "Linked records",
+      "linkedHintOn": "Derived automatically by DHCP dual-stack linkage",
+      "linkedHintOff": "No linked records",
+      "disabled": "Disabled records",
+      "disabledHint": "Enabled rate {pct}%",
+      "disabledHintOff": "No records in this zone"
+    },
+    "zoneCard": {
+      "title": "DNS zones",
+      "searchPlaceholder": "Search zones",
+      "statusEnabled": "Active",
+      "emptyTitleNoZone": "No DNS zone yet",
+      "emptyTitleNoMatch": "No matching zone",
+      "emptyDescNoZone": "Click New zone in the top right to create the first authoritative or local zone",
+      "emptyDescNoMatch": "Adjust the keyword or status filter"
+    },
+    "recordCard": {
+      "title": "DNS records",
+      "noZone": "No zone selected",
+      "tabRec": "Static records ({n})",
+      "tabLinked": "Linked records ({n})",
+      "kwPlaceholder": "Record name / FQDN / value",
+      "statusEnabled": "Enabled",
+      "statusDisabled": "Disabled",
+      "colName": "Record (relative name / FQDN)",
+      "colType": "Type",
+      "colTtl": "TTL",
+      "colValue": "Value",
+      "colEnabled": "Enabled",
+      "emptyNoRecords": "This zone has no records yet. Click Add record to create one",
+      "emptyFiltered": "No matching record",
+      "deleteTitle": "Delete this DNS record?",
+      "deleteDesc": "This cannot be undone."
+    },
+    "linked": {
+      "kwPlaceholder": "Record name / value / source MAC",
+      "hint": "Read-only · maintained by DHCP dual-stack linkage",
+      "note": "Linked records are generated automatically by DHCP dual-stack linkage: when a client obtains an address via DHCP, the control plane derives A / AAAA records from the hostname and IP and keeps them in sync with the lease. This view is read-only; change the hostname or binding on the DHCP side.",
+      "colName": "Name",
+      "colValue": "Value",
+      "colMac": "Source MAC",
+      "emptyNoRecords": "This zone has no linked records",
+      "emptyFiltered": "No matching linked record"
+    },
+    "emptyNoZone": {
+      "title": "No zone selected yet",
+      "desc": "Pick a zone on the left to view its records, or click New zone to create one"
+    },
+    "addModal": {
+      "nameLabel": "Record name",
+      "namePlaceholder": "e.g. www, api.corp.local or *.example.com",
+      "nameHint": "Wildcards are only allowed as the leftmost label (*.example.com); a lone * means a zone-apex wildcard",
+      "typeLabel": "Type",
+      "valueLabel": "Value",
+      "valuePlaceholder": "IP for A/AAAA; domain (with trailing dot) for CNAME/PTR",
+      "ttlLabel": "TTL (seconds)",
+      "fqdnLabel": "Resulting FQDN",
+      "nameFallback": "record name",
+      "hint": "Records resolve immediately after creation; static records win over linked records on conflict."
+    },
+    "editModal": {
+      "nameLabel": "Name",
+      "nameHint": "Wildcards are only allowed as the leftmost label (*.example.com)",
+      "valuePlaceholder": "A=IP / CNAME=domain (with trailing dot)",
+      "enabledLabel": "Enabled",
+      "enabledHintOn": "Included in answers",
+      "enabledHintOff": "Kept but not served"
+    },
+    "zoneModal": {
+      "domainLabel": "Domain",
+      "domainPlaceholder": "e.g. office.local or crphbz.com",
+      "kindLabel": "Zone type",
+      "kindAuth": "auth (authoritative)",
+      "kindLocal": "local (local zone)",
+      "kindSecondary": "secondary (AXFR secondary)",
+      "primaryLabel": "Primary server",
+      "primaryPlaceholder": "e.g. 10.61.40.53 or 10.61.40.53:5353 (comma separated for multiple)",
+      "hint": "Authoritative zones answer external queries; local zones only serve intranet clients; secondary zones sync from the primary via AXFR (local zone records are read-only and maintained by the primary). A trailing dot is appended on save."
+    },
+    "hosts": {
+      "title": "Import hosts",
+      "ok": "Start import",
+      "contentLabel": "hosts content (IP name [alias...])",
+      "contentPlaceholder": "# comment\n10.0.0.10 app.corp.local app\nfd00::10 v6.corp.local",
+      "hint": "Creates one A/AAAA record per name (TTL 300); duplicates are skipped automatically; the zonefile is re-rendered after import.",
+      "needContent": "Please paste hosts content",
+      "importOk": "Import finished: {created} added, {skipped} skipped",
+      "importFailed": "Import failed"
+    },
+    "msg": {
+      "warnNoZone": "Select or create a zone first",
+      "warnZone": "Select a zone first",
+      "warnNameValue": "Enter the record name and value",
+      "warnNameValueRequired": "Name and value are required",
+      "created": "Record created",
+      "updated": "Record updated",
+      "deleted": "Record deleted",
+      "zoneCreated": "Zone created",
+      "zoneUpdated": "Zone updated",
+      "zoneDeleted": "Zone deleted",
+      "addTitle": "Add DNS record",
+      "addConfirm": "Create record",
+      "addTitleNamed": "Add record · {name}",
+      "editTitleNamed": "Edit record · {name}",
+      "deleteTitle": "Delete record {name}",
+      "deleteContent": "The {name} {type} record under {zone} will be deleted.",
+      "zoneCreateTitle": "New DNS zone",
+      "zoneCreateConfirm": "Create zone",
+      "zoneEditTitle": "Edit zone · {name}",
+      "saveChanges": "Save changes",
+      "zoneDeleteTitle": "Delete zone {name}",
+      "zoneDeleteContent": "All records under it will be deleted and removed from the resolver configuration."
+    }
+  },
+  "upstream": {
+    "header": {
+      "title": "Upstream DNS servers",
+      "desc": "Maintain the upstream servers and protocols used for recursion; unhealthy nodes are removed automatically based on health probes.",
+      "meta": "{up}/{total} online · {enabled} enabled"
+    },
+    "actions": {
+      "add": "Add upstream"
+    },
+    "stat": {
+      "total": "Total upstreams",
+      "totalHint": "{enabled} enabled · {disabled} disabled",
+      "up": "Online upstreams",
+      "upHint": "Online rate {pct}%",
+      "upHintOff": "No upstream configured",
+      "abnormal": "Errors / unprobed",
+      "abnormalHint": "Removed {down} · Probing {unknown}",
+      "rtt": "Average RTT",
+      "rttHint": "Fastest {ms} ms",
+      "rttHintOff": "Waiting for the first probe result"
+    },
+    "card": {
+      "title": "Upstream list",
+      "sub": "{filtered} / {total}",
+      "hint": "Health status refreshes every 15 seconds"
+    },
+    "summary": {
+      "up": "Online",
+      "down": "Removed",
+      "unknown": "Probing",
+      "rtt": "Average RTT"
+    },
+    "toolbar": {
+      "kwPlaceholder": "Name / address",
+      "proto": "Protocol",
+      "health": "Health",
+      "hint": "Removed upstreams are excluded from recursion"
+    },
+    "col": {
+      "name": "Upstream (name / address)",
+      "proto": "Protocol / weight",
+      "health": "Health",
+      "lastCheck": "Last probe",
+      "enabled": "Enabled"
+    },
+    "emptyFiltered": "No matching upstream server",
+    "empty": "No upstream server yet. Click Add upstream in the top right to create one",
+    "weight": "Weight {n}",
+    "fails": "{n} consecutive failures",
+    "deleteTitle": "Delete this upstream?",
+    "deleteDesc": "This cannot be undone.",
+    "health": {
+      "up": "Online",
+      "down": "Removed",
+      "unknown": "Probing"
+    },
+    "protoOption": {
+      "all": "All protocols"
+    },
+    "msg": {
+      "warnNameAddr": "Name and address are required",
+      "warnAddr": "Enter at least one upstream address",
+      "updated": "Upstream updated and delivered to the resolver",
+      "added": "Upstream added",
+      "editTitle": "Edit upstream",
+      "saveChanges": "Save changes",
+      "modalTitle": "Upstream DNS servers",
+      "modalConfirmAdd": "Add",
+      "addTitle": "Add upstream DNS"
+    },
+    "form": {
+      "nameLabel": "Name",
+      "namePlaceholder": "e.g. AliDNS public resolver",
+      "protoLabel": "Protocol",
+      "protoUdp": "UDP (default 53)",
+      "protoTcp": "TCP",
+      "protoDot": "DoT (853)",
+      "tlsLabel": "TLS name (SNI)",
+      "tlsPlaceholder": "e.g. cloudflare-dns.com / dns.alidns.com",
+      "tlsHint": "Upstream hostname used for certificate validation; leave empty to connect by address (some upstreams reject this)",
+      "addrLabel": "Address",
+      "addrPlaceholder": "Multiple values allowed, comma separated, e.g. 223.5.5.5:53,223.6.6.6:53",
+      "weightLabel": "Weight",
+      "enabledLabel": "Enabled",
+      "enabledHintOn": "Included in recursion",
+      "enabledHintOff": "Kept but excluded from selection",
+      "hintWeight": "Higher weight means a higher chance of being selected; DoT renders as ",
+      "hintTail": ", default port 853. When DoT and plaintext upstreams are mixed, only the DoT target is used (to avoid plaintext fallback)."
+    }
+  },
+  "security": {
+    "header": {
+      "title": "Security & diagnostics",
+      "desc": "Configure response rate limiting, DNSSEC validation and transport policy, then verify real query results with the test console.",
+      "meta": "RRL {rrl} · DNSSEC {dnssec}"
+    },
+    "actions": {
+      "save": "Save and apply"
+    },
+    "stat": {
+      "rrl": "Response rate limiting (RRL)",
+      "rrlOn": "On",
+      "rrlOff": "Off",
+      "rrlHintOn": "Answers from over-limit sources are dropped",
+      "rrlHintOff": "Leaving it off exposes you to amplification attacks",
+      "rate": "Rate limit",
+      "rateUnit": "per second",
+      "rateHintOn": "Per-second quota calculated per source IP",
+      "rateHintOff": "Configurable once rate limiting is on",
+      "dnssec": "DNSSEC validation",
+      "dnssecOn": "Enabled",
+      "dnssecOff": "Disabled",
+      "dnssecHintOn": "Validates the signature chain and rejects tampered answers",
+      "dnssecHintOff": "Recommended for public resolution",
+      "last": "Last diagnostic",
+      "untested": "Not tested",
+      "lastHint": "Last query completed at {time}",
+      "lastHintOff": "Run a query in the console below"
+    },
+    "policy": {
+      "title": "Security policy",
+      "hint": "Takes effect after the resolver configuration reloads"
+    },
+    "form": {
+      "rrlLabel": "Enable response rate limiting (RRL)",
+      "rrlHintOn": "Drop answers from over-limit sources",
+      "rrlHintOff": "Rate limiting is currently off",
+      "rateLabel": "ip-ratelimit (per second)",
+      "rateHint": "Per-second answer quota calculated per source IP",
+      "dnssecLabel": "DNSSEC validation (B-10)",
+      "dnssecHintOn": "Validate signature chain integrity",
+      "dnssecHintOff": "Do not validate answer signatures",
+      "tcpLabel": "TCP-only responses (anti UDP amplification)",
+      "tcpHintOn": "UDP queries return truncated answers, forcing a TCP retry",
+      "tcpHintOff": "Both UDP and TCP are served",
+      "hint": "Source IPs over the limit have their answers dropped (matching the resolver's official ip-ratelimit semantics); TCP-only responses add latency for some legacy clients.",
+      "save": "Save and apply"
+    },
+    "blockPage": {
+      "label": "Block page",
+      "hint": "redirect blocklist entries resolve to the IP below and browsers show an explanation page;  leave it empty to treat redirect entries as NXDOMAIN.",
+      "preview": "Preview block page",
+      "ipLabel": "Block page IP",
+      "ipPlaceholder": "e.g. 10.61.40.9",
+      "titleLabel": "Title",
+      "titlePlaceholder": "Access blocked",
+      "msgLabel": "Body text",
+      "msgPlaceholder": "This domain is blocked by network usage policy. Please contact your network administrator."
+    },
+    "loading": {
+      "title": "Loading security settings",
+      "desc": "If this takes too long, check control plane connectivity and retry"
+    },
+    "test": {
+      "title": "Resolution test console",
+      "hint": "dig-style live query · simulate a source IP to hit a view",
+      "nameLabel": "Query name",
+      "namePlaceholder": "e.g. example.com; for PTR enter 192.168.0.10",
+      "typeLabel": "Type",
+      "clientLabel": "Simulated source IP",
+      "clientPlaceholder": "Optional, used to verify view matching",
+      "run": "Query",
+      "lastQuery": "Last query {time}",
+      "rcode": "Response code",
+      "rtt": "Round trip",
+      "server": "Answering server",
+      "view": "Matched view",
+      "viewDefault": "default",
+      "answers": "Answers",
+      "colName": "Record name",
+      "colType": "Type",
+      "colTtl": "TTL",
+      "colValue": "Value",
+      "emptyAnswersTitle": "No answer records",
+      "emptyAnswersDesc": "Response code {rcode}; the domain may not exist, may be blocked, or the upstream may have timed out",
+      "emptyTitle": "No query yet",
+      "emptyDesc": "Enter a domain and type, then click Query to see the response code, latency, view and answers"
+    },
+    "msg": {
+      "saved": "Security settings saved and applied",
+      "needName": "Enter the domain to query",
+      "queryFailed": "Query failed"
+    }
+  },
+  "cache": {
+    "header": {
+      "title": "Cache & performance",
+      "desc": "Tune the resolver cache TTL, stale-answer fallback and per-domain overrides, and review query volume.",
+      "meta": "TTL {min}–{max}s · {covers} overrides"
+    },
+    "actions": {
+      "save": "Save and apply"
+    },
+    "stat": {
+      "qps1h": "Queries in the last hour",
+      "qps1hHintOn": "Most recent hourly bucket",
+      "qps1hHintOff": "No query data",
+      "total": "Total queries (24h)",
+      "totalHint": "{n} per hour on average",
+      "peak": "Hourly peak",
+      "peakHintOn": "Highest hourly volume in the window",
+      "peakHintOff": "Waiting for data collection",
+      "covers": "TTL overrides",
+      "coversHintOn": "Per-domain overrides take precedence over the global TTL",
+      "coversHintOff": "No per-domain override yet"
+    },
+    "card": {
+      "params": "Cache settings",
+      "hint": "Takes effect after the resolver configuration reloads"
+    },
+    "form": {
+      "minLabel": "Minimum TTL (seconds)",
+      "minHint": "0 means unlimited; cache using the response TTL",
+      "maxLabel": "Maximum TTL (seconds)",
+      "maxHint": "Response TTLs above this value are truncated to it",
+      "serveExpiredLabel": "serve-expired (stale fallback)",
+      "serveExpiredOn": "Serve stale cache when the upstream times out",
+      "serveExpiredOff": "Resolve recursively once expired",
+      "policy": "Current policy"
+    },
+    "loading": {
+      "title": "Loading settings",
+      "desc": "If this takes too long, check control plane connectivity and retry"
+    },
+    "flush": {
+      "title": "Flush cache manually",
+      "zoneLabel": "Target zone",
+      "zonePlaceholder": "Leave empty to flush the whole cache",
+      "confirmTitle": "Flush the cache?",
+      "confirmDescZone": "Cache entries for {zone} will be flushed.",
+      "confirmDescAll": "The whole cache will be flushed, which may cause a short burst of upstream traffic.",
+      "ok": "Flush",
+      "btn": "Flush cache",
+      "hint": "The first query after flushing goes back to the upstream"
+    },
+    "ttl": {
+      "title": "Per-domain TTL overrides",
+      "sub": "{n} entries",
+      "hint": "Takes precedence over the global cache TTL",
+      "domainLabel": "Domain",
+      "domainPlaceholder": "e.g. update.corp.local.",
+      "valueLabel": "TTL (seconds)",
+      "add": "Set override",
+      "toolbarHint": "Submitting the same domain again overwrites the previous value",
+      "colDomain": "Domain",
+      "colTtl": "TTL (seconds)",
+      "colHuman": "Equivalent",
+      "emptyTitle": "No TTL override yet",
+      "emptyDesc": "Set a shorter TTL for frequently updated domains using the form above",
+      "days": "{n} d",
+      "hours": "{n} h",
+      "minutes": "{n} min",
+      "seconds": "{n} s"
+    },
+    "msg": {
+      "saved": "Settings saved and applied via checkconf-reload",
+      "flushOk": "Flushed: {n} ({cmd})",
+      "flushFailed": "Flush failed",
+      "warnDomainTtl": "Domain and TTL are required",
+      "ttlSaved": "TTL override saved"
+    }
+  },
+  "forward": {
+    "header": {
+      "title": "Conditional forwarding rules",
+      "desc": "Forward queries to a specific upstream by domain suffix. The longest suffix wins; unmatched queries fall back to the default upstream.",
+      "meta": "{total} rules · {enabled} enabled"
+    },
+    "actions": {
+      "add": "Add forwarding rule"
+    },
+    "stat": {
+      "rules": "Forwarding rules",
+      "rulesHint": "The longest suffix wins",
+      "enabled": "Enabled rules",
+      "enabledHint": "{n} disabled rules are excluded from selection",
+      "enabledHintOff": "No forwarding rule configured",
+      "linked": "Linked upstreams",
+      "linkedHint": "{online} online · {down} removed",
+      "linkedHintOff": "Selection follows upstream health",
+      "defaults": "Default suffix",
+      "defaultsHintOn": "The root domain dot catches all unmatched queries",
+      "defaultsHintOff": "No default forward configured, recursion is used"
+    },
+    "card": {
+      "title": "Forwarding rules",
+      "sub": "{filtered} / {total}",
+      "hint": "Queries matching no rule use the default upstream"
+    },
+    "toolbar": {
+      "kwPlaceholder": "Domain suffix / note / upstream",
+      "hint": "A trailing dot is appended on save"
+    },
+    "col": {
+      "domain": "Domain suffix / note",
+      "upstream": "Forward upstream",
+      "enabled": "Enabled"
+    },
+    "emptyFiltered": "No matching forwarding rule",
+    "empty": "No forwarding rule yet. Click Add forwarding rule in the top right to create one",
+    "defaultForward": "Default forward (all unmatched queries)",
+    "noNote": "No note",
+    "noUpstream": "No upstream selected",
+    "deleteTitle": "Delete this forwarding rule?",
+    "deleteDesc": "This cannot be undone.",
+    "note": "Rules are matched by suffix length in descending order; only one rule per suffix is kept, and editing only allows changing the upstream and note.",
+    "msg": {
+      "warnRequired": "Domain suffix and forwarding upstream are required",
+      "updated": "Forwarding rule updated",
+      "created": "Forwarding rule created",
+      "modalTitle": "Forwarding rule",
+      "addTitle": "Add forwarding rule",
+      "createConfirm": "Create rule",
+      "editTitle": "Edit forwarding rule",
+      "saveChanges": "Save changes",
+      "deleted": "Forwarding rule deleted",
+      "confirmAdd": "Add"
+    },
+    "form": {
+      "domainLabel": "Domain suffix",
+      "domainPlaceholder": "e.g. corp.local (the longest suffix wins; use . for the default)",
+      "upstreamLabel": "Forward upstream",
+      "upstreamPlaceholder": "Select an upstream DNS",
+      "noteLabel": "Note",
+      "notePlaceholder": "Optional, describe the purpose of this suffix",
+      "hint": "A trailing dot is appended to build the FQDN; the rule is delivered to the resolver immediately after saving."
+    }
+  }
+}

@@ -8,6 +8,7 @@ import { Button, Card, Input, message, Upload } from 'ant-design-vue';
 import { requestClient } from '#/api/request';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import { $t } from '#/locales';
 import { applyBranding } from '#/utils/site-branding';
 
 defineOptions({ name: 'SystemBranding' });
@@ -59,7 +60,7 @@ function onCropUpload(options: {
     options.onSuccess?.(options.file);
   });
   reader.addEventListener('error', () =>
-    options.onError?.(new Error('读取图片失败')),
+    options.onError?.(new Error($t('system.branding.msg.readImageFailed'))),
   );
   reader.readAsDataURL(options.file as Blob);
 }
@@ -72,7 +73,7 @@ function clearLogo() {
 
 async function save() {
   if (!form.siteName.trim()) {
-    message.warning('站点名称必填');
+    message.warning($t('system.branding.msg.nameRequired'));
     return;
   }
   saving.value = true;
@@ -84,15 +85,20 @@ async function save() {
       siteName: form.siteName,
     });
     apply();
-    message.success('站点品牌已保存并应用');
+    message.success($t('system.branding.msg.saved'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '保存失败');
+    message.error(
+      error instanceof Error ? error.message : $t('system.branding.msg.saveFailed'),
+    );
   } finally {
     saving.value = false;
   }
 }
 
-const previewName = computed(() => form.siteName.trim() || 'IPAM 管理平台');
+const previewName = computed(
+  () =>
+    form.siteName.trim() || $t('system.branding.defaultSiteName'),
+);
 const hasIcon = computed(() => Boolean(form.faviconUrl));
 
 onMounted(load);
@@ -103,67 +109,84 @@ onMounted(load);
     <PageHeader
       eyebrow="System"
       icon="lucide:palette"
-      title="站点品牌"
-      description="配置浏览器页签与侧栏顶部的站点名称、图标；保存后立即应用，无需重启。"
+      :title="$t('system.branding.page.title')"
+      :description="$t('system.branding.page.desc')"
     >
       <template #actions>
         <Button size="small" :loading="loading" @click="load">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />刷新
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{
+            $t('system.branding.actions.refresh')
+          }}
         </Button>
         <Button type="primary" size="small" :loading="saving" @click="save">
-          <IconifyIcon icon="lucide:save" class="mr-1 size-3.5" />保存并应用
+          <IconifyIcon icon="lucide:save" class="mr-1 size-3.5" />{{
+            $t('system.branding.actions.save')
+          }}
         </Button>
       </template>
     </PageHeader>
 
     <div class="ipam-stat-grid">
       <StatCard
-        label="站点名称"
-        :value="form.siteName || '未设置'"
+        :label="$t('system.branding.stat.name')"
+        :value="form.siteName || $t('system.branding.stat.unset')"
         icon="lucide:type"
         tone="blue"
-        hint="显示于浏览器页签、侧栏与登录页"
+        :hint="$t('system.branding.stat.nameHint')"
       />
       <StatCard
-        label="站点图标"
-        :value="hasIcon ? '已配置' : '默认图标'"
+        :label="$t('system.branding.stat.icon')"
+        :value="
+          hasIcon
+            ? $t('system.branding.stat.configured')
+            : $t('system.branding.stat.defaultIcon')
+        "
         icon="lucide:image"
         :tone="hasIcon ? 'green' : 'violet'"
-        hint="1:1 裁剪，png / jpg / jpeg，≤2MB"
+        :hint="$t('system.branding.stat.iconHint')"
       />
       <StatCard
-        label="生效方式"
-        value="即时"
+        :label="$t('system.branding.stat.apply')"
+        :value="$t('system.branding.stat.applyValue')"
         icon="lucide:zap"
         tone="cyan"
-        hint="保存后刷新页面即可看到品牌变化"
+        :hint="$t('system.branding.stat.applyHint')"
       />
       <StatCard
-        label="服务端口"
+        :label="$t('system.branding.stat.port')"
         :value="form.serverPort"
         icon="lucide:plug"
         tone="amber"
-        hint="端口在「服务与运行」中修改"
+        :hint="$t('system.branding.stat.portHint')"
       />
     </div>
 
     <Card>
       <template #title>
         <span class="ipam-card-title">
-          <IconifyIcon icon="lucide:panel-top" />品牌配置
+          <IconifyIcon icon="lucide:panel-top" />{{
+            $t('system.branding.card.title')
+          }}
         </span>
       </template>
       <template #extra>
-        <span class="ipam-hint">图标与名称同时用于浏览器页签与侧栏顶部</span>
+        <span class="ipam-hint">{{ $t('system.branding.card.hint') }}</span>
       </template>
 
       <div class="ipam-form-grid">
         <div class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">站点名称</span>
-          <Input v-model:value="form.siteName" placeholder="如 IPAM 管理平台" />
+          <span class="ipam-form-field__label">{{
+            $t('system.branding.card.siteName')
+          }}</span>
+          <Input
+            v-model:value="form.siteName"
+            :placeholder="$t('system.branding.card.siteNamePlaceholder')"
+          />
         </div>
         <div class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">站点图标（浏览器页签 + 侧栏 Logo，1:1 裁剪）</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.branding.card.iconLabel')
+          }}</span>
           <div class="flex items-center gap-3">
             <Upload
               :custom-request="onCropUpload"
@@ -180,10 +203,10 @@ onMounted(load);
               </div>
             </Upload>
             <div class="ipam-hint">
-              支持 png / jpg / jpeg，≤2MB，按 1:1 裁剪后保存
+              {{ $t('system.branding.card.uploadHint') }}
               <div class="mt-2">
                 <Button v-if="form.faviconUrl" size="small" @click="clearLogo">
-                  清除图标
+                  {{ $t('system.branding.card.clear') }}
                 </Button>
               </div>
             </div>
@@ -206,22 +229,34 @@ onMounted(load);
               <img v-if="form.faviconUrl" :src="form.faviconUrl" alt="" />
               <IconifyIcon v-else icon="lucide:network" class="size-4" />
             </span>
-            <span class="ipam-brand-preview__item" data-active="true">概览</span>
-            <span class="ipam-brand-preview__item">DHCP 服务</span>
-            <span class="ipam-brand-preview__item">DNS 服务</span>
-            <span class="ipam-brand-preview__item">日志中心</span>
+            <span class="ipam-brand-preview__item" data-active="true">{{
+              $t('system.branding.preview.overview')
+            }}</span>
+            <span class="ipam-brand-preview__item">{{
+              $t('system.branding.preview.dhcp')
+            }}</span>
+            <span class="ipam-brand-preview__item">{{
+              $t('system.branding.preview.dns')
+            }}</span>
+            <span class="ipam-brand-preview__item">{{
+              $t('system.branding.preview.logs')
+            }}</span>
           </div>
           <div class="ipam-brand-preview__canvas">
-            <span class="ipam-brand-preview__hint">品牌实时预览</span>
+            <span class="ipam-brand-preview__hint">{{
+              $t('system.branding.card.previewHint')
+            }}</span>
           </div>
         </div>
       </div>
 
       <div class="ipam-toolbar ipam-toolbar--plain mt-3">
-        <span class="ipam-hint">保存后立即应用；如需回退，重新上传旧图标或清除图标</span>
+        <span class="ipam-hint">{{ $t('system.branding.footerHint') }}</span>
         <span class="ipam-toolbar__spacer"></span>
         <Button type="primary" :loading="saving" @click="save">
-          <IconifyIcon icon="lucide:save" class="mr-1 size-3.5" />保存并应用
+          <IconifyIcon icon="lucide:save" class="mr-1 size-3.5" />{{
+            $t('system.branding.actions.save')
+          }}
         </Button>
       </div>
     </Card>

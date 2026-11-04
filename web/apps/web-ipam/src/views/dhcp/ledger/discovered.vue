@@ -23,6 +23,7 @@ import {
 } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import { $t } from '#/locales';
 
 defineOptions({ name: 'DhcpDiscovered' });
 
@@ -86,7 +87,7 @@ async function load() {
     const res = await listDiscoveredTerminals();
     rows.value = res.items ?? [];
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '发现列表加载失败');
+    message.error(error instanceof Error ? error.message : $t('dhcpLedger.discovered.loadFailed'));
   } finally {
     loading.value = false;
   }
@@ -105,7 +106,9 @@ function openClaim(row: Partial<DiscoveredTerminal>) {
   claimTarget.value = row as DiscoveredTerminal;
   claimForm.owner = '';
   claimForm.dept = '';
-  claimForm.note = row.hostname ? `自动发现：${row.hostname}` : '自动发现终端';
+  claimForm.note = row.hostname
+    ? $t('dhcpLedger.discovered.autoNote', { hostname: row.hostname })
+    : $t('dhcpLedger.discovered.autoNotePlain');
   claimForm.orgId = undefined;
   claimOpen.value = true;
 }
@@ -113,7 +116,7 @@ function openClaim(row: Partial<DiscoveredTerminal>) {
 async function submitClaim() {
   if (!claimTarget.value) return;
   if (!claimForm.owner.trim()) {
-    message.warning('请填写使用人/责任人');
+    message.warning($t('dhcpLedger.discovered.ownerRequired'));
     return;
   }
   claimSaving.value = true;
@@ -125,25 +128,25 @@ async function submitClaim() {
       note: claimForm.note.trim() || undefined,
       orgId: claimForm.orgId,
     });
-    message.success('已登记资产');
+    message.success($t('dhcpLedger.discovered.registered'));
     claimOpen.value = false;
     await load();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '登记失败');
+    message.error(error instanceof Error ? error.message : $t('dhcpLedger.discovered.registerFailed'));
   } finally {
     claimSaving.value = false;
   }
 }
 
-const columns = [
-  { title: 'MAC', dataIndex: 'mac', key: 'mac', width: 170 },
-  { title: 'IPv4', dataIndex: 'ipv4', key: 'ipv4', width: 140 },
-  { title: 'IPv6', dataIndex: 'ipv6', key: 'ipv6', width: 240 },
-  { title: '主机名', dataIndex: 'hostname', key: 'hostname', ellipsis: true },
-  { title: '状态', dataIndex: 'state', key: 'state', width: 100 },
-  { title: '最近活动', dataIndex: 'lastSeen', key: 'lastSeen', width: 180 },
-  { title: '操作', key: 'actions', width: 100 },
-];
+const columns = computed(() => [
+  { title: $t('dhcpLedger.discovered.colMac'), dataIndex: 'mac', key: 'mac', width: 170 },
+  { title: $t('dhcpLedger.discovered.colIpv4'), dataIndex: 'ipv4', key: 'ipv4', width: 140 },
+  { title: $t('dhcpLedger.discovered.colIpv6'), dataIndex: 'ipv6', key: 'ipv6', width: 240 },
+  { title: $t('dhcpLedger.discovered.colHostname'), dataIndex: 'hostname', key: 'hostname', ellipsis: true },
+  { title: $t('dhcpLedger.discovered.colState'), dataIndex: 'state', key: 'state', width: 100 },
+  { title: $t('dhcpLedger.discovered.colLastSeen'), dataIndex: 'lastSeen', key: 'lastSeen', width: 180 },
+  { title: $t('dhcpLedger.discovered.colActions'), key: 'actions', width: 100 },
+]);
 
 onMounted(async () => {
   await Promise.all([load(), loadOrgs()]);
@@ -155,32 +158,64 @@ onMounted(async () => {
     <PageHeader
       eyebrow="Discovery"
       icon="lucide:radar"
-      title="未登记终端"
-      description="有 DHCP 绑定/租约、但资产表尚未登记的终端。登记后即可关联使用人、部门与组织。"
+      :title="$t('dhcpLedger.discovered.title')"
+      :description="$t('dhcpLedger.discovered.desc')"
     >
       <template #actions>
         <span class="ipam-page-header__meta">
           <IconifyIcon icon="lucide:clock" class="size-3.5" />
-          最近活动 {{ latestSeen }}
+          {{ $t('dhcpLedger.discovered.meta', { time: latestSeen }) }}
         </span>
         <Button size="small" :loading="loading" @click="load">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />刷新
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{ $t('dhcpLedger.common.refresh') }}
         </Button>
       </template>
     </PageHeader>
 
     <div class="ipam-stat-grid">
-      <StatCard label="未登记终端" :value="rows.length" unit="台" icon="lucide:radar" tone="amber" hint="MAC 未出现在资产表" />
-      <StatCard label="有 IPv4" :value="v4Count" unit="台" icon="lucide:network" tone="green" hint="来自 coherence 绑定" />
-      <StatCard label="有 IPv6" :value="v6Count" unit="台" icon="lucide:globe" tone="cyan" hint="含双栈终端" />
-      <StatCard label="最近活动" :value="latestSeen" icon="lucide:activity" tone="violet" hint="按租约 cltt" />
+      <StatCard
+        :label="$t('dhcpLedger.discovered.statUnregistered')"
+        :value="rows.length"
+        :unit="$t('dhcpLedger.common.units.device')"
+        icon="lucide:radar"
+        tone="amber"
+        :hint="$t('dhcpLedger.discovered.statUnregisteredHint')"
+      />
+      <StatCard
+        :label="$t('dhcpLedger.discovered.statV4')"
+        :value="v4Count"
+        :unit="$t('dhcpLedger.common.units.device')"
+        icon="lucide:network"
+        tone="green"
+        :hint="$t('dhcpLedger.discovered.statV4Hint')"
+      />
+      <StatCard
+        :label="$t('dhcpLedger.discovered.statV6')"
+        :value="v6Count"
+        :unit="$t('dhcpLedger.common.units.device')"
+        icon="lucide:globe"
+        tone="cyan"
+        :hint="$t('dhcpLedger.discovered.statV6Hint')"
+      />
+      <StatCard
+        :label="$t('dhcpLedger.discovered.statLatest')"
+        :value="latestSeen"
+        icon="lucide:activity"
+        tone="violet"
+        :hint="$t('dhcpLedger.discovered.statLatestHint')"
+      />
     </div>
 
     <Card>
       <div class="ipam-toolbar ipam-toolbar--plain mb-3">
-        <span class="ipam-hint">仅展示 active/grace/conflict 绑定；登记后该终端从列表移除。</span>
+        <span class="ipam-hint">{{ $t('dhcpLedger.discovered.listHint') }}</span>
         <span class="ipam-toolbar__spacer"></span>
-        <Input v-model:value="keyword" allow-clear placeholder="搜索 MAC / IP / 主机名" style="width: 260px">
+        <Input
+          v-model:value="keyword"
+          allow-clear
+          :placeholder="$t('dhcpLedger.discovered.keywordPlaceholder')"
+          style="width: 260px"
+        >
           <template #prefix><IconifyIcon icon="lucide:search" class="size-3.5" /></template>
         </Input>
       </div>
@@ -206,7 +241,7 @@ onMounted(async () => {
           </template>
           <template v-else-if="column.key === 'lastSeen'">{{ fmtTime(record.lastSeen) }}</template>
           <template v-else-if="column.key === 'actions'">
-            <Button size="small" type="link" @click="openClaim(record)">登记</Button>
+            <Button size="small" type="link" @click="openClaim(record)">{{ $t('dhcpLedger.discovered.register') }}</Button>
           </template>
         </template>
       </Table>
@@ -214,37 +249,46 @@ onMounted(async () => {
 
     <Modal
       v-model:open="claimOpen"
-      title="登记未登记终端"
-      ok-text="登记"
-      cancel-text="取消"
+      :title="$t('dhcpLedger.discovered.modalTitle')"
+      :ok-text="$t('dhcpLedger.discovered.register')"
+      :cancel-text="$t('dhcpLedger.common.cancel')"
       :confirm-loading="claimSaving"
       @ok="submitClaim"
     >
       <div class="ipam-form-grid">
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">MAC</span>
+          <span class="ipam-form-field__label">{{ $t('dhcpLedger.discovered.form.mac') }}</span>
           <Input :value="claimTarget?.mac" disabled />
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">使用人 / 责任人 *</span>
-          <Input v-model:value="claimForm.owner" placeholder="使用人 / 责任人" />
+          <span class="ipam-form-field__label">{{ $t('dhcpLedger.discovered.form.ownerLabel') }}</span>
+          <Input
+            v-model:value="claimForm.owner"
+            :placeholder="$t('dhcpLedger.discovered.form.ownerPlaceholder')"
+          />
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">部门</span>
-          <Input v-model:value="claimForm.dept" placeholder="部门（可选）" />
+          <span class="ipam-form-field__label">{{ $t('dhcpLedger.discovered.form.dept') }}</span>
+          <Input
+            v-model:value="claimForm.dept"
+            :placeholder="$t('dhcpLedger.discovered.form.deptPlaceholder')"
+          />
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">所属组织</span>
+          <span class="ipam-form-field__label">{{ $t('dhcpLedger.discovered.form.org') }}</span>
           <Select
             v-model:value="claimForm.orgId"
             allow-clear
             :options="orgOptions"
-            placeholder="可选"
+            :placeholder="$t('dhcpLedger.discovered.form.orgPlaceholder')"
           />
         </div>
         <div class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">备注</span>
-          <Input v-model:value="claimForm.note" placeholder="备注（可选）" />
+          <span class="ipam-form-field__label">{{ $t('dhcpLedger.discovered.form.note') }}</span>
+          <Input
+            v-model:value="claimForm.note"
+            :placeholder="$t('dhcpLedger.discovered.form.notePlaceholder')"
+          />
         </div>
       </div>
     </Modal>

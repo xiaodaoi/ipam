@@ -18,6 +18,7 @@ import { getSystemInfo, getSystemMetrics } from '#/api/ipam';
 import { requestClient } from '#/api/request';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import { $t } from '#/locales';
 
 defineOptions({ name: 'SystemRuntime' });
 
@@ -33,7 +34,11 @@ const form = reactive({
   siteName: '',
 });
 
-const mode = import.meta.env.MODE === 'production' ? '生产环境' : '开发环境';
+const mode = computed(() =>
+  import.meta.env.MODE === 'production'
+    ? $t('system.runtime.mode.prod')
+    : $t('system.runtime.mode.dev'),
+);
 const modeTagColor = import.meta.env.MODE === 'production' ? 'green' : 'orange';
 
 function fmtUptime(sec?: number): string {
@@ -41,9 +46,9 @@ function fmtUptime(sec?: number): string {
   const d = Math.floor(sec / 86_400);
   const h = Math.floor((sec % 86_400) / 3600);
   const m = Math.floor((sec % 3600) / 60);
-  if (d > 0) return `${d} 天 ${h} 小时`;
-  if (h > 0) return `${h} 小时 ${m} 分`;
-  return `${m} 分钟`;
+  if (d > 0) return $t('system.runtime.uptime.days', { d, h });
+  if (h > 0) return $t('system.runtime.uptime.hours', { h, m });
+  return $t('system.runtime.uptime.minutes', { m });
 }
 
 function fmtDateTime(v?: string): string {
@@ -82,7 +87,7 @@ async function load() {
 
 async function savePort() {
   if (form.serverPort < 1 || form.serverPort > 65_535) {
-    message.warning('端口需在 1-65535 之间');
+    message.warning($t('system.runtime.msg.portRange'));
     return;
   }
   saving.value = true;
@@ -93,9 +98,11 @@ async function savePort() {
       serverPort: form.serverPort,
       siteName: form.siteName,
     });
-    message.success('服务端口已保存，重启控制面后生效');
+    message.success($t('system.runtime.msg.portSaved'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '保存失败');
+    message.error(
+      error instanceof Error ? error.message : $t('system.runtime.msg.saveFailed'),
+    );
   } finally {
     saving.value = false;
   }
@@ -105,9 +112,13 @@ async function restart() {
   restarting.value = true;
   try {
     await requestClient.post('/system/restart');
-    message.success('已发起重启，页面将短暂不可用，请稍后刷新');
+    message.success($t('system.runtime.msg.restarted'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '重启请求失败');
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('system.runtime.msg.restartFailed'),
+    );
   } finally {
     restarting.value = false;
   }
@@ -121,61 +132,87 @@ onMounted(load);
     <PageHeader
       eyebrow="System"
       icon="lucide:server-cog"
-      title="服务与运行"
-      description="控制面端口、版本、依赖就绪与重启操作；日志保留与归档在「日志中心 → 存储与归档」维护。"
+      :title="$t('system.runtime.page.title')"
+      :description="$t('system.runtime.page.desc')"
     >
       <template #actions>
         <RouterLink to="/logs-center/storage">
           <Button size="small">
-            <IconifyIcon icon="lucide:database" class="mr-1 size-3.5" />日志存储与归档
+            <IconifyIcon icon="lucide:database" class="mr-1 size-3.5" />{{
+              $t('system.runtime.actions.logStorage')
+            }}
           </Button>
         </RouterLink>
         <a href="/metrics" target="_blank" rel="noopener">
           <Button size="small">
-            <IconifyIcon icon="lucide:activity" class="mr-1 size-3.5" />监控指标
+            <IconifyIcon icon="lucide:activity" class="mr-1 size-3.5" />{{
+              $t('system.runtime.actions.metrics')
+            }}
           </Button>
         </a>
         <Button size="small" :loading="loading" @click="load">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />刷新
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{
+            $t('system.runtime.actions.refresh')
+          }}
         </Button>
       </template>
     </PageHeader>
 
     <div class="ipam-stat-grid">
       <StatCard
-        label="服务端口"
+        :label="$t('system.runtime.stat.port')"
         :value="form.serverPort"
         icon="lucide:plug"
         tone="blue"
-        hint="修改后需重启控制面生效"
+        :hint="$t('system.runtime.stat.portHint')"
       />
       <StatCard
-        label="控制面版本"
+        :label="$t('system.runtime.stat.version')"
         :value="info?.version ?? '—'"
         icon="lucide:package"
         tone="cyan"
-        :hint="info?.goVersion ? `Go ${info.goVersion}` : '等待控制面信息…'"
+        :hint="
+          info?.goVersion
+            ? `Go ${info.goVersion}`
+            : $t('system.runtime.stat.versionWait')
+        "
       />
       <StatCard
-        label="依赖就绪"
-        :value="info?.ready ? '正常' : '异常'"
+        :label="$t('system.runtime.stat.ready')"
+        :value="
+          info?.ready
+            ? $t('system.runtime.stat.ok')
+            : $t('system.runtime.stat.bad')
+        "
         icon="lucide:activity"
         :tone="info?.ready ? 'green' : 'red'"
-        :hint="info?.ready ? 'PostgreSQL 等关键依赖可达' : '请检查依赖服务与日志'"
+        :hint="
+          info?.ready
+            ? $t('system.runtime.stat.readyHintOn')
+            : $t('system.runtime.stat.readyHintOff')
+        "
       />
       <StatCard
-        label="连续运行"
+        :label="$t('system.runtime.stat.uptime')"
         :value="uptimeText"
         icon="lucide:timer"
         tone="violet"
-        :hint="metrics ? `采样于 ${fmtDateTime(metrics.ts)}` : '宿主指标暂不可达'"
+        :hint="
+          metrics
+            ? $t('system.runtime.stat.uptimeHint', {
+                time: fmtDateTime(metrics.ts),
+              })
+            : $t('system.runtime.stat.uptimeUnavailable')
+        "
       />
     </div>
 
     <Card>
       <template #title>
         <span class="ipam-card-title">
-          <IconifyIcon icon="lucide:plug-zap" />运行参数
+          <IconifyIcon icon="lucide:plug-zap" />{{
+            $t('system.runtime.params.title')
+          }}
         </span>
       </template>
       <template #extra>
@@ -184,7 +221,9 @@ onMounted(load);
 
       <div class="ipam-form-grid">
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">服务端口</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.runtime.params.port')
+          }}</span>
           <InputNumber
             v-model:value="form.serverPort"
             :max="65_535"
@@ -192,59 +231,74 @@ onMounted(load);
             style="width: 100%"
           />
           <span class="ipam-form-hint">
-            容器部署请同步 `.env` 的 IPAM_PORT 并重建容器
+            {{ $t('system.runtime.params.portHint') }}
           </span>
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">控制面版本</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.runtime.params.version')
+          }}</span>
           <div class="ipam-service-value">
             <span class="ipam-mono">{{ info?.version ?? '—' }}</span>
             <span class="ipam-hint">{{ info?.goVersion ?? '' }}</span>
           </div>
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">服务端时间</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.runtime.params.serverTime')
+          }}</span>
           <div class="ipam-service-value">
             <span class="ipam-mono">{{ fmtDateTime(info?.now) }}</span>
           </div>
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">依赖就绪</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.runtime.params.ready')
+          }}</span>
           <div class="ipam-service-value">
             <Tag class="m-0" :color="info?.ready ? 'green' : 'red'">
-              {{ info?.ready ? '正常' : '异常 / 未接入' }}
+              {{
+                info?.ready
+                  ? $t('system.runtime.params.readyOk')
+                  : $t('system.runtime.params.readyBad')
+              }}
             </Tag>
           </div>
         </div>
       </div>
 
       <div class="ipam-toolbar ipam-toolbar--plain mt-3">
-        <span class="ipam-hint">端口修改需重启控制面；其他运行参数在对应功能页维护</span>
+        <span class="ipam-hint">{{ $t('system.runtime.params.hint') }}</span>
         <span class="ipam-toolbar__spacer"></span>
         <Button type="primary" :loading="saving" @click="savePort">
-          <IconifyIcon icon="lucide:save" class="mr-1 size-3.5" />保存端口
+          <IconifyIcon icon="lucide:save" class="mr-1 size-3.5" />{{
+            $t('system.runtime.params.savePort')
+          }}
         </Button>
       </div>
 
       <div class="ipam-danger-zone">
         <div class="ipam-danger-zone__body">
           <div class="ipam-danger-zone__title">
-            <IconifyIcon icon="lucide:triangle-alert" class="size-4" />重启控制面服务
+            <IconifyIcon icon="lucide:triangle-alert" class="size-4" />{{
+              $t('system.runtime.danger.title')
+            }}
           </div>
           <div class="ipam-danger-zone__desc">
-            重启期间管理页面与 API 会短暂不可用（约 5–15 秒），DHCP/DNS 数据面不受影响；
-            端口等配置修改在重启后生效。
+            {{ $t('system.runtime.danger.desc') }}
           </div>
         </div>
         <Popconfirm
-          title="确认重启服务？"
-          description="重启后页面将短暂不可用；端口/设置修改在重启后生效。"
-          ok-text="重启"
-          cancel-text="取消"
+          :title="$t('system.runtime.danger.confirmTitle')"
+          :description="$t('system.runtime.danger.confirmDesc')"
+          :ok-text="$t('system.runtime.danger.confirmOk')"
+          :cancel-text="$t('system.runtime.danger.cancel')"
           @confirm="restart"
         >
           <Button danger :loading="restarting">
-            <IconifyIcon icon="lucide:power" class="mr-1 size-3.5" />重启服务
+            <IconifyIcon icon="lucide:power" class="mr-1 size-3.5" />{{
+              $t('system.runtime.danger.restart')
+            }}
           </Button>
         </Popconfirm>
       </div>
@@ -253,38 +307,54 @@ onMounted(load);
     <Card>
       <template #title>
         <span class="ipam-card-title">
-          <IconifyIcon icon="lucide:hard-drive" />宿主资源
+          <IconifyIcon icon="lucide:hard-drive" />{{ $t('system.runtime.host.title') }}
         </span>
       </template>
       <template #extra>
-        <span class="ipam-hint">来自 /system/metrics</span>
+        <span class="ipam-hint">{{ $t('system.runtime.host.hint') }}</span>
       </template>
       <div v-if="metrics" class="ipam-figure-row">
         <div class="ipam-figure">
           <span class="ipam-figure__label">CPU</span>
           <span class="ipam-figure__value">{{ Number(metrics.cpu.usagePct).toFixed(1) }}%</span>
-          <span class="ipam-figure__hint">{{ metrics.cpu.cores }} 核</span>
+          <span class="ipam-figure__hint">{{
+            $t('system.runtime.host.cores', { n: metrics.cpu.cores })
+          }}</span>
         </div>
         <div class="ipam-figure">
-          <span class="ipam-figure__label">内存</span>
+          <span class="ipam-figure__label">{{
+            $t('system.runtime.host.memory')
+          }}</span>
           <span class="ipam-figure__value">{{ Number(metrics.memory.usedPct).toFixed(1) }}%</span>
           <span class="ipam-figure__hint">
             {{ (metrics.memory.usedBytes / 1024 ** 3).toFixed(1) }} / {{ (metrics.memory.totalBytes / 1024 ** 3).toFixed(1) }} GB
           </span>
         </div>
         <div class="ipam-figure">
-          <span class="ipam-figure__label">1 分钟负载</span>
+          <span class="ipam-figure__label">{{
+            $t('system.runtime.host.load1')
+          }}</span>
           <span class="ipam-figure__value">{{ Number(metrics.cpu.load1).toFixed(2) }}</span>
           <span class="ipam-figure__hint">5m {{ Number(metrics.cpu.load5).toFixed(2) }}</span>
         </div>
         <div class="ipam-figure">
-          <span class="ipam-figure__label">连续运行</span>
+          <span class="ipam-figure__label">{{
+            $t('system.runtime.host.uptime')
+          }}</span>
           <span class="ipam-figure__value">{{ uptimeText }}</span>
         </div>
       </div>
       <div v-else class="ipam-empty ipam-empty--compact">
-        <div class="ipam-empty__title">宿主资源暂不可达</div>
-        <div class="ipam-empty__desc">控制面未挂载宿主 /proc 或指标采集未接线。</div>
+        <div class="ipam-empty__title">
+{{
+          $t('system.runtime.host.emptyTitle')
+        }}
+</div>
+        <div class="ipam-empty__desc">
+{{
+          $t('system.runtime.host.emptyDesc')
+        }}
+</div>
       </div>
     </Card>
   </div>

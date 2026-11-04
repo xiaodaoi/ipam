@@ -24,6 +24,8 @@ import {
   Tooltip,
 } from 'ant-design-vue';
 
+import { $t } from '#/locales';
+
 const props = withDefaults(
   defineProps<{
     cidr?: string;
@@ -81,20 +83,30 @@ interface IpCell {
   remark?: string;
 }
 
-const IP_STATUS: Record<string, { color: string; label: string; }> = {
-  network: { label: '网络', color: '#637196' },
-  broadcast: { label: '广播', color: '#637196' },
-  available: { label: '未规划', color: '#9DBEFF' },
-  planned: { label: '已规划', color: '#BE86E4' },
-  static: { label: '静态', color: '#2F54EB' },
-  dynamic: { label: '动态', color: '#FFD666' },
-  reserved: { label: '保留', color: '#FF9C6E' },
+const IP_STATUS: Record<string, { color: string; }> = {
+  network: { color: '#637196' },
+  broadcast: { color: '#637196' },
+  available: { color: '#9DBEFF' },
+  planned: { color: '#BE86E4' },
+  static: { color: '#2F54EB' },
+  dynamic: { color: '#FFD666' },
+  reserved: { color: '#FF9C6E' },
 };
-const OVERLAY_STATUS: Record<string, { color: string; label: string; }> = {
-  zombie: { label: '僵尸', color: '#C41D7F' },
-  conflict: { label: '冲突', color: '#FF6262' },
-  online: { label: '在线', color: '#21BF86' },
+const OVERLAY_STATUS: Record<string, { color: string; }> = {
+  zombie: { color: '#C41D7F' },
+  conflict: { color: '#FF6262' },
+  online: { color: '#21BF86' },
 };
+function statusText(key: string): string {
+  return IP_STATUS[key]
+    ? $t(`shared.ipMap.status.${key}`)
+    : key;
+}
+function overlayText(key: string): string {
+  return OVERLAY_STATUS[key]
+    ? $t(`shared.ipMap.overlay.${key}`)
+    : key;
+}
 const STATUS_DISABLED = new Set(['broadcast', 'network']);
 const MAX_CELLS = 2048;
 const PAGE_SIZE = 256;
@@ -191,12 +203,42 @@ const stats = computed(() => {
 });
 
 const summaryItems = computed(() => [
-  { color: IP_STATUS.dynamic?.color, key: 'online', label: '在线', value: stats.value.online },
-  { color: IP_STATUS.static?.color, key: 'static', label: '静态', value: stats.value.static },
-  { color: IP_STATUS.reserved?.color, key: 'reserved', label: '保留', value: stats.value.reserved },
-  { color: IP_STATUS.planned?.color, key: 'planned', label: '已规划', value: stats.value.planned },
-  { color: OVERLAY_STATUS.conflict?.color, key: 'conflict', label: '冲突', value: stats.value.conflict },
-  { color: IP_STATUS.available?.color, key: 'selected', label: '已选中', value: stats.value.selected },
+  {
+    color: IP_STATUS.dynamic?.color,
+    key: 'online',
+    label: $t('shared.ipMap.stat.online'),
+    value: stats.value.online,
+  },
+  {
+    color: IP_STATUS.static?.color,
+    key: 'static',
+    label: $t('shared.ipMap.stat.static'),
+    value: stats.value.static,
+  },
+  {
+    color: IP_STATUS.reserved?.color,
+    key: 'reserved',
+    label: $t('shared.ipMap.stat.reserved'),
+    value: stats.value.reserved,
+  },
+  {
+    color: IP_STATUS.planned?.color,
+    key: 'planned',
+    label: $t('shared.ipMap.stat.planned'),
+    value: stats.value.planned,
+  },
+  {
+    color: OVERLAY_STATUS.conflict?.color,
+    key: 'conflict',
+    label: $t('shared.ipMap.stat.conflict'),
+    value: stats.value.conflict,
+  },
+  {
+    color: IP_STATUS.available?.color,
+    key: 'selected',
+    label: $t('shared.ipMap.stat.selected'),
+    value: stats.value.selected,
+  },
 ]);
 
 // ── 网段切换 ──
@@ -261,7 +303,7 @@ const detail = ref<IpCell | null>(null);
 function openDetail() {
   if (props.readOnly) return;
   if (selectedIps.value.length === 1) detail.value = selectedIps.value[0] ?? null;
-  else message.info('请先只选中 1 个 IP 后再查看详情');
+  else message.info($t('shared.ipMap.needOne'));
 }
 
 // ── 批量操作（消息与刷新由父层在 API 结果后处理，组件仅发事件）──
@@ -287,14 +329,14 @@ onMounted(() => {
     <template #title>
       <span class="ipam-card-title">
         <IconifyIcon icon="lucide:layout-grid" />
-        地址矩阵
+        {{ $t('shared.ipMap.title') }}
       </span>
       <Tag color="blue" class="ml-2">{{ currentCidr }}</Tag>
-      <Tag v-if="readOnly" class="ml-1">只读</Tag>
+      <Tag v-if="readOnly" class="ml-1">{{ $t('shared.ipMap.readonly') }}</Tag>
     </template>
     <template #extra>
       <Space :size="4" v-if="(subnets?.length || 0) > 0">
-        <Button size="small" @click="prevSubnet" aria-label="上一个网段">
+        <Button size="small" @click="prevSubnet" :aria-label="$t('shared.ipMap.prevSubnet')">
           <IconifyIcon icon="lucide:chevron-left" />
         </Button>
         <Select
@@ -303,21 +345,27 @@ onMounted(() => {
           :options="subnetOptions"
           @change="(v: any) => changeSubnet(String(v))"
           style="width: 220px"
-          placeholder="选择网段"
+          :placeholder="$t('shared.ipMap.selectSubnet')"
         />
-        <Button size="small" @click="nextSubnet" aria-label="下一个网段">
+        <Button size="small" @click="nextSubnet" :aria-label="$t('shared.ipMap.nextSubnet')">
           <IconifyIcon icon="lucide:chevron-right" />
         </Button>
       </Space>
     </template>
 
     <!-- 边界保护 -->
-    <Alert v-if="Number.isNaN(parsed.hostCount) || parsed.hostCount < 1" type="error" show-icon :message="`网段格式错误：${currentCidr}`" />
+    <Alert v-if="Number.isNaN(parsed.hostCount) || parsed.hostCount < 1" type="error" show-icon :message="$t('shared.ipMap.badCidr', { cidr: currentCidr })" />
     <Alert
       v-else-if="parsed.hostCount > MAX_CELLS"
       type="warning"
       show-icon
-      :message="`网段 ${currentCidr} 共 ${parsed.hostCount} 个地址，超出图形化展示上限（${MAX_CELLS}），建议规划更小的网段。`"
+      :message="
+        $t('shared.ipMap.tooLarge', {
+          cidr: currentCidr,
+          count: parsed.hostCount,
+          max: MAX_CELLS,
+        })
+      "
     />
 
     <template v-else>
@@ -328,37 +376,41 @@ onMounted(() => {
             <i class="ipam-fam-dot" :style="{ backgroundColor: item.color }"></i>
             {{ item.label }}
           </span>
-          <span class="ipam-summary__value">{{ item.value }}<small>个</small></span>
+          <span class="ipam-summary__value">{{ item.value }}<small>{{ $t('shared.ipMap.unit.address') }}</small></span>
         </div>
         <div class="ipam-summary__item">
-          <span class="ipam-summary__label">地址总量</span>
-          <span class="ipam-summary__value">{{ stats.total }}<small>个</small></span>
+          <span class="ipam-summary__label">{{ $t('shared.ipMap.stat.total') }}</span>
+          <span class="ipam-summary__value">{{ stats.total }}<small>{{ $t('shared.ipMap.unit.address') }}</small></span>
         </div>
       </div>
 
       <!-- 操作栏 -->
       <div class="ipam-toolbar mb-3">
         <Button size="small" :disabled="readOnly || !stats.selected" @click="applyStatus('static')">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1" />转静态
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1" />{{ $t('shared.ipMap.toStatic') }}
         </Button>
         <Button size="small" danger :disabled="readOnly || !stats.selected" @click="applyStatus('available')">
-          <IconifyIcon icon="lucide:unlock" class="mr-1" />释放
+          <IconifyIcon icon="lucide:unlock" class="mr-1" />{{ $t('shared.ipMap.release') }}
         </Button>
         <Button size="small" :disabled="readOnly || !stats.selected" @click="applyStatus('reserved')">
-          <IconifyIcon icon="lucide:lock" class="mr-1" />转保留
+          <IconifyIcon icon="lucide:lock" class="mr-1" />{{ $t('shared.ipMap.toReserved') }}
         </Button>
         <Button size="small" :disabled="readOnly || !stats.selected" @click="openEdit">
-          <IconifyIcon icon="lucide:pencil" class="mr-1" />编辑
+          <IconifyIcon icon="lucide:pencil" class="mr-1" />{{ $t('shared.ipMap.edit') }}
         </Button>
         <Button size="small" :disabled="readOnly || stats.selected !== 1" @click="openDetail">
-          <IconifyIcon icon="lucide:info" class="mr-1" />详情
+          <IconifyIcon icon="lucide:info" class="mr-1" />{{ $t('shared.ipMap.detail') }}
         </Button>
         <Button v-if="stats.selected > 0" size="small" danger @click="updateSelected([], null)">
-          <IconifyIcon icon="lucide:eraser" class="mr-1" />清空选择
+          <IconifyIcon icon="lucide:eraser" class="mr-1" />{{ $t('shared.ipMap.clear') }}
         </Button>
         <div class="ipam-toolbar__spacer"></div>
         <span class="ipam-hint">
-          {{ stats.selected > 0 ? `已选 ${stats.selected} 个地址` : '点击格子选择，Shift+点击 连续区间' }}
+          {{
+            stats.selected > 0
+              ? $t('shared.ipMap.selectedN', { n: stats.selected })
+              : $t('shared.ipMap.selectHint')
+          }}
         </span>
       </div>
 
@@ -369,17 +421,17 @@ onMounted(() => {
             class="ipam-legend__swatch"
             :style="{ backgroundColor: IP_STATUS[k]?.color || '#ccc', opacity: STATUS_DISABLED.has(k) ? 0.75 : 1 }"
           ></i>
-          {{ IP_STATUS[k]?.label || k }}
+          {{ statusText(k) }}
         </span>
         <span class="ipam-legend__divider"></span>
-        <span class="ipam-legend__item">叠加状态</span>
+        <span class="ipam-legend__item">{{ $t('shared.ipMap.overlayGroup') }}</span>
         <span v-for="k in Object.keys(OVERLAY_STATUS)" :key="k" class="ipam-legend__item">
           <i
             class="ipam-legend__swatch"
             data-shape="dot"
             :style="{ backgroundColor: OVERLAY_STATUS[k]?.color || '#ccc' }"
           ></i>
-          {{ OVERLAY_STATUS[k]?.label || k }}
+          {{ overlayText(k) }}
         </span>
       </div>
 
@@ -396,12 +448,36 @@ onMounted(() => {
           <template #title>
             <div>
               <div style="font-weight: 600">{{ ipObj.ip }}</div>
-              <div>状态：{{ IP_STATUS[ipObj.status]?.label || ipObj.status }}{{ (ipObj.overlays || []).length > 0 ? `（叠加：${(ipObj.overlays || []).map((o) => OVERLAY_STATUS[o]?.label || o).join('、')}）` : '' }}</div>
-              <div v-if="ipObj.hostname">主机名：{{ ipObj.hostname }}</div>
-              <div v-if="ipObj.mac">MAC：{{ ipObj.mac }}</div>
-              <div v-if="ipObj.leaseStart">租用时间：{{ ipObj.leaseStart }}</div>
-              <div v-if="ipObj.leaseEnd">到期时间：{{ ipObj.leaseEnd }}</div>
-              <div v-if="ipObj.user">使用人：{{ ipObj.user }}</div>
+              <div>
+                {{
+                  $t('shared.ipMap.tip.status', {
+                    label: statusText(ipObj.status),
+                    overlays:
+                      (ipObj.overlays || []).length > 0
+                        ? $t('shared.ipMap.tip.overlays', {
+                            names: (ipObj.overlays || [])
+                              .map((o) => overlayText(o))
+                              .join($t('shared.ipMap.listSep')),
+                          })
+                        : '',
+                  })
+                }}
+              </div>
+              <div v-if="ipObj.hostname">
+                {{ $t('shared.ipMap.tip.hostname', { v: ipObj.hostname }) }}
+              </div>
+              <div v-if="ipObj.mac">
+                {{ $t('shared.ipMap.tip.mac', { v: ipObj.mac }) }}
+              </div>
+              <div v-if="ipObj.leaseStart">
+                {{ $t('shared.ipMap.tip.leaseStart', { v: ipObj.leaseStart }) }}
+              </div>
+              <div v-if="ipObj.leaseEnd">
+                {{ $t('shared.ipMap.tip.leaseEnd', { v: ipObj.leaseEnd }) }}
+              </div>
+              <div v-if="ipObj.user">
+                {{ $t('shared.ipMap.tip.user', { v: ipObj.user }) }}
+              </div>
             </div>
           </template>
           <div
@@ -444,91 +520,105 @@ onMounted(() => {
 
       <!-- 底部提示 -->
       <div class="ipam-hint mt-2">
-        点击选择 IP · Shift+点击 区间选择 · 网络/广播地址不可操作{{ readOnly ? ' · 当前为只读模式' : '' }}
+        {{ $t('shared.ipMap.bottom')
+        }}{{ readOnly ? $t('shared.ipMap.bottomReadonly') : '' }}
       </div>
 
       <!-- 编辑弹窗 -->
       <Modal
         :open="editOpen"
-        :title="editing.length > 1 ? `编辑 ${editing.length} 个 IP` : `编辑 IP · ${editing[0]?.ip || ''}`"
-        ok-text="保存"
+        :title="
+          editing.length > 1
+            ? $t('shared.ipMap.editMany', { n: editing.length })
+            : $t('shared.ipMap.editOne', { ip: editing[0]?.ip || '' })
+        "
+        :ok-text="$t('shared.ipMap.save')"
         :width="520"
         @ok="handleEditOk"
         @cancel="editOpen = false"
       >
         <Form layout="vertical">
-          <Form.Item label="状态">
+          <Form.Item :label="$t('shared.ipMap.form.status')">
             <Select
               v-model:value="editForm.status"
-              :options="Object.entries(IP_STATUS).filter(([k]) => !STATUS_DISABLED.has(k)).map(([k, v]) => ({ label: v.label, value: k }))"
+              :options="Object.entries(IP_STATUS).filter(([k]) => !STATUS_DISABLED.has(k)).map(([k]) => ({ label: statusText(k), value: k }))"
             />
           </Form.Item>
           <div class="grid grid-cols-2 gap-x-3 gap-y-0">
-            <Form.Item label="主机名">
-              <Input v-model:value="editForm.hostname" placeholder="如 PC-001" />
+            <Form.Item :label="$t('shared.ipMap.form.hostname')">
+              <Input v-model:value="editForm.hostname" :placeholder="$t('shared.ipMap.ph.hostname')" />
             </Form.Item>
-            <Form.Item label="用途">
-              <Input v-model:value="editForm.purpose" placeholder="办公 / 服务器 / 打印机…" />
+            <Form.Item :label="$t('shared.ipMap.form.purpose')">
+              <Input v-model:value="editForm.purpose" :placeholder="$t('shared.ipMap.ph.purpose')" />
             </Form.Item>
-            <Form.Item label="使用人">
+            <Form.Item :label="$t('shared.ipMap.form.user')">
               <Input v-model:value="editForm.user" />
             </Form.Item>
-            <Form.Item label="电话">
+            <Form.Item :label="$t('shared.ipMap.form.phone')">
               <Input v-model:value="editForm.phone" />
             </Form.Item>
-            <Form.Item label="站点">
-              <Input v-model:value="editForm.site" placeholder="如 总部 / A 栋" />
+            <Form.Item :label="$t('shared.ipMap.form.site')">
+              <Input v-model:value="editForm.site" :placeholder="$t('shared.ipMap.ph.site')" />
             </Form.Item>
             <Form.Item label="VLAN">
               <InputNumber v-model:value="editForm.vlan" :min="0" :max="4094" style="width: 100%" />
             </Form.Item>
           </div>
-          <Form.Item label="自定义属性" extra="每行一条，格式：键=值">
-            <Input.TextArea v-model:value="editForm.customAttrText" :rows="2" placeholder="资产编号=ZC-001&#10;位置=三楼机房" />
+          <Form.Item
+            :label="$t('shared.ipMap.form.custom')"
+            :extra="$t('shared.ipMap.form.customExtra')"
+          >
+            <Input.TextArea v-model:value="editForm.customAttrText" :rows="2" :placeholder="$t('shared.ipMap.ph.custom')" />
           </Form.Item>
-          <Form.Item label="备注" class="mb-0">
+          <Form.Item :label="$t('shared.ipMap.form.remark')" class="mb-0">
             <Input.TextArea v-model:value="editForm.remark" :rows="2" />
           </Form.Item>
         </Form>
       </Modal>
 
       <!-- 详情抽屉 -->
-      <Drawer :open="!!detail" :title="`IP 详情 · ${detail?.ip || ''}`" :width="420" @close="detail = null">
+      <Drawer :open="!!detail" :title="$t('shared.ipMap.detailTitle', { ip: detail?.ip || '' })" :width="420" @close="detail = null">
         <template v-if="detail">
           <Space wrap style="margin-bottom: 12px">
-            <Tag :color="IP_STATUS[detail.status]?.color">{{ IP_STATUS[detail.status]?.label || detail.status }}</Tag>
+            <Tag :color="IP_STATUS[detail.status]?.color">
+              {{ statusText(detail.status) }}
+            </Tag>
             <Tag v-for="o in (detail.overlays || [])" :key="o" :color="OVERLAY_STATUS[o]?.color">
-              {{ OVERLAY_STATUS[o]?.label || o }}
+              {{ overlayText(o) }}
             </Tag>
           </Space>
 
-          <Divider orientation="left" plain style="margin: 8px 0">分配信息</Divider>
+          <Divider orientation="left" plain style="margin: 8px 0">{{ $t('shared.ipMap.section.assign') }}</Divider>
           <Descriptions :column="1" size="small" bordered>
-            <Descriptions.Item label="地址">{{ detail.ip }}</Descriptions.Item>
-            <Descriptions.Item label="主机名">{{ detail.hostname || '-' }}</Descriptions.Item>
-            <Descriptions.Item label="租约状态">{{ detail.leaseStatus || '-' }}</Descriptions.Item>
-            <Descriptions.Item label="租约时间">{{ detail.leaseStart || '-' }}</Descriptions.Item>
-            <Descriptions.Item label="到期时间">{{ detail.leaseEnd || '-' }}</Descriptions.Item>
+            <Descriptions.Item :label="$t('shared.ipMap.field.address')">{{ detail.ip }}</Descriptions.Item>
+            <Descriptions.Item :label="$t('shared.ipMap.field.hostname')">
+              {{ detail.hostname || '-' }}
+            </Descriptions.Item>
+            <Descriptions.Item :label="$t('shared.ipMap.field.leaseStatus')">{{ detail.leaseStatus || '-' }}</Descriptions.Item>
+            <Descriptions.Item :label="$t('shared.ipMap.field.leaseStart')">{{ detail.leaseStart || '-' }}</Descriptions.Item>
+            <Descriptions.Item :label="$t('shared.ipMap.field.leaseEnd')">{{ detail.leaseEnd || '-' }}</Descriptions.Item>
           </Descriptions>
 
-          <Divider orientation="left" plain style="margin: 12px 0">扫描信息</Divider>
+          <Divider orientation="left" plain style="margin: 12px 0">{{ $t('shared.ipMap.section.scan') }}</Divider>
           <Descriptions :column="1" size="small" bordered>
-            <Descriptions.Item label="设备名称">{{ detail.deviceName || '-' }}</Descriptions.Item>
-            <Descriptions.Item label="交换机端口">{{ detail.switchPort || '-' }}</Descriptions.Item>
+            <Descriptions.Item :label="$t('shared.ipMap.field.deviceName')">{{ detail.deviceName || '-' }}</Descriptions.Item>
+            <Descriptions.Item :label="$t('shared.ipMap.field.switchPort')">{{ detail.switchPort || '-' }}</Descriptions.Item>
           </Descriptions>
 
-          <Divider orientation="left" plain style="margin: 12px 0">资产信息</Divider>
+          <Divider orientation="left" plain style="margin: 12px 0">{{ $t('shared.ipMap.section.asset') }}</Divider>
           <Descriptions :column="1" size="small" bordered>
-            <Descriptions.Item v-if="Object.keys(detail.customAttrs || {}).length === 0" label="资产信息">-</Descriptions.Item>
+            <Descriptions.Item v-if="Object.keys(detail.customAttrs || {}).length === 0" :label="$t('shared.ipMap.field.asset')">
+              -
+            </Descriptions.Item>
             <Descriptions.Item v-for="(v, k) in detail.customAttrs || {}" :key="k" :label="String(k)">{{ String(v) }}</Descriptions.Item>
           </Descriptions>
 
-          <Divider orientation="left" plain style="margin: 12px 0">管理信息</Divider>
+          <Divider orientation="left" plain style="margin: 12px 0">{{ $t('shared.ipMap.section.manage') }}</Divider>
           <Descriptions :column="1" size="small" bordered>
-            <Descriptions.Item label="用途">{{ detail.purpose || '-' }}</Descriptions.Item>
-            <Descriptions.Item label="使用人">{{ detail.user || '-' }}</Descriptions.Item>
-            <Descriptions.Item label="电话">{{ detail.phone || '-' }}</Descriptions.Item>
-            <Descriptions.Item label="备注">{{ detail.remark || '-' }}</Descriptions.Item>
+            <Descriptions.Item :label="$t('shared.ipMap.field.purpose')">{{ detail.purpose || '-' }}</Descriptions.Item>
+            <Descriptions.Item :label="$t('shared.ipMap.field.user')">{{ detail.user || '-' }}</Descriptions.Item>
+            <Descriptions.Item :label="$t('shared.ipMap.field.phone')">{{ detail.phone || '-' }}</Descriptions.Item>
+            <Descriptions.Item :label="$t('shared.ipMap.field.remark')">{{ detail.remark || '-' }}</Descriptions.Item>
           </Descriptions>
         </template>
       </Drawer>

@@ -29,6 +29,7 @@ import {
 } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import { $t } from '#/locales';
 
 defineOptions({ name: 'SystemBackup' });
 
@@ -47,17 +48,19 @@ const settings = reactive<BackupSettings>({
 });
 let timer: ReturnType<typeof setInterval> | undefined;
 
-const KIND_LABEL: Record<string, string> = {
-  auto: '定时',
-  manual: '手动',
-  pre_upgrade: '升级前',
-};
-const STATUS_META: Record<string, { color: string; label: string }> = {
-  failed: { color: 'red', label: '失败' },
-  restoring: { color: 'orange', label: '恢复中' },
-  running: { color: 'blue', label: '进行中' },
-  success: { color: 'green', label: '成功' },
-};
+const KIND_LABEL = computed<Record<string, string>>(() => ({
+  auto: $t('system.backup.kind.auto'),
+  manual: $t('system.backup.kind.manual'),
+  pre_upgrade: $t('system.backup.kind.pre_upgrade'),
+}));
+const STATUS_META = computed<Record<string, { color: string; label: string }>>(
+  () => ({
+    failed: { color: 'red', label: $t('system.backup.status.failed') },
+    restoring: { color: 'orange', label: $t('system.backup.status.restoring') },
+    running: { color: 'blue', label: $t('system.backup.status.running') },
+    success: { color: 'green', label: $t('system.backup.status.success') },
+  }),
+);
 
 function fmtBytes(v?: null | number): string {
   if (!v) return '—';
@@ -86,7 +89,9 @@ async function load() {
     const data = await listBackups();
     rows.value = data.items ?? [];
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '备份列表加载失败');
+    message.error(
+      error instanceof Error ? error.message : $t('system.backup.msg.loadFailed'),
+    );
   } finally {
     loading.value = false;
   }
@@ -111,9 +116,11 @@ async function saveSettings() {
       retentionCount: settings.retentionCount,
       scheduleHour: settings.scheduleHour,
     });
-    message.success('备份策略已保存');
+    message.success($t('system.backup.msg.settingsSaved'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '保存失败');
+    message.error(
+      error instanceof Error ? error.message : $t('system.backup.msg.saveFailed'),
+    );
   } finally {
     saving.value = false;
   }
@@ -128,11 +135,13 @@ async function submitCreate() {
   creating.value = true;
   try {
     await createBackup(note.value.trim() || undefined);
-    message.success('备份任务已创建，正在后台执行');
+    message.success($t('system.backup.msg.created'));
     createOpen.value = false;
     await load();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '创建备份失败');
+    message.error(
+      error instanceof Error ? error.message : $t('system.backup.msg.createFailed'),
+    );
   } finally {
     creating.value = false;
   }
@@ -141,10 +150,12 @@ async function submitCreate() {
 async function remove(rec: BackupRecord) {
   try {
     await deleteBackup(rec.id);
-    message.success('备份已删除');
+    message.success($t('system.backup.msg.deleted'));
     await load();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '删除失败');
+    message.error(
+      error instanceof Error ? error.message : $t('system.backup.msg.deleteFailed'),
+    );
   }
 }
 
@@ -152,10 +163,12 @@ async function doRestore(rec: BackupRecord) {
   restoringId.value = rec.id;
   try {
     await restoreBackup(rec.id);
-    message.success('恢复完成；如页面数据异常请刷新');
+    message.success($t('system.backup.msg.restored'));
     await load();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '恢复失败');
+    message.error(
+      error instanceof Error ? error.message : $t('system.backup.msg.restoreFailed'),
+    );
   } finally {
     restoringId.value = '';
   }
@@ -177,19 +190,52 @@ async function download(rec: BackupRecord) {
     a.click();
     URL.revokeObjectURL(url);
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '下载失败');
+    message.error(
+      error instanceof Error ? error.message : $t('system.backup.msg.downloadFailed'),
+    );
   }
 }
 
-const columns = [
-  { dataIndex: 'startedAt', key: 'startedAt', title: '时间', width: 170 },
-  { dataIndex: 'kind', key: 'kind', title: '类型', width: 90 },
-  { dataIndex: 'status', key: 'status', title: '状态', width: 110 },
-  { dataIndex: 'sizeBytes', key: 'sizeBytes', title: '大小', width: 110 },
-  { dataIndex: 'months', key: 'months', title: '日志月份', minWidth: 150 },
-  { dataIndex: 'note', key: 'note', title: '备注', minWidth: 130 },
-  { dataIndex: 'op', key: 'op', title: '操作', width: 250, fixed: 'right' as const },
-];
+const columns = computed(() => [
+  {
+    dataIndex: 'startedAt',
+    key: 'startedAt',
+    title: $t('system.backup.col.startedAt'),
+    width: 170,
+  },
+  { dataIndex: 'kind', key: 'kind', title: $t('system.backup.col.kind'), width: 90 },
+  {
+    dataIndex: 'status',
+    key: 'status',
+    title: $t('system.backup.col.status'),
+    width: 110,
+  },
+  {
+    dataIndex: 'sizeBytes',
+    key: 'sizeBytes',
+    title: $t('system.backup.col.sizeBytes'),
+    width: 110,
+  },
+  {
+    dataIndex: 'months',
+    key: 'months',
+    title: $t('system.backup.col.months'),
+    minWidth: 150,
+  },
+  {
+    dataIndex: 'note',
+    key: 'note',
+    title: $t('system.backup.col.note'),
+    minWidth: 130,
+  },
+  {
+    dataIndex: 'op',
+    key: 'op',
+    title: $t('system.backup.col.op'),
+    width: 250,
+    fixed: 'right' as const,
+  },
+]);
 
 onMounted(() => {
   void load();
@@ -208,63 +254,77 @@ onBeforeUnmount(() => clearInterval(timer));
     <PageHeader
       eyebrow="System"
       icon="lucide:archive-restore"
-      title="备份与恢复"
-      description="备份 PostgreSQL、配置目录与 ClickHouse 日志；支持下载、恢复与每日自动策略。恢复会覆盖当前数据，请在维护窗口执行。"
+      :title="$t('system.backup.page.title')"
+      :description="$t('system.backup.page.desc')"
     >
       <template #actions>
         <Button size="small" :loading="loading" @click="load">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />刷新
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{
+            $t('system.backup.actions.refresh')
+          }}
         </Button>
         <Button type="primary" size="small" @click="openCreate">
-          <IconifyIcon icon="lucide:plus" class="mr-1 size-3.5" />立即备份
+          <IconifyIcon icon="lucide:plus" class="mr-1 size-3.5" />{{
+            $t('system.backup.actions.createNow')
+          }}
         </Button>
       </template>
     </PageHeader>
 
     <div class="ipam-stat-grid">
       <StatCard
-        label="备份总数"
+        :label="$t('system.backup.stat.total')"
         :value="rows.length"
         icon="lucide:archive"
         tone="blue"
-        :hint="`成功 ${successCount} 份`"
+        :hint="$t('system.backup.stat.totalHint', { n: successCount })"
       />
       <StatCard
-        label="最近成功"
-        :value="lastSuccess ? fmtTime(lastSuccess.startedAt) : '暂无'"
+        :label="$t('system.backup.stat.last')"
+        :value="lastSuccess ? fmtTime(lastSuccess.startedAt) : $t('system.backup.stat.none')"
         icon="lucide:clock"
         tone="green"
-        :hint="lastSuccess ? fmtBytes(lastSuccess.sizeBytes) : '创建第一份备份'"
+        :hint="
+          lastSuccess
+            ? fmtBytes(lastSuccess.sizeBytes)
+            : $t('system.backup.stat.createFirst')
+        "
       />
       <StatCard
-        label="日志覆盖"
+        :label="$t('system.backup.stat.logCoverage')"
         :value="monthCount"
-        unit="月"
+        :unit="$t('system.backup.stat.logUnit')"
         icon="lucide:calendar-days"
         tone="cyan"
-        hint="最近成功备份包含的日志月份"
+        :hint="$t('system.backup.stat.logHint')"
       />
       <StatCard
-        label="自动策略"
-        :value="settings.enabled ? `每日 ${settings.scheduleHour}:00` : '已关闭'"
+        :label="$t('system.backup.stat.policy')"
+        :value="
+          settings.enabled
+            ? $t('system.backup.stat.daily', { hour: settings.scheduleHour })
+            : $t('system.backup.stat.off')
+        "
         icon="lucide:timer-reset"
         :tone="settings.enabled ? 'green' : 'violet'"
-        :hint="`保留 ${settings.retentionCount} 份`"
+        :hint="$t('system.backup.stat.retention', { n: settings.retentionCount })"
       />
     </div>
 
     <Card>
       <template #title>
         <span class="ipam-card-title">
-          <IconifyIcon icon="lucide:list" />备份记录
-          <em class="ipam-card-sub">{{ rows.length }} 份</em>
+          <IconifyIcon icon="lucide:list" />{{ $t('system.backup.list.title') }}
+          <em class="ipam-card-sub">{{
+            $t('system.backup.list.count', { n: rows.length })
+          }}</em>
         </span>
       </template>
       <Table
         :columns="columns"
         :data-source="rows"
         :loading="loading"
-        :locale="{ emptyText: '暂无备份，点击右上角「立即备份」创建' }"
+        :locale="{ emptyText: $t('system.backup.list.empty') }"
         :pagination="false"
         :row-key="(r: BackupRecord) => r.id"
         :scroll="{ x: 1000 }"
@@ -275,7 +335,11 @@ onBeforeUnmount(() => clearInterval(timer));
             <div class="ipam-cell-stack">
               <span class="ipam-cell-title">{{ fmtTime(record.startedAt) }}</span>
               <span v-if="record.finishedAt" class="ipam-cell-meta">
-                完成 {{ fmtTime(record.finishedAt) }}
+                {{
+                  $t('system.backup.list.finished', {
+                    time: fmtTime(record.finishedAt),
+                  })
+                }}
               </span>
             </div>
           </template>
@@ -309,13 +373,15 @@ onBeforeUnmount(() => clearInterval(timer));
                 :disabled="record.status !== 'success'"
                 @click="download(record as BackupRecord)"
               >
-                <IconifyIcon icon="lucide:download" class="mr-1 size-3.5" />下载
+                <IconifyIcon icon="lucide:download" class="mr-1 size-3.5" />{{
+                  $t('system.backup.actions.download')
+                }}
               </Button>
               <Popconfirm
-                title="确认从该备份恢复？"
-                description="将覆盖当前 PostgreSQL 数据与 ClickHouse 日志，期间管理页面可能短暂不可用。"
-                ok-text="恢复"
-                cancel-text="取消"
+                :title="$t('system.backup.confirm.restoreTitle')"
+                :description="$t('system.backup.confirm.restoreDesc')"
+                :ok-text="$t('system.backup.confirm.restoreOk')"
+                :cancel-text="$t('system.backup.confirm.cancel')"
                 @confirm="doRestore(record as BackupRecord)"
               >
                 <Button
@@ -324,14 +390,14 @@ onBeforeUnmount(() => clearInterval(timer));
                   :loading="restoringId === record.id"
                   :disabled="record.status !== 'success'"
                 >
-                  恢复
+                  {{ $t('system.backup.actions.restore') }}
                 </Button>
               </Popconfirm>
               <Popconfirm
-                title="确认删除该备份？"
-                description="备份文件与记录将一并删除，不可恢复。"
-                ok-text="删除"
-                cancel-text="取消"
+                :title="$t('system.backup.confirm.deleteTitle')"
+                :description="$t('system.backup.confirm.deleteDesc')"
+                :ok-text="$t('system.backup.confirm.deleteOk')"
+                :cancel-text="$t('system.backup.confirm.cancel')"
                 @confirm="remove(record as BackupRecord)"
               >
                 <Button
@@ -339,7 +405,7 @@ onBeforeUnmount(() => clearInterval(timer));
                   danger
                   :disabled="record.status === 'running' || record.status === 'restoring'"
                 >
-                  删除
+                  {{ $t('system.backup.actions.delete') }}
                 </Button>
               </Popconfirm>
             </div>
@@ -351,56 +417,76 @@ onBeforeUnmount(() => clearInterval(timer));
     <Card>
       <template #title>
         <span class="ipam-card-title">
-          <IconifyIcon icon="lucide:timer-reset" />自动备份策略
+          <IconifyIcon icon="lucide:timer-reset" />{{
+            $t('system.backup.policy.title')
+          }}
         </span>
       </template>
       <template #extra>
-        <span class="ipam-hint">每日检查一次，按 UTC 执行</span>
+        <span class="ipam-hint">{{ $t('system.backup.policy.scheduleHint') }}</span>
       </template>
       <div class="ipam-form-grid">
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">启用自动备份</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.backup.policy.enabled')
+          }}</span>
           <div class="flex h-8 items-center gap-2">
             <Switch v-model:checked="settings.enabled" size="small" />
-            <span class="ipam-hint">{{ settings.enabled ? '已启用' : '已关闭' }}</span>
+            <span class="ipam-hint">{{
+              settings.enabled
+                ? $t('system.backup.policy.on')
+                : $t('system.backup.policy.off')
+            }}</span>
           </div>
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">执行小时（UTC）</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.backup.policy.hour')
+          }}</span>
           <InputNumber v-model:value="settings.scheduleHour" :min="0" :max="23" style="width: 100%" />
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">保留份数</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.backup.policy.retention')
+          }}</span>
           <InputNumber v-model:value="settings.retentionCount" :min="1" :max="90" style="width: 100%" />
         </div>
         <div class="ipam-form-hint ipam-form-field--wide">
-          超出保留份数的旧备份会被自动删除；升级前建议手动创建一份并下载留存。
+          {{ $t('system.backup.policy.retentionHint') }}
         </div>
       </div>
       <div class="ipam-toolbar ipam-toolbar--plain mt-3">
-        <span class="ipam-hint">自动备份包含 PG、配置目录与 ClickHouse 日志 Parquet</span>
+        <span class="ipam-hint">{{ $t('system.backup.policy.dataHint') }}</span>
         <span class="ipam-toolbar__spacer"></span>
         <Button type="primary" :loading="saving" @click="saveSettings">
-          <IconifyIcon icon="lucide:save" class="mr-1 size-3.5" />保存策略
+          <IconifyIcon icon="lucide:save" class="mr-1 size-3.5" />{{
+            $t('system.backup.actions.save')
+          }}
         </Button>
       </div>
     </Card>
 
     <Modal
       v-model:open="createOpen"
-      title="立即备份"
-      ok-text="开始备份"
-      cancel-text="取消"
+      :title="$t('system.backup.modal.title')"
+      :ok-text="$t('system.backup.modal.ok')"
+      :cancel-text="$t('system.backup.modal.cancel')"
       :confirm-loading="creating"
       @ok="submitCreate"
     >
       <div class="ipam-form-grid">
         <div class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">备注（可选）</span>
-          <Input v-model:value="note" placeholder="如 升级前快照" :maxlength="200" />
+          <span class="ipam-form-field__label">{{
+            $t('system.backup.modal.note')
+          }}</span>
+          <Input
+            v-model:value="note"
+            :placeholder="$t('system.backup.modal.notePlaceholder')"
+            :maxlength="200"
+          />
         </div>
         <div class="ipam-form-hint ipam-form-field--wide">
-          备份在后台执行；状态每 5 秒自动刷新。日志量大时可能需要数分钟。
+          {{ $t('system.backup.modal.hint') }}
         </div>
       </div>
     </Modal>

@@ -1,0 +1,98 @@
+{
+  "ipam": {
+    "header": {
+      "title": "运行概览",
+      "desc": "集中查看地址资源、核心服务健康度与 DNS 运行态势。",
+      "updatedAt": "{time} 更新",
+      "waiting": "等待首次加载",
+      "refresh": "刷新"
+    },
+    "light": {
+      "up": "运行正常",
+      "down": "服务异常",
+      "unknown": "未接入"
+    },
+    "stat": {
+      "activeDevices": "今日活跃终端",
+      "activeHint": "新增 {new} · 离线 {offline}",
+      "qps": "DNS 5 分钟 QPS",
+      "qpsHint": "近 1 小时均值 {avg} 次/分",
+      "health": "核心服务健康",
+      "blocked": "今日 DNS 拦截",
+      "blockedHint": "封禁名单命中（今日累计）"
+    },
+    "unit": {
+      "devices": "台",
+      "times": "次",
+      "perMin": "次/分"
+    },
+    "health": {
+      "ok": "正常",
+      "bad": "异常",
+      "pending": "待接入",
+      "captionOk": "服务正常",
+      "hintDown": "需关注：{names}",
+      "hintPartial": "部分组件未配置探测目标",
+      "hintAll": "全部核心服务运行正常",
+      "probeHint": "探测间隔 30 秒 · 未接入=未配置探测目标",
+      "poc": "PoC 内存模式下未配置探测目标会显示「未接入」，不影响其他功能。"
+    },
+    "online": {
+      "title": "活跃终端趋势",
+      "sub": "近 24 小时 · 逐小时",
+      "peak": "峰值 {n} 台",
+      "new": "今日新增",
+      "offline": "离线终端",
+      "hourlyAvg": "小时均值",
+      "dualstack": "双栈联动成功率",
+      "emptyTitle": "暂无活跃终端趋势",
+      "emptyDesc": "租约数据产生后将自动在此展示。"
+    },
+    "qps": {
+      "title": "DNS 查询量",
+      "bucket": "{min} 分钟分桶",
+      "peak": "峰值",
+      "avg": "均值",
+      "emptyTitle": "暂无查询数据",
+      "emptyDesc": "DNS 查询日志接入后将在此展示查询趋势。",
+      "avgRate": "平均速率",
+      "peakRate": "峰值速率",
+      "total": "区间查询总量",
+      "range1h": "1 小时",
+      "range6h": "6 小时",
+      "range24h": "24 小时"
+    },
+    "top": {
+      "title": "热门查询域名",
+      "sub": "近 1 小时",
+      "details": "日志明细",
+      "emptyTitle": "暂无域名数据",
+      "emptyDesc": "DNS 查询日志接入后展示热门域名。"
+    },
+    "host": {
+      "title": "主机资源",
+      "sub": "宿主整机 · 每 10 秒刷新",
+      "sampled": "{time} 采样 · 开机 {uptime}",
+      "cores": "{n} 核",
+      "memory": "内存",
+      "rootfs": "根分区",
+      "emptyTitle": "暂无磁盘数据",
+      "emptyDesc": "请确认控制面已挂载宿主 /proc 与 /sys。",
+      "load1": "1 分钟负载",
+      "load5": "5 分钟负载",
+      "load15": "15 分钟负载",
+      "uptime": "连续运行",
+      "uptimeDays": "{d}天 {h}时",
+      "uptimeHours": "{h}时 {m}分"
+    },
+    "pools": {
+      "title": "地址池利用率 Top 5",
+      "manage": "子网管理",
+      "dept": "部门：{name}",
+      "used": "已用 {used} / 容量 {capacity}",
+      "emptyTitle": "暂无地址池数据",
+      "emptyDesc": "创建子网并产生租约后展示利用率排名。"
+    },
+    "listSep": "、"
+  }
+}

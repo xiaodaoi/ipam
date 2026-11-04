@@ -8,7 +8,7 @@ import type {
   SubnetOptionIn,
 } from '#/api/ipam';
 
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { useVbenDrawer, useVbenModal } from '@vben/common-ui';
@@ -41,8 +41,9 @@ import {
 import OrgManageCard from '#/components/org-manage-card.vue';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import { $t } from '#/locales';
 
-import { DHCP4_OPTION_PRESETS, DHCP6_OPTION_PRESETS } from './options';
+import { getDhcp4OptionPresets, getDhcp6OptionPresets } from './options';
 
 type Family = 4 | 6;
 type FamilyTab = 'v4' | 'v6';
@@ -177,8 +178,8 @@ function orgPathOf(orgId?: string): string[] {
 
 const orgScopeLabel = computed(() =>
   filterOrgId.value
-    ? orgPathOf(filterOrgId.value).join(' / ') || '全部组织'
-    : '全部组织',
+    ? orgPathOf(filterOrgId.value).join(' / ') || $t('dhcp.subnets.allOrgs')
+    : $t('dhcp.subnets.allOrgs'),
 );
 
 // 组织统计：本节点 + 全部下级节点
@@ -305,7 +306,10 @@ const familyCards = computed(() =>
     return {
       key,
       title: key === 'v4' ? 'IPv4' : 'IPv6',
-      tag: key === 'v4' ? '逐地址规划' : '前缀 / PD 委派',
+      tag:
+        key === 'v4'
+          ? $t('dhcp.subnets.family.v4Tag')
+          : $t('dhcp.subnets.family.v6Tag'),
       icon: key === 'v4' ? 'lucide:network' : 'lucide:globe',
       subnets: list.length,
       online: list.reduce((n, r) => n + (onlineBySubnet.value[r.id] ?? 0), 0),
@@ -335,44 +339,74 @@ const summaryItems = computed(() => {
     B0,
   );
   const items: { label: string; unit: string; value: string }[] = [
-    { label: '子网', value: String(list.length), unit: '个' },
+    {
+      label: $t('dhcp.subnets.summary.subnets'),
+      value: String(list.length),
+      unit: $t('dhcp.common.unitCount'),
+    },
   ];
   if (familyTab.value === 'v6') {
     items.push(
-      { label: 'PD 委派池', value: String(pdPools), unit: '个' },
-      { label: '动态地址池', value: String(dynamicPools), unit: '个' },
       {
-        label: '可分配容量',
+        label: $t('dhcp.subnets.summary.pdPools'),
+        value: String(pdPools),
+        unit: $t('dhcp.common.unitCount'),
+      },
+      {
+        label: $t('dhcp.subnets.summary.dynamicPools'),
+        value: String(dynamicPools),
+        unit: $t('dhcp.common.unitCount'),
+      },
+      {
+        label: $t('dhcp.subnets.summary.capacity'),
         value: fmtBig(capacity),
         unit: capacityUnit(list),
       },
     );
   } else {
     items.push(
-      { label: '动态地址池', value: String(dynamicPools), unit: '个' },
-      { label: '地址容量', value: fmtBig(capacity), unit: '个地址' },
       {
-        label: '平均利用率',
+        label: $t('dhcp.subnets.summary.dynamicPools'),
+        value: String(dynamicPools),
+        unit: $t('dhcp.common.unitCount'),
+      },
+      {
+        label: $t('dhcp.subnets.summary.addressCapacity'),
+        value: fmtBig(capacity),
+        unit: $t('dhcp.common.unitAddress'),
+      },
+      {
+        label: $t('dhcp.subnets.summary.avgUtil'),
         value: capacity > B0 ? utilizationText(online, capacity) : '—',
         unit: capacity > B0 ? '%' : '',
       },
     );
   }
   items.push(
-    { label: '在线租约', value: String(online), unit: '条' },
-    { label: 'Kea 已下发', value: `${issued}/${list.length}`, unit: '' },
+    {
+      label: $t('dhcp.subnets.summary.onlineLeases'),
+      value: String(online),
+      unit: $t('dhcp.common.unitRecord'),
+    },
+    {
+      label: $t('dhcp.subnets.summary.keaIssued'),
+      value: `${issued}/${list.length}`,
+      unit: '',
+    },
   );
   return items;
 });
 
 function capacityUnit(list: Subnet[]): string {
-  if (familyTab.value !== 'v6') return '个地址';
+  if (familyTab.value !== 'v6') return $t('dhcp.common.unitAddress');
   const hasPd = list.some((r) => (r.pools ?? []).some((p) => p.kind === 'pd'));
   const hasDynamic = list.some((r) =>
     (r.pools ?? []).some((p) => p.kind !== 'pd'),
   );
-  if (hasPd && hasDynamic) return '个';
-  return hasPd ? '个前缀' : '个地址';
+  if (hasPd && hasDynamic) return $t('dhcp.common.unitCount');
+  return hasPd
+    ? $t('dhcp.common.unitPrefix')
+    : $t('dhcp.common.unitAddress');
 }
 
 function utilizationText(used: number, capacity: bigint): string {
@@ -484,18 +518,23 @@ function trimNum(n: number): string {
 
 function fmtLifetime(sec?: number): string {
   if (!sec) return '—';
-  if (sec % 86_400 === 0) return `${sec / 86_400} 天`;
-  if (sec % 3600 === 0) return `${sec / 3600} 小时`;
-  if (sec % 60 === 0) return `${sec / 60} 分钟`;
-  return `${sec} 秒`;
+  if (sec % 86_400 === 0)
+    return $t('dhcp.common.durationDays', { n: sec / 86_400 });
+  if (sec % 3600 === 0)
+    return $t('dhcp.common.durationHours', { n: sec / 3600 });
+  if (sec % 60 === 0)
+    return $t('dhcp.common.durationMinutes', { n: sec / 60 });
+  return $t('dhcp.common.durationSeconds', { n: sec });
 }
 
 // ── 地址池展示 ─────────────────────────────────────────────────────────
-const POOL_KIND: Record<string, { label: string; tone: string }> = {
-  dynamic: { label: '动态池', tone: 'blue' },
-  excluded: { label: '保留段', tone: 'muted' },
-  pd: { label: 'PD 委派', tone: 'violet' },
-};
+const POOL_KIND = computed<Record<string, { label: string; tone: string }>>(
+  () => ({
+    dynamic: { label: $t('dhcp.subnets.pool.dynamic'), tone: 'blue' },
+    excluded: { label: $t('dhcp.subnets.pool.excluded'), tone: 'muted' },
+    pd: { label: $t('dhcp.subnets.pool.pd'), tone: 'violet' },
+  }),
+);
 
 function poolKinds(r: Subnet): { label: string; tone: string }[] {
   const seen = new Set<string>();
@@ -503,7 +542,7 @@ function poolKinds(r: Subnet): { label: string; tone: string }[] {
   for (const pool of r.pools ?? []) {
     if (seen.has(pool.kind)) continue;
     seen.add(pool.kind);
-    out.push(POOL_KIND[pool.kind] ?? { label: pool.kind, tone: 'muted' });
+    out.push(POOL_KIND.value[pool.kind] ?? { label: pool.kind, tone: 'muted' });
   }
   return out;
 }
@@ -516,7 +555,9 @@ function poolSummary(r: Subnet): string {
     first.kind === 'pd'
       ? `${first.startAddr}/${first.prefixLen ?? '?'} → /${first.delegatedLen ?? '?'}`
       : `${first.startAddr} – ${first.endAddr}`;
-  return pools.length > 1 ? `${one} · 另 ${pools.length - 1} 个` : one;
+  return pools.length > 1
+    ? $t('dhcp.subnets.pool.more', { one, n: pools.length - 1 })
+    : one;
 }
 
 function subnetOptions(r: Subnet): SubnetOptionIn[] {
@@ -585,8 +626,8 @@ async function loadAll() {
 const editingId = ref<string>();
 const [FormModal, formModalApi] = useVbenModal({
   draggable: true,
-  title: '子网信息',
-  confirmText: '创建（下发 Kea）',
+  title: $t('dhcp.subnets.form.addTitle'),
+  confirmText: $t('dhcp.subnets.form.confirmCreate'),
   onConfirm: () => add(),
 });
 
@@ -615,6 +656,28 @@ function emptyForm(family: Family, orgId = '') {
 const form = ref(emptyForm(4));
 const isV6 = computed(() => form.value.family === 6);
 
+const lifetimePresets = computed(() => [
+  { label: $t('dhcp.subnets.form.preset1h'), value: 3600 },
+  { label: $t('dhcp.subnets.form.preset8h'), value: 28_800 },
+  { label: $t('dhcp.subnets.form.preset1d'), value: 86_400 },
+  { label: $t('dhcp.subnets.form.preset7d'), value: 604_800 },
+]);
+
+const poolKindOptions = computed(() => [
+  { label: $t('dhcp.subnets.form.poolDynamic'), value: 'dynamic' },
+  { label: $t('dhcp.subnets.form.poolPd'), value: 'pd' },
+]);
+
+const optionPresetOptions = computed(() =>
+  (isV6.value ? getDhcp6OptionPresets() : getDhcp4OptionPresets()).map((x) => ({
+    label: $t('dhcp.subnets.form.presetLabel', {
+      code: x.code,
+      label: x.label,
+    }),
+    value: x.code,
+  })),
+);
+
 const orgOptions = computed(() => {
   const out: { label: string; value: string }[] = [];
   const walk = (nodes: OrgTreeNode[], trail: string[]) => {
@@ -632,8 +695,8 @@ function openAdd(family: Family) {
   editingId.value = undefined;
   form.value = emptyForm(family, filterOrgId.value || form.value.orgId);
   formModalApi.setState({
-    title: `新建 IPv${family} 子网`,
-    confirmText: '创建（下发 Kea）',
+    title: $t('dhcp.subnets.form.newTitle', { family }),
+    confirmText: $t('dhcp.subnets.form.confirmCreate'),
   });
   formModalApi.open();
 }
@@ -641,15 +704,15 @@ function openAdd(family: Family) {
 async function add() {
   const f = form.value;
   if (!f.orgId) {
-    message.warning('请选择所属组织');
+    message.warning($t('dhcp.subnets.form.needOrg'));
     return;
   }
   if (!f.name) {
-    message.warning('请填写子网名称');
+    message.warning($t('dhcp.subnets.form.needName'));
     return;
   }
   if (!f.cidr) {
-    message.warning('请填写 CIDR（如 10.61.172.0/24）');
+    message.warning($t('dhcp.subnets.form.needCidr'));
     return;
   }
   let pools:
@@ -686,12 +749,10 @@ async function add() {
       },
     ];
   } else if (f.poolStart || f.poolEnd) {
-    message.warning(
-      '地址池需同时填写池起与池止（留空则不建池，该子网不分配动态地址）',
-    );
+    message.warning($t('dhcp.subnets.form.poolPair'));
     return;
   } else {
-    message.info('未填地址池：该子网不分配动态地址（仅可用于保留/静态绑定）');
+    message.info($t('dhcp.subnets.form.noPool'));
   }
   try {
     if (editingId.value) {
@@ -708,7 +769,7 @@ async function add() {
         purpose: f.purpose,
         owner: f.owner,
       });
-      message.success('子网已更新并下发 Kea');
+      message.success($t('dhcp.subnets.form.updated'));
     } else {
       await createSubnet({
         orgId: f.orgId,
@@ -725,13 +786,13 @@ async function add() {
         purpose: f.purpose,
         owner: f.owner,
       });
-      message.success('子网已创建并下发 Kea');
+      message.success($t('dhcp.subnets.form.created'));
     }
   } catch (error) {
     message.error(
       error instanceof Error
         ? error.message
-        : '创建/下发失败（Kea 不可用或参数被拒）',
+        : $t('dhcp.subnets.form.failed'),
     );
     return; // 保留弹窗与已填内容，便于修正后重试
   }
@@ -759,7 +820,8 @@ function onPresetChange(i: number, code: number) {
   const row = form.value.options[i];
   if (!row) return;
   row.code = code;
-  const presets = form.value.family === 6 ? DHCP6_OPTION_PRESETS : DHCP4_OPTION_PRESETS;
+  const presets =
+    form.value.family === 6 ? getDhcp6OptionPresets() : getDhcp4OptionPresets();
   row.name = presets.find((x) => x.code === code)?.name ?? '';
 }
 
@@ -796,7 +858,10 @@ function edit(r: Subnet) {
       enabled: o.enabled ?? true,
     })),
   };
-  formModalApi.setState({ title: '编辑子网', confirmText: '保存修改' });
+  formModalApi.setState({
+    title: $t('dhcp.subnets.form.editTitle'),
+    confirmText: $t('dhcp.subnets.form.saveEdit'),
+  });
   formModalApi.open();
 }
 
@@ -837,42 +902,95 @@ const lease6NaCount = computed(
 const [OrgDrawer, orgDrawerApi] = useVbenDrawer({
   class: 'w-[620px]',
   footer: false,
-  title: '组织架构管理',
+  title: $t('dhcp.subnets.orgDrawer'),
   onClosed: () => void loadAll(),
 });
 
 // ── Vben Vxe Table：子网 ───────────────────────────────────────────────
-const gridOptions = reactive<VxeGridProps>({
+const gridOptions = computed<VxeGridProps>(() => ({
   columns: [
-    { field: 'name', title: '子网', minWidth: 250, slots: { default: 'subnet' } },
-    { field: 'orgId', title: '所属组织', minWidth: 120, slots: { default: 'orgId' } },
-    { field: 'pools', title: '地址池 / 委派', minWidth: 170, slots: { default: 'pools' } },
-    { field: 'capacity', title: '容量', width: 84, slots: { default: 'capacity' } },
-    { field: 'online', title: '在线 / 利用率', width: 120, slots: { default: 'util' } },
-    { field: 'op', title: '操作', width: 96, fixed: 'right', slots: { default: 'op' } },
+    {
+      field: 'name',
+      title: $t('dhcp.subnets.grid.name'),
+      minWidth: 250,
+      slots: { default: 'subnet' },
+    },
+    {
+      field: 'orgId',
+      title: $t('dhcp.subnets.grid.org'),
+      minWidth: 120,
+      slots: { default: 'orgId' },
+    },
+    {
+      field: 'pools',
+      title: $t('dhcp.subnets.grid.pools'),
+      minWidth: 170,
+      slots: { default: 'pools' },
+    },
+    {
+      field: 'capacity',
+      title: $t('dhcp.subnets.grid.capacity'),
+      width: 84,
+      slots: { default: 'capacity' },
+    },
+    {
+      field: 'online',
+      title: $t('dhcp.subnets.grid.util'),
+      width: 120,
+      slots: { default: 'util' },
+    },
+    {
+      field: 'op',
+      title: $t('dhcp.subnets.grid.op'),
+      width: 96,
+      fixed: 'right',
+      slots: { default: 'op' },
+    },
   ],
-  emptyText: '当前组织下暂无子网，点击右上角「新建」添加',
+  emptyText: $t('dhcp.subnets.grid.empty'),
   loading: loading.value,
   pagerConfig: { enabled: true },
   rowConfig: { height: 66, keyField: 'id' },
+}));
+const [SubnetGrid, subnetGridApi] = useVbenVxeGrid({
+  gridOptions: gridOptions.value,
 });
-const [SubnetGrid, subnetGridApi] = useVbenVxeGrid({ gridOptions });
+// 语言切换后同步表头与空状态文案
+watch(gridOptions, (opts) => subnetGridApi.setState(opts as any));
 
-const lease6GridOptions = reactive<VxeGridProps>({
+const lease6GridOptions = computed<VxeGridProps>(() => ({
   columns: [
-    { field: 'ipAddress', title: '地址 / 前缀', minWidth: 200, slots: { default: 'lease6Addr' } },
-    { field: 'leaseType', title: '类型', width: 100, slots: { default: 'lease6Type' } },
-    { field: 'prefixLen', title: '前缀长', width: 90 },
+    {
+      field: 'ipAddress',
+      title: $t('dhcp.subnets.lease6.addr'),
+      minWidth: 200,
+      slots: { default: 'lease6Addr' },
+    },
+    {
+      field: 'leaseType',
+      title: $t('dhcp.subnets.lease6.type'),
+      width: 100,
+      slots: { default: 'lease6Type' },
+    },
+    { field: 'prefixLen', title: $t('dhcp.subnets.lease6.prefixLen'), width: 90 },
     { field: 'duid', title: 'DUID', minWidth: 190, showOverflow: 'tooltip' },
     { field: 'hwAddress', title: 'MAC', minWidth: 140 },
-    { field: 'validLifetime', title: '有效期', width: 90, slots: { default: 'lease6Life' } },
+    {
+      field: 'validLifetime',
+      title: $t('dhcp.subnets.lease6.life'),
+      width: 90,
+      slots: { default: 'lease6Life' },
+    },
   ],
-  emptyText: 'Kea 暂未返回 DHCPv6 租约',
+  emptyText: $t('dhcp.subnets.lease6.empty'),
   loading: lease6Loading.value,
   pagerConfig: { enabled: true },
   rowConfig: { keyField: 'ipAddress' },
+}));
+const [Lease6Grid, lease6GridApi] = useVbenVxeGrid({
+  gridOptions: lease6GridOptions.value,
 });
-const [Lease6Grid] = useVbenVxeGrid({ gridOptions: lease6GridOptions });
+watch(lease6GridOptions, (opts) => lease6GridApi.setState(opts as any));
 
 // ── 初始化 ─────────────────────────────────────────────────────────────
 onMounted(async () => {
@@ -890,21 +1008,30 @@ onMounted(async () => {
     <PageHeader
       eyebrow="DHCP Service"
       icon="lucide:network"
-      title="子网管理"
-      description="按组织维护 IPv4 / IPv6 网段、地址池与 DHCP 下发参数，变更后自动同步 Kea。"
+      :title="$t('dhcp.subnets.title')"
+      :description="$t('dhcp.subnets.description')"
     >
       <template #actions>
         <span class="ipam-page-header__meta">
           <IconifyIcon icon="lucide:layers" class="size-3.5" />
-          {{ allRows.length }} 个子网 · {{ orgTreeData.length }} 个根组织
+          {{
+            $t('dhcp.subnets.meta', {
+              subnets: allRows.length,
+              orgs: orgTreeData.length,
+            })
+          }}
         </span>
         <Button :loading="loading" @click="loadAll">
           <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />
-          刷新
+          {{ $t('dhcp.common.refresh') }}
         </Button>
         <Button type="primary" @click="openAdd(familyTab === 'v6' ? 6 : 4)">
           <IconifyIcon icon="lucide:plus" class="mr-1 size-3.5" />
-          新建 {{ familyTab === 'v6' ? 'IPv6' : 'IPv4' }} 子网
+          {{
+            $t('dhcp.subnets.newSubnet', {
+              family: familyTab === 'v6' ? 'IPv6' : 'IPv4',
+            })
+          }}
         </Button>
       </template>
     </PageHeader>
@@ -912,37 +1039,49 @@ onMounted(async () => {
     <!-- 全局指标 -->
     <div class="ipam-stat-grid">
       <StatCard
-        label="IPv4 子网"
+        :label="$t('dhcp.subnets.stat.v4Label')"
         :value="v4Count"
-        unit="个"
+        :unit="$t('dhcp.common.unitCount')"
         icon="lucide:network"
         tone="blue"
-        :hint="`${v4PoolCount} 个地址池 · 在线 ${onlineTotals.v4} 条`"
+        :hint="
+          $t('dhcp.subnets.stat.v4Hint', {
+            pools: v4PoolCount,
+            online: onlineTotals.v4,
+          })
+        "
       />
       <StatCard
-        label="IPv6 子网"
+        :label="$t('dhcp.subnets.stat.v6Label')"
         :value="v6Count"
-        unit="个"
+        :unit="$t('dhcp.common.unitCount')"
         icon="lucide:globe"
         tone="violet"
-        :hint="`${v6PdCount} 个 PD 委派 · 在线 ${onlineTotals.v6} 条`"
+        :hint="
+          $t('dhcp.subnets.stat.v6Hint', {
+            pd: v6PdCount,
+            online: onlineTotals.v6,
+          })
+        "
       />
       <StatCard
-        label="在线租约"
+        :label="$t('dhcp.subnets.stat.onlineLabel')"
         :value="totalOnline"
-        unit="条"
+        :unit="$t('dhcp.common.unitRecord')"
         icon="lucide:radio"
         tone="green"
         :hint="`IPv4 ${onlineTotals.v4} · IPv6 ${onlineTotals.v6}`"
       />
       <StatCard
-        label="Kea 下发覆盖"
+        :label="$t('dhcp.subnets.stat.keaLabel')"
         :value="`${issuedCount}/${allRows.length}`"
         icon="lucide:cloud-upload"
         :tone="pendingKea > 0 ? 'amber' : 'cyan'"
         :progress="keaRatio"
         :hint="
-          pendingKea > 0 ? `${pendingKea} 个子网待下发` : '全部子网已同步至 Kea'
+          pendingKea > 0
+            ? $t('dhcp.subnets.stat.keaPending', { n: pendingKea })
+            : $t('dhcp.subnets.stat.keaDone')
         "
       />
     </div>
@@ -953,20 +1092,20 @@ onMounted(async () => {
         <template #title>
           <span class="ipam-card-title">
             <IconifyIcon icon="lucide:building-2" />
-            组织架构
+            {{ $t('dhcp.subnets.org.title') }}
           </span>
         </template>
         <template #extra>
           <Button size="small" type="text" @click="orgDrawerApi.open()">
             <IconifyIcon icon="lucide:settings-2" class="mr-1 size-3.5" />
-            管理
+            {{ $t('dhcp.subnets.org.manage') }}
           </Button>
         </template>
 
         <Input
           v-model:value="orgSearch"
           allow-clear
-          placeholder="搜索组织名称"
+          :placeholder="$t('dhcp.subnets.org.searchPlaceholder')"
           size="small"
         >
           <template #prefix>
@@ -982,7 +1121,7 @@ onMounted(async () => {
         >
           <span class="ipam-org-all__label">
             <IconifyIcon icon="lucide:layers" class="size-4" />
-            全部组织
+            {{ $t('dhcp.subnets.allOrgs') }}
           </span>
           <span class="ipam-org-badge">{{ allRows.length }}</span>
         </button>
@@ -1011,10 +1150,18 @@ onMounted(async () => {
         </Tree>
         <div v-else class="ipam-empty ipam-empty--compact">
           <div class="ipam-empty__title">
-            {{ orgSearch ? '没有匹配的组织' : '尚未创建组织' }}
+            {{
+              orgSearch
+                ? $t('dhcp.subnets.org.emptyNoMatch')
+                : $t('dhcp.subnets.org.emptyNone')
+            }}
           </div>
           <div class="ipam-empty__desc">
-            {{ orgSearch ? '换个关键词试试' : '点击右上角「管理」创建组织节点' }}
+            {{
+              orgSearch
+                ? $t('dhcp.subnets.org.emptyNoMatchDesc')
+                : $t('dhcp.subnets.org.emptyNoneDesc')
+            }}
           </div>
         </div>
 
@@ -1023,8 +1170,8 @@ onMounted(async () => {
           <span>
             {{
               filterOrgId
-                ? `当前范围：${orgScopeLabel}（含下级组织）`
-                : '统计含下级组织，点选节点可下钻'
+                ? $t('dhcp.subnets.scopeCurrent', { scope: orgScopeLabel })
+                : $t('dhcp.subnets.scopeHint')
             }}
           </span>
         </div>
@@ -1051,9 +1198,12 @@ onMounted(async () => {
                 <em class="ipam-fam-card__tag">{{ f.tag }}</em>
               </span>
               <span class="ipam-fam-card__stats">
-                <span><b>{{ f.subnets }}</b> 子网</span>
-                <span><b>{{ f.online }}</b> 在线</span>
-                <span><b>{{ f.issued }}</b> 已下发</span>
+                <span><b>{{ f.subnets }}</b>
+                  {{ $t('dhcp.subnets.family.subnetsUnit') }}</span>
+                <span><b>{{ f.online }}</b>
+                  {{ $t('dhcp.subnets.family.onlineUnit') }}</span>
+                <span><b>{{ f.issued }}</b>
+                  {{ $t('dhcp.subnets.family.issuedUnit') }}</span>
               </span>
             </span>
             <span class="ipam-fam-card__check">
@@ -1068,16 +1218,29 @@ onMounted(async () => {
               <IconifyIcon
                 :icon="familyTab === 'v6' ? 'lucide:globe' : 'lucide:network'"
               />
-              {{ familyTab === 'v6' ? 'IPv6 子网' : 'IPv4 子网' }}
+              {{
+                familyTab === 'v6'
+                  ? $t('dhcp.subnets.family.v6Title')
+                  : $t('dhcp.subnets.family.v4Title')
+              }}
               <em class="ipam-card-sub">
-                {{ orgScopeLabel }} · {{ visibleRows.length }} 个
+                {{
+                  $t('dhcp.subnets.family.subtle', {
+                    scope: orgScopeLabel,
+                    n: visibleRows.length,
+                  })
+                }}
               </em>
             </span>
           </template>
           <template #extra>
             <div class="ipam-card-tools">
               <span class="ipam-chip" :data-tone="familyTab === 'v6' ? 'violet' : 'blue'">
-                {{ familyTab === 'v6' ? '前缀 / PD 委派' : '逐地址规划' }}
+                {{
+                  familyTab === 'v6'
+                    ? $t('dhcp.subnets.family.v6Tag')
+                    : $t('dhcp.subnets.family.v4Tag')
+                }}
               </span>
               <Button
                 size="small"
@@ -1085,7 +1248,7 @@ onMounted(async () => {
                 @click="openAdd(familyTab === 'v6' ? 6 : 4)"
               >
                 <IconifyIcon icon="lucide:plus" class="mr-1 size-3.5" />
-                新建
+                {{ $t('dhcp.subnets.createShort') }}
               </Button>
             </div>
           </template>
@@ -1105,7 +1268,7 @@ onMounted(async () => {
                 <span class="ipam-subnet-cell__title">
                   <i class="ipam-fam-dot" :data-family="row.family"></i>
                   <span class="ipam-subnet-cell__name">
-                    {{ row.name || '未命名子网' }}
+                    {{ row.name || $t('dhcp.subnets.grid.unnamed') }}
                   </span>
                   <span
                     v-if="row.keaSubnetId"
@@ -1115,7 +1278,9 @@ onMounted(async () => {
                   >
                     Kea #{{ row.keaSubnetId }}
                   </span>
-                  <span v-else class="ipam-chip" data-tone="amber">未下发</span>
+                  <span v-else class="ipam-chip" data-tone="amber">
+                    {{ $t('dhcp.subnets.grid.notIssued') }}
+                  </span>
                 </span>
                 <a
                   class="ipam-link ipam-mono"
@@ -1131,13 +1296,24 @@ onMounted(async () => {
                 </a>
                 <span class="ipam-subnet-cell__meta">
                   <template v-if="row.family === 4">
-                    网关 {{ row.gateway || '未配置' }} · DNS
-                    {{ row.dnsServers || '未配置' }}
+                    {{
+                      $t('dhcp.subnets.grid.gateway', {
+                        value:
+                          row.gateway || $t('dhcp.common.notConfigured'),
+                        dns:
+                          row.dnsServers || $t('dhcp.common.notConfigured'),
+                      })
+                    }}
                   </template>
                   <template v-else>
-                    DNS {{ row.dnsServers || '未配置' }} · 网关走 RA
+                    {{
+                      $t('dhcp.subnets.grid.dns', {
+                        value:
+                          row.dnsServers || $t('dhcp.common.notConfigured'),
+                      })
+                    }}
                   </template>
-                  · 租约 {{ fmtLifetime(row.validLifetime) }}
+                  {{ $t('dhcp.subnets.grid.lease', { value: fmtLifetime(row.validLifetime) }) }}
                 </span>
                 <span
                   v-if="row.vlan || row.site || row.purpose || row.owner"
@@ -1146,9 +1322,15 @@ onMounted(async () => {
                   <span v-if="row.vlan" class="ipam-chip" data-tone="violet">
                     VLAN {{ row.vlan }}
                   </span>
-                  <template v-if="row.site"> · 站点 {{ row.site }}</template>
-                  <template v-if="row.purpose"> · 用途 {{ row.purpose }}</template>
-                  <template v-if="row.owner"> · 负责人 {{ row.owner }}</template>
+                  <template v-if="row.site">
+                    {{ $t('dhcp.subnets.grid.site', { value: row.site }) }}
+                  </template>
+                  <template v-if="row.purpose">
+                    {{ $t('dhcp.subnets.grid.purpose', { value: row.purpose }) }}
+                  </template>
+                  <template v-if="row.owner">
+                    {{ $t('dhcp.subnets.grid.owner', { value: row.owner }) }}
+                  </template>
                 </span>
               </div>
             </template>
@@ -1184,7 +1366,7 @@ onMounted(async () => {
                     class="ipam-chip"
                     data-tone="muted"
                   >
-                    未配置
+                    {{ $t('dhcp.common.notConfigured') }}
                   </span>
                 </span>
                 <span
@@ -1218,7 +1400,7 @@ onMounted(async () => {
                 <div class="ipam-util__head">
                   <span class="ipam-util__used">
                     {{ onlineBySubnet[row.id] ?? 0 }}
-                    <small>在线</small>
+                    <small>{{ $t('dhcp.subnets.grid.onlineUnit') }}</small>
                   </span>
                   <span class="ipam-util__pct">
                     <template v-if="utilizationOf(row as Subnet) !== null">
@@ -1245,7 +1427,7 @@ onMounted(async () => {
                 <Button
                   class="ipam-op-btn"
                   size="small"
-                  title="地址规划"
+                  :title="$t('dhcp.subnets.grid.addrPlan')"
                   type="text"
                   @click="
                     router.push(
@@ -1258,24 +1440,24 @@ onMounted(async () => {
                 <Button
                   class="ipam-op-btn"
                   size="small"
-                  title="编辑"
+                  :title="$t('dhcp.common.edit')"
                   type="text"
                   @click="edit(row as Subnet)"
                 >
                   <IconifyIcon icon="lucide:pencil" class="size-3.5" />
                 </Button>
                 <Popconfirm
-                  title="确认删除该子网？"
-                  description="删除后不可恢复；已被租约/保留引用时会失败。"
-                  ok-text="删除"
-                  cancel-text="取消"
+                  :title="$t('dhcp.subnets.grid.confirmDelete')"
+                  :description="$t('dhcp.subnets.grid.confirmDeleteDesc')"
+                  :ok-text="$t('dhcp.common.delete')"
+                  :cancel-text="$t('dhcp.common.cancel')"
                   @confirm="remove(row.id)"
                 >
                   <Button
                     class="ipam-op-btn"
                     danger
                     size="small"
-                    title="删除"
+                    :title="$t('dhcp.common.delete')"
                     type="text"
                   >
                     <IconifyIcon icon="lucide:trash-2" class="size-3.5" />
@@ -1291,20 +1473,20 @@ onMounted(async () => {
             <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
               <span class="ipam-card-title">
                 <IconifyIcon icon="lucide:radio-tower" />
-                DHCPv6 实时租约
+                {{ $t('dhcp.subnets.lease6.title') }}
                 <em class="ipam-card-sub">
                   Kea lease_cmds · NA {{ lease6NaCount }} / PD {{ lease6PdCount }}
                 </em>
               </span>
               <Button size="small" :loading="lease6Loading" @click="loadLeases6">
                 <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />
-                刷新租约
+                {{ $t('dhcp.subnets.lease6.refresh') }}
               </Button>
             </div>
             <div class="ipam-note mb-3">
               <IconifyIcon icon="lucide:info" class="mt-0.5 size-3.5 shrink-0" />
               <span>
-                Kea 实时投影（lease_cmds），与上方台账在线数存在秒级差异；PD 委派以 IA_PD 前缀为单位。
+                {{ $t('dhcp.subnets.lease6.note') }}
               </span>
             </div>
             <Lease6Grid :table-data="lease6Rows">
@@ -1335,23 +1517,27 @@ onMounted(async () => {
     <FormModal class="w-[900px]">
       <!-- 基本信息 -->
       <Divider plain style="margin: 4px 0 12px" orientation="left">
-        基本信息
+        {{ $t('dhcp.subnets.form.basic') }}
       </Divider>
       <div class="flex flex-wrap items-end gap-3">
         <div>
-          <div class="mb-1 text-xs text-gray-400">组织</div>
+          <div class="mb-1 text-xs text-gray-400">
+            {{ $t('dhcp.subnets.form.org') }}
+          </div>
           <Select
             v-model:value="form.orgId"
-            placeholder="选择组织节点"
+            :placeholder="$t('dhcp.subnets.form.orgPlaceholder')"
             style="width: 240px"
             :options="orgOptions.map((o) => ({ label: o.label, value: o.value }))"
           />
         </div>
         <div>
-          <div class="mb-1 text-xs text-gray-400">名称</div>
+          <div class="mb-1 text-xs text-gray-400">
+            {{ $t('dhcp.subnets.form.name') }}
+          </div>
           <Input
             v-model:value="form.name"
-            placeholder="研发-办公"
+            :placeholder="$t('dhcp.subnets.form.namePlaceholder')"
             style="width: 160px"
           />
         </div>
@@ -1369,7 +1555,9 @@ onMounted(async () => {
           />
         </div>
         <div>
-          <div class="mb-1 text-xs text-gray-400">租约时长（秒）</div>
+          <div class="mb-1 text-xs text-gray-400">
+            {{ $t('dhcp.subnets.form.lifetime') }}
+          </div>
           <div class="flex items-center gap-2">
             <InputNumber
               v-model:value="form.validLifetime"
@@ -1378,14 +1566,9 @@ onMounted(async () => {
               style="width: 120px"
             />
             <Select
-              placeholder="预设"
+              :placeholder="$t('dhcp.subnets.form.presetPlaceholder')"
               style="width: 92px"
-              :options="[
-                { label: '1小时', value: 3600 },
-                { label: '8小时', value: 28800 },
-                { label: '1天', value: 86400 },
-                { label: '7天', value: 604800 },
-              ]"
+              :options="lifetimePresets"
               :value="
                 [3600, 28800, 86400, 604800].includes(form.validLifetime)
                   ? form.validLifetime
@@ -1399,27 +1582,30 @@ onMounted(async () => {
 
       <!-- 地址池 -->
       <Divider plain style="margin: 16px 0 12px" orientation="left">
-        地址池
+        {{ $t('dhcp.subnets.form.poolSection') }}
         <span class="text-xs text-gray-400">
-          （留空则不分配动态地址，仅可保留/静态绑定）
+          {{ $t('dhcp.subnets.form.poolHint') }}
         </span>
       </Divider>
       <div class="flex flex-wrap items-end gap-3">
         <template v-if="isV6">
           <div>
-            <div class="mb-1 text-xs text-gray-400">池类型</div>
+            <div class="mb-1 text-xs text-gray-400">
+              {{ $t('dhcp.subnets.form.poolKind') }}
+            </div>
             <Select
               v-model:value="form.poolKind"
               style="width: 120px"
-              :options="[
-                { label: '地址池', value: 'dynamic' },
-                { label: 'PD 委派', value: 'pd' },
-              ]"
+              :options="poolKindOptions"
             />
           </div>
           <div>
             <div class="mb-1 text-xs text-gray-400">
-              {{ form.poolKind === 'pd' ? '委派前缀' : '池起' }}
+              {{
+                form.poolKind === 'pd'
+                  ? $t('dhcp.subnets.form.delegatedPrefix')
+                  : $t('dhcp.subnets.form.poolStart')
+              }}
             </div>
             <Input
               v-model:value="form.poolStart"
@@ -1431,7 +1617,9 @@ onMounted(async () => {
           </div>
           <template v-if="form.poolKind === 'pd'">
             <div>
-              <div class="mb-1 text-xs text-gray-400">前缀长度</div>
+              <div class="mb-1 text-xs text-gray-400">
+                {{ $t('dhcp.subnets.form.prefixLen') }}
+              </div>
               <InputNumber
                 v-model:value="form.poolPrefixLen"
                 :max="128"
@@ -1440,7 +1628,9 @@ onMounted(async () => {
               />
             </div>
             <div>
-              <div class="mb-1 text-xs text-gray-400">委派长度</div>
+              <div class="mb-1 text-xs text-gray-400">
+                {{ $t('dhcp.subnets.form.delegatedLen') }}
+              </div>
               <InputNumber
                 v-model:value="form.poolDelegatedLen"
                 :max="128"
@@ -1450,7 +1640,9 @@ onMounted(async () => {
             </div>
           </template>
           <div v-else>
-            <div class="mb-1 text-xs text-gray-400">池止</div>
+            <div class="mb-1 text-xs text-gray-400">
+              {{ $t('dhcp.subnets.form.poolEnd') }}
+            </div>
             <Input
               v-model:value="form.poolEnd"
               placeholder="2406:172::200"
@@ -1460,7 +1652,9 @@ onMounted(async () => {
         </template>
         <template v-else>
           <div>
-            <div class="mb-1 text-xs text-gray-400">池起</div>
+            <div class="mb-1 text-xs text-gray-400">
+              {{ $t('dhcp.subnets.form.poolStart') }}
+            </div>
             <Input
               v-model:value="form.poolStart"
               placeholder="10.61.172.100"
@@ -1468,7 +1662,9 @@ onMounted(async () => {
             />
           </div>
           <div>
-            <div class="mb-1 text-xs text-gray-400">池止</div>
+            <div class="mb-1 text-xs text-gray-400">
+              {{ $t('dhcp.subnets.form.poolEnd') }}
+            </div>
             <Input
               v-model:value="form.poolEnd"
               placeholder="10.61.172.200"
@@ -1480,8 +1676,10 @@ onMounted(async () => {
 
       <!-- 规划信息（M6-022）：仅规划展示，不参与 Kea 下发 -->
       <Divider plain style="margin: 16px 0 12px" orientation="left">
-        规划信息
-        <span class="text-xs text-gray-400">（仅规划展示，不下发 Kea）</span>
+        {{ $t('dhcp.subnets.form.planning') }}
+        <span class="text-xs text-gray-400">
+          {{ $t('dhcp.subnets.form.planningHint') }}
+        </span>
       </Divider>
       <div class="flex flex-wrap items-end gap-3">
         <div>
@@ -1493,26 +1691,32 @@ onMounted(async () => {
           />
         </div>
         <div>
-          <div class="mb-1 text-xs text-gray-400">站点 / 机房</div>
+          <div class="mb-1 text-xs text-gray-400">
+            {{ $t('dhcp.subnets.form.site') }}
+          </div>
           <Input
             v-model:value="form.site"
-            placeholder="A 栋 3F"
+            :placeholder="$t('dhcp.subnets.form.sitePlaceholder')"
             style="width: 180px"
           />
         </div>
         <div>
-          <div class="mb-1 text-xs text-gray-400">用途</div>
+          <div class="mb-1 text-xs text-gray-400">
+            {{ $t('dhcp.subnets.form.purpose') }}
+          </div>
           <Input
             v-model:value="form.purpose"
-            placeholder="办公终端"
+            :placeholder="$t('dhcp.subnets.form.purposePlaceholder')"
             style="width: 180px"
           />
         </div>
         <div>
-          <div class="mb-1 text-xs text-gray-400">负责人</div>
+          <div class="mb-1 text-xs text-gray-400">
+            {{ $t('dhcp.subnets.form.owner') }}
+          </div>
           <Input
             v-model:value="form.owner"
-            placeholder="张三 / 网络组"
+            :placeholder="$t('dhcp.subnets.form.ownerPlaceholder')"
             style="width: 180px"
           />
         </div>
@@ -1520,12 +1724,16 @@ onMounted(async () => {
 
       <!-- 网关与 DNS -->
       <Divider plain style="margin: 16px 0 12px" orientation="left">
-        网关与 DNS
-        <span class="text-xs text-gray-400">（IPv6 网关走 RA，此处无需填写）</span>
+        {{ $t('dhcp.subnets.form.gatewaySection') }}
+        <span class="text-xs text-gray-400">
+          {{ $t('dhcp.subnets.form.gatewayHint') }}
+        </span>
       </Divider>
       <div class="flex flex-wrap items-end gap-3">
         <div v-if="!isV6">
-          <div class="mb-1 text-xs text-gray-400">网关</div>
+          <div class="mb-1 text-xs text-gray-400">
+            {{ $t('dhcp.subnets.form.gateway') }}
+          </div>
           <Input
             v-model:value="form.gateway"
             placeholder="10.61.40.1"
@@ -1533,7 +1741,9 @@ onMounted(async () => {
           />
         </div>
         <div>
-          <div class="mb-1 text-xs text-gray-400">DNS 服务器</div>
+          <div class="mb-1 text-xs text-gray-400">
+            {{ $t('dhcp.subnets.form.dns') }}
+          </div>
           <Input
             v-model:value="form.dnsServers"
             style="width: 260px"
@@ -1546,10 +1756,15 @@ onMounted(async () => {
 
       <!-- DHCP 选项 -->
       <Divider plain style="margin: 16px 0 12px" orientation="left">
-        DHCP 选项 <span class="text-xs text-gray-400">（子网级覆盖全局）</span>
+        {{ $t('dhcp.subnets.form.optionsSection') }}
+        <span class="text-xs text-gray-400">
+          {{ $t('dhcp.subnets.form.optionsHint') }}
+        </span>
       </Divider>
       <div class="mb-2 flex items-center gap-2">
-        <Button size="small" @click="addOptionRow">+ 添加选项</Button>
+        <Button size="small" @click="addOptionRow">
+          {{ $t('dhcp.subnets.form.addOption') }}
+        </Button>
       </div>
       <div
         v-for="(o, i) in form.options"
@@ -1557,18 +1772,15 @@ onMounted(async () => {
         class="mb-2 flex flex-wrap items-center gap-2"
       >
         <Select
-          placeholder="预设选项（RFC 标准）"
+          :placeholder="$t('dhcp.subnets.form.presetOptionsPlaceholder')"
           style="width: 240px"
-          :options="
-            (isV6 ? DHCP6_OPTION_PRESETS : DHCP4_OPTION_PRESETS).map((x) => ({
-              label: `选项${x.code} ${x.label}`,
-              value: x.code,
-            }))
-          "
+          :options="optionPresetOptions"
           :value="o.code || undefined"
           @change="(v: unknown) => onPresetChange(i, Number(v))"
         />
-        <span class="text-xs text-gray-400">或 code</span>
+        <span class="text-xs text-gray-400">
+          {{ $t('dhcp.subnets.form.orCode') }}
+        </span>
         <InputNumber
           style="width: 90px"
           :max="isV6 ? 65535 : 254"
@@ -1578,15 +1790,17 @@ onMounted(async () => {
         />
         <Input
           v-model:value="o.data"
-          placeholder="选项值（多值逗号分隔）"
+          :placeholder="$t('dhcp.subnets.form.valuePlaceholder')"
           style="width: 240px"
         />
         <span class="text-xs text-gray-400">CSV</span>
         <Switch v-model:checked="o.csvFormat" size="small" />
-        <Button danger size="small" @click="removeOptionRow(i)">移除</Button>
+        <Button danger size="small" @click="removeOptionRow(i)">
+          {{ $t('dhcp.common.remove') }}
+        </Button>
       </div>
       <div v-if="form.options.length === 0" class="text-xs text-gray-400">
-        未配置子网级选项——网关/DNS 用上方字段；其余选项可在此添加（如 NTP、域名后缀、PXE）。
+        {{ $t('dhcp.subnets.form.optionsEmpty') }}
       </div>
     </FormModal>
   </div>

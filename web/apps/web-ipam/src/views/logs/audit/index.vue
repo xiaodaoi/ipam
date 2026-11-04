@@ -23,26 +23,36 @@ import {
 import { listAudits, verifyAudits } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import { $t } from '#/locales';
 
-const RANGES = [
-  { hours: 24, key: '24h', label: '近 24 小时' },
-  { hours: 168, key: '7d', label: '近 7 天' },
-  { hours: 720, key: '30d', label: '近 30 天' },
+const RANGE_HOURS = [
+  { hours: 24, key: '24h' },
+  { hours: 168, key: '7d' },
+  { hours: 720, key: '30d' },
 ] as const;
-type PresetKey = 'custom' | (typeof RANGES)[number]['key'];
+type PresetKey = 'custom' | (typeof RANGE_HOURS)[number]['key'];
 
-const ACTION_OPTIONS = [
-  { label: 'create（新建）', value: 'create' },
-  { label: 'update（更新）', value: 'update' },
-  { label: 'delete（删除）', value: 'delete' },
-  { label: 'login（登录）', value: 'login' },
-  { label: 'logout（登出）', value: 'logout' },
-];
-const ACTOR_META: Record<string, { color: string; label: string }> = {
-  human: { color: 'blue', label: '人工' },
-  bot: { color: 'purple', label: 'Bot' },
-  system: { color: 'default', label: '系统' },
-};
+const ranges = computed(() =>
+  RANGE_HOURS.map((r) => ({
+    ...r,
+    label: $t(`logs.common.range.${r.key}`),
+  })),
+);
+
+const ACTION_OPTIONS = computed(() => [
+  { label: $t('logs.audit.actionOptions.create'), value: 'create' },
+  { label: $t('logs.audit.actionOptions.update'), value: 'update' },
+  { label: $t('logs.audit.actionOptions.delete'), value: 'delete' },
+  { label: $t('logs.audit.actionOptions.login'), value: 'login' },
+  { label: $t('logs.audit.actionOptions.logout'), value: 'logout' },
+]);
+const ACTOR_META = computed<Record<string, { color: string; label: string }>>(
+  () => ({
+    human: { color: 'blue', label: $t('logs.audit.filters.human') },
+    bot: { color: 'purple', label: $t('logs.audit.filters.bot') },
+    system: { color: 'default', label: $t('logs.audit.filters.system') },
+  }),
+);
 const ACTION_COLOR: Record<string, string> = {
   create: 'green',
   delete: 'red',
@@ -53,7 +63,8 @@ const ACTION_COLOR: Record<string, string> = {
 
 const preset = ref<PresetKey>('7d');
 const customRange = ref<[Dayjs, Dayjs]>();
-const window = ref({ from: '', to: '', label: '' });
+const window = ref({ from: '', to: '', labelKey: 'logs.common.range.7d' });
+const windowLabel = computed(() => $t(window.value.labelKey));
 
 const filters = reactive({
   action: undefined as string | undefined,
@@ -98,26 +109,26 @@ function statusTone(s?: number): 'amber' | 'green' | 'red' {
 function refreshWindow(): boolean {
   if (preset.value === 'custom') {
     if (!customRange.value) {
-      message.info('请选择自定义时间范围');
+      message.info($t('logs.audit.messages.selectRange'));
       return false;
     }
     const span = customRange.value[1].diff(customRange.value[0], 'hour', true);
     if (span > 24 * 31) {
-      message.warning('审计查询时间窗最大 31 天');
+      message.warning($t('logs.audit.messages.windowMax'));
       return false;
     }
     window.value = {
       from: customRange.value[0].toISOString(),
       to: customRange.value[1].toISOString(),
-      label: '自定义区间',
+      labelKey: 'logs.common.customRange',
     };
     return true;
   }
-  const r = RANGES.find((x) => x.key === preset.value) ?? RANGES[1]!;
+  const r = RANGE_HOURS.find((x) => x.key === preset.value) ?? RANGE_HOURS[1]!;
   window.value = {
     from: new Date(Date.now() - r.hours * 3_600_000).toISOString(),
     to: new Date().toISOString(),
-    label: r.label,
+    labelKey: `logs.common.range.${r.key}`,
   };
   return true;
 }
@@ -178,7 +189,9 @@ async function load(cursor?: string) {
     nextCursor.value = p.nextCursor ?? '';
     total.value = p.total ?? rows.value.length;
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '审计查询失败');
+    message.error(
+      error instanceof Error ? error.message : $t('logs.audit.messages.queryFail'),
+    );
     if (!more) {
       rows.value = [];
       total.value = 0;
@@ -260,10 +273,20 @@ async function exportCsv() {
       if (!cursor || (p.items ?? []).length === 0) break;
     }
     if (all.length === 0) {
-      message.warning('当前条件下没有可导出的审计记录');
+      message.warning($t('logs.audit.messages.exportEmpty'));
       return;
     }
-    const header = ['时间', '调用者', '类型', '动作', '方法', '路径', '资源', '状态码', '详情'];
+    const header = [
+      $t('logs.audit.csvHeader.time'),
+      $t('logs.audit.csvHeader.actor'),
+      $t('logs.audit.csvHeader.type'),
+      $t('logs.audit.csvHeader.action'),
+      $t('logs.audit.csvHeader.method'),
+      $t('logs.audit.csvHeader.path'),
+      $t('logs.audit.csvHeader.resource'),
+      $t('logs.audit.csvHeader.status'),
+      $t('logs.audit.csvHeader.detail'),
+    ];
     const lines = [header.map((c) => csvCell(c)).join(',')];
     for (const r of all) {
       lines.push(
@@ -291,10 +314,12 @@ async function exportCsv() {
     a.download = `audit-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    message.success(`已导出 ${all.length} 条审计记录`);
-    if (all.length >= 5000) message.info('单次最多导出 5000 条，请缩小时间窗');
+    message.success($t('logs.audit.messages.exported', { n: all.length }));
+    if (all.length >= 5000) message.info($t('logs.audit.messages.exportLimit'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '导出失败');
+    message.error(
+      error instanceof Error ? error.message : $t('logs.audit.messages.exportFail'),
+    );
   } finally {
     exporting.value = false;
   }
@@ -307,26 +332,37 @@ async function verifyChain() {
     verified.value = {
       checked: res.checked,
       valid: res.valid,
-      message: res.message ?? (res.valid ? '审计链完整' : '审计链异常'),
+      message:
+        res.message ??
+        (res.valid
+          ? $t('logs.audit.messages.chainOk')
+          : $t('logs.audit.messages.chainBad')),
     };
     if (res.valid) {
-      message.success(`审计链完整（校验 ${res.checked} 条）`);
+      message.success($t('logs.audit.messages.chainValid', { n: res.checked }));
     } else {
-      message.error(`${res.message ?? '审计链异常'}（ID ${res.brokenId ?? '?'}）`);
+      message.error(
+        $t('logs.audit.messages.chainInvalid', {
+          message: res.message ?? $t('logs.audit.messages.chainBad'),
+          id: res.brokenId ?? '?',
+        }),
+      );
     }
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '完整性校验失败');
+    message.error(
+      error instanceof Error ? error.message : $t('logs.audit.messages.verifyFail'),
+    );
   } finally {
     verifying.value = false;
   }
 }
 
-// ── 详情抽屉 ──
+// ── Detail drawer ──
 const detail = ref<AuditEntry>();
 const [DetailDrawer, detailDrawerApi] = useVbenDrawer({
   class: 'w-[620px]',
   footer: false,
-  title: '审计详情',
+  title: $t('logs.audit.detail.title'),
 });
 
 function openDetail(r: AuditEntry) {
@@ -372,20 +408,27 @@ async function copyDetail() {
   if (!detail.value) return;
   try {
     await navigator.clipboard.writeText(JSON.stringify(detail.value, null, 2));
-    message.success('已复制当前审计 JSON');
+    message.success($t('logs.audit.detail.copied'));
   } catch {
-    message.warning('浏览器未授予剪贴板权限');
+    message.warning($t('logs.common.clipboardDenied'));
   }
 }
 
-const columns = [
-  { dataIndex: 'ts', key: 'ts', title: '时间', width: 142 },
-  { dataIndex: 'actor', key: 'actor', title: '调用者', width: 190 },
-  { dataIndex: 'actorType', key: 'actorType', title: '类型', width: 84 },
-  { dataIndex: 'action', key: 'action', title: '动作', width: 96 },
-  { dataIndex: 'resource', key: 'resource', title: '资源', ellipsis: true },
-  { dataIndex: 'status', key: 'status', title: '状态', width: 88 },
-];
+const columns = computed(() => [
+  { dataIndex: 'ts', key: 'ts', title: $t('logs.audit.columns.time'), width: 142 },
+  { dataIndex: 'actor', key: 'actor', title: $t('logs.audit.columns.actor'), width: 190 },
+  { dataIndex: 'actorType', key: 'actorType', title: $t('logs.audit.columns.type'), width: 84 },
+  { dataIndex: 'action', key: 'action', title: $t('logs.audit.columns.action'), width: 96 },
+  { dataIndex: 'resource', key: 'resource', title: $t('logs.audit.columns.resource'), ellipsis: true },
+  { dataIndex: 'status', key: 'status', title: $t('logs.audit.columns.status'), width: 88 },
+]);
+
+const footerText = computed(() => {
+  const base = $t('logs.audit.footer.loaded', { n: fmtInt(rows.value.length) });
+  return total.value > rows.value.length
+    ? base + $t('logs.audit.footer.remaining', { n: fmtInt(total.value - rows.value.length) })
+    : base;
+});
 
 onMounted(() => {
   refreshWindow();
@@ -403,57 +446,57 @@ onBeforeUnmount(() => {
     <PageHeader
       eyebrow="Log Center"
       icon="lucide:shield-check"
-      title="操作审计"
-      description="记录人工、Bot 与系统对配置资源的变更操作，支持调用者/动作/资源组合检索、明细下钻与 CSV 归档。"
+      :title="$t('logs.audit.title')"
+      :description="$t('logs.audit.description')"
     >
       <template #actions>
         <span class="ipam-page-header__meta">
           <IconifyIcon icon="lucide:clock" class="size-3.5" />
-          {{ window.label }} · 共 {{ fmtInt(total) }} 条
+          {{ $t('logs.audit.meta', { range: windowLabel, n: fmtInt(total) }) }}
         </span>
         <Tag v-if="verified" class="m-0" :color="verified.valid ? 'green' : 'red'">
-          {{ verified.valid ? `链完整 ${verified.checked}` : '链异常' }}
+          {{ verified.valid ? $t('logs.audit.chain.valid', { n: verified.checked }) : $t('logs.audit.chain.invalid') }}
         </Tag>
         <Button size="small" :loading="loading" @click="query">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />刷新
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{ $t('logs.common.refresh') }}
         </Button>
         <Button size="small" :loading="verifying" @click="verifyChain">
-          <IconifyIcon icon="lucide:shield-check" class="mr-1 size-3.5" />完整性校验
+          <IconifyIcon icon="lucide:shield-check" class="mr-1 size-3.5" />{{ $t('logs.audit.chain.verify') }}
         </Button>
         <Button size="small" type="primary" :loading="exporting" @click="exportCsv">
-          <IconifyIcon icon="lucide:download" class="mr-1 size-3.5" />导出 CSV
+          <IconifyIcon icon="lucide:download" class="mr-1 size-3.5" />{{ $t('logs.common.exportCsv') }}
         </Button>
       </template>
     </PageHeader>
 
     <div class="ipam-stat-grid">
       <StatCard
-        label="操作总数"
+        :label="$t('logs.audit.kpi.total')"
         :value="stats ? fmtInt(stats.total) : statsFailed ? '—' : '…'"
         icon="lucide:activity"
         tone="blue"
-        :hint="`${window.label} · 仅统计变更类请求`"
+        :hint="$t('logs.audit.kpi.totalHint', { range: windowLabel })"
       />
       <StatCard
-        label="人工操作"
+        :label="$t('logs.audit.kpi.human')"
         :value="stats ? fmtInt(stats.human) : statsFailed ? '—' : '…'"
         icon="lucide:user-round"
         tone="cyan"
-        :hint="`占操作总数 ${pct(stats?.human ?? 0, stats?.total ?? 0)}`"
+        :hint="$t('logs.audit.kpi.share', { pct: pct(stats?.human ?? 0, stats?.total ?? 0) })"
       />
       <StatCard
-        label="Bot 调用"
+        :label="$t('logs.audit.kpi.bot')"
         :value="stats ? fmtInt(stats.bot) : statsFailed ? '—' : '…'"
         icon="lucide:bot"
         tone="violet"
-        :hint="`占操作总数 ${pct(stats?.bot ?? 0, stats?.total ?? 0)}`"
+        :hint="$t('logs.audit.kpi.share', { pct: pct(stats?.bot ?? 0, stats?.total ?? 0) })"
       />
       <StatCard
-        label="系统自动"
+        :label="$t('logs.audit.kpi.system')"
         :value="stats ? fmtInt(stats.system) : statsFailed ? '—' : '…'"
         icon="lucide:server-cog"
         tone="green"
-        :hint="`占操作总数 ${pct(stats?.system ?? 0, stats?.total ?? 0)}`"
+        :hint="$t('logs.audit.kpi.share', { pct: pct(stats?.system ?? 0, stats?.total ?? 0) })"
       />
     </div>
 
@@ -461,14 +504,14 @@ onBeforeUnmount(() => {
       <template #title>
         <span class="ipam-card-title">
           <IconifyIcon icon="lucide:clipboard-list" />
-          审计事件
-          <em class="ipam-card-sub">已加载 {{ fmtInt(rows.length) }} / {{ fmtInt(total) }}</em>
+          {{ $t('logs.audit.card.title') }}
+          <em class="ipam-card-sub">{{ $t('logs.audit.card.loaded', { loaded: fmtInt(rows.length), total: fmtInt(total) }) }}</em>
         </span>
       </template>
       <template #extra>
         <div class="ipam-card-tools">
-          <span class="ipam-hint">按时间倒序 · 游标分页</span>
-          <span class="ipam-field__label">自动刷新</span>
+          <span class="ipam-hint">{{ $t('logs.audit.card.order') }}</span>
+          <span class="ipam-field__label">{{ $t('logs.audit.card.autoRefresh') }}</span>
           <Switch
             v-model:checked="autoRefresh"
             size="small"
@@ -480,7 +523,7 @@ onBeforeUnmount(() => {
       <div class="ipam-toolbar mb-3">
         <div class="ipam-seg">
           <button
-            v-for="r in RANGES"
+            v-for="r in ranges"
             :key="r.key"
             type="button"
             :data-active="preset === r.key"
@@ -493,7 +536,7 @@ onBeforeUnmount(() => {
             :data-active="preset === 'custom'"
             @click="onPreset('custom')"
           >
-            自定义
+            {{ $t('logs.common.custom') }}
           </button>
         </div>
         <DatePicker.RangePicker
@@ -502,47 +545,47 @@ onBeforeUnmount(() => {
           :show-time="{ format: 'HH:mm:ss' }"
           format="YYYY-MM-DD HH:mm:ss"
           style="width: 340px"
-          :placeholder="['开始时间', '结束时间']"
+          :placeholder="[$t('logs.common.startTime'), $t('logs.common.endTime')]"
           @change="onRangeChange"
         />
         <div class="ipam-toolbar__spacer"></div>
-        <Button size="small" @click="resetFilters">重置</Button>
+        <Button size="small" @click="resetFilters">{{ $t('logs.common.reset') }}</Button>
         <Button type="primary" size="small" @click="query">
-          <IconifyIcon icon="lucide:search" class="mr-1 size-3.5" />查询
+          <IconifyIcon icon="lucide:search" class="mr-1 size-3.5" />{{ $t('logs.common.query') }}
         </Button>
       </div>
 
       <div class="ipam-filter-grid">
         <label class="ipam-filter-field">
-          <span class="ipam-filter-field__label">调用者类型</span>
+          <span class="ipam-filter-field__label">{{ $t('logs.audit.filters.actorType') }}</span>
           <Select
             v-model:value="filters.actorType"
             allow-clear
-            placeholder="全部调用者"
+            :placeholder="$t('logs.audit.filters.actorPlaceholder')"
             :options="[
-              { value: 'human', label: '人工' },
-              { value: 'bot', label: 'Bot' },
-              { value: 'system', label: '系统' },
+              { value: 'human', label: $t('logs.audit.filters.human') },
+              { value: 'bot', label: $t('logs.audit.filters.bot') },
+              { value: 'system', label: $t('logs.audit.filters.system') },
             ]"
           />
         </label>
         <label class="ipam-filter-field">
-          <span class="ipam-filter-field__label">动作</span>
+          <span class="ipam-filter-field__label">{{ $t('logs.audit.filters.action') }}</span>
           <Select
             v-model:value="filters.action"
             allow-clear
             show-search
             option-filter-prop="label"
-            placeholder="全部动作"
+            :placeholder="$t('logs.audit.filters.actionPlaceholder')"
             :options="ACTION_OPTIONS"
           />
         </label>
         <label class="ipam-filter-field ipam-filter-field--wide">
-          <span class="ipam-filter-field__label">资源 / 路径</span>
+          <span class="ipam-filter-field__label">{{ $t('logs.audit.filters.resource') }}</span>
           <Input
             v-model:value="filters.q"
             allow-clear
-            placeholder="按资源名或请求路径子串匹配，如 /subnets"
+            :placeholder="$t('logs.audit.filters.resourcePlaceholder')"
             @press-enter="query"
           />
         </label>
@@ -554,7 +597,7 @@ onBeforeUnmount(() => {
         :custom-row="rowProps"
         :data-source="rows"
         :loading="loading"
-        :locale="{ emptyText: '当前时间窗与过滤条件下没有审计记录' }"
+        :locale="{ emptyText: $t('logs.audit.empty') }"
         :pagination="false"
         :row-key="(r: AuditEntry) => String(r.id)"
         :scroll="{ x: 880 }"
@@ -600,9 +643,7 @@ onBeforeUnmount(() => {
       </Table>
 
       <div class="ipam-toolbar ipam-toolbar--plain mt-3">
-        <span class="ipam-hint">
-          已加载 {{ fmtInt(rows.length) }} 条{{ total > rows.length ? `，尚有 ${fmtInt(total - rows.length)} 条` : '' }}
-        </span>
+        <span class="ipam-hint">{{ footerText }}</span>
         <span class="ipam-toolbar__spacer"></span>
         <Button
           v-if="nextCursor"
@@ -610,9 +651,9 @@ onBeforeUnmount(() => {
           :loading="loadingMore"
           @click="load(nextCursor)"
         >
-          加载更多
+          {{ $t('logs.audit.footer.loadMore') }}
         </Button>
-        <span v-else-if="rows.length > 0" class="ipam-hint">已到最后一页</span>
+        <span v-else-if="rows.length > 0" class="ipam-hint">{{ $t('logs.audit.footer.lastPage') }}</span>
       </div>
     </Card>
 
@@ -628,58 +669,58 @@ onBeforeUnmount(() => {
           <Tag class="m-0" :color="statusTone(detail.status)">{{ detail.status }}</Tag>
           <span class="ipam-toolbar__spacer"></span>
           <Button size="small" @click="copyDetail">
-            <IconifyIcon icon="lucide:copy" class="mr-1 size-3.5" />复制 JSON
+            <IconifyIcon icon="lucide:copy" class="mr-1 size-3.5" />{{ $t('logs.common.copyJson') }}
           </Button>
         </div>
 
         <div class="ipam-detail-grid">
           <div class="ipam-detail-item">
-            <div class="ipam-detail-item__label">时间</div>
+            <div class="ipam-detail-item__label">{{ $t('logs.audit.detail.time') }}</div>
             <div class="ipam-detail-item__value">{{ fmtDateTime(detail.ts) }}</div>
           </div>
           <div class="ipam-detail-item">
-            <div class="ipam-detail-item__label">调用者</div>
+            <div class="ipam-detail-item__label">{{ $t('logs.audit.detail.actor') }}</div>
             <div class="ipam-detail-item__value">{{ detail.actor || 'anonymous' }}</div>
           </div>
           <div class="ipam-detail-item">
-            <div class="ipam-detail-item__label">Token 主体</div>
+            <div class="ipam-detail-item__label">{{ $t('logs.audit.detail.tokenSub') }}</div>
             <div class="ipam-detail-item__value ipam-mono">{{ detail.tokenSub || '—' }}</div>
           </div>
           <div class="ipam-detail-item">
-            <div class="ipam-detail-item__label">请求方法 / 状态</div>
+            <div class="ipam-detail-item__label">{{ $t('logs.audit.detail.methodStatus') }}</div>
             <div class="ipam-detail-item__value ipam-mono">
               {{ detail.method }} · {{ detail.status }}
             </div>
           </div>
           <div class="ipam-detail-item ipam-detail-item--wide">
-            <div class="ipam-detail-item__label">请求路径</div>
+            <div class="ipam-detail-item__label">{{ $t('logs.audit.detail.path') }}</div>
             <div class="ipam-detail-item__value ipam-mono">{{ detail.path }}</div>
           </div>
           <div class="ipam-detail-item ipam-detail-item--wide">
-            <div class="ipam-detail-item__label">资源</div>
+            <div class="ipam-detail-item__label">{{ $t('logs.audit.detail.resource') }}</div>
             <div class="ipam-detail-item__value">{{ detail.resource }}</div>
           </div>
           <div class="ipam-detail-item ipam-detail-item--wide">
-            <div class="ipam-detail-item__label">补充说明</div>
+            <div class="ipam-detail-item__label">{{ $t('logs.audit.detail.extra') }}</div>
             <pre v-if="prettyDetail" class="ipam-code-block mt-1">{{ prettyDetail }}</pre>
             <div v-else class="ipam-detail-item__value">—</div>
           </div>
           <div class="ipam-detail-item ipam-detail-item--wide">
-            <div class="ipam-detail-item__label">变更前实体（脱敏快照）</div>
+            <div class="ipam-detail-item__label">{{ $t('logs.audit.detail.before') }}</div>
             <pre v-if="prettyBefore" class="ipam-code-block mt-1">{{ prettyBefore }}</pre>
             <div v-else class="ipam-detail-item__value">
-              未登记该类资源的变更前快照，或为首次创建
+              {{ $t('logs.audit.detail.beforeEmpty') }}
             </div>
           </div>
           <div class="ipam-detail-item ipam-detail-item--wide">
-            <div class="ipam-detail-item__label">脱敏请求体（变更后意图）</div>
+            <div class="ipam-detail-item__label">{{ $t('logs.audit.detail.payload') }}</div>
             <pre v-if="prettyPayload" class="ipam-code-block mt-1">{{ prettyPayload }}</pre>
             <div v-else class="ipam-detail-item__value">—</div>
           </div>
           <div class="ipam-detail-item ipam-detail-item--wide">
-            <div class="ipam-detail-item__label">完整性链哈希</div>
+            <div class="ipam-detail-item__label">{{ $t('logs.audit.detail.chainHash') }}</div>
             <div class="ipam-detail-item__value ipam-mono break-all">
-              {{ detail.chainHash || '历史记录未生成链哈希' }}
+              {{ detail.chainHash || $t('logs.audit.detail.chainHashEmpty') }}
             </div>
           </div>
         </div>

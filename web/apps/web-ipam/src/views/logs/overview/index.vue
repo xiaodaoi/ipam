@@ -12,19 +12,32 @@ import MetricRing from '#/components/metric-ring.vue';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
 import TrendChart from '#/components/trend-chart.vue';
+import { $t } from '#/locales';
 
 import { useLogWindowStats } from '../use-log-window-stats';
 
-const RANGES = [
-  { hours: 1, key: '1h', label: '近 1 小时' },
-  { hours: 6, key: '6h', label: '近 6 小时' },
-  { hours: 24, key: '24h', label: '近 24 小时' },
-  { hours: 168, key: '7d', label: '近 7 天' },
+const RANGE_HOURS = [
+  { hours: 1, key: '1h' },
+  { hours: 6, key: '6h' },
+  { hours: 24, key: '24h' },
+  { hours: 168, key: '7d' },
 ] as const;
-type RangeKey = (typeof RANGES)[number]['key'];
+type RangeKey = (typeof RANGE_HOURS)[number]['key'];
+
+const ranges = computed(() =>
+  RANGE_HOURS.map((r) => ({
+    ...r,
+    label: $t(`logs.common.range.${r.key}`),
+  })),
+);
 
 const range = ref<RangeKey>('6h');
-const window = ref({ from: '', to: '', label: '近 6 小时' });
+const window = ref({
+  from: '',
+  to: '',
+  labelKey: 'logs.common.range.6h',
+});
+const windowLabel = computed(() => $t(window.value.labelKey));
 
 function fmtInt(v?: number): string {
   return (v ?? 0).toLocaleString('zh-CN');
@@ -51,11 +64,11 @@ function pct(part: number, all: number): string {
 }
 
 function refreshWindow() {
-  const r = RANGES.find((x) => x.key === range.value) ?? RANGES[1]!;
+  const r = RANGE_HOURS.find((x) => x.key === range.value) ?? RANGE_HOURS[1]!;
   window.value = {
     from: new Date(Date.now() - r.hours * 3_600_000).toISOString(),
     to: new Date().toISOString(),
-    label: r.label,
+    labelKey: `logs.common.range.${r.key}`,
   };
 }
 
@@ -129,19 +142,21 @@ function setRange(key: RangeKey) {
   void loadAll();
 }
 
-const auditColumns = [
-  { dataIndex: 'ts', key: 'ts', title: '时间', width: 96 },
-  { dataIndex: 'actor', key: 'actor', title: '调用者', width: 150 },
-  { dataIndex: 'actorType', key: 'actorType', title: '类型', width: 76 },
-  { dataIndex: 'action', key: 'action', title: '动作', width: 92 },
-  { dataIndex: 'resource', key: 'resource', title: '资源', ellipsis: true },
-  { dataIndex: 'status', key: 'status', title: '状态', width: 76 },
-];
-const ACTOR_META: Record<string, { color: string; label: string }> = {
-  human: { color: 'blue', label: '人工' },
-  bot: { color: 'purple', label: 'Bot' },
-  system: { color: 'default', label: '系统' },
-};
+const auditColumns = computed(() => [
+  { dataIndex: 'ts', key: 'ts', title: $t('logs.overview.columns.time'), width: 96 },
+  { dataIndex: 'actor', key: 'actor', title: $t('logs.overview.columns.actor'), width: 150 },
+  { dataIndex: 'actorType', key: 'actorType', title: $t('logs.overview.columns.type'), width: 76 },
+  { dataIndex: 'action', key: 'action', title: $t('logs.overview.columns.action'), width: 92 },
+  { dataIndex: 'resource', key: 'resource', title: $t('logs.overview.columns.resource'), ellipsis: true },
+  { dataIndex: 'status', key: 'status', title: $t('logs.overview.columns.status'), width: 76 },
+]);
+const ACTOR_META = computed<Record<string, { color: string; label: string }>>(
+  () => ({
+    human: { color: 'blue', label: $t('logs.overview.actor.human') },
+    bot: { color: 'purple', label: $t('logs.overview.actor.bot') },
+    system: { color: 'default', label: $t('logs.overview.actor.system') },
+  }),
+);
 const ACTION_COLOR: Record<string, string> = {
   create: 'green',
   delete: 'red',
@@ -169,13 +184,13 @@ onBeforeUnmount(() => timer && clearInterval(timer));
     <PageHeader
       eyebrow="Log Center"
       icon="lucide:layout-dashboard"
-      title="日志概览"
-      description="汇总 DHCP 与 DNS 事件规模、查询趋势、热门域名与客户端，并同步展示最近的管理操作审计。"
+      :title="$t('logs.overview.title')"
+      :description="$t('logs.overview.description')"
     >
       <template #actions>
         <div class="ipam-seg">
           <button
-            v-for="r in RANGES"
+            v-for="r in ranges"
             :key="r.key"
             type="button"
             :data-active="range === r.key"
@@ -185,43 +200,43 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           </button>
         </div>
         <span class="ipam-page-header__meta">
-          更新于 {{ lastUpdated || '—' }}
+          {{ $t('logs.overview.updatedAt', { time: lastUpdated || '—' }) }}
         </span>
         <Button size="small" :loading="loading" @click="loadAll">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />刷新
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{ $t('logs.common.refresh') }}
         </Button>
       </template>
     </PageHeader>
 
     <div class="ipam-stat-grid">
       <StatCard
-        label="事件总量"
+        :label="$t('logs.overview.kpi.total')"
         :value="stats ? fmtInt(stats.total) : kpi.failed.value ? '—' : '…'"
         icon="lucide:activity"
         tone="blue"
         :spark="stats?.spark"
-        :hint="`${window.label} · 自动刷新 60 秒`"
+        :hint="$t('logs.overview.kpi.totalHint', { range: windowLabel })"
       />
       <StatCard
-        label="DNS 查询"
+        :label="$t('logs.overview.kpi.dns')"
         :value="stats ? fmtInt(stats.dns) : kpi.failed.value ? '—' : '…'"
         icon="lucide:globe"
         tone="cyan"
-        :hint="`占事件总量 ${pct(stats?.dns ?? 0, stats?.total ?? 0)}`"
+        :hint="$t('logs.common.share', { pct: pct(stats?.dns ?? 0, stats?.total ?? 0) })"
       />
       <StatCard
-        label="DHCP 事件"
+        :label="$t('logs.overview.kpi.dhcp')"
         :value="stats ? fmtInt(stats.dhcp) : kpi.failed.value ? '—' : '…'"
         icon="lucide:network"
         tone="green"
-        :hint="`占事件总量 ${pct(stats?.dhcp ?? 0, stats?.total ?? 0)}`"
+        :hint="$t('logs.common.share', { pct: pct(stats?.dhcp ?? 0, stats?.total ?? 0) })"
       />
       <StatCard
-        label="封禁拦截"
+        :label="$t('logs.overview.kpi.blocked')"
         :value="stats ? fmtInt(stats.blocked) : kpi.failed.value ? '—' : '…'"
         icon="lucide:shield-ban"
         :tone="(stats?.blocked ?? 0) > 0 ? 'red' : 'violet'"
-        :hint="(stats?.blocked ?? 0) > 0 ? `占 DNS 查询 ${pct(stats?.blocked ?? 0, stats?.dns ?? 0)}` : '当前时间窗无拦截事件'"
+        :hint="(stats?.blocked ?? 0) > 0 ? $t('logs.common.blockedShare', { pct: pct(stats?.blocked ?? 0, stats?.dns ?? 0) }) : $t('logs.common.noBlocked')"
       />
     </div>
 
@@ -230,14 +245,14 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         <template #title>
           <span class="ipam-card-title">
             <IconifyIcon icon="lucide:chart-area" />
-            查询趋势
-            <em class="ipam-card-sub">{{ bucketSeconds }} 秒分桶</em>
+            {{ $t('logs.overview.trend.title') }}
+            <em class="ipam-card-sub">{{ $t('logs.overview.trend.bucket', { n: bucketSeconds }) }}</em>
           </span>
         </template>
         <template #extra>
           <span class="ipam-card-legend">
-            <span><i data-kind="peak"></i>峰值</span>
-            <span><i data-kind="avg"></i>均值</span>
+            <span><i data-kind="peak"></i>{{ $t('logs.overview.trend.peak') }}</span>
+            <span><i data-kind="avg"></i>{{ $t('logs.overview.trend.avg') }}</span>
           </span>
         </template>
 
@@ -247,38 +262,38 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           :height="210"
           :time-format="range === '1h' || range === '6h' ? 'HH:mm' : 'MM-DD HH:mm'"
           tone="cyan"
-          unit="次"
+          :unit="$t('logs.common.times')"
         />
         <div v-else class="ipam-empty">
           <div class="ipam-empty__icon">
             <IconifyIcon icon="lucide:chart-area" class="size-5" />
           </div>
-          <div class="ipam-empty__title">暂无趋势数据</div>
+          <div class="ipam-empty__title">{{ $t('logs.common.noTrend') }}</div>
           <div class="ipam-empty__desc">
-            ClickHouse 中还没有可聚合的事件，触发一次 DNS 查询或 DHCP 续约后即可看到曲线。
+            {{ $t('logs.overview.trend.emptyDesc') }}
           </div>
         </div>
 
         <div class="ipam-figure-row">
           <div class="ipam-figure">
-            <span class="ipam-figure__label">窗口总量</span>
+            <span class="ipam-figure__label">{{ $t('logs.common.figures.total') }}</span>
             <span class="ipam-figure__value">{{ fmtInt(qpsTotal) }}</span>
-            <span class="ipam-figure__unit">次</span>
+            <span class="ipam-figure__unit">{{ $t('logs.common.times') }}</span>
           </div>
           <div class="ipam-figure">
-            <span class="ipam-figure__label">平均每桶</span>
+            <span class="ipam-figure__label">{{ $t('logs.common.figures.avg') }}</span>
             <span class="ipam-figure__value">{{ qpsAvg.toFixed(1) }}</span>
-            <span class="ipam-figure__unit">次</span>
+            <span class="ipam-figure__unit">{{ $t('logs.common.times') }}</span>
           </div>
           <div class="ipam-figure">
-            <span class="ipam-figure__label">峰值每桶</span>
+            <span class="ipam-figure__label">{{ $t('logs.common.figures.peak') }}</span>
             <span class="ipam-figure__value">{{ fmtInt(qpsPeak) }}</span>
-            <span class="ipam-figure__unit">次</span>
+            <span class="ipam-figure__unit">{{ $t('logs.common.times') }}</span>
           </div>
           <div class="ipam-figure">
-            <span class="ipam-figure__label">拦截占比</span>
+            <span class="ipam-figure__label">{{ $t('logs.common.figures.blockedShare') }}</span>
             <span class="ipam-figure__value">{{ pct(stats?.blocked ?? 0, stats?.total ?? 0) }}</span>
-            <span class="ipam-figure__unit">全量事件</span>
+            <span class="ipam-figure__unit">{{ $t('logs.common.figures.allEvents') }}</span>
           </div>
         </div>
       </Card>
@@ -287,11 +302,11 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         <template #title>
           <span class="ipam-card-title">
             <IconifyIcon icon="lucide:pie-chart" />
-            流量构成
+            {{ $t('logs.overview.compose.title') }}
           </span>
         </template>
         <template #extra>
-          <span class="ipam-hint">{{ window.label }}</span>
+          <span class="ipam-hint">{{ windowLabel }}</span>
         </template>
 
         <div v-if="stats && stats.total > 0" class="ipam-compose">
@@ -301,12 +316,12 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             :thickness="10"
             tone="cyan"
             :label="`${dnsShare}%`"
-            caption="DNS 查询占比"
+            :caption="$t('logs.overview.compose.dnsShare')"
           />
           <div class="ipam-dist">
             <div class="ipam-dist__row">
               <div class="ipam-dist__head">
-                <span>DNS 查询</span>
+                <span>{{ $t('logs.overview.compose.dns') }}</span>
                 <span>{{ fmtInt(stats.dns) }}</span>
               </div>
               <div class="ipam-dist__bar">
@@ -315,7 +330,7 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             </div>
             <div class="ipam-dist__row">
               <div class="ipam-dist__head">
-                <span>DHCP 事件</span>
+                <span>{{ $t('logs.overview.compose.dhcp') }}</span>
                 <span>{{ fmtInt(stats.dhcp) }}</span>
               </div>
               <div class="ipam-dist__bar">
@@ -324,7 +339,7 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             </div>
             <div class="ipam-dist__row">
               <div class="ipam-dist__head">
-                <span>封禁拦截（DNS 子集）</span>
+                <span>{{ $t('logs.overview.compose.blocked') }}</span>
                 <span>{{ fmtInt(stats.blocked) }}</span>
               </div>
               <div class="ipam-dist__bar">
@@ -333,7 +348,7 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             </div>
             <div v-if="otherCount > 0" class="ipam-dist__row">
               <div class="ipam-dist__head">
-                <span>未分类事件</span>
+                <span>{{ $t('logs.overview.compose.other') }}</span>
                 <span>{{ fmtInt(otherCount) }}</span>
               </div>
               <div class="ipam-dist__bar">
@@ -343,13 +358,13 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           </div>
         </div>
         <div v-else class="ipam-empty ipam-empty--compact">
-          <div class="ipam-empty__title">暂无流量数据</div>
-          <div class="ipam-empty__desc">时间窗内没有 DHCP/DNS 事件，接入日志采集后自动汇总。</div>
+          <div class="ipam-empty__title">{{ $t('logs.overview.compose.emptyTitle') }}</div>
+          <div class="ipam-empty__desc">{{ $t('logs.overview.compose.emptyDesc') }}</div>
         </div>
 
         <div class="ipam-note mt-3">
           <IconifyIcon icon="lucide:info" class="mt-0.5 size-3.5 shrink-0" />
-          <span>拦截事件同时计入 DNS 查询；比例按当前时间窗实时计算。</span>
+          <span>{{ $t('logs.overview.compose.note') }}</span>
         </div>
       </Card>
     </div>
@@ -359,13 +374,13 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         <template #title>
           <span class="ipam-card-title">
             <IconifyIcon icon="lucide:flame" />
-            热门域名
+            {{ $t('logs.common.topDomains') }}
             <em class="ipam-card-sub">Top 8</em>
           </span>
         </template>
         <template #extra>
           <RouterLink class="ipam-link" to="/logs-center/search">
-            日志明细
+            {{ $t('logs.common.rowsDetail') }}
             <IconifyIcon icon="lucide:arrow-up-right" class="size-3" />
           </RouterLink>
         </template>
@@ -385,8 +400,8 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           </div>
         </div>
         <div v-else class="ipam-empty ipam-empty--compact">
-          <div class="ipam-empty__title">暂无域名数据</div>
-          <div class="ipam-empty__desc">DNS 查询日志接入后展示热门域名排行。</div>
+          <div class="ipam-empty__title">{{ $t('logs.overview.topDomains.emptyTitle') }}</div>
+          <div class="ipam-empty__desc">{{ $t('logs.overview.topDomains.emptyDesc') }}</div>
         </div>
       </Card>
 
@@ -394,13 +409,13 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         <template #title>
           <span class="ipam-card-title">
             <IconifyIcon icon="lucide:monitor-smartphone" />
-            活跃客户端
-            <em class="ipam-card-sub">Top 8 · 按 MAC</em>
+            {{ $t('logs.common.topClients') }}
+            <em class="ipam-card-sub">{{ $t('logs.overview.topClients.subtitle') }}</em>
           </span>
         </template>
         <template #extra>
           <RouterLink class="ipam-link" to="/logs-center/search">
-            日志明细
+            {{ $t('logs.common.rowsDetail') }}
             <IconifyIcon icon="lucide:arrow-up-right" class="size-3" />
           </RouterLink>
         </template>
@@ -420,8 +435,8 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           </div>
         </div>
         <div v-else class="ipam-empty ipam-empty--compact">
-          <div class="ipam-empty__title">暂无客户端数据</div>
-          <div class="ipam-empty__desc">DHCP 事件携带 MAC 后即可按客户端聚合。</div>
+          <div class="ipam-empty__title">{{ $t('logs.overview.topClients.emptyTitle') }}</div>
+          <div class="ipam-empty__desc">{{ $t('logs.overview.topClients.emptyDesc') }}</div>
         </div>
       </Card>
     </div>
@@ -430,13 +445,13 @@ onBeforeUnmount(() => timer && clearInterval(timer));
       <template #title>
         <span class="ipam-card-title">
           <IconifyIcon icon="lucide:shield-check" />
-          最近操作审计
-          <em class="ipam-card-sub">{{ window.label }}</em>
+          {{ $t('logs.overview.recentAudit.title') }}
+          <em class="ipam-card-sub">{{ windowLabel }}</em>
         </span>
       </template>
       <template #extra>
         <RouterLink class="ipam-link" to="/logs-center/audit">
-          查看全部
+          {{ $t('logs.overview.recentAudit.viewAll') }}
           <IconifyIcon icon="lucide:arrow-up-right" class="size-3" />
         </RouterLink>
       </template>
@@ -444,7 +459,7 @@ onBeforeUnmount(() => timer && clearInterval(timer));
       <Table
         :columns="auditColumns"
         :data-source="recentAudits"
-        :locale="{ emptyText: '当前时间窗没有管理操作记录' }"
+        :locale="{ emptyText: $t('logs.overview.recentAudit.empty') }"
         :pagination="false"
         :row-key="(r: AuditEntry) => String(r.id)"
         :scroll="{ x: 820 }"

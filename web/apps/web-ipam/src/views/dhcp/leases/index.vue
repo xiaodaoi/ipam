@@ -27,6 +27,7 @@ import {
 } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import { $t } from '#/locales';
 import { filterLeases, formatLeaseRemaining } from '#/utils/lease';
 
 defineOptions({ name: 'DhcpLeases' });
@@ -88,17 +89,19 @@ function openExtend(row: Partial<DhcpLease4Row>) {
 async function submitExtend() {
   if (!extendTarget.value) return;
   if (!extendValue.value || extendValue.value < 60) {
-    message.warning('租约时长至少 60 秒');
+    message.warning($t('dhcp.leases.messages.lifetimeMin'));
     return;
   }
   extendSaving.value = true;
   try {
     await updateDhcpLease4(extendTarget.value.ipAddress, { validLifetime: extendValue.value });
-    message.success('租约已延期');
+    message.success($t('dhcp.leases.messages.extended'));
     extendOpen.value = false;
     await load();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '延期失败');
+    message.error(
+      error instanceof Error ? error.message : $t('dhcp.leases.messages.extendFailed'),
+    );
   } finally {
     extendSaving.value = false;
   }
@@ -114,7 +117,7 @@ function openRebind(row: Partial<DhcpLease4Row>) {
 async function submitRebind() {
   if (!rebindTarget.value) return;
   if (!/^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$/.test(rebindForm.mac.trim())) {
-    message.warning('MAC 格式应为 aa:bb:cc:dd:ee:ff');
+    message.warning($t('dhcp.leases.messages.macFormat'));
     return;
   }
   rebindSaving.value = true;
@@ -123,11 +126,13 @@ async function submitRebind() {
       hwAddress: rebindForm.mac.trim().toLowerCase(),
       hostname: rebindForm.hostname.trim(),
     });
-    message.success('租约已改绑');
+    message.success($t('dhcp.leases.messages.rebound'));
     rebindOpen.value = false;
     await load();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '改绑失败');
+    message.error(
+      error instanceof Error ? error.message : $t('dhcp.leases.messages.rebindFailed'),
+    );
   } finally {
     rebindSaving.value = false;
   }
@@ -137,10 +142,12 @@ async function release4(row: Partial<DhcpLease4Row>) {
   if (!row.ipAddress) return;
   try {
     await deleteDhcpLease4(row.ipAddress);
-    message.success(`已释放 ${row.ipAddress}`);
+    message.success($t('dhcp.leases.messages.released', { ip: row.ipAddress }));
     await load();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '释放失败');
+    message.error(
+      error instanceof Error ? error.message : $t('dhcp.leases.messages.releaseFailed'),
+    );
   }
 }
 
@@ -148,34 +155,41 @@ async function release6(row: Partial<DhcpLease6Row>) {
   if (!row.ipAddress || !row.leaseType) return;
   try {
     await deleteDhcpLease6(row.ipAddress, row.leaseType);
-    message.success(`已释放 ${row.ipAddress}`);
+    message.success($t('dhcp.leases.messages.released', { ip: row.ipAddress }));
     await load();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '释放失败');
+    message.error(
+      error instanceof Error ? error.message : $t('dhcp.leases.messages.releaseFailed'),
+    );
   }
 }
 
-const v4Columns = [
-  { title: 'IP 地址', dataIndex: 'ipAddress', key: 'ip', width: 150 },
+const v4Columns = computed(() => [
+  { title: $t('dhcp.leases.col.ip'), dataIndex: 'ipAddress', key: 'ip', width: 150 },
   { title: 'MAC', dataIndex: 'hwAddress', key: 'mac', width: 160 },
-  { title: '主机名', dataIndex: 'hostname', key: 'hostname', ellipsis: true },
-  { title: 'option82（circuit / remote）', key: 'relay', width: 220 },
-  { title: 'Kea 子网', dataIndex: 'subnetId', key: 'subnet', width: 90 },
-  { title: '最近事务', dataIndex: 'cltt', key: 'cltt', width: 170 },
-  { title: '剩余', key: 'remaining', width: 100 },
-  { title: '状态', key: 'state', width: 100 },
-  { title: '操作', key: 'actions', width: 210 },
-];
+  { title: $t('dhcp.leases.col.hostname'), dataIndex: 'hostname', key: 'hostname', ellipsis: true },
+  { title: $t('dhcp.leases.col.relay'), key: 'relay', width: 220 },
+  { title: $t('dhcp.leases.col.subnet'), dataIndex: 'subnetId', key: 'subnet', width: 90 },
+  { title: $t('dhcp.leases.col.cltt'), dataIndex: 'cltt', key: 'cltt', width: 170 },
+  { title: $t('dhcp.leases.col.remaining'), key: 'remaining', width: 100 },
+  { title: $t('dhcp.leases.col.state'), key: 'state', width: 100 },
+  { title: $t('dhcp.leases.col.actions'), key: 'actions', width: 210 },
+]);
 
-const v6Columns = [
-  { title: '地址 / 前缀', dataIndex: 'ipAddress', key: 'ip', width: 260 },
-  { title: '类型', dataIndex: 'leaseType', key: 'type', width: 90 },
+const v6Columns = computed(() => [
+  { title: $t('dhcp.leases.col.addr'), dataIndex: 'ipAddress', key: 'ip', width: 260 },
+  { title: $t('dhcp.leases.col.type'), dataIndex: 'leaseType', key: 'type', width: 90 },
   { title: 'MAC', dataIndex: 'hwAddress', key: 'mac', width: 160 },
   { title: 'DUID', dataIndex: 'duid', key: 'duid', ellipsis: true },
-  { title: '最近事务', dataIndex: 'cltt', key: 'cltt', width: 170 },
-  { title: '剩余', key: 'remaining', width: 100 },
-  { title: '操作', key: 'actions', width: 100 },
-];
+  { title: $t('dhcp.leases.col.cltt'), dataIndex: 'cltt', key: 'cltt', width: 170 },
+  { title: $t('dhcp.leases.col.remaining'), key: 'remaining', width: 100 },
+  { title: $t('dhcp.leases.col.actions'), key: 'actions', width: 100 },
+]);
+
+const tabOptions = computed(() => [
+  { label: $t('dhcp.leases.tabV4', { n: v4.value.length }), value: 'v4' },
+  { label: $t('dhcp.leases.tabV6', { n: v6.value.length }), value: 'v6' },
+]);
 
 onMounted(load);
 </script>
@@ -185,8 +199,8 @@ onMounted(load);
     <PageHeader
       eyebrow="DHCP Leases"
       icon="lucide:clock"
-      title="租约管理"
-      description="实时查看 Kea 租约，支持延期、改绑与释放；操作直接作用于 DHCP 服务，无需重启。"
+      :title="$t('dhcp.leases.title')"
+      :description="$t('dhcp.leases.description')"
     >
       <template #actions>
         <span class="ipam-page-header__meta">
@@ -194,16 +208,46 @@ onMounted(load);
           IPv4 {{ v4.length }} · IPv6 {{ v6.length }}
         </span>
         <Button size="small" :loading="loading" @click="load">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />刷新
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{
+            $t('dhcp.common.refresh')
+          }}
         </Button>
       </template>
     </PageHeader>
 
     <div class="ipam-stat-grid">
-      <StatCard label="IPv4 租约" :value="v4.length" unit="条" icon="lucide:network" tone="green" hint="Kea lease4-get-all 实时投影" />
-      <StatCard label="v4 冲突/保留" :value="declined" unit="条" icon="lucide:alert-triangle" :tone="declined > 0 ? 'red' : 'violet'" hint="state != 0（declined）" />
-      <StatCard label="IPv6 租约" :value="v6.length" unit="条" icon="lucide:globe" tone="cyan" hint="IA_NA + IA_PD" />
-      <StatCard label="前缀委派" :value="pdCount" unit="条" icon="lucide:git-branch" tone="amber" hint="IA_PD 租约" />
+      <StatCard
+        :label="$t('dhcp.leases.stat.v4')"
+        :value="v4.length"
+        :unit="$t('dhcp.common.unitRecord')"
+        icon="lucide:network"
+        tone="green"
+        :hint="$t('dhcp.leases.stat.v4Hint')"
+      />
+      <StatCard
+        :label="$t('dhcp.leases.stat.declined')"
+        :value="declined"
+        :unit="$t('dhcp.common.unitRecord')"
+        icon="lucide:alert-triangle"
+        :tone="declined > 0 ? 'red' : 'violet'"
+        :hint="$t('dhcp.leases.stat.declinedHint')"
+      />
+      <StatCard
+        :label="$t('dhcp.leases.stat.v6')"
+        :value="v6.length"
+        :unit="$t('dhcp.common.unitRecord')"
+        icon="lucide:globe"
+        tone="cyan"
+        :hint="$t('dhcp.leases.stat.v6Hint')"
+      />
+      <StatCard
+        :label="$t('dhcp.leases.stat.pd')"
+        :value="pdCount"
+        :unit="$t('dhcp.common.unitRecord')"
+        icon="lucide:git-branch"
+        tone="amber"
+        :hint="$t('dhcp.leases.stat.pdHint')"
+      />
     </div>
 
     <Card>
@@ -212,16 +256,13 @@ onMounted(load);
           v-model:value="tab"
           option-type="button"
           size="small"
-          :options="[
-            { label: `IPv4（${v4.length}）`, value: 'v4' },
-            { label: `IPv6（${v6.length}）`, value: 'v6' },
-          ]"
+          :options="tabOptions"
         />
         <span class="ipam-toolbar__spacer"></span>
         <Input
           v-model:value="keyword"
           allow-clear
-          placeholder="搜索 IP / MAC / 主机名 / DUID"
+          :placeholder="$t('dhcp.leases.searchPlaceholder')"
           style="width: 280px"
         >
           <template #prefix><IconifyIcon icon="lucide:search" class="size-3.5" /></template>
@@ -253,21 +294,35 @@ onMounted(load);
           </template>
           <template v-else-if="column.key === 'state'">
             <Tag :color="(record.state ?? 0) === 0 ? 'green' : 'red'" class="m-0">
-              {{ (record.state ?? 0) === 0 ? '正常' : '冲突/declined' }}
+              {{
+                (record.state ?? 0) === 0
+                  ? $t('dhcp.leases.stateOk')
+                  : $t('dhcp.leases.stateDeclined')
+              }}
             </Tag>
           </template>
           <template v-else-if="column.key === 'actions'">
             <div class="flex flex-wrap items-center gap-1">
-              <Button size="small" type="link" @click="openExtend(record)">延期</Button>
-              <Button size="small" type="link" @click="openRebind(record)">改绑</Button>
+              <Button size="small" type="link" @click="openExtend(record)">
+                {{ $t('dhcp.leases.extend') }}
+              </Button>
+              <Button size="small" type="link" @click="openRebind(record)">
+                {{ $t('dhcp.leases.rebind') }}
+              </Button>
               <Popconfirm
-                title="释放该租约？"
-                :description="`客户端 ${record.hwAddress ?? ''} 将重新申请地址。`"
-                ok-text="释放"
-                cancel-text="取消"
+                :title="$t('dhcp.leases.confirmRelease')"
+                :description="
+                  $t('dhcp.leases.confirmReleaseDesc', {
+                    mac: record.hwAddress ?? '',
+                  })
+                "
+                :ok-text="$t('dhcp.leases.release')"
+                :cancel-text="$t('dhcp.common.cancel')"
                 @confirm="release4(record)"
               >
-                <Button size="small" type="link" danger>释放</Button>
+                <Button size="small" type="link" danger>
+                  {{ $t('dhcp.leases.release') }}
+                </Button>
               </Popconfirm>
             </div>
           </template>
@@ -292,13 +347,20 @@ onMounted(load);
           <template v-else-if="column.key === 'remaining'">{{ remaining(record) }}</template>
           <template v-else-if="column.key === 'actions'">
             <Popconfirm
-              title="释放该 IPv6 租约？"
-              :description="`${record.ipAddress}（${record.leaseType}）`"
-              ok-text="释放"
-              cancel-text="取消"
+              :title="$t('dhcp.leases.confirmRelease6')"
+              :description="
+                $t('dhcp.leases.releaseDesc6', {
+                  ip: record.ipAddress,
+                  type: record.leaseType,
+                })
+              "
+              :ok-text="$t('dhcp.leases.release')"
+              :cancel-text="$t('dhcp.common.cancel')"
               @confirm="release6(record)"
             >
-              <Button size="small" type="link" danger>释放</Button>
+              <Button size="small" type="link" danger>
+                {{ $t('dhcp.leases.release') }}
+              </Button>
             </Popconfirm>
           </template>
         </template>
@@ -307,50 +369,57 @@ onMounted(load);
 
     <Modal
       v-model:open="extendOpen"
-      title="租约延期"
-      ok-text="保存"
-      cancel-text="取消"
+      :title="$t('dhcp.leases.extendTitle')"
+      :ok-text="$t('dhcp.common.save')"
+      :cancel-text="$t('dhcp.common.cancel')"
       :confirm-loading="extendSaving"
       @ok="submitExtend"
     >
       <div class="ipam-form-grid">
         <div class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">地址</span>
+          <span class="ipam-form-field__label">{{ $t('dhcp.leases.address') }}</span>
           <Input :value="extendTarget?.ipAddress" disabled />
         </div>
         <div class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">新租约时长（秒）</span>
+          <span class="ipam-form-field__label">
+            {{ $t('dhcp.leases.newLifetime') }}
+          </span>
           <InputNumber v-model:value="extendValue" :min="60" :max="31536000" :step="600" style="width: 100%" />
         </div>
         <div class="ipam-form-hint ipam-form-field--wide">
-          仅修改 Kea 运行态租约；客户端下次续约时以服务端策略为准。
+          {{ $t('dhcp.leases.extendHint') }}
         </div>
       </div>
     </Modal>
 
     <Modal
       v-model:open="rebindOpen"
-      title="租约改绑"
-      ok-text="保存"
-      cancel-text="取消"
+      :title="$t('dhcp.leases.rebindTitle')"
+      :ok-text="$t('dhcp.common.save')"
+      :cancel-text="$t('dhcp.common.cancel')"
       :confirm-loading="rebindSaving"
       @ok="submitRebind"
     >
       <div class="ipam-form-grid">
         <div class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">地址</span>
+          <span class="ipam-form-field__label">{{ $t('dhcp.leases.address') }}</span>
           <Input :value="rebindTarget?.ipAddress" disabled />
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">新 MAC</span>
+          <span class="ipam-form-field__label">{{ $t('dhcp.leases.newMac') }}</span>
           <Input v-model:value="rebindForm.mac" placeholder="aa:bb:cc:dd:ee:ff" />
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">主机名</span>
-          <Input v-model:value="rebindForm.hostname" placeholder="可选" />
+          <span class="ipam-form-field__label">
+            {{ $t('dhcp.leases.hostname') }}
+          </span>
+          <Input
+            v-model:value="rebindForm.hostname"
+            :placeholder="$t('dhcp.leases.optional')"
+          />
         </div>
         <div class="ipam-form-hint ipam-form-field--wide">
-          改绑仅更新现有租约归属；如需长期固定，请使用「保留与绑定」创建 host reservation。
+          {{ $t('dhcp.leases.rebindHint') }}
         </div>
       </div>
     </Modal>

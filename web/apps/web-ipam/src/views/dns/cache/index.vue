@@ -10,8 +10,9 @@ import { Button, Card, Input, InputNumber, message, Popconfirm, Switch, Table } 
 import { flushCache, getDnsSettings, getLogQps, listTtlOverrides, updateDnsSettings, upsertTtlOverride } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import { $t } from '#/locales';
 
-const showTotal = (t: number) => `共 ${t} 条`;
+const showTotal = (t: number) => $t('dns.common.total', { n: t });
 
 const settings = ref<DnsSettings>();
 const ttlRows = ref<{ domain: string; ttl: number }[]>([]);
@@ -41,7 +42,7 @@ async function save() {
   saving.value = true;
   try {
     settings.value = await updateDnsSettings(settings.value);
-    message.success('参数已保存并经 checkconf-reload 生效');
+    message.success($t('dns.cache.msg.saved'));
   } finally {
     saving.value = false;
   }
@@ -50,26 +51,26 @@ async function doFlush() {
   flushing.value = true;
   try {
     const r = await flushCache(flushZone.value || undefined);
-    message.success(`已清空：${r.flushed}（${r.cmd}）`);
+    message.success($t('dns.cache.msg.flushOk', { n: r.flushed, cmd: r.cmd }));
     flushZone.value = '';
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '清空失败');
+    message.error(error instanceof Error ? error.message : $t('dns.cache.msg.flushFailed'));
   } finally {
     flushing.value = false;
   }
 }
 async function addTtl() {
   if (!newTtl.value.domain || !newTtl.value.ttl) {
-    message.warning('域名与 TTL 必填');
+    message.warning($t('dns.cache.msg.warnDomainTtl'));
     return;
   }
   try {
     await upsertTtlOverride(newTtl.value);
-    message.success('TTL 覆盖已保存');
+    message.success($t('dns.cache.msg.ttlSaved'));
     newTtl.value = { domain: '', ttl: 300 };
     await load();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '保存失败');
+    message.error(error instanceof Error ? error.message : $t('dns.common.saveFailed'));
   }
 }
 
@@ -105,17 +106,17 @@ const stats = computed(() => ({
 
 const nf = (n: number) => n.toLocaleString('zh-CN');
 
-const ttlCols = [
-  { title: '域名', dataIndex: 'domain', minWidth: 260 },
-  { title: 'TTL（秒）', dataIndex: 'ttl', width: 120 },
-  { title: '折合', dataIndex: 'human', width: 140 },
-];
+const ttlCols = computed(() => [
+  { title: $t('dns.cache.ttl.colDomain'), dataIndex: 'domain', minWidth: 260 },
+  { title: $t('dns.cache.ttl.colTtl'), dataIndex: 'ttl', width: 120 },
+  { title: $t('dns.cache.ttl.colHuman'), dataIndex: 'human', width: 140 },
+]);
 
 function humanTtl(ttl: number): string {
-  if (ttl >= 86_400) return `${(ttl / 86_400).toFixed(ttl % 86_400 === 0 ? 0 : 1)} 天`;
-  if (ttl >= 3600) return `${(ttl / 3600).toFixed(ttl % 3600 === 0 ? 0 : 1)} 小时`;
-  if (ttl >= 60) return `${(ttl / 60).toFixed(ttl % 60 === 0 ? 0 : 1)} 分钟`;
-  return `${ttl} 秒`;
+  if (ttl >= 86_400) return $t('dns.cache.ttl.days', { n: (ttl / 86_400).toFixed(ttl % 86_400 === 0 ? 0 : 1) });
+  if (ttl >= 3600) return $t('dns.cache.ttl.hours', { n: (ttl / 3600).toFixed(ttl % 3600 === 0 ? 0 : 1) });
+  if (ttl >= 60) return $t('dns.cache.ttl.minutes', { n: (ttl / 60).toFixed(ttl % 60 === 0 ? 0 : 1) });
+  return $t('dns.cache.ttl.seconds', { n: ttl });
 }
 </script>
 
@@ -124,54 +125,54 @@ function humanTtl(ttl: number): string {
     <PageHeader
       eyebrow="DNS Service"
       icon="lucide:gauge"
-      title="缓存与性能"
-      description="调整 resolver 缓存 TTL、过期兜底与单域名覆盖策略，并查看查询量概览。"
+      :title="$t('dns.cache.header.title')"
+      :description="$t('dns.cache.header.desc')"
     >
       <template #actions>
         <span class="ipam-page-header__meta">
           <IconifyIcon icon="lucide:database" class="size-3.5" />
-          TTL {{ stats.minTtl }}–{{ stats.maxTtl }}s · {{ stats.covers }} 条覆盖
+          {{ $t('dns.cache.header.meta', { min: stats.minTtl, max: stats.maxTtl, covers: stats.covers }) }}
         </span>
         <Button size="small" :loading="loading" @click="load(); loadQps()">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />刷新
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{ $t('dns.common.refresh') }}
         </Button>
-        <Button type="primary" size="small" :loading="saving" @click="save">保存并生效</Button>
+        <Button type="primary" size="small" :loading="saving" @click="save">{{ $t('dns.cache.actions.save') }}</Button>
       </template>
     </PageHeader>
 
     <div class="ipam-stat-grid">
       <StatCard
-        label="最近 1 小时查询"
+        :label="$t('dns.cache.stat.qps1h')"
         :value="nf(stats.qps1h)"
-        unit="次"
+        :unit="$t('dns.common.unit.times')"
         icon="lucide:activity"
         tone="blue"
         :spark="qpsSpark.length > 1 ? qpsSpark : undefined"
-        :hint="stats.qps1h > 0 ? '按小时聚合的最近一个窗口' : '暂无查询数据'"
+        :hint="stats.qps1h > 0 ? $t('dns.cache.stat.qps1hHintOn') : $t('dns.cache.stat.qps1hHintOff')"
       />
       <StatCard
-        label="近 24 小时总查询"
+        :label="$t('dns.cache.stat.total')"
         :value="nf(stats.qpsTotal)"
-        unit="次"
+        :unit="$t('dns.common.unit.times')"
         icon="lucide:bar-chart-3"
         tone="cyan"
-        :hint="`每小时均值 ${nf(stats.avgPerHour)} 次`"
+        :hint="$t('dns.cache.stat.totalHint', { n: nf(stats.avgPerHour) })"
       />
       <StatCard
-        label="小时峰值"
+        :label="$t('dns.cache.stat.peak')"
         :value="nf(stats.peak)"
-        unit="次"
+        :unit="$t('dns.common.unit.times')"
         icon="lucide:trending-up"
         tone="violet"
-        :hint="stats.peak > 0 ? '窗口内单小时最高查询量' : '等待数据采集'"
+        :hint="stats.peak > 0 ? $t('dns.cache.stat.peakHintOn') : $t('dns.cache.stat.peakHintOff')"
       />
       <StatCard
-        label="TTL 覆盖"
+        :label="$t('dns.cache.stat.covers')"
         :value="stats.covers"
-        unit="条"
+        :unit="$t('dns.common.unit.item')"
         icon="lucide:timer-reset"
         tone="green"
-        :hint="stats.covers > 0 ? '单域名覆盖优先于全局 TTL' : '尚未设置单域名覆盖'"
+        :hint="stats.covers > 0 ? $t('dns.cache.stat.coversHintOn') : $t('dns.cache.stat.coversHintOff')"
       />
     </div>
 
@@ -179,33 +180,33 @@ function humanTtl(ttl: number): string {
       <template #title>
         <span class="ipam-card-title">
           <IconifyIcon icon="lucide:settings-2" />
-          缓存参数
+          {{ $t('dns.cache.card.params') }}
         </span>
       </template>
       <template #extra>
-        <span class="ipam-hint">保存后经 resolver 配置重载生效</span>
+        <span class="ipam-hint">{{ $t('dns.cache.card.hint') }}</span>
       </template>
 
       <div v-if="settings" class="ipam-form-grid">
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">最小 TTL（秒）</span>
+          <span class="ipam-form-field__label">{{ $t('dns.cache.form.minLabel') }}</span>
           <InputNumber v-model:value="settings.cacheMinTtl" :min="0" style="width: 100%" />
-          <span class="ipam-hint">0 表示不限制，按应答原始 TTL 缓存</span>
+          <span class="ipam-hint">{{ $t('dns.cache.form.minHint') }}</span>
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">最大 TTL（秒）</span>
+          <span class="ipam-form-field__label">{{ $t('dns.cache.form.maxLabel') }}</span>
           <InputNumber v-model:value="settings.cacheMaxTtl" :min="1" style="width: 100%" />
-          <span class="ipam-hint">应答 TTL 超过该值时按此值截断</span>
+          <span class="ipam-hint">{{ $t('dns.cache.form.maxHint') }}</span>
         </label>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">serve-expired（过期旧值兜底）</span>
+          <span class="ipam-form-field__label">{{ $t('dns.cache.form.serveExpiredLabel') }}</span>
           <div class="flex h-8 items-center gap-2">
             <Switch v-model:checked="settings.serveExpired" size="small" />
-            <span class="ipam-hint">{{ settings.serveExpired ? '上游超时先应答过期缓存' : '过期即重新递归' }}</span>
+            <span class="ipam-hint">{{ settings.serveExpired ? $t('dns.cache.form.serveExpiredOn') : $t('dns.cache.form.serveExpiredOff') }}</span>
           </div>
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">当前策略</span>
+          <span class="ipam-form-field__label">{{ $t('dns.cache.form.policy') }}</span>
           <div class="flex h-8 flex-wrap items-center gap-1">
             <span class="ipam-chip" data-tone="muted">min {{ settings.cacheMinTtl }}s</span>
             <span class="ipam-chip" data-tone="muted">max {{ settings.cacheMaxTtl }}s</span>
@@ -216,13 +217,13 @@ function humanTtl(ttl: number): string {
         </div>
         <div class="ipam-form-field--wide flex justify-end">
           <Button type="primary" :loading="saving" @click="save">
-            <IconifyIcon icon="lucide:save" class="mr-1" />保存并生效
+            <IconifyIcon icon="lucide:save" class="mr-1" />{{ $t('dns.cache.actions.save') }}
           </Button>
         </div>
       </div>
       <div v-else class="ipam-empty ipam-empty--compact">
-        <div class="ipam-empty__title">参数加载中</div>
-        <div class="ipam-empty__desc">若长时间无响应，请检查控制面连通性后重试</div>
+        <div class="ipam-empty__title">{{ $t('dns.cache.loading.title') }}</div>
+        <div class="ipam-empty__desc">{{ $t('dns.cache.loading.desc') }}</div>
       </div>
     </Card>
 
@@ -230,7 +231,7 @@ function humanTtl(ttl: number): string {
       <template #title>
         <span class="ipam-card-title">
           <IconifyIcon icon="lucide:eraser" />
-          手动清空缓存
+          {{ $t('dns.cache.flush.title') }}
         </span>
       </template>
       <template #extra>
@@ -239,22 +240,22 @@ function humanTtl(ttl: number): string {
 
       <div class="ipam-toolbar">
         <div class="ipam-field">
-          <span class="ipam-field__label">目标 zone</span>
-          <Input v-model:value="flushZone" allow-clear placeholder="留空表示清空全部缓存" style="width: 280px" />
+          <span class="ipam-field__label">{{ $t('dns.cache.flush.zoneLabel') }}</span>
+          <Input v-model:value="flushZone" allow-clear :placeholder="$t('dns.cache.flush.zonePlaceholder')" style="width: 280px" />
         </div>
         <Popconfirm
-          title="确认清空缓存？"
-          :description="flushZone ? `将清空 ${flushZone} 的缓存条目。` : '将清空全部缓存，可能造成瞬时回源压力。'"
-          ok-text="清空"
-          cancel-text="取消"
+          :title="$t('dns.cache.flush.confirmTitle')"
+          :description="flushZone ? $t('dns.cache.flush.confirmDescZone', { zone: flushZone }) : $t('dns.cache.flush.confirmDescAll')"
+          :ok-text="$t('dns.cache.flush.ok')"
+          :cancel-text="$t('dns.common.cancel')"
           @confirm="doFlush"
         >
           <Button danger :loading="flushing">
-            <IconifyIcon icon="lucide:trash-2" class="mr-1" />清空缓存
+            <IconifyIcon icon="lucide:trash-2" class="mr-1" />{{ $t('dns.cache.flush.btn') }}
           </Button>
         </Popconfirm>
         <div class="ipam-toolbar__spacer"></div>
-        <span class="ipam-hint">清空后首个查询会重新回源上游</span>
+        <span class="ipam-hint">{{ $t('dns.cache.flush.hint') }}</span>
       </div>
     </Card>
 
@@ -262,28 +263,28 @@ function humanTtl(ttl: number): string {
       <template #title>
         <span class="ipam-card-title">
           <IconifyIcon icon="lucide:timer-reset" />
-          每域名 TTL 覆盖
-          <em class="ipam-card-sub">{{ ttlRows.length }} 条</em>
+          {{ $t('dns.cache.ttl.title') }}
+          <em class="ipam-card-sub">{{ $t('dns.cache.ttl.sub', { n: ttlRows.length }) }}</em>
         </span>
       </template>
       <template #extra>
-        <span class="ipam-hint">优先级高于全局缓存 TTL</span>
+        <span class="ipam-hint">{{ $t('dns.cache.ttl.hint') }}</span>
       </template>
 
       <div class="ipam-toolbar mb-3">
         <div class="ipam-field">
-          <span class="ipam-field__label">域名</span>
-          <Input v-model:value="newTtl.domain" placeholder="如 update.corp.local." style="width: 280px" />
+          <span class="ipam-field__label">{{ $t('dns.cache.ttl.domainLabel') }}</span>
+          <Input v-model:value="newTtl.domain" :placeholder="$t('dns.cache.ttl.domainPlaceholder')" style="width: 280px" />
         </div>
         <div class="ipam-field">
-          <span class="ipam-field__label">TTL（秒）</span>
+          <span class="ipam-field__label">{{ $t('dns.cache.ttl.valueLabel') }}</span>
           <InputNumber v-model:value="newTtl.ttl" :min="1" style="width: 140px" />
         </div>
         <Button type="primary" size="small" @click="addTtl">
-          <IconifyIcon icon="lucide:plus" class="mr-1" />设置覆盖
+          <IconifyIcon icon="lucide:plus" class="mr-1" />{{ $t('dns.cache.ttl.add') }}
         </Button>
         <div class="ipam-toolbar__spacer"></div>
-        <span class="ipam-hint">相同域名重复提交将覆盖原值</span>
+        <span class="ipam-hint">{{ $t('dns.cache.ttl.toolbarHint') }}</span>
       </div>
 
       <Table
@@ -307,8 +308,8 @@ function humanTtl(ttl: number): string {
         </template>
       </Table>
       <div v-else class="ipam-empty ipam-empty--compact">
-        <div class="ipam-empty__title">暂无 TTL 覆盖</div>
-        <div class="ipam-empty__desc">为更新频繁的域名设置较短 TTL，可在上方表单添加</div>
+        <div class="ipam-empty__title">{{ $t('dns.cache.ttl.emptyTitle') }}</div>
+        <div class="ipam-empty__desc">{{ $t('dns.cache.ttl.emptyDesc') }}</div>
       </div>
     </Card>
   </div>

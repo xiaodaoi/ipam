@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 import { Profile } from '@vben/common-ui';
 import { useUserStore } from '@vben/stores';
+
+import { $t } from '#/locales';
 
 import ProfileBase from './base-setting.vue';
 import ProfileNotificationSetting from './notification-setting.vue';
@@ -13,29 +15,17 @@ const userStore = useUserStore();
 
 const tabsValue = ref<string>('basic');
 
-const tabs = ref([
-  {
-    label: '基本设置',
-    value: 'basic',
-  },
-  {
-    label: '安全设置',
-    value: 'security',
-  },
-  {
-    label: '修改密码',
-    value: 'password',
-  },
-  {
-    label: '新消息提醒',
-    value: 'notice',
-  },
+const tabs = computed(() => [
+  { label: $t('core.profile.tabs.basic'), value: 'basic' },
+  { label: $t('core.profile.tabs.security'), value: 'security' },
+  { label: $t('core.profile.tabs.password'), value: 'password' },
+  { label: $t('core.profile.tabs.notice'), value: 'notice' },
 ]);
 </script>
 <template>
   <Profile
     v-model:model-value="tabsValue"
-    title="个人中心"
+    :title="$t('core.profile.title')"
     :user-info="userStore.userInfo"
     :tabs="tabs"
   >

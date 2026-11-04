@@ -1,0 +1,824 @@
+{
+  "about": {
+    "header": {
+      "title": "关于平台",
+      "desc": "产品版本、运行环境、核心能力与技术栈信息，可一键复制诊断信息用于问题反馈。",
+      "copy": "复制诊断信息",
+      "refresh": "刷新"
+    },
+    "mode": {
+      "prod": "生产环境",
+      "dev": "开发环境"
+    },
+    "ready": {
+      "unknown": "未知",
+      "ok": "正常",
+      "bad": "异常",
+      "labelUnknown": "控制面状态未知",
+      "labelOk": "控制面运行正常",
+      "labelBad": "控制面依赖异常"
+    },
+    "stat": {
+      "version": "产品版本",
+      "versionHint": "控制面 {v}",
+      "status": "控制面状态",
+      "statusHint": "{name} · {go}",
+      "statusWait": "等待控制面版本信息…",
+      "uptime": "连续运行",
+      "uptimeHint": "采样于 {time}",
+      "uptimeUnavailable": "宿主指标暂不可达",
+      "cpu": "CPU 使用率",
+      "cpuHint": "{cores} 核 · 1 分钟负载 {load}",
+      "cpuUnavailable": "未能读取 /system/metrics"
+    },
+    "hero": {
+      "title": "DDI 统一 IP 地址管理平台",
+      "controlPlane": "控制面 {v}",
+      "desc": "IPAM、DHCPv4/v6、DNS 与统一日志一体化产品，面向企业内网提供地址规划、自动下发、解析服务与安全审计能力。内网离线可部署，无 GPL 依赖。"
+    },
+    "meta": {
+      "serverTime": "服务端时间",
+      "mode": "运行模式",
+      "license": "许可协议",
+      "licenseValue": "商业交付"
+    },
+    "info": {
+      "title": "产品信息",
+      "hint": "构建期注入版本号",
+      "product": "产品名称",
+      "productValue": "DDI 统一 IP 地址管理平台",
+      "frontend": "前端版本",
+      "controlPlane": "控制面版本",
+      "go": "Go 运行时",
+      "mode": "运行模式",
+      "lang": "界面语言",
+      "langValue": "简体中文",
+      "serverTime": "服务端时间",
+      "license": "许可协议",
+      "licenseValue": "商业交付 · 第三方组件许可见《LICENSES.md》",
+      "fail": "未能读取 {code}，控制面版本与状态可能不是最新。"
+    },
+    "host": {
+      "title": "宿主资源",
+      "hint": "来自 /system/metrics",
+      "memory": "内存",
+      "rootfs": "根分区",
+      "load1": "1 分钟负载",
+      "load5": "5 分钟负载",
+      "load15": "15 分钟负载",
+      "uptime": "连续运行",
+      "emptyTitle": "宿主资源暂不可达",
+      "emptyDesc": "控制面未挂载宿主 /proc 或指标采集未接线，仅影响本卡片展示。",
+      "cores": "{n} 核"
+    },
+    "cap": {
+      "title": "核心能力",
+      "addr": "地址空间管理",
+      "addrDesc": "组织 / 子网 / 地址池与逐地址台账",
+      "dhcp": "DHCPv4 / v6",
+      "dhcpDesc": "Kea 配置下发、租约、保留与双栈联动",
+      "dns": "DNS 解析",
+      "dnsDesc": "Unbound 上游、转发、记录、缓存与封禁",
+      "logs": "统一日志",
+      "logsDesc": "ClickHouse 检索、实时流与操作审计"
+    },
+    "stack": {
+      "title": "技术栈",
+      "hint": "无 GPL 依赖 · 内网离线可部署",
+      "api": "控制面 API / 编排",
+      "dhcp": "DHCPv4 / DHCPv6 引擎",
+      "dns": "递归 DNS 引擎",
+      "logs": "日志存储与聚合",
+      "ui": "管理界面基座"
+    },
+    "diag": {
+      "title": "IPAM 诊断信息 · {time}",
+      "frontend": "前端版本: v{version} ({mode})",
+      "control": "控制面: {name} {version}",
+      "go": "Go 运行时: {v}",
+      "ready": "依赖就绪: {state}",
+      "uptime": "连续运行: {v}",
+      "cpu": "CPU: {pct} · {cores} 核 · 负载 {l1}/{l5}/{l15}",
+      "mem": "内存: {used} / {total} ({pct})",
+      "disk": "磁盘 {mount}: {used} / {total} ({pct}) · {fs}",
+      "copied": "诊断信息已复制到剪贴板",
+      "copyFail": "浏览器未授予剪贴板权限"
+    },
+    "uptime": {
+      "days": "{d} 天 {h} 小时",
+      "hours": "{h} 小时 {m} 分",
+      "minutes": "{m} 分钟"
+    }
+  },
+  "orgs": {
+    "title": "组织管理",
+    "desc": "全站唯一组织主数据：公司 → 部门 → … 多级树，DHCP/DNS/资产/日志均引用同一棵树。",
+    "lockedHint": "被引用或含子节点时不可删除"
+  },
+  "users": {
+    "page": {
+      "title": "账号管理",
+      "desc": "管理控制面登录账号、角色分配与启停状态；口令使用 bcrypt 存储，停用或改密会立即吊销该账号存量会话。"
+    },
+    "header": {
+      "enabledMeta": "{enabled}/{total} 个账号已启用"
+    },
+    "actions": {
+      "refresh": "刷新",
+      "create": "新建账号"
+    },
+    "role": {
+      "admin": "管理员",
+      "adminDesc": "可读写全部模块",
+      "auditor": "审计员",
+      "auditorDesc": "全模块只读，适合审计岗",
+      "operator": "运维",
+      "operatorDesc": "DHCP/DNS/资产读写",
+      "user": "只读",
+      "userDesc": "全模块只读"
+    },
+    "roleFilterAll": "全部角色",
+    "status": {
+      "all": "全部状态",
+      "enabled": "已启用",
+      "disabled": "已停用"
+    },
+    "stat": {
+      "total": "账号总数",
+      "totalHint": "当前登录：{name}",
+      "enabled": "已启用账号",
+      "enabledHint": "启用率 {pct}%",
+      "enabledHintMore": "启用率 {pct}% · 停用 {n} 个",
+      "admin": "管理员",
+      "adminHintEmpty": "当前没有管理员账号，请尽快补充",
+      "adminHint": "可读写全部模块",
+      "readonly": "只读账号",
+      "readonlyHint": "写操作将被 RBAC 拦截（403）",
+      "readonlyHintEmpty": "当前没有只读账号"
+    },
+    "list": {
+      "title": "账号列表",
+      "autoRefresh": "自动刷新",
+      "autoRefreshHint": "每 15 秒"
+    },
+    "filter": {
+      "keyword": "关键字",
+      "keywordPlaceholder": "登录名 / 显示名",
+      "role": "角色",
+      "status": "状态",
+      "clear": "清除筛选",
+      "hint": "停用或删除当前登录账号会立即失去访问权限，已做保护"
+    },
+    "empty": {
+      "filtered": "没有匹配当前筛选条件的账号",
+      "none": "暂无账号，点击右上角「新建账号」创建"
+    },
+    "tag": {
+      "self": "当前登录",
+      "mustChange": "需改密",
+      "ldap": "目录账号"
+    },
+    "noDisplayName": "未设置显示名",
+    "tooltip": {
+      "selfDisable": "不能停用当前登录账号",
+      "ldapPassword": "目录账号口令由 LDAP/AD 管理，请在目录服务中重置"
+    },
+    "enabled": "启用",
+    "disabled": "停用",
+    "action": {
+      "edit": "编辑",
+      "resetPassword": "重置口令",
+      "resetTotp": "重置 2FA",
+      "sessions": "会话",
+      "delete": "删除",
+      "reset": "重置",
+      "cancel": "取消"
+    },
+    "col": {
+      "account": "账号",
+      "roles": "角色",
+      "enabled": "状态",
+      "createdAt": "创建时间",
+      "op": "操作"
+    },
+    "confirm": {
+      "totpTitle": "确认重置该账号的双因素认证？",
+      "totpDesc": "将清除 TOTP 绑定与恢复码，账号旧会话立即失效，用户需重新绑定。",
+      "deleteTitle": "确认删除该账号？",
+      "deleteDesc": "删除后该账号立即失效且不可恢复。"
+    },
+    "form": {
+      "username": "登录名",
+      "usernamePlaceholder": "2–64 位，字母数字与 _ . -",
+      "displayName": "显示名（可选）",
+      "displayNameEdit": "显示名",
+      "displayNamePlaceholder": "如 网络运维",
+      "initialPassword": "初始口令",
+      "initialPasswordPlaceholder": "≥10 位，至少 3 类字符",
+      "role": "角色",
+      "rolePlaceholder": "选择一个或多个角色",
+      "accountStatus": "账号状态",
+      "allowLogin": "允许登录",
+      "forbidLogin": "禁止登录",
+      "createHint": "口令仅在请求期接收并以 bcrypt 落库；只读账号的写操作会被 RBAC 拦截（403）。",
+      "editHint": "角色与状态变更会立即吊销该账号的存量会话；最后一个管理员不允许降级或停用。"
+    },
+    "modal": {
+      "create": "新建账号",
+      "edit": "编辑账号"
+    },
+    "reset": {
+      "title": "重置口令 · {name}",
+      "ok": "确认重置",
+      "label": "新口令（≥10 位，至少 3 类字符）",
+      "placeholder": "输入新口令",
+      "hint": "重置后该账号的存量登录会话会立即失效，需要使用新口令重新登录。"
+    },
+    "sessions": {
+      "title": "登录会话 · {name}",
+      "loading": "加载中…",
+      "empty": "该账号当前没有活跃会话",
+      "current": "当前操作会话",
+      "unknownIp": "未知 IP",
+      "meta": "{ip} · 登录 {login} · 最近活动 {last}",
+      "confirmTitle": "确认强制下线该会话？",
+      "confirmDesc": "该设备上的访问/刷新令牌将立即失效，用户需要重新登录。",
+      "kick": "强制下线",
+      "ok": "下线",
+      "cancel": "取消",
+      "unknownClient": "未知客户端",
+      "browser": "浏览器"
+    },
+    "msg": {
+      "loadFailed": "账号列表加载失败",
+      "created": "账号「{name}」已创建",
+      "createFailed": "创建失败",
+      "usernameRule": "登录名需 2–64 位，仅允许字母、数字与 _ . -",
+      "passwordRule": "初始口令至少 10 位，且需包含至少 3 类字符",
+      "updated": "账号信息已更新",
+      "updateFailed": "更新失败",
+      "enabled": "已启用「{name}」",
+      "disabled": "已停用「{name}」",
+      "opFailed": "操作失败",
+      "newPasswordRule": "新口令至少 10 位，且需包含至少 3 类字符",
+      "passwordReset": "「{name}」的口令已重置",
+      "resetFailed": "重置失败",
+      "totpReset": "已重置「{name}」的双因素认证，请通知其重新绑定",
+      "totpResetFailed": "重置 2FA 失败",
+      "deleted": "账号「{name}」已删除",
+      "deleteFailed": "删除失败",
+      "sessionsLoadFailed": "会话列表加载失败",
+      "sessionRevoked": "已强制下线「{name}」的一个会话",
+      "revokeFailed": "下线失败"
+    }
+  },
+  "roles": {
+    "page": {
+      "title": "角色管理",
+      "desc": "基于「权限域 × 读/写」定义角色；内置角色不可修改或删除，自定义角色可随时调整权限点。"
+    },
+    "header": {
+      "meta": "{perms} 个权限点 · {domains} 个权限域"
+    },
+    "actions": {
+      "refresh": "刷新",
+      "create": "新建角色"
+    },
+    "domain": {
+      "dash": "仪表盘",
+      "logs": "日志中心",
+      "dhcp": "DHCP 服务",
+      "dns": "DNS 服务",
+      "assets": "资产台账",
+      "system": "系统管理"
+    },
+    "stat": {
+      "total": "角色总数",
+      "totalHint": "账号可同时持有多个角色，权限取并集",
+      "builtin": "内置角色",
+      "builtinHint": "admin / operator / auditor / user，只读",
+      "custom": "自定义角色",
+      "customHint": "可随时编辑权限点或删除",
+      "customHintEmpty": "尚未创建自定义角色",
+      "coverage": "权限点覆盖",
+      "coverageHint": "全部角色合计覆盖的权限点"
+    },
+    "list": {
+      "title": "角色列表",
+      "rule": "读 → 域:read · 写 → 域:write"
+    },
+    "filter": {
+      "keyword": "关键字",
+      "keywordPlaceholder": "角色名",
+      "all": "全部",
+      "builtin": "内置",
+      "custom": "自定义",
+      "clear": "清除筛选"
+    },
+    "empty": {
+      "filtered": "没有匹配当前筛选条件的角色",
+      "none": "暂无自定义角色，点击右上角「新建角色」创建"
+    },
+    "cell": {
+      "access": "可访问 {n} / {total} 个模块",
+      "builtin": "内置",
+      "custom": "自定义",
+      "permCount": "权限点",
+      "chipTitle": "{domain}：{access}"
+    },
+    "access": {
+      "none": "—",
+      "r": "读",
+      "rw": "读写",
+      "w": "写"
+    },
+    "accessTitle": {
+      "none": "无权限",
+      "r": "只读",
+      "rw": "读写",
+      "w": "仅写"
+    },
+    "action": {
+      "view": "查看",
+      "edit": "编辑",
+      "delete": "删除",
+      "cancel": "取消"
+    },
+    "confirm": {
+      "deleteTitle": "确认删除该角色？",
+      "deleteDesc": "删除后持有该角色的账号将失去对应权限。"
+    },
+    "col": {
+      "name": "角色",
+      "builtin": "类型",
+      "coverage": "权限覆盖",
+      "perms": "权限明细",
+      "op": "操作"
+    },
+    "modal": {
+      "createTitle": "新建角色",
+      "createOk": "创建角色",
+      "viewTitle": "查看角色：{name}",
+      "close": "关闭",
+      "editTitle": "编辑角色：{name}",
+      "editOk": "保存修改",
+      "name": "角色名",
+      "namePlaceholder": "如 network-ops",
+      "selected": "已选权限点",
+      "selectedUnit": "个",
+      "selectAll": "全选 {n} 项",
+      "readOnly": "仅只读",
+      "clear": "清空",
+      "hintSelect": "勾选「编辑」会自动包含「查看」",
+      "all": "全选",
+      "read": "查看",
+      "write": "编辑",
+      "readonlyHint": "内置角色权限由系统预置，不可修改或删除；如需更细粒度授权请创建自定义角色。",
+      "editableHint": "角色创建后名称不可修改；权限变更对持有该角色的账号立即生效（下次请求即按新权限校验）。"
+    },
+    "msg": {
+      "loadFailed": "角色列表加载失败",
+      "nameRequired": "请填写角色名",
+      "permRequired": "请至少勾选一个权限点",
+      "updated": "角色「{name}」权限已更新",
+      "created": "角色「{name}」已创建",
+      "saveFailed": "保存失败",
+      "deleted": "角色「{name}」已删除",
+      "deleteFailed": "删除失败"
+    }
+  },
+  "backup": {
+    "page": {
+      "title": "备份与恢复",
+      "desc": "备份 PostgreSQL、配置目录与 ClickHouse 日志；支持下载、恢复与每日自动策略。恢复会覆盖当前数据，请在维护窗口执行。"
+    },
+    "actions": {
+      "refresh": "刷新",
+      "createNow": "立即备份",
+      "save": "保存策略",
+      "download": "下载",
+      "restore": "恢复",
+      "delete": "删除"
+    },
+    "kind": {
+      "auto": "定时",
+      "manual": "手动",
+      "pre_upgrade": "升级前"
+    },
+    "status": {
+      "failed": "失败",
+      "restoring": "恢复中",
+      "running": "进行中",
+      "success": "成功"
+    },
+    "stat": {
+      "total": "备份总数",
+      "totalHint": "成功 {n} 份",
+      "last": "最近成功",
+      "none": "暂无",
+      "createFirst": "创建第一份备份",
+      "logCoverage": "日志覆盖",
+      "logUnit": "月",
+      "logHint": "最近成功备份包含的日志月份",
+      "policy": "自动策略",
+      "daily": "每日 {hour}:00",
+      "off": "已关闭",
+      "retention": "保留 {n} 份"
+    },
+    "list": {
+      "title": "备份记录",
+      "count": "{n} 份",
+      "empty": "暂无备份，点击右上角「立即备份」创建",
+      "finished": "完成 {time}"
+    },
+    "col": {
+      "startedAt": "时间",
+      "kind": "类型",
+      "status": "状态",
+      "sizeBytes": "大小",
+      "months": "日志月份",
+      "note": "备注",
+      "op": "操作"
+    },
+    "confirm": {
+      "restoreTitle": "确认从该备份恢复？",
+      "restoreDesc": "将覆盖当前 PostgreSQL 数据与 ClickHouse 日志，期间管理页面可能短暂不可用。",
+      "restoreOk": "恢复",
+      "deleteTitle": "确认删除该备份？",
+      "deleteDesc": "备份文件与记录将一并删除，不可恢复。",
+      "deleteOk": "删除",
+      "cancel": "取消"
+    },
+    "policy": {
+      "title": "自动备份策略",
+      "enabled": "启用自动备份",
+      "on": "已启用",
+      "off": "已关闭",
+      "hour": "执行小时（UTC）",
+      "retention": "保留份数",
+      "dataHint": "自动备份包含 PG、配置目录与 ClickHouse 日志 Parquet",
+      "scheduleHint": "每日检查一次，按 UTC 执行",
+      "retentionHint": "超出保留份数的旧备份会被自动删除；升级前建议手动创建一份并下载留存。"
+    },
+    "modal": {
+      "title": "立即备份",
+      "ok": "开始备份",
+      "cancel": "取消",
+      "note": "备注（可选）",
+      "notePlaceholder": "如 升级前快照",
+      "hint": "备份在后台执行；状态每 5 秒自动刷新。日志量大时可能需要数分钟。"
+    },
+    "msg": {
+      "loadFailed": "备份列表加载失败",
+      "settingsSaved": "备份策略已保存",
+      "saveFailed": "保存失败",
+      "created": "备份任务已创建，正在后台执行",
+      "createFailed": "创建备份失败",
+      "deleted": "备份已删除",
+      "deleteFailed": "删除失败",
+      "restored": "恢复完成；如页面数据异常请刷新",
+      "restoreFailed": "恢复失败",
+      "downloadFailed": "下载失败"
+    }
+  },
+  "directory": {
+    "page": {
+      "title": "目录服务",
+      "desc": "对接企业 LDAP / Active Directory：目录账号直接登录，按组自动映射角色；口令始终由目录服务校验，平台不保存目录口令。"
+    },
+    "actions": {
+      "refresh": "刷新",
+      "save": "保存设置"
+    },
+    "stat": {
+      "service": "目录服务",
+      "enabled": "已启用",
+      "disabled": "未启用",
+      "serviceHintOn": "目录账号可登录，本地账号不受影响",
+      "serviceHintOff": "仅本地账号可用",
+      "source": "账号来源",
+      "sourceValue": "本地 + 目录",
+      "sourceHint": "目录账号首次登录自动创建影子账号",
+      "mapping": "角色映射",
+      "mappingValue": "{n} 条",
+      "mappingHint": "未匹配组时使用 {role}",
+      "binding": "口令校验",
+      "bindingHint": "平台不缓存目录口令",
+      "bindingValue": "实时 bind"
+    },
+    "alert": {
+      "tlsTitle": "已跳过 TLS 证书校验",
+      "tlsDesc": "仅建议在测试环境使用；生产环境请配置受信任证书，避免目录口令被中间人截获。"
+    },
+    "connection": {
+      "title": "连接配置",
+      "enable": "启用目录登录",
+      "enableHint": "启用后，未知账号会尝试目录认证；本地账号仍走本地口令",
+      "server": "服务器地址",
+      "serverPlaceholder": "ldap://ldap.corp.local:389 或 ldaps://ldap.corp.local:636",
+      "serverHint": "建议使用 ldaps:// 或开启 StartTLS；AD 域控通常为 ldap://dc.corp.local:389",
+      "startTls": "StartTLS",
+      "startTlsHint": "389 端口升级加密",
+      "skipVerify": "跳过证书校验",
+      "skipVerifyHint": "仅测试环境",
+      "baseDn": "Base DN",
+      "baseDnHint": "用户搜索根，例如 AD 常用 dc=corp,dc=local",
+      "bindDn": "服务账号 DN（可选）",
+      "bindDnHint": "目录不允许匿名搜索时必填",
+      "bindPassword": "服务账号口令",
+      "bindPasswordSet": "已配置，留空保持不变",
+      "bindPasswordEmpty": "未配置",
+      "bindPasswordHint": "也可用环境变量 IPAM_LDAP_BIND_PASSWORD 注入，避免落库",
+      "userFilter": "用户过滤器",
+      "userFilterHint": "{ph} 为占位符；AD 用 (sAMAccountName={ph})， OpenLDAP 用 (uid={ph})"
+    },
+    "tag": {
+      "enabled": "已启用",
+      "disabled": "已停用"
+    },
+    "mapping": {
+      "title": "组与角色映射",
+      "hint": "未匹配任何组时使用默认角色",
+      "groupBaseDn": "组搜索 Base DN（可选）",
+      "groupAttr": "组名属性",
+      "groupFilter": "组过滤器",
+      "groupFilterHint": "{ph} 为用户 DN；AD 可用 (&(objectClass=group)(member={ph}))",
+      "defaultRole": "默认角色",
+      "rolesAvailable": "可用角色：{roles}",
+      "newGroupPlaceholder": "组标识，如 ipam-ops 或 cn=ipam-ops,ou=groups,dc=corp,dc=local",
+      "newRolePlaceholder": "角色",
+      "add": "添加映射",
+      "remove": "移除",
+      "empty": "暂无映射，目录账号将使用默认角色",
+      "colGroup": "目录组",
+      "colRole": "平台角色",
+      "colOp": "操作"
+    },
+    "test": {
+      "title": "连通性测试",
+      "hint": "使用指定目录账号执行一次真实 bind，不创建账号",
+      "username": "测试账号",
+      "password": "测试口令",
+      "before": "先保存连接配置，再执行测试",
+      "submit": "测试登录",
+      "mappedRoles": "映射角色：",
+      "groups": "所属组："
+    },
+    "msg": {
+      "loadFailed": "目录设置加载失败",
+      "required": "启用目录服务时，服务器地址与 Base DN 必填",
+      "saved": "目录服务设置已保存",
+      "saveFailed": "保存失败",
+      "testRequired": "请填写测试账号与口令",
+      "testOk": "目录认证成功",
+      "testFailed": "目录认证失败"
+    }
+  },
+  "license": {
+    "page": {
+      "title": "授权管理",
+      "desc": "离线授权文件管理：Ed25519 签名校验，激活后展示版本、能力、到期时间与活跃终端计量；超限仅告警不中断。"
+    },
+    "actions": {
+      "refresh": "刷新",
+      "remove": "移除 License",
+      "activate": "激活"
+    },
+    "edition": {
+      "community": "社区版",
+      "enterprise": "企业版",
+      "lite": "轻量版",
+      "standard": "标准版"
+    },
+    "value": {
+      "permanent": "永久",
+      "unlimited": "不限",
+      "expired": "已过期",
+      "inactive": "未激活",
+      "valid": "有效",
+      "unauthorized": "未授权"
+    },
+    "stat": {
+      "edition": "当前版本",
+      "editionHintOn": "已激活",
+      "editionHintOff": "未激活 · 社区版",
+      "status": "授权状态",
+      "statusHint": "请激活 License 后使用商业能力",
+      "expiry": "到期时间",
+      "terminals": "终端计量",
+      "terminalsHint": "近 24h 活跃终端 / 授权上限",
+      "terminalsUnlimited": "授权不限终端数",
+      "terminalsOver": "已超上限 {n} 台（仅告警，不中断）",
+      "terminalsCount": "{used} / {total} 台",
+      "terminalsUsed": "{n} 台",
+      "days": "{n} 天"
+    },
+    "card": {
+      "infoTitle": "授权信息",
+      "overLimit": "终端超限",
+      "activated": "已激活",
+      "community": "社区版",
+      "issuedTo": "授权客户",
+      "licenseId": "License ID",
+      "features": "授权能力",
+      "activeTerminals": "活跃终端（近 24h）",
+      "limit": "／上限 {n} 台",
+      "filePath": "授权文件路径",
+      "inactive": "未激活"
+    },
+    "activate": {
+      "title": "激活 License",
+      "hint": "需要服务端配置 IPAM_LICENSE_PUBKEY",
+      "label": "License 文件内容（JSON）",
+      "hintText": "激活会先校验签名与有效期，失败不会覆盖现有授权；文件写入后立即生效。",
+      "footerHint": "生产环境请通过正式渠道获取 License；私钥由授权方保管"
+    },
+    "confirm": {
+      "removeTitle": "确认移除 License？",
+      "removeDesc": "移除后回到社区版，已授权能力可能立即失效。",
+      "removeOk": "移除",
+      "cancel": "取消"
+    },
+    "msg": {
+      "loadFailed": "License 状态加载失败",
+      "pasteRequired": "请粘贴 License 文件内容",
+      "activated": "License 已激活",
+      "activateFailed": "激活失败",
+      "removed": "License 已移除，当前为社区版",
+      "removeFailed": "移除失败"
+    }
+  },
+  "runtime": {
+    "page": {
+      "title": "服务与运行",
+      "desc": "控制面端口、版本、依赖就绪与重启操作；日志保留与归档在「日志中心 → 存储与归档」维护。"
+    },
+    "actions": {
+      "logStorage": "日志存储与归档",
+      "metrics": "监控指标",
+      "refresh": "刷新"
+    },
+    "mode": {
+      "prod": "生产环境",
+      "dev": "开发环境"
+    },
+    "stat": {
+      "port": "服务端口",
+      "portHint": "修改后需重启控制面生效",
+      "version": "控制面版本",
+      "versionWait": "等待控制面信息…",
+      "ready": "依赖就绪",
+      "ok": "正常",
+      "bad": "异常",
+      "readyHintOn": "PostgreSQL 等关键依赖可达",
+      "readyHintOff": "请检查依赖服务与日志",
+      "uptime": "连续运行",
+      "uptimeHint": "采样于 {time}",
+      "uptimeUnavailable": "宿主指标暂不可达"
+    },
+    "uptime": {
+      "days": "{d} 天 {h} 小时",
+      "hours": "{h} 小时 {m} 分",
+      "minutes": "{m} 分钟"
+    },
+    "params": {
+      "title": "运行参数",
+      "port": "服务端口",
+      "portHint": "容器部署请同步 `.env` 的 IPAM_PORT 并重建容器",
+      "version": "控制面版本",
+      "serverTime": "服务端时间",
+      "ready": "依赖就绪",
+      "readyOk": "正常",
+      "readyBad": "异常 / 未接入",
+      "hint": "端口修改需重启控制面；其他运行参数在对应功能页维护",
+      "savePort": "保存端口"
+    },
+    "danger": {
+      "title": "重启控制面服务",
+      "desc": "重启期间管理页面与 API 会短暂不可用（约 5–15 秒），DHCP/DNS 数据面不受影响； 端口等配置修改在重启后生效。",
+      "confirmTitle": "确认重启服务？",
+      "confirmDesc": "重启后页面将短暂不可用；端口/设置修改在重启后生效。",
+      "confirmOk": "重启",
+      "cancel": "取消",
+      "restart": "重启服务"
+    },
+    "host": {
+      "title": "宿主资源",
+      "hint": "来自 /system/metrics",
+      "memory": "内存",
+      "load1": "1 分钟负载",
+      "uptime": "连续运行",
+      "cores": "{n} 核",
+      "emptyTitle": "宿主资源暂不可达",
+      "emptyDesc": "控制面未挂载宿主 /proc 或指标采集未接线。"
+    },
+    "msg": {
+      "portRange": "端口需在 1-65535 之间",
+      "portSaved": "服务端口已保存，重启控制面后生效",
+      "saveFailed": "保存失败",
+      "restarted": "已发起重启，页面将短暂不可用，请稍后刷新",
+      "restartFailed": "重启请求失败"
+    }
+  },
+  "security": {
+    "page": {
+      "title": "账号安全",
+      "desc": "集中管理口令策略、首次登录强制改密与登录保护；账号与角色在「账号管理」「角色管理」维护。"
+    },
+    "actions": {
+      "refresh": "刷新",
+      "save": "保存策略"
+    },
+    "stat": {
+      "force": "强制首次改密",
+      "on": "已开启",
+      "off": "已关闭",
+      "forceHintOn": "新建/重置账号首次登录须改密",
+      "forceHintOff": "便于调试；对外交付前建议开启",
+      "minLength": "口令最小长度",
+      "digitUnit": "位",
+      "minLengthHint": "最大 128 位；不含空白字符",
+      "classes": "字符类别",
+      "classesHint": "小写 / 大写 / 数字 / 符号",
+      "protection": "登录保护",
+      "protectionHint": "按客户端 IP 限流；改密后旧会话立即失效",
+      "protectionValue": "5 次/分"
+    },
+    "card": {
+      "switchTitle": "首次登录 / 重置口令后强制改密",
+      "enabled": "已启用",
+      "disabled": "已关闭",
+      "switchLabel": "策略开关",
+      "onDesc": "新建账号、管理员重置口令后，用户首次登录必须改密",
+      "offDesc": "不强制改密；适合调试期，账号仍会记录“需改密”状态",
+      "hint": "开启后仅对之后的新建账号与重置口令生效，不会主动踢出已有会话； 关闭不会清除已有“需改密”标记，只是登录时不再拦截。",
+      "footerHint": "对外交付前建议开启；调试期可关闭"
+    },
+    "fixed": {
+      "title": "固定口令策略",
+      "hint": "后端统一校验，创建/重置/自助改密共用",
+      "length": "长度",
+      "lengthValue": "10 – 128 位",
+      "complexity": "复杂度",
+      "complexityValue": "至少 3 类字符",
+      "banned": "禁用内容",
+      "bannedValue": "用户名、空白、常见弱口令",
+      "afterChange": "修改口令后",
+      "afterChangeValue": "其他设备会话立即失效"
+    },
+    "msg": {
+      "loadFailed": "账号策略加载失败",
+      "enabled": "已开启：新建账号与重置口令后首次登录须改密",
+      "disabled": "已关闭：首次登录不再强制改密（便于调试）",
+      "saveFailed": "保存失败"
+    }
+  },
+  "branding": {
+    "page": {
+      "title": "站点品牌",
+      "desc": "配置浏览器页签与侧栏顶部的站点名称、图标；保存后立即应用，无需重启。"
+    },
+    "actions": {
+      "refresh": "刷新",
+      "save": "保存并应用"
+    },
+    "stat": {
+      "name": "站点名称",
+      "unset": "未设置",
+      "nameHint": "显示于浏览器页签、侧栏与登录页",
+      "icon": "站点图标",
+      "configured": "已配置",
+      "defaultIcon": "默认图标",
+      "iconHint": "1:1 裁剪，png / jpg / jpeg，≤2MB",
+      "apply": "生效方式",
+      "applyValue": "即时",
+      "applyHint": "保存后刷新页面即可看到品牌变化",
+      "port": "服务端口",
+      "portHint": "端口在「服务与运行」中修改"
+    },
+    "card": {
+      "title": "品牌配置",
+      "hint": "图标与名称同时用于浏览器页签与侧栏顶部",
+      "siteName": "站点名称",
+      "siteNamePlaceholder": "如 IPAM 管理平台",
+      "iconLabel": "站点图标（浏览器页签 + 侧栏 Logo，1:1 裁剪）",
+      "uploadHint": "支持 png / jpg / jpeg，≤2MB，按 1:1 裁剪后保存",
+      "clear": "清除图标",
+      "previewHint": "品牌实时预览"
+    },
+    "preview": {
+      "overview": "概览",
+      "dhcp": "DHCP 服务",
+      "dns": "DNS 服务",
+      "logs": "日志中心"
+    },
+    "defaultSiteName": "IPAM 管理平台",
+    "footerHint": "保存后立即应用；如需回退，重新上传旧图标或清除图标",
+    "msg": {
+      "readImageFailed": "读取图片失败",
+      "nameRequired": "站点名称必填",
+      "saved": "站点品牌已保存并应用",
+      "saveFailed": "保存失败"
+    }
+  }
+}

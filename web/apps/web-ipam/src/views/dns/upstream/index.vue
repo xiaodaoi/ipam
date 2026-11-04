@@ -11,8 +11,9 @@ import { Button, Card, Input, InputNumber, message, Popconfirm, Select, Switch, 
 import { createUpstream, deleteUpstream, listUpstreams, updateUpstream } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import { $t } from '#/locales';
 
-const showTotal = (t: number) => `共 ${t} 条`;
+const showTotal = (t: number) => $t('dns.common.total', { n: t });
 
 type Proto = 'dot' | 'tcp' | 'udp';
 type Health = 'down' | 'unknown' | 'up';
@@ -36,12 +37,12 @@ async function load() {
 }
 async function add() {
   if (!form.value.name || !form.value.addr) {
-    message.warning('名称与地址必填');
+    message.warning($t('dns.upstream.msg.warnNameAddr'));
     return;
   }
   const addrs = form.value.addr.split(',').map((s) => s.trim()).filter(Boolean);
   if (addrs.length === 0) {
-    message.warning('请填写至少一个上游地址');
+    message.warning($t('dns.upstream.msg.warnAddr'));
     return;
   }
   try {
@@ -54,7 +55,7 @@ async function add() {
         weight: form.value.weight,
         enabled: form.value.enabled,
       });
-      message.success('上游已更新并下发 resolver');
+      message.success($t('dns.upstream.msg.updated'));
     } else {
       await createUpstream({
         name: form.value.name,
@@ -64,19 +65,19 @@ async function add() {
         weight: form.value.weight,
         enabled: form.value.enabled,
       });
-      message.success('上游已添加');
+      message.success($t('dns.upstream.msg.added'));
     }
     editingId.value = undefined;
     form.value = { name: '', addr: '', protocol: 'udp', tlsName: '', weight: 1, enabled: true };
     formModalApi.close();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '操作失败');
+    message.error(error instanceof Error ? error.message : $t('dns.common.actionFailed'));
   }
   await load();
 }
 function edit(r: Upstream) {
   editingId.value = r.id;
-  formModalApi.setState({ title: '编辑上游', confirmText: '保存修改' });
+  formModalApi.setState({ title: $t('dns.upstream.msg.editTitle'), confirmText: $t('dns.upstream.msg.saveChanges') });
   formModalApi.open();
   form.value = {
     name: r.name,
@@ -87,20 +88,20 @@ function edit(r: Upstream) {
     enabled: r.enabled ?? true,
   };
 }
-const [FormModal, formModalApi] = useVbenModal({ draggable: true, title: '上游 DNS 服务器', confirmText: '添加', onConfirm: () => add() });
+const [FormModal, formModalApi] = useVbenModal({ draggable: true, title: $t('dns.upstream.msg.modalTitle'), confirmText: $t('dns.upstream.msg.modalConfirmAdd'), onConfirm: () => add() });
 function openAdd() {
   // 不能先 close()（异步回写 isOpen 会把刚打开的弹窗关掉）
   editingId.value = undefined;
   form.value = { name: '', addr: '', protocol: 'udp', tlsName: '', weight: 1, enabled: true };
-  formModalApi.setState({ title: '添加上游 DNS', confirmText: '添加' });
+  formModalApi.setState({ title: $t('dns.upstream.msg.addTitle'), confirmText: $t('dns.upstream.msg.modalConfirmAdd') });
   formModalApi.open();
 }
 async function toggleEnabled(r: Upstream, checked: boolean) {
   try {
     await updateUpstream(r.id, { enabled: checked });
-    message.success(checked ? '已启用' : '已停用');
+    message.success(checked ? $t('dns.common.enabled') : $t('dns.common.disabled'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '操作失败');
+    message.error(error instanceof Error ? error.message : $t('dns.common.actionFailed'));
   }
   await load();
 }
@@ -108,9 +109,9 @@ async function remove(id?: string) {
   if (!id) return;
   try {
     await deleteUpstream(id);
-    message.success('已删除');
+    message.success($t('dns.common.deletedToast'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '删除失败');
+    message.error(error instanceof Error ? error.message : $t('dns.common.deleteFailed'));
   }
   await load();
 }
@@ -123,7 +124,11 @@ onBeforeUnmount(() => timer && clearInterval(timer));
 // ── 展示映射 ──
 const PROTO_TEXT: Record<string, string> = { dot: 'DoT', tcp: 'TCP', udp: 'UDP' };
 const PROTO_COLOR: Record<string, string> = { dot: 'purple', tcp: 'cyan', udp: 'blue' };
-const HEALTH_TEXT: Record<Health, string> = { up: '在线', down: '已摘除', unknown: '探测中' };
+const HEALTH_TEXT = computed<Record<Health, string>>(() => ({
+  up: $t('dns.upstream.health.up'),
+  down: $t('dns.upstream.health.down'),
+  unknown: $t('dns.upstream.health.unknown'),
+}));
 const HEALTH_COLOR: Record<Health, string> = { up: 'green', down: 'red', unknown: 'default' };
 
 function healthOf(r: Upstream): Health {
@@ -158,18 +163,18 @@ const stats = computed(() => {
 const keyword = ref('');
 const protoFilter = ref<'all' | Proto>('all');
 const healthFilter = ref<'all' | Health>('all');
-const protoOptions = [
-  { label: '全部协议', value: 'all' },
+const protoOptions = computed(() => [
+  { label: $t('dns.upstream.protoOption.all'), value: 'all' },
   { label: 'UDP', value: 'udp' },
   { label: 'TCP', value: 'tcp' },
   { label: 'DoT', value: 'dot' },
-];
-const healthOptions = [
-  { label: '全部状态', value: 'all' },
-  { label: '在线', value: 'up' },
-  { label: '已摘除', value: 'down' },
-  { label: '探测中', value: 'unknown' },
-];
+]);
+const healthOptions = computed(() => [
+  { label: $t('dns.common.allStatus'), value: 'all' },
+  { label: $t('dns.upstream.health.up'), value: 'up' },
+  { label: $t('dns.upstream.health.down'), value: 'down' },
+  { label: $t('dns.upstream.health.unknown'), value: 'unknown' },
+]);
 
 const filtered = computed(() => {
   const kw = keyword.value.trim().toLowerCase();
@@ -185,6 +190,15 @@ function resetFilters() {
   protoFilter.value = 'all';
   healthFilter.value = 'all';
 }
+
+const columns = computed(() => [
+  { title: $t('dns.upstream.col.name'), dataIndex: 'name', minWidth: 260 },
+  { title: $t('dns.upstream.col.proto'), dataIndex: 'protocol', width: 140 },
+  { title: $t('dns.upstream.col.health'), dataIndex: 'health', minWidth: 180 },
+  { title: $t('dns.upstream.col.lastCheck'), dataIndex: 'lastCheck', width: 170 },
+  { title: $t('dns.upstream.col.enabled'), dataIndex: 'enabled', width: 80 },
+  { title: $t('dns.common.actions'), key: 'op', width: 140 },
+]);
 </script>
 
 <template>
@@ -192,56 +206,56 @@ function resetFilters() {
     <PageHeader
       eyebrow="DNS Service"
       icon="lucide:globe"
-      title="上游 DNS 服务器"
-      description="维护递归查询使用的上游服务器与协议，按健康探测结果自动摘除不可用节点。"
+      :title="$t('dns.upstream.header.title')"
+      :description="$t('dns.upstream.header.desc')"
     >
       <template #actions>
         <span class="ipam-page-header__meta">
           <IconifyIcon icon="lucide:activity" class="size-3.5" />
-          {{ stats.up }}/{{ stats.total }} 在线 · {{ stats.enabled }} 已启用
+          {{ $t('dns.upstream.header.meta', { up: stats.up, total: stats.total, enabled: stats.enabled }) }}
         </span>
         <Button size="small" :loading="loading" @click="load()">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />刷新
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{ $t('dns.common.refresh') }}
         </Button>
         <Button type="primary" size="small" @click="openAdd()">
-          <IconifyIcon icon="lucide:plus" class="mr-1" />添加上游
+          <IconifyIcon icon="lucide:plus" class="mr-1" />{{ $t('dns.upstream.actions.add') }}
         </Button>
       </template>
     </PageHeader>
 
     <div class="ipam-stat-grid">
       <StatCard
-        label="上游总数"
+        :label="$t('dns.upstream.stat.total')"
         :value="stats.total"
-        unit="个"
+        :unit="$t('dns.common.unit.count')"
         icon="lucide:server"
         tone="blue"
-        :hint="`${stats.enabled} 个已启用 · ${stats.total - stats.enabled} 个停用`"
+        :hint="$t('dns.upstream.stat.totalHint', { enabled: stats.enabled, disabled: stats.total - stats.enabled })"
       />
       <StatCard
-        label="在线上游"
+        :label="$t('dns.upstream.stat.up')"
         :value="stats.up"
-        unit="个"
+        :unit="$t('dns.common.unit.count')"
         icon="lucide:circle-check"
         tone="green"
         :progress="stats.total > 0 ? (stats.up / stats.total) * 100 : 0"
-        :hint="stats.total === 0 ? '尚未配置上游' : `在线率 ${Math.round((stats.up / stats.total) * 100)}%`"
+        :hint="stats.total === 0 ? $t('dns.upstream.stat.upHintOff') : $t('dns.upstream.stat.upHint', { pct: Math.round((stats.up / stats.total) * 100) })"
       />
       <StatCard
-        label="异常 / 未探测"
+        :label="$t('dns.upstream.stat.abnormal')"
         :value="stats.down + stats.unknown"
-        unit="个"
+        :unit="$t('dns.common.unit.count')"
         icon="lucide:triangle-alert"
         :tone="stats.down > 0 ? 'red' : stats.unknown > 0 ? 'amber' : 'green'"
-        :hint="`已摘除 ${stats.down} · 探测中 ${stats.unknown}`"
+        :hint="$t('dns.upstream.stat.abnormalHint', { down: stats.down, unknown: stats.unknown })"
       />
       <StatCard
-        label="平均 RTT"
+        :label="$t('dns.upstream.stat.rtt')"
         :value="stats.avgRtt > 0 ? stats.avgRtt.toFixed(1) : '—'"
         :unit="stats.avgRtt > 0 ? 'ms' : ''"
         icon="lucide:timer"
         tone="violet"
-        :hint="stats.bestRtt > 0 ? `最快 ${stats.bestRtt} ms` : '等待首次探测结果'"
+        :hint="stats.bestRtt > 0 ? $t('dns.upstream.stat.rttHint', { ms: stats.bestRtt }) : $t('dns.upstream.stat.rttHintOff')"
       />
     </div>
 
@@ -249,63 +263,56 @@ function resetFilters() {
       <template #title>
         <span class="ipam-card-title">
           <IconifyIcon icon="lucide:list-tree" />
-          上游服务器列表
-          <em class="ipam-card-sub">{{ filtered.length }} / {{ rows.length }} 个</em>
+          {{ $t('dns.upstream.card.title') }}
+          <em class="ipam-card-sub">{{ $t('dns.upstream.card.sub', { filtered: filtered.length, total: rows.length }) }}</em>
         </span>
       </template>
       <template #extra>
-        <span class="ipam-hint">每 15 秒自动刷新健康状态</span>
+        <span class="ipam-hint">{{ $t('dns.upstream.card.hint') }}</span>
       </template>
 
       <div class="ipam-summary mb-3">
         <div class="ipam-summary__item">
-          <span class="ipam-summary__label">在线</span>
-          <span class="ipam-summary__value">{{ stats.up }}<small>个</small></span>
+          <span class="ipam-summary__label">{{ $t('dns.upstream.summary.up') }}</span>
+          <span class="ipam-summary__value">{{ stats.up }}<small>{{ $t('dns.common.unit.count') }}</small></span>
         </div>
         <div class="ipam-summary__item">
-          <span class="ipam-summary__label">已摘除</span>
-          <span class="ipam-summary__value">{{ stats.down }}<small>个</small></span>
+          <span class="ipam-summary__label">{{ $t('dns.upstream.summary.down') }}</span>
+          <span class="ipam-summary__value">{{ stats.down }}<small>{{ $t('dns.common.unit.count') }}</small></span>
         </div>
         <div class="ipam-summary__item">
-          <span class="ipam-summary__label">探测中</span>
-          <span class="ipam-summary__value">{{ stats.unknown }}<small>个</small></span>
+          <span class="ipam-summary__label">{{ $t('dns.upstream.summary.unknown') }}</span>
+          <span class="ipam-summary__value">{{ stats.unknown }}<small>{{ $t('dns.common.unit.count') }}</small></span>
         </div>
         <div class="ipam-summary__item">
-          <span class="ipam-summary__label">平均 RTT</span>
+          <span class="ipam-summary__label">{{ $t('dns.upstream.summary.rtt') }}</span>
           <span class="ipam-summary__value">{{ stats.avgRtt > 0 ? stats.avgRtt.toFixed(1) : '—' }}<small v-if="stats.avgRtt > 0">ms</small></span>
         </div>
       </div>
 
       <div class="ipam-toolbar mb-3">
         <div class="ipam-field">
-          <span class="ipam-field__label">关键字</span>
-          <Input v-model:value="keyword" allow-clear placeholder="名称 / 地址" style="width: 220px" />
+          <span class="ipam-field__label">{{ $t('dns.common.keyword') }}</span>
+          <Input v-model:value="keyword" allow-clear :placeholder="$t('dns.upstream.toolbar.kwPlaceholder')" style="width: 220px" />
         </div>
         <div class="ipam-field">
-          <span class="ipam-field__label">协议</span>
+          <span class="ipam-field__label">{{ $t('dns.upstream.toolbar.proto') }}</span>
           <Select v-model:value="protoFilter" :options="protoOptions" style="width: 130px" />
         </div>
         <div class="ipam-field">
-          <span class="ipam-field__label">健康状态</span>
+          <span class="ipam-field__label">{{ $t('dns.upstream.toolbar.health') }}</span>
           <Select v-model:value="healthFilter" :options="healthOptions" style="width: 130px" />
         </div>
-        <Button size="small" @click="resetFilters">重置</Button>
+        <Button size="small" @click="resetFilters">{{ $t('dns.common.reset') }}</Button>
         <div class="ipam-toolbar__spacer"></div>
-        <span class="ipam-hint">摘除中的上游不参与递归选路</span>
+        <span class="ipam-hint">{{ $t('dns.upstream.toolbar.hint') }}</span>
       </div>
 
       <Table
         :data-source="filtered"
         :loading="loading"
-        :columns="[
-          { title: '上游（名称 / 地址）', dataIndex: 'name', minWidth: 260 },
-          { title: '协议 / 权重', dataIndex: 'protocol', width: 140 },
-          { title: '健康', dataIndex: 'health', minWidth: 180 },
-          { title: '最近探测', dataIndex: 'lastCheck', width: 170 },
-          { title: '启用', dataIndex: 'enabled', width: 80 },
-          { title: '操作', key: 'op', width: 140 },
-        ]"
-        :locale="{ emptyText: keyword || protoFilter !== 'all' || healthFilter !== 'all' ? '没有匹配的上游服务器' : '暂无上游服务器，点击右上角「添加上游」创建' }"
+        :columns="columns"
+        :locale="{ emptyText: keyword || protoFilter !== 'all' || healthFilter !== 'all' ? $t('dns.upstream.emptyFiltered') : $t('dns.upstream.empty') }"
         :pagination="{ pageSize: 20, showSizeChanger: true, showTotal }"
         row-key="id"
         size="small"
@@ -322,7 +329,7 @@ function resetFilters() {
               <Tag class="m-0" :color="PROTO_COLOR[record.protocol] ?? 'default'">
                 {{ PROTO_TEXT[record.protocol] ?? record.protocol }}
               </Tag>
-              <span class="ipam-chip" data-tone="muted">权重 {{ record.weight ?? 1 }}</span>
+              <span class="ipam-chip" data-tone="muted">{{ $t('dns.upstream.weight', { n: record.weight ?? 1 }) }}</span>
             </div>
           </template>
           <template v-else-if="column.dataIndex === 'health'">
@@ -338,7 +345,7 @@ function resetFilters() {
                 {{ record.health.rttMs }} ms
               </span>
               <span v-if="(record.health?.consecutiveFails ?? 0) > 0" class="ipam-chip" data-tone="red">
-                连续失败 {{ record.health.consecutiveFails }}
+                {{ $t('dns.upstream.fails', { n: record.health.consecutiveFails }) }}
               </span>
             </div>
           </template>
@@ -350,9 +357,9 @@ function resetFilters() {
           </template>
           <template v-else-if="column.key === 'op'">
             <div class="flex items-center gap-1">
-              <Button size="small" @click="edit(record as Upstream)">编辑</Button>
-              <Popconfirm title="确认删除该上游？" description="删除后不可恢复。" ok-text="删除" cancel-text="取消" @confirm="remove(record.id)">
-                <Button size="small" danger>删除</Button>
+              <Button size="small" @click="edit(record as Upstream)">{{ $t('dns.common.edit') }}</Button>
+              <Popconfirm :title="$t('dns.upstream.deleteTitle')" :description="$t('dns.upstream.deleteDesc')" :ok-text="$t('dns.common.delete')" :cancel-text="$t('dns.common.cancel')" @confirm="remove(record.id)">
+                <Button size="small" danger>{{ $t('dns.common.delete') }}</Button>
               </Popconfirm>
             </div>
           </template>
@@ -363,43 +370,42 @@ function resetFilters() {
     <FormModal class="w-[720px]">
       <div class="ipam-form-grid">
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">名称<em>*</em></span>
-          <Input v-model:value="form.name" placeholder="如 阿里公共 DNS" />
+          <span class="ipam-form-field__label">{{ $t('dns.upstream.form.nameLabel') }}<em>*</em></span>
+          <Input v-model:value="form.name" :placeholder="$t('dns.upstream.form.namePlaceholder')" />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">协议</span>
+          <span class="ipam-form-field__label">{{ $t('dns.upstream.form.protoLabel') }}</span>
           <Select
             v-model:value="form.protocol"
             :options="[
-              { value: 'udp', label: 'UDP（默认 53）' },
-              { value: 'tcp', label: 'TCP' },
-              { value: 'dot', label: 'DoT（853）' },
+              { value: 'udp', label: $t('dns.upstream.form.protoUdp') },
+              { value: 'tcp', label: $t('dns.upstream.form.protoTcp') },
+              { value: 'dot', label: $t('dns.upstream.form.protoDot') },
             ]"
           />
         </label>
         <label v-if="form.protocol === 'dot'" class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">TLS 名称（SNI）</span>
-          <Input v-model:value="form.tlsName" placeholder="如 cloudflare-dns.com / dns.alidns.com" />
-          <span class="ipam-hint">用于证书校验的上游主机名；留空则按地址直连（部分上游会拒绝）</span>
+          <span class="ipam-form-field__label">{{ $t('dns.upstream.form.tlsLabel') }}</span>
+          <Input v-model:value="form.tlsName" :placeholder="$t('dns.upstream.form.tlsPlaceholder')" />
+          <span class="ipam-hint">{{ $t('dns.upstream.form.tlsHint') }}</span>
         </label>
         <label class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">地址<em>*</em></span>
-          <Input v-model:value="form.addr" placeholder="可填多个，逗号分隔，如 223.5.5.5:53,223.6.6.6:53" />
+          <span class="ipam-form-field__label">{{ $t('dns.upstream.form.addrLabel') }}<em>*</em></span>
+          <Input v-model:value="form.addr" :placeholder="$t('dns.upstream.form.addrPlaceholder')" />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">权重</span>
+          <span class="ipam-form-field__label">{{ $t('dns.upstream.form.weightLabel') }}</span>
           <InputNumber v-model:value="form.weight" :min="1" :max="100" style="width: 100%" />
         </label>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">启用</span>
+          <span class="ipam-form-field__label">{{ $t('dns.upstream.form.enabledLabel') }}</span>
           <div class="flex h-8 items-center gap-2">
             <Switch v-model:checked="form.enabled" size="small" />
-            <span class="ipam-hint">{{ form.enabled ? '参与递归选路' : '配置保留但不参与选路' }}</span>
+            <span class="ipam-hint">{{ form.enabled ? $t('dns.upstream.form.enabledHintOn') : $t('dns.upstream.form.enabledHintOff') }}</span>
           </div>
         </div>
         <div class="ipam-form-hint ipam-form-field--wide">
-          权重越高被选中的概率越大；DoT 渲染为 <code>forward-tls-upstream</code>，端口缺省 853。
-          DoT 与明文上游混用时只取 DoT 目标（避免明文回落）。
+          {{ $t('dns.upstream.form.hintWeight') }}<code>forward-tls-upstream</code>{{ $t('dns.upstream.form.hintTail') }}
         </div>
       </div>
     </FormModal>

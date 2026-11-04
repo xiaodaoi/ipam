@@ -14,6 +14,7 @@ import {
 } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import { $t } from '#/locales';
 
 defineOptions({ name: 'SystemLicense' });
 
@@ -23,18 +24,22 @@ const loading = ref(false);
 const activating = ref(false);
 const removing = ref(false);
 
-const EDITION_LABEL: Record<string, string> = {
-  community: '社区版',
-  enterprise: '企业版',
-  lite: '轻量版',
-  standard: '标准版',
-};
+const EDITION_LABEL = computed<Record<string, string>>(() => ({
+  community: $t('system.license.edition.community'),
+  enterprise: $t('system.license.edition.enterprise'),
+  lite: $t('system.license.edition.lite'),
+  standard: $t('system.license.edition.standard'),
+}));
 
 const licensed = computed(() => Boolean(status.value?.licensed));
-const edition = computed(() => EDITION_LABEL[status.value?.edition ?? 'community'] ?? '社区版');
+const edition = computed(
+  () =>
+    EDITION_LABEL.value[status.value?.edition ?? 'community'] ??
+    $t('system.license.edition.community'),
+);
 const expiry = computed(() => {
   if (!licensed.value) return '—';
-  if (!status.value?.expiresAt) return '永久';
+  if (!status.value?.expiresAt) return $t('system.license.value.permanent');
   const t = Date.parse(status.value.expiresAt);
   if (Number.isNaN(t)) return '—';
   return new Date(t).toLocaleDateString('zh-CN');
@@ -45,24 +50,35 @@ const maxTerminals = computed(() => status.value?.maxTerminals ?? 0);
 const terminal = computed(() => {
   if (!licensed.value) return '—';
   const n = maxTerminals.value;
-  if (n <= 0) return '不限';
-  return `${terminalsUsed.value} / ${n} 台`;
+  if (n <= 0) return $t('system.license.value.unlimited');
+  return $t('system.license.stat.terminalsCount', {
+    used: terminalsUsed.value,
+    total: n,
+  });
 });
 const terminalUsedText = computed(() =>
-  licensed.value ? `${terminalsUsed.value} 台` : '—',
+  licensed.value
+    ? $t('system.license.stat.terminalsUsed', { n: terminalsUsed.value })
+    : '—',
 );
 const terminalHint = computed(() => {
-  if (!licensed.value) return '近 24h 活跃终端 / 授权上限';
-  if (maxTerminals.value <= 0) return '授权不限终端数';
+  if (!licensed.value) return $t('system.license.stat.terminalsHint');
+  if (maxTerminals.value <= 0) {
+    return $t('system.license.stat.terminalsUnlimited');
+  }
   return overLimit.value
-    ? `已超上限 ${terminalsUsed.value - maxTerminals.value} 台（仅告警，不中断）`
-    : '近 24h 活跃终端 / 授权上限';
+    ? $t('system.license.stat.terminalsOver', {
+        n: terminalsUsed.value - maxTerminals.value,
+      })
+    : $t('system.license.stat.terminalsHint');
 });
 const days = computed(() => {
-  if (!licensed.value) return '未激活';
+  if (!licensed.value) return $t('system.license.value.inactive');
   const n = status.value?.daysRemaining ?? -1;
-  if (!status.value?.expiresAt) return '永久';
-  return n >= 0 ? `${n} 天` : '已过期';
+  if (!status.value?.expiresAt) return $t('system.license.value.permanent');
+  return n >= 0
+    ? $t('system.license.stat.days', { n })
+    : $t('system.license.value.expired');
 });
 
 async function load() {
@@ -73,7 +89,9 @@ async function load() {
       text.value = '';
     }
   } catch (error) {
-    message.error(error instanceof Error ? error.message : 'License 状态加载失败');
+    message.error(
+      error instanceof Error ? error.message : $t('system.license.msg.loadFailed'),
+    );
   } finally {
     loading.value = false;
   }
@@ -81,16 +99,20 @@ async function load() {
 
 async function activate() {
   if (!text.value.trim()) {
-    message.warning('请粘贴 License 文件内容');
+    message.warning($t('system.license.msg.pasteRequired'));
     return;
   }
   activating.value = true;
   try {
     status.value = await activateLicense(text.value.trim());
     text.value = '';
-    message.success('License 已激活');
+    message.success($t('system.license.msg.activated'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '激活失败');
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('system.license.msg.activateFailed'),
+    );
   } finally {
     activating.value = false;
   }
@@ -101,9 +123,11 @@ async function remove() {
   try {
     await removeLicense();
     await load();
-    message.success('License 已移除，当前为社区版');
+    message.success($t('system.license.msg.removed'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '移除失败');
+    message.error(
+      error instanceof Error ? error.message : $t('system.license.msg.removeFailed'),
+    );
   } finally {
     removing.value = false;
   }
@@ -117,22 +141,24 @@ onMounted(load);
     <PageHeader
       eyebrow="System"
       icon="lucide:badge-check"
-      title="授权管理"
-      description="离线授权文件管理：Ed25519 签名校验，激活后展示版本、能力、到期时间与活跃终端计量；超限仅告警不中断。"
+      :title="$t('system.license.page.title')"
+      :description="$t('system.license.page.desc')"
     >
       <template #actions>
         <Button size="small" :loading="loading" @click="load">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />刷新
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{
+            $t('system.license.actions.refresh')
+          }}
         </Button>
         <Popconfirm
-          title="确认移除 License？"
-          description="移除后回到社区版，已授权能力可能立即失效。"
-          ok-text="移除"
-          cancel-text="取消"
+          :title="$t('system.license.confirm.removeTitle')"
+          :description="$t('system.license.confirm.removeDesc')"
+          :ok-text="$t('system.license.confirm.removeOk')"
+          :cancel-text="$t('system.license.confirm.cancel')"
           @confirm="remove"
         >
           <Button size="small" danger :loading="removing" :disabled="!licensed">
-            移除 License
+            {{ $t('system.license.actions.remove') }}
           </Button>
         </Popconfirm>
       </template>
@@ -140,28 +166,36 @@ onMounted(load);
 
     <div class="ipam-stat-grid">
       <StatCard
-        label="当前版本"
+        :label="$t('system.license.stat.edition')"
         :value="edition"
         icon="lucide:award"
         :tone="licensed ? 'green' : 'violet'"
-        :hint="licensed ? '已激活' : '未激活 · 社区版'"
+        :hint="
+          licensed
+            ? $t('system.license.stat.editionHintOn')
+            : $t('system.license.stat.editionHintOff')
+        "
       />
       <StatCard
-        label="授权状态"
-        :value="licensed ? '有效' : '未授权'"
+        :label="$t('system.license.stat.status')"
+        :value="
+          licensed
+            ? $t('system.license.value.valid')
+            : $t('system.license.value.unauthorized')
+        "
         icon="lucide:shield-check"
         :tone="licensed ? 'green' : 'amber'"
-        :hint="status?.licenseId || '请激活 License 后使用商业能力'"
+        :hint="status?.licenseId || $t('system.license.stat.statusHint')"
       />
       <StatCard
-        label="到期时间"
+        :label="$t('system.license.stat.expiry')"
         :value="expiry"
         icon="lucide:calendar-clock"
         tone="cyan"
         :hint="days"
       />
       <StatCard
-        label="终端计量"
+        :label="$t('system.license.stat.terminals')"
         :value="terminal"
         icon="lucide:monitor-smartphone"
         :tone="overLimit ? 'amber' : 'blue'"
@@ -172,49 +206,71 @@ onMounted(load);
     <Card>
       <template #title>
         <span class="ipam-card-title">
-          <IconifyIcon icon="lucide:badge-check" />授权信息
+          <IconifyIcon icon="lucide:badge-check" />{{
+            $t('system.license.card.infoTitle')
+          }}
         </span>
       </template>
       <template #extra>
         <div class="flex items-center gap-2">
-          <Tag v-if="overLimit" class="m-0" color="orange">终端超限</Tag>
+          <Tag v-if="overLimit" class="m-0" color="orange">
+{{
+            $t('system.license.card.overLimit')
+          }}
+</Tag>
           <Tag class="m-0" :color="licensed ? 'green' : 'default'">
-            {{ licensed ? '已激活' : '社区版' }}
+            {{
+              licensed
+                ? $t('system.license.card.activated')
+                : $t('system.license.card.community')
+            }}
           </Tag>
         </div>
       </template>
 
       <div class="ipam-form-grid">
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">授权客户</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.license.card.issuedTo')
+          }}</span>
           <div class="ipam-service-value">{{ status?.issuedTo || '—' }}</div>
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">License ID</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.license.card.licenseId')
+          }}</span>
           <div class="ipam-service-value ipam-mono">{{ status?.licenseId || '—' }}</div>
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">授权能力</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.license.card.features')
+          }}</span>
           <div class="flex flex-wrap gap-1">
             <Tag v-for="f in status?.features ?? []" :key="f" class="m-0">{{ f }}</Tag>
             <span v-if="(status?.features ?? []).length === 0" class="ipam-hint">—</span>
           </div>
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">活跃终端（近 24h）</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.license.card.activeTerminals')
+          }}</span>
           <div class="ipam-service-value">
             {{ terminalUsedText }}
             <span v-if="maxTerminals > 0" class="ipam-hint">
-              ／上限 {{ maxTerminals }} 台
+              {{
+                $t('system.license.card.limit', { n: maxTerminals })
+              }}
             </span>
           </div>
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">授权文件路径</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.license.card.filePath')
+          }}</span>
           <div class="ipam-service-value ipam-mono">{{ status?.filePath || '—' }}</div>
         </div>
         <div class="ipam-form-hint ipam-form-field--wide">
-          {{ status?.message || '未激活' }}
+          {{ status?.message || $t('system.license.card.inactive') }}
         </div>
       </div>
     </Card>
@@ -222,15 +278,19 @@ onMounted(load);
     <Card>
       <template #title>
         <span class="ipam-card-title">
-          <IconifyIcon icon="lucide:file-key" />激活 License
+          <IconifyIcon icon="lucide:file-key" />{{
+            $t('system.license.activate.title')
+          }}
         </span>
       </template>
       <template #extra>
-        <span class="ipam-hint">需要服务端配置 IPAM_LICENSE_PUBKEY</span>
+        <span class="ipam-hint">{{ $t('system.license.activate.hint') }}</span>
       </template>
       <div class="ipam-form-grid">
         <div class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">License 文件内容（JSON）</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.license.activate.label')
+          }}</span>
           <Input.TextArea
             v-model:value="text"
             :rows="8"
@@ -239,14 +299,16 @@ onMounted(load);
           />
         </div>
         <div class="ipam-form-hint ipam-form-field--wide">
-          激活会先校验签名与有效期，失败不会覆盖现有授权；文件写入后立即生效。
+          {{ $t('system.license.activate.hintText') }}
         </div>
       </div>
       <div class="ipam-toolbar ipam-toolbar--plain mt-3">
-        <span class="ipam-hint">生产环境请通过正式渠道获取 License；私钥由授权方保管</span>
+        <span class="ipam-hint">{{ $t('system.license.activate.footerHint') }}</span>
         <span class="ipam-toolbar__spacer"></span>
         <Button type="primary" :loading="activating" @click="activate">
-          <IconifyIcon icon="lucide:check" class="mr-1 size-3.5" />激活
+          <IconifyIcon icon="lucide:check" class="mr-1 size-3.5" />{{
+            $t('system.license.actions.activate')
+          }}
         </Button>
       </div>
     </Card>

@@ -14,9 +14,10 @@ import IpPlanMap from '#/components/ip-plan-map.vue';
 import OrgFilterCard from '#/components/org-filter-card.vue';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import { $t } from '#/locales';
 import { normalizeMacInput } from '#/utils/mac';
 
-const showTotal = (t: number) => `共 ${t} 条`;
+const showTotal = (t: number) => $t('dhcpLedger.common.showTotal', { total: t });
 
 // ── 组织筛选 ──
 const orgTree = ref<OrgTreeNode[]>([]);
@@ -108,7 +109,7 @@ const stats = computed(() => {
 const poolText = computed(() => {
   const ps = currentSubnet.value?.pools ?? [];
   const first = ps[0];
-  if (!first) return '未配置地址池';
+  if (!first) return $t('dhcpLedger.v4.noPool');
   const one = `${first.startAddr} — ${first.endAddr ?? ''}`;
   return ps.length > 1 ? `${one} +${ps.length - 1}` : one;
 });
@@ -173,13 +174,19 @@ async function loadMap() {
         user: row.owner || '',
         leaseStart: row.leaseStart ? new Date(row.leaseStart).toLocaleString() : '',
         leaseEnd: row.leaseExpiry ? new Date(row.leaseExpiry).toLocaleString() : '',
-        leaseStatus: row.state === 'online' ? '已分配' : '',
-        purpose: row.purpose || (row.state === 'reserved' ? '保留' : ''),
+        leaseStatus: row.state === 'online' ? $t('dhcpLedger.common.leaseGranted') : '',
+        purpose:
+          row.purpose ||
+          (row.state === 'reserved' ? $t('dhcpLedger.common.reserved') : ''),
         phone: row.phone || '',
         vlan: row.vlan,
         site: row.site || '',
         customAttrs: row.customAttrs ?? {},
-        remark: row.remark || (row.state === 'conflict' ? 'IP 冲突' : (row.state === 'grace' ? '租约宽限' : '')),
+        remark:
+          row.remark ||
+          (row.state === 'conflict'
+            ? $t('dhcpLedger.common.ipConflict')
+            : (row.state === 'grace' ? $t('dhcpLedger.common.leaseGrace') : '')),
       };
     }
     cells.value = grid;
@@ -192,12 +199,12 @@ async function loadMap() {
 const onlineKeyword = ref('');
 type ExpiryFilter = '7d' | '24h' | 'all' | 'expired';
 const expiryFilter = ref<ExpiryFilter>('all');
-const expiryOptions = [
-  { label: '全部到期状态', value: 'all' },
-  { label: '已过期', value: 'expired' },
-  { label: '24 小时内到期', value: '24h' },
-  { label: '7 天内到期', value: '7d' },
-];
+const expiryOptions = computed(() => [
+  { label: $t('dhcpLedger.expiryFilter.all'), value: 'all' },
+  { label: $t('dhcpLedger.expiryFilter.expired'), value: 'expired' },
+  { label: $t('dhcpLedger.expiryFilter.h24'), value: '24h' },
+  { label: $t('dhcpLedger.expiryFilter.d7'), value: '7d' },
+]);
 
 function remainingMs(row: Partial<LedgerRow>): null | number {
   if (!row.leaseExpiry) return null;
@@ -216,16 +223,18 @@ function expiryTone(row: Partial<LedgerRow>): string {
 
 function fmtDuration(ms: number): string {
   const mins = Math.max(1, Math.round(Math.abs(ms) / 60_000));
-  if (mins < 60) return `${mins} 分钟`;
+  if (mins < 60) return $t('dhcpLedger.lease.minutes', { n: mins });
   const hours = Math.round(mins / 60);
-  if (hours < 48) return `${hours} 小时`;
-  return `${Math.round(hours / 24)} 天`;
+  if (hours < 48) return $t('dhcpLedger.lease.hours', { n: hours });
+  return $t('dhcpLedger.lease.days', { n: Math.round(hours / 24) });
 }
 
 function expiryText(row: Partial<LedgerRow>): string {
   const ms = remainingMs(row);
-  if (ms === null) return '无租期';
-  return ms < 0 ? `已过期 ${fmtDuration(ms)}` : `剩余 ${fmtDuration(ms)}`;
+  if (ms === null) return $t('dhcpLedger.lease.noLease');
+  return ms < 0
+    ? $t('dhcpLedger.lease.expired', { duration: fmtDuration(ms) })
+    : $t('dhcpLedger.lease.remaining', { duration: fmtDuration(ms) });
 }
 
 function fmtTime(v?: string): string {
@@ -250,6 +259,25 @@ function resetOnlineFilters() {
   onlineKeyword.value = '';
   expiryFilter.value = 'all';
 }
+
+const onlineColumns = computed(() => [
+  {
+    title: $t('dhcpLedger.v4.colAddress'),
+    dataIndex: 'address',
+    width: 130,
+    sorter: (a: any, b: any) => ipToInt(a.address) - ipToInt(b.address),
+  },
+  { title: $t('dhcpLedger.v4.colMac'), dataIndex: 'mac', width: 160 },
+  { title: $t('dhcpLedger.v4.colHostname'), dataIndex: 'hostname', width: 140 },
+  { title: $t('dhcpLedger.v4.colOwner'), dataIndex: 'owner', width: 100 },
+  { title: $t('dhcpLedger.v4.colExpiry'), dataIndex: 'leaseExpiry', width: 220 },
+]);
+
+const onlineEmptyText = computed(() =>
+  onlineKeyword.value || expiryFilter.value !== 'all'
+    ? $t('dhcpLedger.v4.emptyFiltered')
+    : $t('dhcpLedger.v4.emptyList'),
+);
 
 // ── IP 工具（与 IpPlanMap 同源）──
 function ipToInt(ip: string): number {
@@ -277,7 +305,11 @@ function onSubnetChange(cidr: string) {
 
 // ── 地图操作 → 台账 API ──
 const bindModal = ref({ address: '', subnetId: '', mac: '' });
-const [BindModal, bindModalApi] = useVbenModal({ draggable: true, confirmText: '绑定', onConfirm: () => confirmBind() });
+const [BindModal, bindModalApi] = useVbenModal({
+  draggable: true,
+  confirmText: $t('dhcpLedger.common.bind'),
+  onConfirm: () => confirmBind(),
+});
 
 async function onMapAction(action: string, ips: MapCell[]) {
   const sub = currentSubnet.value;
@@ -285,7 +317,7 @@ async function onMapAction(action: string, ips: MapCell[]) {
   if (!sub || !first) return;
   if (action === 'toStatic') {
     bindModal.value = { address: first.ip, subnetId: sub.id, mac: '' };
-    bindModalApi.setState({ title: `静态绑定 ${first.ip}` });
+    bindModalApi.setState({ title: $t('dhcpLedger.common.staticBindTitle', { ip: first.ip }) });
     bindModalApi.open();
     return;
   }
@@ -301,10 +333,10 @@ async function onMapAction(action: string, ips: MapCell[]) {
         });
         if (!res.ok) {
           const reasons = (res.failures ?? []).map((f) => f.reason).join('；');
-          throw new Error(reasons || '存在失败行，整体已回滚');
+          throw new Error(reasons || $t('dhcpLedger.common.bulkRolledBack'));
         }
       }
-      message.success(`已保留 ${ips.length} 个地址`);
+      message.success($t('dhcpLedger.common.reservedCount', { count: ips.length }));
     } else if (action === 'toRelease') {
       const failed: string[] = [];
       for (const c of ips) {
@@ -315,31 +347,35 @@ async function onMapAction(action: string, ips: MapCell[]) {
         }
       }
       if (failed.length > 0) {
-        message.warning(`已释放 ${ips.length - failed.length} 个，失败（无预留记录）：${failed.join('、')}`);
+        message.warning($t('dhcpLedger.common.releasedPartial', {
+          ok: ips.length - failed.length,
+          failed: failed.join('、'),
+        }));
       } else {
-        message.success(`已释放 ${ips.length} 个地址，回归可下发池`);
+        message.success($t('dhcpLedger.common.releasedCount', { count: ips.length }));
       }
     }
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '操作失败');
+    message.error(error instanceof Error ? error.message : $t('dhcpLedger.common.operationFailed'));
   }
   void loadMap();
 }
 async function confirmBind() {
   const normMac = normalizeMacInput(bindModal.value.mac);
   if (!normMac || !bindModal.value.subnetId) {
-    message.warning(
-      '请填写合法 MAC（支持 C4-3D-1A-07-EB-2B / C43D1A07EB2B / 冒号分隔，大小写均可）',
-    );
+    message.warning($t('dhcpLedger.common.invalidMac'));
     return;
   }
   try {
     await bindStatic(bindModal.value.subnetId, bindModal.value.address, normMac);
-    message.success(`${bindModal.value.address} 已静态绑定 ${normMac}`);
+    message.success($t('dhcpLedger.common.staticBound', {
+      address: bindModal.value.address,
+      mac: normMac,
+    }));
     bindModalApi.close();
     void loadMap();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '绑定失败');
+    message.error(error instanceof Error ? error.message : $t('dhcpLedger.common.bindFailed'));
   }
 }
 
@@ -376,10 +412,10 @@ async function saveLedgerMeta(target: MapCell[], values: Record<string, any>) {
         }),
       ),
     );
-    message.success(`已保存 ${list.length} 个地址的台账信息`);
+    message.success($t('dhcpLedger.v4.savedMeta', { count: list.length }));
     await loadMap();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '台账信息保存失败');
+    message.error(error instanceof Error ? error.message : $t('dhcpLedger.v4.saveMetaFailed'));
   }
 }
 
@@ -391,10 +427,20 @@ function csvCell(v: unknown): string {
 
 function exportLedgerCsv() {
   if (!selectedCidr.value || cells.value.length === 0) {
-    message.warning('当前网段暂无可导出的地址');
+    message.warning($t('dhcpLedger.v4.exportEmpty'));
     return;
   }
-  const header = ['IP', '状态', '主机名', 'MAC', '使用人', '用途', '备注', '租约开始', '租约结束'];
+  const header = [
+    $t('dhcpLedger.v4.csv.ip'),
+    $t('dhcpLedger.v4.csv.status'),
+    $t('dhcpLedger.v4.csv.hostname'),
+    $t('dhcpLedger.v4.csv.mac'),
+    $t('dhcpLedger.v4.csv.owner'),
+    $t('dhcpLedger.v4.csv.purpose'),
+    $t('dhcpLedger.v4.csv.remark'),
+    $t('dhcpLedger.v4.csv.leaseStart'),
+    $t('dhcpLedger.v4.csv.leaseEnd'),
+  ];
   const lines = cells.value.map((c) =>
     [c.ip, c.status, c.hostname, c.mac, c.user, c.purpose, c.remark, c.leaseStart, c.leaseEnd]
       .map((v) => csvCell(v))
@@ -407,7 +453,7 @@ function exportLedgerCsv() {
   a.download = `ledger-${selectedCidr.value.replaceAll('/', '_')}-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
-  message.success(`已导出 ${cells.value.length} 个地址`);
+  message.success($t('dhcpLedger.v4.exportDone', { count: cells.value.length }));
 }
 </script>
 
@@ -416,21 +462,26 @@ function exportLedgerCsv() {
     <PageHeader
       eyebrow="DHCP Service"
       icon="lucide:map"
-      title="IPv4 地址台账"
-      description="按地址矩阵查看 IPv4 分配状态，支持单点/区间选择、保留、静态绑定与释放；下方在线租约支持检索与到期提醒。"
+      :title="$t('dhcpLedger.v4.title')"
+      :description="$t('dhcpLedger.v4.desc')"
     >
       <template #actions>
         <span class="ipam-page-header__meta">
           <IconifyIcon icon="lucide:layers" class="size-3.5" />
-          {{ v4Subnets.length }} 个 IPv4 网段 · 当前 {{ selectedCidr || '未选择' }}
+          {{
+            $t('dhcpLedger.v4.meta', {
+              count: v4Subnets.length,
+              cidr: selectedCidr || $t('dhcpLedger.common.noSelection'),
+            })
+          }}
         </span>
         <Button size="small" :disabled="!selectedCidr || cells.length === 0" @click="exportLedgerCsv">
           <IconifyIcon icon="lucide:download" class="mr-1 size-3.5" />
-          导出 CSV
+          {{ $t('dhcpLedger.common.exportCsv') }}
         </Button>
         <Button size="small" :loading="mapLoading" :disabled="!selectedCidr" @click="loadMap">
           <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />
-          刷新
+          {{ $t('dhcpLedger.common.refresh') }}
         </Button>
       </template>
     </PageHeader>
@@ -447,67 +498,71 @@ function exportLedgerCsv() {
           <div class="ipam-empty__icon">
             <IconifyIcon icon="lucide:map" class="size-5" />
           </div>
-          <div class="ipam-empty__title">暂无 IPv4 网段</div>
-          <div class="ipam-empty__desc">请先在左侧选择组织，或前往「子网管理」创建 IPv4 网段。</div>
+          <div class="ipam-empty__title">{{ $t('dhcpLedger.v4.emptyTitle') }}</div>
+          <div class="ipam-empty__desc">{{ $t('dhcpLedger.v4.emptyDesc') }}</div>
         </div>
 
         <template v-else>
           <div class="ipam-stat-grid">
             <StatCard
-              label="地址容量"
+              :label="$t('dhcpLedger.v4.statCapacity')"
               :value="stats.usable"
-              unit="个"
+              :unit="$t('dhcpLedger.common.units.count')"
               icon="lucide:hash"
               tone="blue"
-              :hint="`含网络/广播共 ${stats.total} 个地址`"
+              :hint="$t('dhcpLedger.v4.statCapacityHint', { total: stats.total })"
             />
             <StatCard
-              label="已用地址"
+              :label="$t('dhcpLedger.v4.statUsed')"
               :value="stats.used"
-              unit="个"
+              :unit="$t('dhcpLedger.common.units.count')"
               icon="lucide:pie-chart"
               tone="green"
               :progress="stats.utilization"
-              :hint="`利用率 ${stats.utilization}% · 在线 ${stats.online} 个`"
+              :hint="$t('dhcpLedger.v4.statUsedHint', { utilization: stats.utilization, online: stats.online })"
             />
             <StatCard
-              label="静态绑定"
+              :label="$t('dhcpLedger.v4.statStatic')"
               :value="stats.staticCount"
-              unit="个"
+              :unit="$t('dhcpLedger.common.units.count')"
               icon="lucide:pin"
               tone="cyan"
-              :hint="`保留 ${stats.reserved} 个地址`"
+              :hint="$t('dhcpLedger.v4.statStaticHint', { reserved: stats.reserved })"
             />
             <StatCard
-              label="可分配余量"
+              :label="$t('dhcpLedger.v4.statAvailable')"
               :value="stats.available"
-              unit="个"
+              :unit="$t('dhcpLedger.common.units.count')"
               icon="lucide:circle-dashed"
               :tone="stats.conflict > 0 ? 'amber' : 'violet'"
-              :hint="stats.conflict > 0 ? `${stats.conflict} 个地址存在冲突` : '当前网段无冲突'"
+              :hint="
+                stats.conflict > 0
+                  ? $t('dhcpLedger.v4.statAvailableHintConflict', { conflict: stats.conflict })
+                  : $t('dhcpLedger.v4.statAvailableHintOk')
+              "
             />
           </div>
 
           <div class="ipam-toolbar">
             <span class="ipam-field">
-              <span class="ipam-field__label">当前网段</span>
+              <span class="ipam-field__label">{{ $t('dhcpLedger.v4.fieldSubnet') }}</span>
               <Tag color="blue" class="m-0">{{ selectedCidr }}</Tag>
-              <span class="ipam-hint">{{ currentSubnet?.name || '未命名网段' }}</span>
+              <span class="ipam-hint">{{ currentSubnet?.name || $t('dhcpLedger.common.unnamedSubnet') }}</span>
             </span>
             <span class="ipam-field">
-              <span class="ipam-field__label">网关</span>
-              <span class="ipam-mono">{{ currentSubnet?.gateway || '未配置' }}</span>
+              <span class="ipam-field__label">{{ $t('dhcpLedger.v4.fieldGateway') }}</span>
+              <span class="ipam-mono">{{ currentSubnet?.gateway || $t('dhcpLedger.common.notConfigured') }}</span>
             </span>
             <span class="ipam-field">
-              <span class="ipam-field__label">DNS</span>
-              <span class="ipam-mono">{{ currentSubnet?.dnsServers || '未配置' }}</span>
+              <span class="ipam-field__label">{{ $t('dhcpLedger.v4.fieldDns') }}</span>
+              <span class="ipam-mono">{{ currentSubnet?.dnsServers || $t('dhcpLedger.common.notConfigured') }}</span>
             </span>
             <span class="ipam-field">
-              <span class="ipam-field__label">地址池</span>
+              <span class="ipam-field__label">{{ $t('dhcpLedger.v4.fieldPool') }}</span>
               <span class="ipam-mono">{{ poolText }}</span>
             </span>
             <div class="ipam-toolbar__spacer"></div>
-            <span class="ipam-hint">在地址矩阵中选中地址后可批量转静态 / 保留 / 释放</span>
+            <span class="ipam-hint">{{ $t('dhcpLedger.v4.bulkHint') }}</span>
           </div>
 
           <IpPlanMap
@@ -523,54 +578,55 @@ function exportLedgerCsv() {
             <template #title>
               <span class="ipam-card-title">
                 <IconifyIcon icon="lucide:radio-tower" />
-                在线租约
+                {{ $t('dhcpLedger.leaseCard.title') }}
                 <em class="ipam-card-sub">
-                  {{ selectedCidr || '未选择网段' }} · {{ filteredOnlineRows.length }} /
-                  {{ onlineRows.length }} 条
+                  {{
+                    $t('dhcpLedger.leaseCard.sub', {
+                      cidr: selectedCidr || $t('dhcpLedger.common.noSubnetSelected'),
+                      shown: filteredOnlineRows.length,
+                      total: onlineRows.length,
+                    })
+                  }}
                 </em>
               </span>
             </template>
             <template #extra>
               <Space :size="6" wrap>
-                <Tag v-if="stats.conflict > 0" color="red" class="m-0">冲突 {{ stats.conflict }}</Tag>
-                <span class="ipam-hint">随 DHCP 租约实时更新</span>
+                <Tag v-if="stats.conflict > 0" color="red" class="m-0">
+                  {{ $t('dhcpLedger.v4.conflictTag', { count: stats.conflict }) }}
+                </Tag>
+                <span class="ipam-hint">{{ $t('dhcpLedger.v4.leaseLiveHint') }}</span>
               </Space>
             </template>
 
             <div class="ipam-toolbar mb-3">
               <div class="ipam-field">
-                <span class="ipam-field__label">关键字</span>
+                <span class="ipam-field__label">{{ $t('dhcpLedger.common.keyword') }}</span>
                 <Input
                   v-model:value="onlineKeyword"
                   allow-clear
-                  placeholder="IP / MAC / 主机名 / 使用人"
+                  :placeholder="$t('dhcpLedger.v4.keywordPlaceholder')"
                   style="width: 240px"
                 />
               </div>
               <div class="ipam-field">
-                <span class="ipam-field__label">到期</span>
+                <span class="ipam-field__label">{{ $t('dhcpLedger.common.expiry') }}</span>
                 <Select
                   v-model:value="expiryFilter"
                   :options="expiryOptions"
                   style="width: 150px"
                 />
               </div>
-              <Button size="small" @click="resetOnlineFilters">重置</Button>
+              <Button size="small" @click="resetOnlineFilters">{{ $t('dhcpLedger.common.reset') }}</Button>
               <div class="ipam-toolbar__spacer"></div>
-              <span class="ipam-hint">到期时间按浏览器本地时区显示</span>
+              <span class="ipam-hint">{{ $t('dhcpLedger.v4.timezoneHint') }}</span>
             </div>
 
             <Table
               :data-source="filteredOnlineRows"
               :loading="mapLoading"
-              :columns="[
-                { title: '在线地址', dataIndex: 'address', width: 130, sorter: (a: any, b: any) => ipToInt(a.address) - ipToInt(b.address) },
-                { title: 'MAC', dataIndex: 'mac', width: 160 },
-                { title: '主机名', dataIndex: 'hostname', width: 140 },
-                { title: '使用人', dataIndex: 'owner', width: 100 },
-                { title: '到期时间', dataIndex: 'leaseExpiry', width: 220 },
-              ]"
-              :locale="{ emptyText: onlineKeyword || expiryFilter !== 'all' ? '没有匹配的在线租约' : '当前网段暂无在线租约' }"
+              :columns="onlineColumns"
+              :locale="{ emptyText: onlineEmptyText }"
               :pagination="{ pageSize: 20, showSizeChanger: true, showTotal }"
               row-key="address"
               size="small"
@@ -599,7 +655,11 @@ function exportLedgerCsv() {
     </div>
 
     <BindModal>
-      <Input v-model:value="bindModal.mac" placeholder="MAC 如 aa:bb:cc:dd:ee:01" @press-enter="confirmBind" />
+      <Input
+        v-model:value="bindModal.mac"
+        :placeholder="$t('dhcpLedger.common.macPlaceholder')"
+        @press-enter="confirmBind"
+      />
     </BindModal>
   </div>
 </template>

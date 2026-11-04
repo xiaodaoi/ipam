@@ -1,0 +1,824 @@
+{
+  "about": {
+    "header": {
+      "title": "About",
+      "desc": "Product version, runtime environment, core capabilities and tech stack. Copy diagnostics in one click for feedback.",
+      "copy": "Copy diagnostics",
+      "refresh": "Refresh"
+    },
+    "mode": {
+      "prod": "Production",
+      "dev": "Development"
+    },
+    "ready": {
+      "unknown": "Unknown",
+      "ok": "Healthy",
+      "bad": "Error",
+      "labelUnknown": "Control plane status unknown",
+      "labelOk": "Control plane healthy",
+      "labelBad": "Control plane dependency error"
+    },
+    "stat": {
+      "version": "Product version",
+      "versionHint": "Control plane {v}",
+      "status": "Control plane status",
+      "statusHint": "{name} · {go}",
+      "statusWait": "Waiting for control plane version…",
+      "uptime": "Uptime",
+      "uptimeHint": "Sampled at {time}",
+      "uptimeUnavailable": "Host metrics unavailable",
+      "cpu": "CPU usage",
+      "cpuHint": "{cores} cores · 1-minute load {load}",
+      "cpuUnavailable": "Unable to read /system/metrics"
+    },
+    "hero": {
+      "title": "DDI Unified IP Address Management Platform",
+      "controlPlane": "Control plane {v}",
+      "desc": "An integrated product covering IPAM, DHCPv4/v6, DNS and unified logging. It provides address planning, automated provisioning, resolution services and security auditing for enterprise intranets. It runs fully offline with no GPL dependencies."
+    },
+    "meta": {
+      "serverTime": "Server time",
+      "mode": "Run mode",
+      "license": "License",
+      "licenseValue": "Commercial"
+    },
+    "info": {
+      "title": "Product information",
+      "hint": "Version injected at build time",
+      "product": "Product name",
+      "productValue": "DDI Unified IP Address Management Platform",
+      "frontend": "Frontend version",
+      "controlPlane": "Control plane version",
+      "go": "Go runtime",
+      "mode": "Run mode",
+      "lang": "UI language",
+      "langValue": "Simplified Chinese",
+      "serverTime": "Server time",
+      "license": "License",
+      "licenseValue": "Commercial · See LICENSES.md for third-party licenses",
+      "fail": "Unable to read {code}; the control plane version and status may be stale."
+    },
+    "host": {
+      "title": "Host resources",
+      "hint": "From /system/metrics",
+      "memory": "Memory",
+      "rootfs": "Root filesystem",
+      "load1": "1-minute load",
+      "load5": "5-minute load",
+      "load15": "15-minute load",
+      "uptime": "Uptime",
+      "emptyTitle": "Host resources unavailable",
+      "emptyDesc": "The control plane has not mounted the host /proc or metric collection is not wired up; only this card is affected.",
+      "cores": "{n} cores"
+    },
+    "cap": {
+      "title": "Core capabilities",
+      "addr": "Address space management",
+      "addrDesc": "Organizations / subnets / pools and per-address ledger",
+      "dhcp": "DHCPv4 / v6",
+      "dhcpDesc": "Kea config delivery, leases, reservations and dual-stack linkage",
+      "dns": "DNS resolution",
+      "dnsDesc": "Unbound upstreams, forwarding, records, cache and blocking",
+      "logs": "Unified logging",
+      "logsDesc": "ClickHouse search, live streams and audit trail"
+    },
+    "stack": {
+      "title": "Tech stack",
+      "hint": "No GPL dependencies · Deployable offline",
+      "api": "Control plane API / orchestration",
+      "dhcp": "DHCPv4 / DHCPv6 engine",
+      "dns": "Recursive DNS engine",
+      "logs": "Log storage and aggregation",
+      "ui": "Admin UI foundation"
+    },
+    "diag": {
+      "title": "IPAM diagnostics · {time}",
+      "frontend": "Frontend version: v{version} ({mode})",
+      "control": "Control plane: {name} {version}",
+      "go": "Go runtime: {v}",
+      "ready": "Dependencies ready: {state}",
+      "uptime": "Uptime: {v}",
+      "cpu": "CPU: {pct} · {cores} cores · load {l1}/{l5}/{l15}",
+      "mem": "Memory: {used} / {total} ({pct})",
+      "disk": "Disk {mount}: {used} / {total} ({pct}) · {fs}",
+      "copied": "Diagnostics copied to clipboard",
+      "copyFail": "The browser did not grant clipboard permission"
+    },
+    "uptime": {
+      "days": "{d}d {h}h",
+      "hours": "{h}h {m}m",
+      "minutes": "{m} min"
+    }
+  },
+  "orgs": {
+    "title": "Organization management",
+    "desc": "The single master source for organizations site-wide: company → department → … multi-level tree, referenced by DHCP/DNS/assets/logs.",
+    "lockedHint": "Cannot be deleted while referenced or has child nodes"
+  },
+  "users": {
+    "page": {
+      "title": "Account management",
+      "desc": "Manage control plane accounts, role assignment and enabled state. Passwords are stored with bcrypt; disabling an account or changing its password revokes its existing sessions immediately."
+    },
+    "header": {
+      "enabledMeta": "{enabled}/{total} accounts enabled"
+    },
+    "actions": {
+      "refresh": "Refresh",
+      "create": "New account"
+    },
+    "role": {
+      "admin": "Administrator",
+      "adminDesc": "Read/write access to every module",
+      "auditor": "Auditor",
+      "auditorDesc": "Read-only across all modules, suited to audit roles",
+      "operator": "Operator",
+      "operatorDesc": "Read/write on DHCP/DNS/assets",
+      "user": "Read-only",
+      "userDesc": "Read-only across all modules"
+    },
+    "roleFilterAll": "All roles",
+    "status": {
+      "all": "All statuses",
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
+    "stat": {
+      "total": "Total accounts",
+      "totalHint": "Signed in as: {name}",
+      "enabled": "Enabled accounts",
+      "enabledHint": "{pct}% enabled",
+      "enabledHintMore": "{pct}% enabled · {n} disabled",
+      "admin": "Administrators",
+      "adminHintEmpty": "No administrator accounts yet, please add one soon",
+      "adminHint": "Read/write access to every module",
+      "readonly": "Read-only accounts",
+      "readonlyHint": "Write operations are blocked by RBAC (403)",
+      "readonlyHintEmpty": "No read-only accounts yet"
+    },
+    "list": {
+      "title": "Account list",
+      "autoRefresh": "Auto refresh",
+      "autoRefreshHint": "Every 15 seconds"
+    },
+    "filter": {
+      "keyword": "Keyword",
+      "keywordPlaceholder": "Login name / display name",
+      "role": "Role",
+      "status": "Status",
+      "clear": "Clear filters",
+      "hint": "Disabling or deleting the signed-in account removes access immediately; this is protected"
+    },
+    "empty": {
+      "filtered": "No accounts match the current filters",
+      "none": "No accounts yet. Click “New account” in the top right to create one"
+    },
+    "tag": {
+      "self": "Signed in",
+      "mustChange": "Password change required",
+      "ldap": "Directory account"
+    },
+    "noDisplayName": "No display name",
+    "tooltip": {
+      "selfDisable": "You cannot disable the signed-in account",
+      "ldapPassword": "Directory account passwords are managed by LDAP/AD; please reset them in Directory service"
+    },
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "action": {
+      "edit": "Edit",
+      "resetPassword": "Reset password",
+      "resetTotp": "Reset 2FA",
+      "sessions": "Sessions",
+      "delete": "Delete",
+      "reset": "Reset",
+      "cancel": "Cancel"
+    },
+    "col": {
+      "account": "Account",
+      "roles": "Roles",
+      "enabled": "Status",
+      "createdAt": "Created at",
+      "op": "Actions"
+    },
+    "confirm": {
+      "totpTitle": "Reset two-factor authentication for this account?",
+      "totpDesc": "This clears the TOTP binding and recovery codes, invalidates existing sessions, and requires the user to bind again.",
+      "deleteTitle": "Delete this account?",
+      "deleteDesc": "The account stops working immediately and cannot be restored."
+    },
+    "form": {
+      "username": "Login name",
+      "usernamePlaceholder": "2–64 chars: letters, digits and _ . -",
+      "displayName": "Display name (optional)",
+      "displayNameEdit": "Display name",
+      "displayNamePlaceholder": "e.g. Network operations",
+      "initialPassword": "Initial password",
+      "initialPasswordPlaceholder": "≥10 chars, at least 3 character classes",
+      "role": "Roles",
+      "rolePlaceholder": "Select one or more roles",
+      "accountStatus": "Account status",
+      "allowLogin": "Login allowed",
+      "forbidLogin": "Login blocked",
+      "createHint": "Passwords are only received during the request and stored with bcrypt; write operations by read-only accounts are blocked by RBAC (403).",
+      "editHint": "Changing roles or status revokes the account's existing sessions immediately; the last administrator cannot be demoted or disabled."
+    },
+    "modal": {
+      "create": "New account",
+      "edit": "Edit account"
+    },
+    "reset": {
+      "title": "Reset password · {name}",
+      "ok": "Reset",
+      "label": "New password (≥10 chars, at least 3 character classes)",
+      "placeholder": "Enter a new password",
+      "hint": "Existing sessions for this account are invalidated immediately and the user must sign in with the new password."
+    },
+    "sessions": {
+      "title": "Sign-in sessions · {name}",
+      "loading": "Loading…",
+      "empty": "This account has no active sessions",
+      "current": "Current session",
+      "unknownIp": "Unknown IP",
+      "meta": "{ip} · signed in {login} · last active {last}",
+      "confirmTitle": "Force this session offline?",
+      "confirmDesc": "Access and refresh tokens on this device are invalidated immediately and the user must sign in again.",
+      "kick": "Force offline",
+      "ok": "Go offline",
+      "cancel": "Cancel",
+      "unknownClient": "Unknown client",
+      "browser": "Browser"
+    },
+    "msg": {
+      "loadFailed": "Failed to load accounts",
+      "created": "Account “{name}” created",
+      "createFailed": "Failed to create account",
+      "usernameRule": "Login name must be 2–64 characters using only letters, digits and _ . -",
+      "passwordRule": "Initial password must be at least 10 characters with at least 3 character classes",
+      "updated": "Account updated",
+      "updateFailed": "Failed to update account",
+      "enabled": "“{name}” enabled",
+      "disabled": "“{name}” disabled",
+      "opFailed": "Operation failed",
+      "newPasswordRule": "New password must be at least 10 characters with at least 3 character classes",
+      "passwordReset": "Password for “{name}” reset",
+      "resetFailed": "Failed to reset password",
+      "totpReset": "Two-factor authentication for “{name}” reset; ask the user to bind again",
+      "totpResetFailed": "Failed to reset 2FA",
+      "deleted": "Account “{name}” deleted",
+      "deleteFailed": "Failed to delete account",
+      "sessionsLoadFailed": "Failed to load sessions",
+      "sessionRevoked": "One session of “{name}” forced offline",
+      "revokeFailed": "Failed to force the session offline"
+    }
+  },
+  "roles": {
+    "page": {
+      "title": "Role management",
+      "desc": "Define roles by permission domain × read/write. Built-in roles cannot be modified or deleted; permissions of custom roles can be adjusted at any time."
+    },
+    "header": {
+      "meta": "{perms} permissions · {domains} permission domains"
+    },
+    "actions": {
+      "refresh": "Refresh",
+      "create": "New role"
+    },
+    "domain": {
+      "dash": "Dashboard",
+      "logs": "Log center",
+      "dhcp": "DHCP service",
+      "dns": "DNS service",
+      "assets": "Asset ledger",
+      "system": "System management"
+    },
+    "stat": {
+      "total": "Total roles",
+      "totalHint": "An account can hold several roles; permissions are unioned",
+      "builtin": "Built-in roles",
+      "builtinHint": "admin / operator / auditor / user, read-only",
+      "custom": "Custom roles",
+      "customHint": "Permissions can be edited or the role deleted at any time",
+      "customHintEmpty": "No custom roles yet",
+      "coverage": "Permission coverage",
+      "coverageHint": "Permissions covered by all roles combined"
+    },
+    "list": {
+      "title": "Role list",
+      "rule": "Read → domain:read · Write → domain:write"
+    },
+    "filter": {
+      "keyword": "Keyword",
+      "keywordPlaceholder": "Role name",
+      "all": "All",
+      "builtin": "Built-in",
+      "custom": "Custom",
+      "clear": "Clear filters"
+    },
+    "empty": {
+      "filtered": "No roles match the current filters",
+      "none": "No custom roles yet. Click “New role” in the top right to create one"
+    },
+    "cell": {
+      "access": "Can access {n} / {total} modules",
+      "builtin": "Built-in",
+      "custom": "Custom",
+      "permCount": "permissions",
+      "chipTitle": "{domain}: {access}"
+    },
+    "access": {
+      "none": "—",
+      "r": "R",
+      "rw": "RW",
+      "w": "W"
+    },
+    "accessTitle": {
+      "none": "No access",
+      "r": "Read-only",
+      "rw": "Read/write",
+      "w": "Write-only"
+    },
+    "action": {
+      "view": "View",
+      "edit": "Edit",
+      "delete": "Delete",
+      "cancel": "Cancel"
+    },
+    "confirm": {
+      "deleteTitle": "Delete this role?",
+      "deleteDesc": "Accounts holding this role lose the corresponding permissions."
+    },
+    "col": {
+      "name": "Role",
+      "builtin": "Type",
+      "coverage": "Permission coverage",
+      "perms": "Permission details",
+      "op": "Actions"
+    },
+    "modal": {
+      "createTitle": "New role",
+      "createOk": "Create role",
+      "viewTitle": "View role: {name}",
+      "close": "Close",
+      "editTitle": "Edit role: {name}",
+      "editOk": "Save changes",
+      "name": "Role name",
+      "namePlaceholder": "e.g. network-ops",
+      "selected": "Selected permissions",
+      "selectedUnit": "selected",
+      "selectAll": "Select all {n}",
+      "readOnly": "Read-only only",
+      "clear": "Clear",
+      "hintSelect": "Checking “Edit” automatically includes “View”",
+      "all": "All",
+      "read": "View",
+      "write": "Edit",
+      "readonlyHint": "Built-in role permissions are preset by the system and cannot be modified or deleted; create a custom role for finer-grained authorization.",
+      "editableHint": "A role name cannot be changed after creation; permission changes take effect immediately for accounts holding the role (validated on the next request)."
+    },
+    "msg": {
+      "loadFailed": "Failed to load roles",
+      "nameRequired": "Please enter a role name",
+      "permRequired": "Please select at least one permission",
+      "updated": "Permissions of role “{name}” updated",
+      "created": "Role “{name}” created",
+      "saveFailed": "Failed to save",
+      "deleted": "Role “{name}” deleted",
+      "deleteFailed": "Failed to delete role"
+    }
+  },
+  "backup": {
+    "page": {
+      "title": "Backup and restore",
+      "desc": "Back up PostgreSQL, the config directory and ClickHouse logs; supports download, restore and a daily policy. Restoring overwrites current data, so run it in a maintenance window."
+    },
+    "actions": {
+      "refresh": "Refresh",
+      "createNow": "Back up now",
+      "save": "Save policy",
+      "download": "Download",
+      "restore": "Restore",
+      "delete": "Delete"
+    },
+    "kind": {
+      "auto": "Scheduled",
+      "manual": "Manual",
+      "pre_upgrade": "Pre-upgrade"
+    },
+    "status": {
+      "failed": "Failed",
+      "restoring": "Restoring",
+      "running": "Running",
+      "success": "Success"
+    },
+    "stat": {
+      "total": "Total backups",
+      "totalHint": "{n} succeeded",
+      "last": "Last success",
+      "none": "None",
+      "createFirst": "Create the first backup",
+      "logCoverage": "Log coverage",
+      "logUnit": "mo",
+      "logHint": "Log months included in the last successful backup",
+      "policy": "Automatic policy",
+      "daily": "Daily {hour}:00",
+      "off": "Off",
+      "retention": "Keep {n}"
+    },
+    "list": {
+      "title": "Backup records",
+      "count": "{n} records",
+      "empty": "No backups yet. Click “Back up now” in the top right to create one",
+      "finished": "Finished {time}"
+    },
+    "col": {
+      "startedAt": "Time",
+      "kind": "Type",
+      "status": "Status",
+      "sizeBytes": "Size",
+      "months": "Log months",
+      "note": "Note",
+      "op": "Actions"
+    },
+    "confirm": {
+      "restoreTitle": "Restore from this backup?",
+      "restoreDesc": "This overwrites current PostgreSQL data and ClickHouse logs; the admin UI may be briefly unavailable meanwhile.",
+      "restoreOk": "Restore",
+      "deleteTitle": "Delete this backup?",
+      "deleteDesc": "The backup file and record are deleted together and cannot be recovered.",
+      "deleteOk": "Delete",
+      "cancel": "Cancel"
+    },
+    "policy": {
+      "title": "Automatic backup policy",
+      "enabled": "Enable automatic backup",
+      "on": "Enabled",
+      "off": "Off",
+      "hour": "Execution hour (UTC)",
+      "retention": "Retention count",
+      "dataHint": "Automatic backups include PG, the config directory and ClickHouse log Parquet files",
+      "scheduleHint": "Checked once a day and executed in UTC",
+      "retentionHint": "Backups beyond the retention count are deleted automatically; create and download one manually before an upgrade."
+    },
+    "modal": {
+      "title": "Back up now",
+      "ok": "Start backup",
+      "cancel": "Cancel",
+      "note": "Note (optional)",
+      "notePlaceholder": "e.g. Pre-upgrade snapshot",
+      "hint": "Backups run in the background; the status refreshes every 5 seconds. Large log volumes may take several minutes."
+    },
+    "msg": {
+      "loadFailed": "Failed to load backups",
+      "settingsSaved": "Backup policy saved",
+      "saveFailed": "Failed to save",
+      "created": "Backup task created and running in the background",
+      "createFailed": "Failed to create backup",
+      "deleted": "Backup deleted",
+      "deleteFailed": "Failed to delete backup",
+      "restored": "Restore completed; refresh the page if data looks wrong",
+      "restoreFailed": "Failed to restore",
+      "downloadFailed": "Failed to download"
+    }
+  },
+  "directory": {
+    "page": {
+      "title": "Directory service",
+      "desc": "Integrate with enterprise LDAP / Active Directory: directory accounts sign in directly and roles are mapped by group; passwords are always verified by the directory and never stored by the platform."
+    },
+    "actions": {
+      "refresh": "Refresh",
+      "save": "Save settings"
+    },
+    "stat": {
+      "service": "Directory service",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "serviceHintOn": "Directory accounts can sign in; local accounts are unaffected",
+      "serviceHintOff": "Only local accounts are available",
+      "source": "Account source",
+      "sourceValue": "Local + directory",
+      "sourceHint": "Shadow accounts are created on first directory sign-in",
+      "mapping": "Role mapping",
+      "mappingValue": "{n} entries",
+      "mappingHint": "Uses {role} when no group matches",
+      "binding": "Password verification",
+      "bindingHint": "The platform does not cache directory passwords",
+      "bindingValue": "Real-time bind"
+    },
+    "alert": {
+      "tlsTitle": "TLS certificate verification skipped",
+      "tlsDesc": "Only recommended for test environments; configure trusted certificates in production to prevent directory passwords from being intercepted."
+    },
+    "connection": {
+      "title": "Connection settings",
+      "enable": "Enable directory sign-in",
+      "enableHint": "When enabled, unknown accounts try directory authentication; local accounts still use local passwords",
+      "server": "Server address",
+      "serverPlaceholder": "ldap://ldap.corp.local:389 or ldaps://ldap.corp.local:636",
+      "serverHint": "Prefer ldaps:// or enable StartTLS; AD domain controllers usually use ldap://dc.corp.local:389",
+      "startTls": "StartTLS",
+      "startTlsHint": "Upgrade encryption on port 389",
+      "skipVerify": "Skip certificate verification",
+      "skipVerifyHint": "Test environments only",
+      "baseDn": "Base DN",
+      "baseDnHint": "User search root, e.g. dc=corp,dc=local for AD",
+      "bindDn": "Service account DN (optional)",
+      "bindDnHint": "Required when the directory does not allow anonymous search",
+      "bindPassword": "Service account password",
+      "bindPasswordSet": "Configured; leave blank to keep it",
+      "bindPasswordEmpty": "Not configured",
+      "bindPasswordHint": "You can also inject it via the IPAM_LDAP_BIND_PASSWORD environment variable to avoid storing it",
+      "userFilter": "User filter",
+      "userFilterHint": "{ph} is the placeholder; AD uses (sAMAccountName={ph}), OpenLDAP uses (uid={ph})"
+    },
+    "tag": {
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
+    "mapping": {
+      "title": "Group and role mapping",
+      "hint": "The default role is used when no group matches",
+      "groupBaseDn": "Group search Base DN (optional)",
+      "groupAttr": "Group name attribute",
+      "groupFilter": "Group filter",
+      "groupFilterHint": "{ph} is the user DN; AD can use (&(objectClass=group)(member={ph}))",
+      "defaultRole": "Default role",
+      "rolesAvailable": "Available roles: {roles}",
+      "newGroupPlaceholder": "Group identifier, e.g. ipam-ops or cn=ipam-ops,ou=groups,dc=corp,dc=local",
+      "newRolePlaceholder": "Role",
+      "add": "Add mapping",
+      "remove": "Remove",
+      "empty": "No mappings yet; directory accounts use the default role",
+      "colGroup": "Directory group",
+      "colRole": "Platform role",
+      "colOp": "Actions"
+    },
+    "test": {
+      "title": "Connectivity test",
+      "hint": "Performs a real bind with the given directory account without creating an account",
+      "username": "Test account",
+      "password": "Test password",
+      "before": "Save the connection settings before testing",
+      "submit": "Test sign-in",
+      "mappedRoles": "Mapped roles:",
+      "groups": "Groups:"
+    },
+    "msg": {
+      "loadFailed": "Failed to load directory settings",
+      "required": "Server address and Base DN are required when directory service is enabled",
+      "saved": "Directory service settings saved",
+      "saveFailed": "Failed to save",
+      "testRequired": "Please enter the test account and password",
+      "testOk": "Directory authentication succeeded",
+      "testFailed": "Directory authentication failed"
+    }
+  },
+  "license": {
+    "page": {
+      "title": "License management",
+      "desc": "Offline license file management with Ed25519 signature verification; once activated it shows edition, capabilities, expiry and active terminal metering. Exceeding the limit only warns."
+    },
+    "actions": {
+      "refresh": "Refresh",
+      "remove": "Remove license",
+      "activate": "Activate"
+    },
+    "edition": {
+      "community": "Community",
+      "enterprise": "Enterprise",
+      "lite": "Lite",
+      "standard": "Standard"
+    },
+    "value": {
+      "permanent": "Perpetual",
+      "unlimited": "Unlimited",
+      "expired": "Expired",
+      "inactive": "Not activated",
+      "valid": "Valid",
+      "unauthorized": "Not licensed"
+    },
+    "stat": {
+      "edition": "Current edition",
+      "editionHintOn": "Activated",
+      "editionHintOff": "Not activated · Community",
+      "status": "License status",
+      "statusHint": "Activate a license to use commercial capabilities",
+      "expiry": "Expiry",
+      "terminals": "Terminal metering",
+      "terminalsHint": "Active terminals (24h) / license limit",
+      "terminalsUnlimited": "No terminal limit",
+      "terminalsOver": "Over the limit by {n} (warning only, no interruption)",
+      "terminalsCount": "{used} / {total}",
+      "terminalsUsed": "{n}",
+      "days": "{n} days"
+    },
+    "card": {
+      "infoTitle": "License information",
+      "overLimit": "Terminal limit exceeded",
+      "activated": "Activated",
+      "community": "Community",
+      "issuedTo": "Licensed to",
+      "licenseId": "License ID",
+      "features": "Licensed capabilities",
+      "activeTerminals": "Active terminals (last 24h)",
+      "limit": "/ limit {n}",
+      "filePath": "License file path",
+      "inactive": "Not activated"
+    },
+    "activate": {
+      "title": "Activate license",
+      "hint": "Requires IPAM_LICENSE_PUBKEY on the server",
+      "label": "License file contents (JSON)",
+      "hintText": "Activation verifies the signature and validity first; a failure leaves the current license untouched. It takes effect as soon as the file is written.",
+      "footerHint": "Obtain licenses through official channels in production; the private key is held by the licensor"
+    },
+    "confirm": {
+      "removeTitle": "Remove the license?",
+      "removeDesc": "The product returns to the community edition and licensed capabilities may stop working immediately.",
+      "removeOk": "Remove",
+      "cancel": "Cancel"
+    },
+    "msg": {
+      "loadFailed": "Failed to load license status",
+      "pasteRequired": "Please paste the license file contents",
+      "activated": "License activated",
+      "activateFailed": "Failed to activate license",
+      "removed": "License removed; now running the community edition",
+      "removeFailed": "Failed to remove license"
+    }
+  },
+  "runtime": {
+    "page": {
+      "title": "Service and runtime",
+      "desc": "Control plane port, version, dependency readiness and restart. Log retention and archiving are maintained in Log center → Storage and archiving."
+    },
+    "actions": {
+      "logStorage": "Log storage and archiving",
+      "metrics": "Metrics",
+      "refresh": "Refresh"
+    },
+    "mode": {
+      "prod": "Production",
+      "dev": "Development"
+    },
+    "stat": {
+      "port": "Service port",
+      "portHint": "Restart the control plane for changes to take effect",
+      "version": "Control plane version",
+      "versionWait": "Waiting for control plane information…",
+      "ready": "Dependencies ready",
+      "ok": "Healthy",
+      "bad": "Error",
+      "readyHintOn": "Key dependencies such as PostgreSQL are reachable",
+      "readyHintOff": "Check the dependency services and logs",
+      "uptime": "Uptime",
+      "uptimeHint": "Sampled at {time}",
+      "uptimeUnavailable": "Host metrics unavailable"
+    },
+    "uptime": {
+      "days": "{d}d {h}h",
+      "hours": "{h}h {m}m",
+      "minutes": "{m} min"
+    },
+    "params": {
+      "title": "Runtime parameters",
+      "port": "Service port",
+      "portHint": "For container deployments, update IPAM_PORT in `.env` and recreate the container",
+      "version": "Control plane version",
+      "serverTime": "Server time",
+      "ready": "Dependencies ready",
+      "readyOk": "Healthy",
+      "readyBad": "Error / not connected",
+      "hint": "Port changes require a control plane restart; other runtime parameters are maintained on their own pages",
+      "savePort": "Save port"
+    },
+    "danger": {
+      "title": "Restart the control plane service",
+      "desc": "The admin UI and API are briefly unavailable during the restart (about 5–15 seconds); the DHCP/DNS data plane is unaffected. Port and other configuration changes take effect after the restart.",
+      "confirmTitle": "Restart the service?",
+      "confirmDesc": "The page will be briefly unavailable after the restart; port/setting changes take effect then.",
+      "confirmOk": "Restart",
+      "cancel": "Cancel",
+      "restart": "Restart service"
+    },
+    "host": {
+      "title": "Host resources",
+      "hint": "From /system/metrics",
+      "memory": "Memory",
+      "load1": "1-minute load",
+      "uptime": "Uptime",
+      "cores": "{n} cores",
+      "emptyTitle": "Host resources unavailable",
+      "emptyDesc": "The control plane has not mounted the host /proc or metric collection is not wired up."
+    },
+    "msg": {
+      "portRange": "The port must be between 1 and 65535",
+      "portSaved": "Service port saved; restart the control plane to apply",
+      "saveFailed": "Failed to save",
+      "restarted": "Restart initiated; the page will be briefly unavailable, please refresh shortly",
+      "restartFailed": "Restart request failed"
+    }
+  },
+  "security": {
+    "page": {
+      "title": "Account security",
+      "desc": "Manage password policy, forced password change on first sign-in and login protection centrally; accounts and roles are maintained in Account management and Role management."
+    },
+    "actions": {
+      "refresh": "Refresh",
+      "save": "Save policy"
+    },
+    "stat": {
+      "force": "Force password change",
+      "on": "On",
+      "off": "Off",
+      "forceHintOn": "New or reset accounts must change their password at first sign-in",
+      "forceHintOff": "Convenient for debugging; enable it before delivery",
+      "minLength": "Minimum password length",
+      "digitUnit": "chars",
+      "minLengthHint": "At most 128 characters; no whitespace",
+      "classes": "Character classes",
+      "classesHint": "Lowercase / uppercase / digits / symbols",
+      "protection": "Login protection",
+      "protectionHint": "Rate limited per client IP; old sessions expire immediately after a password change",
+      "protectionValue": "5 / min"
+    },
+    "card": {
+      "switchTitle": "Force password change after first sign-in / password reset",
+      "enabled": "Enabled",
+      "disabled": "Off",
+      "switchLabel": "Policy switch",
+      "onDesc": "After a new account is created or an administrator resets its password, the user must change it at first sign-in",
+      "offDesc": "No forced change; suited to debugging, accounts still record the “password change required” state",
+      "hint": "When enabled it only affects accounts created or passwords reset afterwards and does not kick existing sessions; disabling it does not clear existing “password change required” flags, it only stops blocking at sign-in.",
+      "footerHint": "Enable it before delivery; it can be turned off while debugging"
+    },
+    "fixed": {
+      "title": "Fixed password policy",
+      "hint": "Verified centrally by the backend and shared by creation/reset/self-service change",
+      "length": "Length",
+      "lengthValue": "10 – 128 characters",
+      "complexity": "Complexity",
+      "complexityValue": "At least 3 character classes",
+      "banned": "Disallowed content",
+      "bannedValue": "Username, whitespace, common weak passwords",
+      "afterChange": "After a password change",
+      "afterChangeValue": "Sessions on other devices expire immediately"
+    },
+    "msg": {
+      "loadFailed": "Failed to load account policy",
+      "enabled": "Enabled: new accounts and reset passwords must change at first sign-in",
+      "disabled": "Disabled: password change is no longer forced at first sign-in (convenient for debugging)",
+      "saveFailed": "Failed to save"
+    }
+  },
+  "branding": {
+    "page": {
+      "title": "Site branding",
+      "desc": "Configure the site name and icon shown in the browser tab and sidebar header; changes apply immediately after saving without a restart."
+    },
+    "actions": {
+      "refresh": "Refresh",
+      "save": "Save and apply"
+    },
+    "stat": {
+      "name": "Site name",
+      "unset": "Not set",
+      "nameHint": "Shown in the browser tab, sidebar and sign-in page",
+      "icon": "Site icon",
+      "configured": "Configured",
+      "defaultIcon": "Default icon",
+      "iconHint": "1:1 crop, png / jpg / jpeg, ≤2MB",
+      "apply": "Applied via",
+      "applyValue": "Immediately",
+      "applyHint": "Refresh the page after saving to see the branding change",
+      "port": "Service port",
+      "portHint": "The port is changed in Service and runtime"
+    },
+    "card": {
+      "title": "Branding configuration",
+      "hint": "The icon and name are used in both the browser tab and the sidebar header",
+      "siteName": "Site name",
+      "siteNamePlaceholder": "e.g. IPAM management platform",
+      "iconLabel": "Site icon (browser tab + sidebar logo, 1:1 crop)",
+      "uploadHint": "Supports png / jpg / jpeg, ≤2MB, saved after a 1:1 crop",
+      "clear": "Clear icon",
+      "previewHint": "Live branding preview"
+    },
+    "preview": {
+      "overview": "Overview",
+      "dhcp": "DHCP service",
+      "dns": "DNS service",
+      "logs": "Log center"
+    },
+    "defaultSiteName": "IPAM management platform",
+    "footerHint": "Applied immediately after saving; to roll back, upload the old icon again or clear the icon",
+    "msg": {
+      "readImageFailed": "Failed to read the image",
+      "nameRequired": "Site name is required",
+      "saved": "Site branding saved and applied",
+      "saveFailed": "Failed to save"
+    }
+  }
+}

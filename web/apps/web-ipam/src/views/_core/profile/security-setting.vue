@@ -27,6 +27,7 @@ import {
   revokeSession,
   type SessionRow,
 } from '#/api/ipam';
+import { $t } from '#/locales';
 import { useAuthStore } from '#/store';
 
 const userStore = useUserStore();
@@ -69,7 +70,7 @@ function openRecovery() {
 
 async function regenerateRecovery() {
   if (!recovery.password && !recovery.totpCode) {
-    message.warning('请输入当前口令或 6 位动态口令');
+    message.warning($t('core.profile.security.needPasswordOrCode'));
     return;
   }
   loading.value = true;
@@ -80,9 +81,11 @@ async function regenerateRecovery() {
     });
     recovery.codes = r.codes ?? [];
     recovery.remaining = r.remaining ?? recovery.codes.length;
-    message.success('已生成新的恢复码，旧恢复码立即失效');
+    message.success($t('core.profile.security.codeGenerated'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '生成失败');
+    message.error(
+      error instanceof Error ? error.message : $t('core.profile.security.generateFail'),
+    );
   } finally {
     loading.value = false;
   }
@@ -91,16 +94,19 @@ async function regenerateRecovery() {
 async function copyCodes() {
   try {
     await navigator.clipboard.writeText(recovery.codes.join('\n'));
-    message.success('恢复码已复制');
+    message.success($t('core.profile.security.copied'));
   } catch {
-    message.warning('复制失败，请手动选择文本复制');
+    message.warning($t('core.profile.security.copyFail'));
   }
 }
 
 function downloadCodes() {
   const blob = new Blob(
     [
-      `IPAM 恢复码（${userStore.userInfo?.username ?? ''}）\n生成时间：${new Date().toLocaleString()}\n每个恢复码仅可使用一次，请离线保存。\n\n${recovery.codes.join('\n')}\n`,
+      `${$t('core.profile.security.downloadHeader', {
+        user: userStore.userInfo?.username ?? '',
+        time: new Date().toLocaleString(),
+      })}${recovery.codes.join('\n')}\n`,
     ],
     { type: 'text/plain;charset=utf-8' },
   );
@@ -118,9 +124,11 @@ async function generate() {
   loading.value = true;
   try {
     setup.value = await setupTotpApi();
-    message.success('已生成密钥，请用认证器扫描/录入后输入动态口令确认');
+    message.success($t('core.profile.security.totpEnabledMsg'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '生成失败');
+    message.error(
+      error instanceof Error ? error.message : $t('core.profile.security.generateFail'),
+    );
   } finally {
     loading.value = false;
   }
@@ -128,7 +136,7 @@ async function generate() {
 
 async function enable() {
   if (!/^\d{6}$/.test(code.value.trim())) {
-    message.warning('请输入 6 位动态口令');
+    message.warning($t('core.profile.security.needCode'));
     return;
   }
   loading.value = true;
@@ -139,9 +147,11 @@ async function enable() {
     }
     setup.value = null;
     code.value = '';
-    message.success('双因素认证已启用');
+    message.success($t('core.profile.security.totpOn'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '启用失败');
+    message.error(
+      error instanceof Error ? error.message : $t('core.profile.security.enableFail'),
+    );
   } finally {
     loading.value = false;
   }
@@ -149,7 +159,7 @@ async function enable() {
 
 async function disable() {
   if (!password.value) {
-    message.warning('请输入当前口令');
+    message.warning($t('core.profile.security.needCurrentPassword'));
     return;
   }
   loading.value = true;
@@ -159,9 +169,11 @@ async function disable() {
       userStore.setUserInfo({ ...userStore.userInfo, totpEnabled: false });
     }
     password.value = '';
-    message.success('双因素认证已关闭');
+    message.success($t('core.profile.security.totpOff'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '关闭失败');
+    message.error(
+      error instanceof Error ? error.message : $t('core.profile.security.disableFail'),
+    );
   } finally {
     loading.value = false;
   }
@@ -170,10 +182,12 @@ async function disable() {
 async function logoutAll() {
   try {
     await logoutAllApi();
-    message.success('已注销全部会话，请重新登录');
+    message.success($t('core.profile.security.logoutAllMsg'));
     await authStore.logout();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '操作失败');
+    message.error(
+      error instanceof Error ? error.message : $t('core.profile.security.opFail'),
+    );
   }
 }
 
@@ -187,7 +201,9 @@ async function loadSessions() {
     const res = await listSessions();
     sessions.value = res.items ?? [];
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '会话列表加载失败');
+    message.error(
+      error instanceof Error ? error.message : $t('core.profile.security.sessionLoadFail'),
+    );
   } finally {
     sessionsLoading.value = false;
   }
@@ -195,8 +211,8 @@ async function loadSessions() {
 
 /** 从 User-Agent 提取可读设备名（未知时回退原始前缀）。 */
 function deviceLabel(ua: string): string {
-  if (!ua) return '未知客户端';
-  let browser = '浏览器';
+  if (!ua) return $t('core.profile.security.unknownClient');
+  let browser = $t('core.profile.security.browser');
   if (/Edg\//.test(ua)) browser = 'Edge';
   else if (/Chrome\//.test(ua)) browser = 'Chrome';
   else if (/Firefox\//.test(ua)) browser = 'Firefox';
@@ -220,14 +236,16 @@ async function kickSession(row: SessionRow) {
   try {
     await revokeSession(row.id);
     if (row.current) {
-      message.success('当前会话已注销，请重新登录');
+      message.success($t('core.profile.security.kickCurrentOk'));
       await authStore.logout();
       return;
     }
-    message.success('会话已强制下线');
+    message.success($t('core.profile.security.kickOk'));
     await loadSessions();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '下线失败');
+    message.error(
+      error instanceof Error ? error.message : $t('core.profile.security.kickFail'),
+    );
   }
 }
 
@@ -239,27 +257,29 @@ onMounted(() => void loadSessions());
     <Card>
       <template #title>
         <span class="ipam-card-title">
-          <span>双因素认证（TOTP）</span>
+          <span>{{ $t('core.profile.security.totpTitle') }}</span>
           <Tag class="m-0" :color="enabled ? 'green' : 'default'">
-            {{ enabled ? '已启用' : '未启用' }}
+            {{ enabled
+              ? $t('core.profile.security.enabled')
+              : $t('core.profile.security.disabled') }}
           </Tag>
         </span>
       </template>
       <template #extra>
-        <span class="ipam-hint">兼容 Google Authenticator / Microsoft Authenticator / 1Password</span>
+        <span class="ipam-hint">{{ $t('core.profile.security.compat') }}</span>
       </template>
 
       <Alert
         v-if="enabled"
         class="mb-3"
-        message="登录时需要输入认证器生成的 6 位动态口令；关闭前需验证当前口令。"
+        :message="$t('core.profile.security.alertEnabled')"
         show-icon
         type="success"
       />
       <Alert
         v-else
         class="mb-3"
-        message="启用后登录需输入动态口令，可显著降低口令泄露风险。密钥仅展示一次，请妥善保存。"
+        :message="$t('core.profile.security.alertDisabled')"
         show-icon
         type="info"
       />
@@ -267,33 +287,35 @@ onMounted(() => void loadSessions());
       <template v-if="!enabled">
         <div v-if="!setup" class="flex items-center gap-3">
           <Button type="primary" :loading="loading" @click="generate">
-            生成 TOTP 密钥
+            {{ $t('core.profile.security.generate') }}
           </Button>
         </div>
         <div v-else class="ipam-form-grid">
           <div class="ipam-form-field ipam-form-field--wide">
-            <span class="ipam-form-field__label">密钥（手动录入认证器）</span>
+            <span class="ipam-form-field__label">{{ $t('core.profile.security.secretLabel') }}</span>
             <Input :value="setup.secret" readonly class="ipam-mono" />
           </div>
           <div class="ipam-form-field ipam-form-field--wide">
-            <span class="ipam-form-field__label">otpauth URI</span>
+            <span class="ipam-form-field__label">{{ $t('core.profile.security.otpauthLabel') }}</span>
             <Input :value="setup.otpauthUrl" readonly class="ipam-mono" />
           </div>
           <div class="ipam-form-field">
-            <span class="ipam-form-field__label">动态口令（6 位）</span>
+            <span class="ipam-form-field__label">{{ $t('core.profile.security.totpLabel') }}</span>
             <Input
               v-model:value="code"
               :maxlength="6"
-              placeholder="输入认证器当前口令"
+              :placeholder="$t('core.profile.security.totpPlaceholder')"
               @press-enter="enable"
             />
           </div>
           <div class="ipam-form-field ipam-form-field--wide">
             <div class="flex gap-2">
               <Button type="primary" :loading="loading" @click="enable">
-                确认启用
+                {{ $t('core.profile.security.confirmEnable') }}
               </Button>
-              <Button @click="setup = null">取消</Button>
+              <Button @click="setup = null">
+                {{ $t('core.profile.security.cancel') }}
+              </Button>
             </div>
           </div>
         </div>
@@ -301,14 +323,18 @@ onMounted(() => void loadSessions());
 
       <div v-else class="ipam-form-grid">
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">当前口令（关闭时验证）</span>
+          <span class="ipam-form-field__label">
+            {{ $t('core.profile.security.currentLabel') }}
+          </span>
           <Input.Password
             v-model:value="password"
-            placeholder="输入当前登录口令"
+            :placeholder="$t('core.profile.security.currentPlaceholder')"
           />
         </div>
         <div class="ipam-form-field ipam-form-field--wide">
-          <Button danger :loading="loading" @click="disable">关闭双因素认证</Button>
+          <Button danger :loading="loading" @click="disable">
+            {{ $t('core.profile.security.disable') }}
+          </Button>
         </div>
       </div>
     </Card>
@@ -316,22 +342,25 @@ onMounted(() => void loadSessions());
     <Card v-if="enabled">
       <template #title>
         <span class="ipam-card-title">
-          恢复码
+          {{ $t('core.profile.security.recoveryTitle') }}
           <Tag class="m-0" :color="recovery.remaining > 0 ? 'blue' : 'orange'">
-            剩余 {{ recovery.remaining }} 个
+            {{ $t('core.profile.security.remaining', { n: recovery.remaining }) }}
           </Tag>
         </span>
       </template>
       <template #extra>
-        <span class="ipam-hint">认证器丢失时用于登录，每个仅可使用一次</span>
+        <span class="ipam-hint">{{ $t('core.profile.security.recoveryHint') }}</span>
       </template>
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="ipam-hint max-w-xl">
-          恢复码可替代 6 位动态口令登录。生成后旧码立即失效，明文仅展示一次；
-          请打印或保存到离线位置，不要放在共享目录。
+          {{ $t('core.profile.security.recoveryDesc') }}
         </div>
         <Button :loading="loading" @click="openRecovery">
-          {{ recovery.remaining > 0 ? '重新生成恢复码' : '生成恢复码' }}
+          {{
+            recovery.remaining > 0
+              ? $t('core.profile.security.regen')
+              : $t('core.profile.security.genRecovery')
+          }}
         </Button>
       </div>
     </Card>
@@ -339,19 +368,23 @@ onMounted(() => void loadSessions());
     <Card>
       <template #title>
         <span class="ipam-card-title">
-          登录会话
+          {{ $t('core.profile.security.sessionTitle') }}
           <Tag class="m-0" :color="sessions.length > 1 ? 'blue' : 'default'">
-            {{ sessions.length }} 个
+            {{ $t('core.profile.security.sessionCount', { n: sessions.length }) }}
           </Tag>
         </span>
       </template>
       <template #extra>
         <Button size="small" :loading="sessionsLoading" @click="loadSessions">
-          刷新
+          {{ $t('core.profile.security.refresh') }}
         </Button>
       </template>
       <div v-if="sessions.length === 0" class="ipam-hint">
-        {{ sessionsLoading ? '加载中…' : '暂无活跃会话' }}
+        {{
+          sessionsLoading
+            ? $t('core.profile.security.loading')
+            : $t('core.profile.security.noSessions')
+        }}
       </div>
       <div v-else class="flex flex-col gap-2">
         <div
@@ -362,21 +395,34 @@ onMounted(() => void loadSessions());
           <div class="min-w-0">
             <div class="flex items-center gap-2">
               <span class="font-medium">{{ deviceLabel(s.userAgent) }}</span>
-              <Tag v-if="s.current" class="m-0" color="green">当前会话</Tag>
+              <Tag v-if="s.current" class="m-0" color="green">
+                {{ $t('core.profile.security.currentSession') }}
+              </Tag>
             </div>
             <div class="ipam-hint break-all">
-              {{ s.ip || '未知 IP' }} · 登录 {{ fmtTime(s.createdAt) }} · 最近活动
-              {{ fmtTime(s.lastSeenAt) }}
+              {{
+                $t('core.profile.security.sessionMeta', {
+                  ip: s.ip || $t('core.profile.security.unknownIp'),
+                  login: fmtTime(s.createdAt),
+                  seen: fmtTime(s.lastSeenAt),
+                })
+              }}
             </div>
           </div>
           <Popconfirm
-            :title="s.current ? '确认注销当前会话？' : '确认强制下线该会话？'"
-            description="该设备上的访问/刷新令牌将立即失效，需要重新登录。"
-            ok-text="下线"
-            cancel-text="取消"
+            :title="
+              s.current
+                ? $t('core.profile.security.kickCurrentTitle')
+                : $t('core.profile.security.kickTitle')
+            "
+            :description="$t('core.profile.security.kickDesc')"
+            :ok-text="$t('core.profile.security.kick')"
+            :cancel-text="$t('core.profile.security.cancel')"
             @confirm="kickSession(s)"
           >
-            <Button danger size="small">下线</Button>
+            <Button danger size="small">
+              {{ $t('core.profile.security.kick') }}
+            </Button>
           </Popconfirm>
         </div>
       </div>
@@ -384,24 +430,25 @@ onMounted(() => void loadSessions());
 
     <Card>
       <template #title>
-        <span class="ipam-card-title">会话安全</span>
+        <span class="ipam-card-title">
+          {{ $t('core.profile.security.securityTitle') }}
+        </span>
       </template>
       <template #extra>
-        <span class="ipam-hint">注销后所有设备需重新登录</span>
+        <span class="ipam-hint">{{ $t('core.profile.security.securityHint') }}</span>
       </template>
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="ipam-hint max-w-xl">
-          退出全部会话会提升当前账号的令牌版本，所有设备上的访问/刷新令牌立即失效；
-          当前页面也会回到登录页。
+          {{ $t('core.profile.security.securityDesc') }}
         </div>
         <Popconfirm
-          title="确认注销全部会话？"
-          description="所有设备将立即退出登录，需要重新认证。"
-          ok-text="注销"
-          cancel-text="取消"
+          :title="$t('core.profile.security.logoutAllTitle')"
+          :description="$t('core.profile.security.logoutAllDesc')"
+          :ok-text="$t('core.profile.security.logoutAllOk')"
+          :cancel-text="$t('core.profile.security.cancel')"
           @confirm="logoutAll"
         >
-          <Button danger>注销全部会话</Button>
+          <Button danger>{{ $t('core.profile.security.logoutAll') }}</Button>
         </Popconfirm>
       </div>
     </Card>
@@ -409,44 +456,50 @@ onMounted(() => void loadSessions());
     <Modal
       v-model:open="recovery.open"
       :footer="null"
-      :title="recovery.codes.length > 0 ? '恢复码（仅展示一次）' : '生成恢复码'"
+      :title="
+        recovery.codes.length > 0
+          ? $t('core.profile.security.recoveryShowTitle')
+          : $t('core.profile.security.recoveryGenTitle')
+      "
       :width="560"
     >
       <template v-if="recovery.codes.length === 0">
         <Alert
           class="mb-3"
-          message="生成后，现有恢复码会立即失效"
+          :message="$t('core.profile.security.regenWarn')"
           show-icon
           type="warning"
         />
         <div class="ipam-form-grid">
           <div class="ipam-form-field">
-            <span class="ipam-form-field__label">当前口令</span>
+            <span class="ipam-form-field__label">{{ $t('core.profile.security.recoveryPwdLabel') }}</span>
             <Input.Password
               v-model:value="recovery.password"
-              placeholder="本地账号口令"
+              :placeholder="$t('core.profile.security.recoveryPwdPlaceholder')"
             />
           </div>
           <div class="ipam-form-field">
-            <span class="ipam-form-field__label">或动态口令</span>
+            <span class="ipam-form-field__label">{{ $t('core.profile.security.recoveryTotpLabel') }}</span>
             <Input
               v-model:value="recovery.totpCode"
               :maxlength="6"
-              placeholder="认证器 6 位口令"
+              :placeholder="$t('core.profile.security.recoveryTotpPlaceholder')"
             />
           </div>
         </div>
         <div class="mt-4 flex justify-end gap-2">
-          <Button @click="recovery.open = false">取消</Button>
+          <Button @click="recovery.open = false">
+            {{ $t('core.profile.security.cancel') }}
+          </Button>
           <Button type="primary" :loading="loading" @click="regenerateRecovery">
-            生成
+            {{ $t('core.profile.security.generateBtn') }}
           </Button>
         </div>
       </template>
       <template v-else>
         <Alert
           class="mb-3"
-          message="请立即保存：关闭后将无法再次查看这些恢复码"
+          :message="$t('core.profile.security.saveWarn')"
           show-icon
           type="warning"
         />
@@ -456,10 +509,10 @@ onMounted(() => void loadSessions());
           </span>
         </div>
         <div class="mt-4 flex justify-end gap-2">
-          <Button @click="copyCodes">复制全部</Button>
-          <Button @click="downloadCodes">下载 TXT</Button>
+          <Button @click="copyCodes">{{ $t('core.profile.security.copyAll') }}</Button>
+          <Button @click="downloadCodes">{{ $t('core.profile.security.downloadTxt') }}</Button>
           <Button type="primary" @click="recovery.open = false">
-            我已保存
+            {{ $t('core.profile.security.saved') }}
           </Button>
         </div>
       </template>

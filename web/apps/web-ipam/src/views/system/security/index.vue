@@ -8,6 +8,7 @@ import { Button, Card, message, Switch, Tag } from 'ant-design-vue';
 import { getSecuritySettings, updateSecuritySettings } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import { $t } from '#/locales';
 
 defineOptions({ name: 'SystemSecurity' });
 
@@ -21,7 +22,9 @@ async function load() {
     const s = await getSecuritySettings();
     security.forcePasswordChange = Boolean(s.forcePasswordChange);
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '账号策略加载失败');
+    message.error(
+      error instanceof Error ? error.message : $t('system.security.msg.loadFailed'),
+    );
   } finally {
     loading.value = false;
   }
@@ -34,11 +37,13 @@ async function save() {
     security.forcePasswordChange = Boolean(saved.forcePasswordChange);
     message.success(
       saved.forcePasswordChange
-        ? '已开启：新建账号与重置口令后首次登录须改密'
-        : '已关闭：首次登录不再强制改密（便于调试）',
+        ? $t('system.security.msg.enabled')
+        : $t('system.security.msg.disabled'),
     );
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '保存失败');
+    message.error(
+      error instanceof Error ? error.message : $t('system.security.msg.saveFailed'),
+    );
   } finally {
     saving.value = false;
   }
@@ -52,55 +57,69 @@ onMounted(load);
     <PageHeader
       eyebrow="System"
       icon="lucide:key-round"
-      title="账号安全"
-      description="集中管理口令策略、首次登录强制改密与登录保护；账号与角色在「账号管理」「角色管理」维护。"
+      :title="$t('system.security.page.title')"
+      :description="$t('system.security.page.desc')"
     >
       <template #actions>
         <Button size="small" :loading="loading" @click="load">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />刷新
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{
+            $t('system.security.actions.refresh')
+          }}
         </Button>
         <Button type="primary" size="small" :loading="saving" @click="save">
-          <IconifyIcon icon="lucide:save" class="mr-1 size-3.5" />保存策略
+          <IconifyIcon icon="lucide:save" class="mr-1 size-3.5" />{{
+            $t('system.security.actions.save')
+          }}
         </Button>
       </template>
     </PageHeader>
 
     <div class="ipam-stat-grid">
       <StatCard
-        label="强制首次改密"
-        :value="security.forcePasswordChange ? '已开启' : '已关闭'"
+        :label="$t('system.security.stat.force')"
+        :value="
+          security.forcePasswordChange
+            ? $t('system.security.stat.on')
+            : $t('system.security.stat.off')
+        "
         icon="lucide:shield-check"
         :tone="security.forcePasswordChange ? 'green' : 'violet'"
-        :hint="security.forcePasswordChange ? '新建/重置账号首次登录须改密' : '便于调试；对外交付前建议开启'"
+        :hint="
+          security.forcePasswordChange
+            ? $t('system.security.stat.forceHintOn')
+            : $t('system.security.stat.forceHintOff')
+        "
       />
       <StatCard
-        label="口令最小长度"
+        :label="$t('system.security.stat.minLength')"
         value="10"
-        unit="位"
+        :unit="$t('system.security.stat.digitUnit')"
         icon="lucide:ruler"
         tone="blue"
-        hint="最大 128 位；不含空白字符"
+        :hint="$t('system.security.stat.minLengthHint')"
       />
       <StatCard
-        label="字符类别"
+        :label="$t('system.security.stat.classes')"
         value="3 / 4"
         icon="lucide:case-sensitive"
         tone="cyan"
-        hint="小写 / 大写 / 数字 / 符号"
+        :hint="$t('system.security.stat.classesHint')"
       />
       <StatCard
-        label="登录保护"
-        value="5 次/分"
+        :label="$t('system.security.stat.protection')"
+        :value="$t('system.security.stat.protectionValue')"
         icon="lucide:gauge"
         tone="amber"
-        hint="按客户端 IP 限流；改密后旧会话立即失效"
+        :hint="$t('system.security.stat.protectionHint')"
       />
     </div>
 
     <Card>
       <template #title>
         <span class="ipam-card-title">
-          <IconifyIcon icon="lucide:shield-check" />首次登录 / 重置口令后强制改密
+          <IconifyIcon icon="lucide:shield-check" />{{
+            $t('system.security.card.switchTitle')
+          }}
         </span>
       </template>
       <template #extra>
@@ -108,13 +127,19 @@ onMounted(load);
           class="m-0"
           :color="security.forcePasswordChange ? 'green' : 'default'"
         >
-          {{ security.forcePasswordChange ? '已启用' : '已关闭' }}
+          {{
+            security.forcePasswordChange
+              ? $t('system.security.card.enabled')
+              : $t('system.security.card.disabled')
+          }}
         </Tag>
       </template>
 
       <div class="ipam-form-grid">
         <div class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">策略开关</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.security.card.switchLabel')
+          }}</span>
           <div class="flex items-center gap-3">
             <Switch
               v-model:checked="security.forcePasswordChange"
@@ -123,23 +148,24 @@ onMounted(load);
             <span class="ipam-hint">
               {{
                 security.forcePasswordChange
-                  ? '新建账号、管理员重置口令后，用户首次登录必须改密'
-                  : '不强制改密；适合调试期，账号仍会记录“需改密”状态'
+                  ? $t('system.security.card.onDesc')
+                  : $t('system.security.card.offDesc')
               }}
             </span>
           </div>
         </div>
         <div class="ipam-form-hint ipam-form-field--wide">
-          开启后仅对之后的新建账号与重置口令生效，不会主动踢出已有会话；
-          关闭不会清除已有“需改密”标记，只是登录时不再拦截。
+          {{ $t('system.security.card.hint') }}
         </div>
       </div>
 
       <div class="ipam-toolbar ipam-toolbar--plain mt-3">
-        <span class="ipam-hint">对外交付前建议开启；调试期可关闭</span>
+        <span class="ipam-hint">{{ $t('system.security.card.footerHint') }}</span>
         <span class="ipam-toolbar__spacer"></span>
         <Button type="primary" :loading="saving" @click="save">
-          <IconifyIcon icon="lucide:save" class="mr-1 size-3.5" />保存策略
+          <IconifyIcon icon="lucide:save" class="mr-1 size-3.5" />{{
+            $t('system.security.actions.save')
+          }}
         </Button>
       </div>
     </Card>
@@ -147,28 +173,46 @@ onMounted(load);
     <Card>
       <template #title>
         <span class="ipam-card-title">
-          <IconifyIcon icon="lucide:list-checks" />固定口令策略
+          <IconifyIcon icon="lucide:list-checks" />{{
+            $t('system.security.fixed.title')
+          }}
         </span>
       </template>
       <template #extra>
-        <span class="ipam-hint">后端统一校验，创建/重置/自助改密共用</span>
+        <span class="ipam-hint">{{ $t('system.security.fixed.hint') }}</span>
       </template>
       <div class="ipam-form-grid">
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">长度</span>
-          <div class="ipam-service-value"><span class="ipam-mono">10 – 128 位</span></div>
+          <span class="ipam-form-field__label">{{
+            $t('system.security.fixed.length')
+          }}</span>
+          <div class="ipam-service-value">
+            <span class="ipam-mono">{{ $t('system.security.fixed.lengthValue') }}</span>
+          </div>
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">复杂度</span>
-          <div class="ipam-service-value"><span>至少 3 类字符</span></div>
+          <span class="ipam-form-field__label">{{
+            $t('system.security.fixed.complexity')
+          }}</span>
+          <div class="ipam-service-value">
+            <span>{{ $t('system.security.fixed.complexityValue') }}</span>
+          </div>
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">禁用内容</span>
-          <div class="ipam-service-value"><span>用户名、空白、常见弱口令</span></div>
+          <span class="ipam-form-field__label">{{
+            $t('system.security.fixed.banned')
+          }}</span>
+          <div class="ipam-service-value">
+            <span>{{ $t('system.security.fixed.bannedValue') }}</span>
+          </div>
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">修改口令后</span>
-          <div class="ipam-service-value"><span>其他设备会话立即失效</span></div>
+          <span class="ipam-form-field__label">{{
+            $t('system.security.fixed.afterChange')
+          }}</span>
+          <div class="ipam-service-value">
+            <span>{{ $t('system.security.fixed.afterChangeValue') }}</span>
+          </div>
         </div>
       </div>
     </Card>

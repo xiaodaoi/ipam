@@ -23,6 +23,7 @@ import {
 } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import { $t } from '#/locales';
 
 defineOptions({ name: 'LogExport' });
 
@@ -57,22 +58,52 @@ function applyStatus(s: LogExportSettings) {
 }
 
 const samplingLabel = computed(() => {
-  if (form.samplingMode === 'all') return '全量';
-  if (form.samplingMode === 'errors') return '仅异常';
-  return `1/${form.sampleRate}`;
+  if (form.samplingMode === 'all') return $t('logs.export.sampling.all');
+  if (form.samplingMode === 'errors') return $t('logs.export.sampling.errors');
+  return $t('logs.export.sampling.sample', { n: form.sampleRate });
 });
 const effectiveLabel = computed(() => {
   if (!auto.degraded) return samplingLabel.value;
   const mode = auto.effectiveSamplingMode;
-  if (mode === 'errors') return '仅异常（自动降级）';
-  if (mode === 'sample') return `1/${form.sampleRate}（自动降级）`;
+  if (mode === 'errors') return $t('logs.export.sampling.errorsDegraded');
+  if (mode === 'sample') {
+    return $t('logs.export.sampling.sampleDegraded', { n: form.sampleRate });
+  }
   return samplingLabel.value;
 });
+const samplingOptions = computed(() => [
+  { value: 'all', label: $t('logs.export.samplingCard.modeAll') },
+  { value: 'sample', label: $t('logs.export.samplingCard.modeSample') },
+  { value: 'errors', label: $t('logs.export.samplingCard.modeErrors') },
+]);
 const diskTone = computed(() => {
   const p = diskPct.value ?? 0;
   if (p >= 90) return 'red';
   if (p >= 80) return 'amber';
   return 'green';
+});
+const diskNote = computed(() => {
+  const pctText =
+    diskPct.value === undefined
+      ? $t('logs.export.diskNote.unknown')
+      : `${diskPct.value.toFixed(1)}%`;
+  const head = $t('logs.export.diskNote.usage', { pct: pctText });
+  if (auto.degraded) {
+    return (
+      head +
+      (auto.degradedAt
+        ? $t('logs.export.diskNote.degraded', {
+            policy: samplingLabel.value,
+            time: new Date(auto.degradedAt).toLocaleString(),
+          })
+        : $t('logs.export.diskNote.degradedNoTime', {
+            policy: samplingLabel.value,
+          }))
+    );
+  }
+  if ((diskPct.value ?? 0) >= 90) return head + $t('logs.export.diskNote.over90');
+  if ((diskPct.value ?? 0) >= 85) return head + $t('logs.export.diskNote.over85');
+  return head + $t('logs.export.diskNote.normal');
 });
 
 async function load() {
@@ -91,7 +122,9 @@ async function load() {
       diskPct.value = root ? Number(root.usedPct) : undefined;
     }
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '策略加载失败');
+    message.error(
+      error instanceof Error ? error.message : $t('logs.export.messages.loadFail'),
+    );
   } finally {
     loading.value = false;
   }
@@ -103,9 +136,11 @@ async function save() {
     const saved = await updateLogExportSettings({ ...form });
     Object.assign(form, saved);
     applyStatus(saved);
-    message.success('已保存，Vector 将自动重载配置');
+    message.success($t('logs.export.messages.saved'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '保存失败');
+    message.error(
+      error instanceof Error ? error.message : $t('logs.export.messages.saveFail'),
+    );
   } finally {
     saving.value = false;
   }
@@ -119,19 +154,19 @@ onMounted(load);
     <PageHeader
       eyebrow="Log Center"
       icon="lucide:send"
-      title="外发与采样"
-      description="将统一日志外发到 Syslog / Kafka / Webhook（SIEM），并按容量策略选择全量、抽样或仅异常。"
+      :title="$t('logs.export.title')"
+      :description="$t('logs.export.description')"
     >
       <template #actions>
         <span class="ipam-page-header__meta">
           <IconifyIcon icon="lucide:activity" class="size-3.5" />
-          磁盘 {{ diskPct === undefined ? '—' : `${diskPct.toFixed(1)}%` }}
+          {{ $t('logs.export.disk', { value: diskPct === undefined ? '—' : `${diskPct.toFixed(1)}%` }) }}
         </span>
         <Button size="small" :loading="loading" @click="load">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />刷新
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{ $t('logs.common.refresh') }}
         </Button>
         <Button type="primary" size="small" :loading="saving" @click="save">
-          <IconifyIcon icon="lucide:save" class="mr-1 size-3.5" />保存并应用
+          <IconifyIcon icon="lucide:save" class="mr-1 size-3.5" />{{ $t('logs.export.saveApply') }}
         </Button>
       </template>
     </PageHeader>
@@ -139,56 +174,47 @@ onMounted(load);
     <div class="ipam-stat-grid">
       <StatCard
         label="Syslog"
-        :value="form.syslogEnabled ? '已启用' : '未启用'"
+        :value="form.syslogEnabled ? $t('logs.export.kpi.enabled') : $t('logs.export.kpi.disabled')"
         icon="lucide:terminal"
         :tone="form.syslogEnabled ? 'green' : 'violet'"
-        :hint="form.syslogEnabled ? `${form.syslogAddress} · ${form.syslogMode}` : '标准 RFC5424 外发'"
+        :hint="form.syslogEnabled ? `${form.syslogAddress} · ${form.syslogMode}` : $t('logs.export.kpi.syslogHint')"
       />
       <StatCard
         label="Kafka"
-        :value="form.kafkaEnabled ? '已启用' : '未启用'"
+        :value="form.kafkaEnabled ? $t('logs.export.kpi.enabled') : $t('logs.export.kpi.disabled')"
         icon="lucide:git-branch"
         :tone="form.kafkaEnabled ? 'green' : 'violet'"
-        :hint="form.kafkaEnabled ? form.kafkaTopic : '面向 SIEM/数据平台'"
+        :hint="form.kafkaEnabled ? form.kafkaTopic : $t('logs.export.kpi.kafkaHint')"
       />
       <StatCard
         label="Webhook"
-        :value="form.webhookEnabled ? '已启用' : '未启用'"
+        :value="form.webhookEnabled ? $t('logs.export.kpi.enabled') : $t('logs.export.kpi.disabled')"
         icon="lucide:webhook"
         :tone="form.webhookEnabled ? 'green' : 'violet'"
-        :hint="form.webhookEnabled ? form.webhookUrl : 'JSON over HTTP'"
+        :hint="form.webhookEnabled ? form.webhookUrl : $t('logs.export.kpi.webhookHint')"
       />
       <StatCard
-        label="采样策略"
+        :label="$t('logs.export.kpi.sampling')"
         :value="effectiveLabel"
         icon="lucide:filter"
         :tone="auto.degraded ? 'amber' : 'cyan'"
-        :hint="auto.degraded ? `磁盘水位自动降级中（用户策略 ${samplingLabel}）` : form.samplingMode === 'sample' ? '按 1/N 抽样写入/外发' : form.samplingMode === 'errors' ? '仅非 INFO 日志' : '全量采集'"
+        :hint="auto.degraded ? $t('logs.export.kpi.degradedHint', { policy: samplingLabel }) : form.samplingMode === 'sample' ? $t('logs.export.kpi.samplingHint') : form.samplingMode === 'errors' ? $t('logs.export.kpi.errorsHint') : $t('logs.export.kpi.allHint')"
       />
     </div>
 
     <div class="ipam-note mb-4" :data-tone="diskTone">
       <IconifyIcon icon="lucide:hard-drive" class="mt-0.5 size-3.5 shrink-0" />
-      <span>
-        当前根分区使用率 {{ diskPct === undefined ? '未知' : `${diskPct.toFixed(1)}%` }}；
-        <template v-if="auto.degraded">
-          已连续超限，系统自动切换为「仅异常」采样以保护磁盘（用户策略 {{ samplingLabel }}）；
-          使用率降至 85% 以下并稳定后自动恢复<template v-if="auto.degradedAt">（本次开始：{{ new Date(auto.degradedAt).toLocaleString() }}）</template>。
-        </template>
-        <template v-else-if="(diskPct ?? 0) >= 90">已超过 90%，将在连续 3 次检查后自动切换为仅异常；也可立即手动切换并清理归档。</template>
-        <template v-else-if="(diskPct ?? 0) >= 85">超过 85%，请关注容量；持续高于 90% 将触发自动降级。</template>
-        <template v-else>容量正常，未触发自动降级。</template>
-      </span>
+      <span>{{ diskNote }}</span>
     </div>
 
     <Card>
       <template #title>
         <span class="ipam-card-title">
-          <IconifyIcon icon="lucide:send" />外发通道
+          <IconifyIcon icon="lucide:send" />{{ $t('logs.export.channels.title') }}
         </span>
       </template>
       <template #extra>
-        <span class="ipam-hint">保存后 Vector --watch-config 自动热加载</span>
+        <span class="ipam-hint">{{ $t('logs.export.channels.hint') }}</span>
       </template>
 
       <div class="ipam-channels">
@@ -200,18 +226,18 @@ onMounted(load);
             </span>
             <div class="ipam-channel__meta">
               <span class="ipam-channel__title">Syslog</span>
-              <span class="ipam-channel__desc">标准 RFC5424，面向 SIEM / 日志采集</span>
+              <span class="ipam-channel__desc">{{ $t('logs.export.channels.syslogDesc') }}</span>
             </div>
             <Switch v-model:checked="form.syslogEnabled" size="small" />
-            <span class="ipam-channel__state">{{ form.syslogEnabled ? '启用' : '关闭' }}</span>
+            <span class="ipam-channel__state">{{ form.syslogEnabled ? $t('logs.export.channels.on') : $t('logs.export.channels.off') }}</span>
           </header>
           <div class="ipam-form-grid ipam-channel__body">
             <div class="ipam-form-field">
-              <span class="ipam-form-field__label">地址</span>
+              <span class="ipam-form-field__label">{{ $t('logs.export.channels.address') }}</span>
               <Input v-model:value="form.syslogAddress" :disabled="!form.syslogEnabled" placeholder="siem.example.com:514" />
             </div>
             <div class="ipam-form-field">
-              <span class="ipam-form-field__label">协议</span>
+              <span class="ipam-form-field__label">{{ $t('logs.export.channels.protocol') }}</span>
               <Select
                 v-model:value="form.syslogMode"
                 :disabled="!form.syslogEnabled"
@@ -229,10 +255,10 @@ onMounted(load);
             </span>
             <div class="ipam-channel__meta">
               <span class="ipam-channel__title">Kafka</span>
-              <span class="ipam-channel__desc">面向 SIEM / 数据平台的高吞吐管道</span>
+              <span class="ipam-channel__desc">{{ $t('logs.export.channels.kafkaDesc') }}</span>
             </div>
             <Switch v-model:checked="form.kafkaEnabled" size="small" />
-            <span class="ipam-channel__state">{{ form.kafkaEnabled ? '启用' : '关闭' }}</span>
+            <span class="ipam-channel__state">{{ form.kafkaEnabled ? $t('logs.export.channels.on') : $t('logs.export.channels.off') }}</span>
           </header>
           <div class="ipam-form-grid ipam-channel__body">
             <div class="ipam-form-field">
@@ -254,10 +280,10 @@ onMounted(load);
             </span>
             <div class="ipam-channel__meta">
               <span class="ipam-channel__title">Webhook</span>
-              <span class="ipam-channel__desc">JSON over HTTP，推送到自定义接收端点</span>
+              <span class="ipam-channel__desc">{{ $t('logs.export.channels.webhookDesc') }}</span>
             </div>
             <Switch v-model:checked="form.webhookEnabled" size="small" />
-            <span class="ipam-channel__state">{{ form.webhookEnabled ? '启用' : '关闭' }}</span>
+            <span class="ipam-channel__state">{{ form.webhookEnabled ? $t('logs.export.channels.on') : $t('logs.export.channels.off') }}</span>
           </header>
           <div class="ipam-form-grid ipam-channel__body">
             <div class="ipam-form-field ipam-form-field--wide">
@@ -272,7 +298,7 @@ onMounted(load);
     <Card>
       <template #title>
         <span class="ipam-card-title">
-          <IconifyIcon icon="lucide:filter" />采样与容量
+          <IconifyIcon icon="lucide:filter" />{{ $t('logs.export.samplingCard.title') }}
         </span>
       </template>
       <template #extra>
@@ -280,30 +306,25 @@ onMounted(load);
       </template>
       <div class="ipam-form-grid">
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">采样模式</span>
+          <span class="ipam-form-field__label">{{ $t('logs.export.samplingCard.mode') }}</span>
           <Select
             v-model:value="form.samplingMode"
-            :options="[
-              { value: 'all', label: '全量（推荐）' },
-              { value: 'sample', label: '按比例抽样' },
-              { value: 'errors', label: '仅异常（非 INFO）' },
-            ]"
+            :options="samplingOptions"
           />
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">抽样比例 1/N</span>
+          <span class="ipam-form-field__label">{{ $t('logs.export.samplingCard.rate') }}</span>
           <InputNumber v-model:value="form.sampleRate" :min="1" :max="1000" :disabled="form.samplingMode !== 'sample'" style="width: 100%" />
         </div>
         <div class="ipam-form-hint ipam-form-field--wide">
-          采样同时作用于 ClickHouse 入库与全部外发通道；磁盘 85% 预警、90% 自动降级为仅异常，恢复到 85% 以下自动还原。
-          生产切换请评估审计/合规留存要求。
+          {{ $t('logs.export.samplingCard.hint') }}
         </div>
       </div>
       <div class="ipam-toolbar ipam-toolbar--plain mt-3">
-        <span class="ipam-hint">外发失败由 Vector 内部重试，不阻塞 ClickHouse 入库</span>
+        <span class="ipam-hint">{{ $t('logs.export.samplingCard.footer') }}</span>
         <span class="ipam-toolbar__spacer"></span>
         <Button type="primary" :loading="saving" @click="save">
-          <IconifyIcon icon="lucide:save" class="mr-1 size-3.5" />保存并应用
+          <IconifyIcon icon="lucide:save" class="mr-1 size-3.5" />{{ $t('logs.export.saveApply') }}
         </Button>
       </div>
     </Card>

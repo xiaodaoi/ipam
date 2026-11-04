@@ -4,8 +4,8 @@ import type { VbenFormSchema } from '@vben/common-ui';
 import { computed, markRaw } from 'vue';
 
 import { AuthenticationLogin, SliderCaptcha, z } from '@vben/common-ui';
-import { $t } from '@vben/locales';
 
+import { $t } from '#/locales';
 import { useAuthStore } from '#/store';
 
 defineOptions({ name: 'Login' });
@@ -35,10 +35,10 @@ const formSchema = computed((): VbenFormSchema[] => {
     {
       component: 'VbenInput',
       componentProps: {
-        placeholder: '未启用双因素认证可留空；恢复码格式 XXXXX-XXXXX',
+        placeholder: $t('core.login.totpPlaceholder'),
       },
       fieldName: 'totpCode',
-      label: '动态口令 / 恢复码',
+      label: $t('core.login.totpLabel'),
     },
     {
       component: markRaw(SliderCaptcha),
@@ -60,8 +60,8 @@ const formSchema = computed((): VbenFormSchema[] => {
     :show-qrcode-login="false"
     :show-register="false"
     :show-third-party-login="false"
-    sub-title="使用控制面账号登录，统一管理地址、DHCP 与 DNS。"
-    title="登录管理平台"
+    :sub-title="$t('core.login.subTitle')"
+    :title="$t('core.login.title')"
     @submit="authStore.authLogin"
   />
 </template>

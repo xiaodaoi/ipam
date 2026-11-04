@@ -9,6 +9,8 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Button, Card, Input, Tree } from 'ant-design-vue';
 
+import { $t } from '#/locales';
+
 const props = defineProps<{
   orgTree: OrgTreeNode[];
   selectedOrgId: string;
@@ -117,14 +119,14 @@ watch(
     <template #title>
       <span class="ipam-card-title">
         <IconifyIcon icon="lucide:building-2" />
-        组织架构
+        {{ $t('shared.orgFilter.title') }}
       </span>
     </template>
 
     <Input
       v-model:value="keyword"
       allow-clear
-      placeholder="搜索组织名称"
+      :placeholder="$t('shared.orgFilter.search')"
       size="small"
     >
       <template #prefix>
@@ -140,7 +142,7 @@ watch(
     >
       <span class="ipam-org-all__label">
         <IconifyIcon icon="lucide:layers" class="size-4" />
-        全部组织
+        {{ $t('shared.orgFilter.all') }}
       </span>
       <span class="ipam-org-badge">{{ orgTree.length }}</span>
     </button>
@@ -158,10 +160,18 @@ watch(
 
     <div v-else class="ipam-empty ipam-empty--compact">
       <div class="ipam-empty__title">
-        {{ keyword ? '没有匹配的组织' : '尚未创建组织' }}
+        {{
+          keyword
+            ? $t('shared.orgFilter.noMatch')
+            : $t('shared.orgFilter.noOrg')
+        }}
       </div>
       <div class="ipam-empty__desc">
-        {{ keyword ? '换个关键词试试' : '请先在子网管理 → 组织管理中创建' }}
+        {{
+          keyword
+            ? $t('shared.orgFilter.tryOther')
+            : $t('shared.orgFilter.createHint')
+        }}
       </div>
     </div>
 
@@ -170,14 +180,16 @@ watch(
       <span>
         {{
           selectedOrgId
-            ? `当前范围：${selectedName || '已选组织'}（含下级组织）`
-            : '点选组织过滤台账，再点取消'
+            ? $t('shared.orgFilter.scope', {
+                name: selectedName || $t('shared.orgFilter.scopeFallback'),
+              })
+            : $t('shared.orgFilter.hint')
         }}
       </span>
     </div>
 
     <Button size="small" block class="mt-1" @click="emit('select', '')">
-      重置筛选
+      {{ $t('shared.orgFilter.reset') }}
     </Button>
   </Card>
 </template>

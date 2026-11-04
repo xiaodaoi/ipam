@@ -3,7 +3,7 @@ import type { VxeGridProps } from '@vben/plugins/vxe-table';
 
 import type { DhcpClassOptionIn, DhcpClassRow, DhcpOptionRow } from '#/api/ipam';
 
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -23,6 +23,7 @@ import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { createDhcpClass, createDhcpOption, deleteDhcpClass, deleteDhcpOption, listDhcpClasses, listDhcpOptions, updateDhcpClass, updateDhcpOption } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import { $t } from '#/locales';
 
 const optRows = ref<DhcpOptionRow[]>([]);
 const clsRows = ref<DhcpClassRow[]>([]);
@@ -31,8 +32,8 @@ const optForm = ref({ code: 3, name: 'routers', data: '' });
 const clsForm = ref({ name: '', test: "option[61].hex == option[61].hex", rows: [] as DhcpClassOptionIn[] });
 const editingOpt = ref<string>();
 const editingCls = ref<string>();
-const [OptModal, optModalApi] = useVbenModal({ draggable: true, title: '标准选项', confirmText: '创建选项', onConfirm: () => addOption() });
-const [ClsModal, clsModalApi] = useVbenModal({ draggable: true, title: '类匹配规则', confirmText: '创建类', onConfirm: () => addClass() });
+const [OptModal, optModalApi] = useVbenModal({ draggable: true, title: $t('dhcp.options.modal.stdTitle'), confirmText: $t('dhcp.options.modal.createOption'), onConfirm: () => addOption() });
+const [ClsModal, clsModalApi] = useVbenModal({ draggable: true, title: $t('dhcp.options.classModal.title'), confirmText: $t('dhcp.options.classModal.createClass'), onConfirm: () => addClass() });
 let timer: ReturnType<typeof setInterval> | undefined;
 
 async function load() {
@@ -48,7 +49,7 @@ async function load() {
 
 async function addOption() {
   if (!optForm.value.name || !optForm.value.data) {
-    message.warning('选项名与值必填');
+    message.warning($t('dhcp.options.messages.optRequired'));
     return;
   }
   try {
@@ -56,49 +57,51 @@ async function addOption() {
       await updateDhcpOption(editingOpt.value, {
         optionCode: optForm.value.code, name: optForm.value.name, data: optForm.value.data,
       });
-      message.success('选项已更新');
+      message.success($t('dhcp.options.messages.optUpdated'));
     } else {
       await createDhcpOption({
         optionCode: optForm.value.code, name: optForm.value.name, data: optForm.value.data,
       });
-      message.success('选项已创建');
+      message.success($t('dhcp.options.messages.optCreated'));
     }
     editingOpt.value = undefined;
     optModalApi.close();
     optForm.value = { code: optForm.value.code, name: 'routers', data: '' };
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '操作失败');
+    message.error(error instanceof Error ? error.message : $t('dhcp.options.messages.opFailed'));
   }
   await load();
 }
 async function toggleOption(r: DhcpOptionRow, enabled: boolean) {
   try {
     await updateDhcpOption(r.id, { enabled });
-    message.success(enabled ? '已启用' : '已停用');
+    message.success(enabled
+      ? $t('dhcp.options.messages.optEnabled')
+      : $t('dhcp.options.messages.optDisabled'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '操作失败');
+    message.error(error instanceof Error ? error.message : $t('dhcp.options.messages.opFailed'));
   }
   await load();
 }
 function editOpt(r: DhcpOptionRow) {
   editingOpt.value = r.id;
-  optModalApi.setState({ title: '编辑选项', confirmText: '保存修改' });
+  optModalApi.setState({ title: $t('dhcp.options.modal.editTitle'), confirmText: $t('dhcp.options.modal.saveEdit') });
   optModalApi.open();
   optForm.value = { code: r.optionCode, name: r.name, data: r.data };
 }
 function openAddOption() {
   editingOpt.value = undefined;
   optForm.value = { code: 3, name: 'routers', data: '' };
-  optModalApi.setState({ title: '添加标准选项', confirmText: '创建选项' });
+  optModalApi.setState({ title: $t('dhcp.options.modal.addTitle'), confirmText: $t('dhcp.options.modal.createOption') });
   optModalApi.open();
 }
 async function removeOption(id?: string) {
   if (!id) return;
   try {
     await deleteDhcpOption(id);
-    message.success('已删除');
+    message.success($t('dhcp.options.messages.deleted'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '删除失败');
+    message.error(error instanceof Error ? error.message : $t('dhcp.options.messages.deleteFailed'));
   }
   await load();
 }
@@ -111,61 +114,63 @@ function removeClassRow(i: number) {
 }
 async function addClass() {
   if (!clsForm.value.name) {
-    message.warning('类名必填');
+    message.warning($t('dhcp.options.messages.clsNameRequired'));
     return;
   }
   if (clsForm.value.rows.some((r) => !r.name || !r.data)) {
-    message.warning('类内选项的名称与值必填');
+    message.warning($t('dhcp.options.messages.clsOptRequired'));
     return;
   }
   try {
     if (editingCls.value) {
       await updateDhcpClass(editingCls.value, { test: clsForm.value.test, options: clsForm.value.rows });
-      message.success('类已更新');
+      message.success($t('dhcp.options.messages.clsUpdated'));
     } else {
       await createDhcpClass({
         name: clsForm.value.name,
         options: clsForm.value.rows,
         test: clsForm.value.test,
       });
-      message.success('类已创建');
+      message.success($t('dhcp.options.messages.clsCreated'));
     }
     editingCls.value = undefined;
     clsModalApi.close();
     clsForm.value = { name: '', test: clsForm.value.test, rows: [] };
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '操作失败');
+    message.error(error instanceof Error ? error.message : $t('dhcp.options.messages.opFailed'));
   }
   await load();
 }
 async function toggleClass(r: DhcpClassRow, enabled: boolean) {
   try {
     await updateDhcpClass(r.id, { enabled });
-    message.success(enabled ? '已启用' : '已停用');
+    message.success(enabled
+      ? $t('dhcp.options.messages.optEnabled')
+      : $t('dhcp.options.messages.optDisabled'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '操作失败');
+    message.error(error instanceof Error ? error.message : $t('dhcp.options.messages.opFailed'));
   }
   await load();
 }
 function editCls(r: DhcpClassRow) {
   editingCls.value = r.id;
-  clsModalApi.setState({ title: '编辑类', confirmText: '保存修改' });
+  clsModalApi.setState({ title: $t('dhcp.options.classModal.editTitle'), confirmText: $t('dhcp.options.modal.saveEdit') });
   clsModalApi.open();
   clsForm.value = { name: r.name, test: r.test, rows: [...(r.options ?? [])] };
 }
 function openAddClass() {
   editingCls.value = undefined;
   clsForm.value = { name: '', test: "option[61].hex == option[61].hex", rows: [] };
-  clsModalApi.setState({ title: '添加类匹配规则', confirmText: '创建类' });
+  clsModalApi.setState({ title: $t('dhcp.options.classModal.addTitle'), confirmText: $t('dhcp.options.classModal.createClass') });
   clsModalApi.open();
 }
 async function removeClass(id?: string) {
   if (!id) return;
   try {
     await deleteDhcpClass(id);
-    message.success('已删除');
+    message.success($t('dhcp.options.messages.deleted'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '删除失败');
+    message.error(error instanceof Error ? error.message : $t('dhcp.options.messages.deleteFailed'));
   }
   await load();
 }
@@ -173,26 +178,32 @@ const optsSummary = (options?: DhcpClassOptionIn[]) =>
   (options ?? []).map((o) => `${o.name}=${o.data}`).join(', ') || '-';
 
 // ── 常用选项预设（写库仍走后端校验）──
-const PRESETS = [
-  { code: 3, name: 'routers', hint: '默认网关' },
-  { code: 6, name: 'domain-name-servers', hint: 'DNS 服务器' },
-  { code: 15, name: 'domain-name', hint: '默认域名' },
-  { code: 28, name: 'broadcast-address', hint: '广播地址' },
-  { code: 42, name: 'ntp-servers', hint: 'NTP 服务器' },
-  { code: 51, name: 'lease-time', hint: '租约时长' },
-  { code: 66, name: 'tftp-server-name', hint: 'TFTP 服务器' },
-  { code: 67, name: 'boot-file-name', hint: '启动文件名' },
-  { code: 119, name: 'domain-search', hint: '域搜索列表' },
-  { code: 121, name: 'classless-static-route', hint: '无类静态路由' },
-  { code: 150, name: 'tftp-server-address', hint: 'TFTP 地址' },
-  { code: 252, name: 'wpad-url', hint: '代理自动发现' },
-];
-const presetOptions = PRESETS.map((p) => ({
-  value: p.code,
-  label: `${p.code} · ${p.name}（${p.hint}）`,
-}));
+const PRESETS = computed(() => [
+  { code: 3, name: 'routers', hint: $t('dhcp.options.presets.routers') },
+  { code: 6, name: 'domain-name-servers', hint: $t('dhcp.options.presets.dnsServers') },
+  { code: 15, name: 'domain-name', hint: $t('dhcp.options.presets.domainName') },
+  { code: 28, name: 'broadcast-address', hint: $t('dhcp.options.presets.broadcastAddress') },
+  { code: 42, name: 'ntp-servers', hint: $t('dhcp.options.presets.ntpServers') },
+  { code: 51, name: 'lease-time', hint: $t('dhcp.options.presets.leaseTime') },
+  { code: 66, name: 'tftp-server-name', hint: $t('dhcp.options.presets.tftpServer') },
+  { code: 67, name: 'boot-file-name', hint: $t('dhcp.options.presets.bootFileName') },
+  { code: 119, name: 'domain-search', hint: $t('dhcp.options.presets.domainSearch') },
+  { code: 121, name: 'classless-static-route', hint: $t('dhcp.options.presets.classlessRoute') },
+  { code: 150, name: 'tftp-server-address', hint: $t('dhcp.options.presets.tftpAddress') },
+  { code: 252, name: 'wpad-url', hint: $t('dhcp.options.presets.wpadUrl') },
+]);
+const presetOptions = computed(() =>
+  PRESETS.value.map((p) => ({
+    value: p.code,
+    label: $t('dhcp.options.presetLabel', {
+      code: p.code,
+      name: p.name,
+      hint: p.hint,
+    }),
+  })),
+);
 function applyPreset(code: unknown) {
-  const hit = PRESETS.find((p) => p.code === code);
+  const hit = PRESETS.value.find((p) => p.code === code);
   if (!hit) return;
   optForm.value.code = hit.code;
   optForm.value.name = hit.name;
@@ -215,11 +226,11 @@ const stats = computed(() => {
 // ── 筛选 ──
 const optKeyword = ref('');
 const optStatus = ref<'all' | 'disabled' | 'enabled'>('all');
-const statusOptions = [
-  { label: '全部状态', value: 'all' },
-  { label: '已启用', value: 'enabled' },
-  { label: '已停用', value: 'disabled' },
-];
+const statusOptions = computed(() => [
+  { label: $t('dhcp.options.statusAll'), value: 'all' },
+  { label: $t('dhcp.options.statusEnabled'), value: 'enabled' },
+  { label: $t('dhcp.options.statusDisabled'), value: 'disabled' },
+]);
 const filteredOptions = computed(() => {
   const kw = optKeyword.value.trim().toLowerCase();
   return optRows.value.filter((r) => {
@@ -250,32 +261,76 @@ function resetClsFilters() {
   clsStatus.value = 'all';
 }
 
-const optGridOptions = reactive<VxeGridProps>({
+const optGridOptions = computed<VxeGridProps>(() => ({
   columns: [
-    { field: 'name', title: '选项（码 / 名称）', minWidth: 210, slots: { default: 'name' } },
-    { field: 'data', title: '值', minWidth: 200, showOverflow: true },
-    { field: 'enabled', title: '状态', width: 90, slots: { default: 'enabled' } },
-    { field: 'op', title: '操作', width: 150, fixed: 'right', slots: { default: 'op' } },
+    {
+      field: 'name',
+      title: $t('dhcp.options.colName'),
+      minWidth: 210,
+      slots: { default: 'name' },
+    },
+    { field: 'data', title: $t('dhcp.options.colValue'), minWidth: 200, showOverflow: true },
+    {
+      field: 'enabled',
+      title: $t('dhcp.options.colStatus'),
+      width: 90,
+      slots: { default: 'enabled' },
+    },
+    {
+      field: 'op',
+      title: $t('dhcp.options.colOp'),
+      width: 150,
+      fixed: 'right',
+      slots: { default: 'op' },
+    },
   ],
-  emptyText: '暂无标准选项，点击「添加选项」创建',
+  emptyText: $t('dhcp.options.optEmpty'),
   loading: loading.value,
   rowConfig: { keyField: 'id' },
+}));
+const [OptGrid, optGridApi] = useVbenVxeGrid({
+  gridOptions: optGridOptions.value,
 });
-const [OptGrid] = useVbenVxeGrid({ gridOptions: optGridOptions });
+// 语言切换后同步表头与空状态文案
+watch(optGridOptions, (opts) => optGridApi.setState(opts as any));
 
-const clsGridOptions = reactive<VxeGridProps>({
+const clsGridOptions = computed<VxeGridProps>(() => ({
   columns: [
-    { field: 'name', title: '类名', minWidth: 130 },
-    { field: 'test', title: 'test 表达式', minWidth: 240, slots: { default: 'test' } },
-    { field: 'opts', title: '下发选项', minWidth: 220, slots: { default: 'opts' } },
-    { field: 'enabled', title: '状态', width: 90, slots: { default: 'enabled' } },
-    { field: 'op', title: '操作', width: 150, fixed: 'right', slots: { default: 'op' } },
+    { field: 'name', title: $t('dhcp.options.clsColName'), minWidth: 130 },
+    {
+      field: 'test',
+      title: $t('dhcp.options.clsColTest'),
+      minWidth: 240,
+      slots: { default: 'test' },
+    },
+    {
+      field: 'opts',
+      title: $t('dhcp.options.clsColOpts'),
+      minWidth: 220,
+      slots: { default: 'opts' },
+    },
+    {
+      field: 'enabled',
+      title: $t('dhcp.options.colStatus'),
+      width: 90,
+      slots: { default: 'enabled' },
+    },
+    {
+      field: 'op',
+      title: $t('dhcp.options.colOp'),
+      width: 150,
+      fixed: 'right',
+      slots: { default: 'op' },
+    },
   ],
-  emptyText: '暂无类匹配规则，点击「添加类」创建',
+  emptyText: $t('dhcp.options.clsEmpty'),
   loading: loading.value,
   rowConfig: { keyField: 'id' },
+}));
+const [ClsGrid, clsGridApi] = useVbenVxeGrid({
+  gridOptions: clsGridOptions.value,
 });
-const [ClsGrid] = useVbenVxeGrid({ gridOptions: clsGridOptions });
+watch(clsGridOptions, (opts) => clsGridApi.setState(opts as any));
 onMounted(() => {
   void load();
   timer = setInterval(load, 15_000);
@@ -288,56 +343,76 @@ onBeforeUnmount(() => timer && clearInterval(timer));
     <PageHeader
       eyebrow="DHCP Service"
       icon="lucide:sliders-horizontal"
-      title="选项与类匹配"
-      description="维护全局 DHCP option-data 与 client-classes 匹配规则，变更后原子下发 Kea。"
+      :title="$t('dhcp.options.title')"
+      :description="$t('dhcp.options.description')"
     >
       <template #actions>
         <span class="ipam-page-header__meta">
           <IconifyIcon icon="lucide:list-checks" class="size-3.5" />
-          {{ stats.optTotal }} 个选项 · {{ stats.clsTotal }} 条类规则
+          {{
+            $t('dhcp.options.meta', {
+              opts: stats.optTotal,
+              classes: stats.clsTotal,
+            })
+          }}
         </span>
         <Button size="small" :loading="loading" @click="load()">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />刷新
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{
+            $t('dhcp.common.refresh')
+          }}
         </Button>
         <Button type="primary" size="small" @click="openAddOption">
-          <IconifyIcon icon="lucide:plus" class="mr-1" />添加选项
+          <IconifyIcon icon="lucide:plus" class="mr-1" />{{
+            $t('dhcp.options.addOption')
+          }}
         </Button>
       </template>
     </PageHeader>
 
     <div class="ipam-stat-grid">
       <StatCard
-        label="标准选项"
+        :label="$t('dhcp.options.stat.optTotal')"
         :value="stats.optTotal"
-        unit="个"
+        :unit="$t('dhcp.common.unitCount')"
         icon="lucide:list-checks"
         tone="blue"
-        :hint="`${stats.optEnabled} 个已启用`"
+        :hint="$t('dhcp.options.stat.optTotalHint', { n: stats.optEnabled })"
       />
       <StatCard
-        label="启用选项"
+        :label="$t('dhcp.options.stat.optEnabled')"
         :value="stats.optEnabled"
-        unit="个"
+        :unit="$t('dhcp.common.unitCount')"
         icon="lucide:toggle-right"
         tone="green"
         :progress="stats.optTotal > 0 ? (stats.optEnabled / stats.optTotal) * 100 : 0"
-        :hint="`停用 ${stats.optTotal - stats.optEnabled} 个不进入 Kea 配置`"
+        :hint="
+          $t('dhcp.options.stat.optEnabledHint', {
+            n: stats.optTotal - stats.optEnabled,
+          })
+        "
       />
       <StatCard
-        label="类匹配规则"
+        :label="$t('dhcp.options.stat.clsTotal')"
         :value="stats.clsTotal"
-        unit="条"
+        :unit="$t('dhcp.common.unitRecord')"
         icon="lucide:filter"
         tone="violet"
-        :hint="`${stats.clsEnabled} 条已启用`"
+        :hint="$t('dhcp.options.stat.clsTotalHint', { n: stats.clsEnabled })"
       />
       <StatCard
-        label="类内下发选项"
+        :label="$t('dhcp.options.stat.clsOptions')"
         :value="stats.classOptions"
-        unit="项"
+        :unit="$t('dhcp.common.unitItem')"
         icon="lucide:package-open"
         tone="cyan"
-        :hint="`平均每条类 ${stats.clsTotal > 0 ? (stats.classOptions / stats.clsTotal).toFixed(1) : '0.0'} 项`"
+        :hint="
+          $t('dhcp.options.stat.clsOptionsHint', {
+            avg:
+              stats.clsTotal > 0
+                ? (stats.classOptions / stats.clsTotal).toFixed(1)
+                : '0.0',
+          })
+        "
       />
     </div>
 
@@ -345,29 +420,41 @@ onBeforeUnmount(() => timer && clearInterval(timer));
       <template #title>
         <span class="ipam-card-title">
           <IconifyIcon icon="lucide:list-checks" />
-          标准选项
-          <em class="ipam-card-sub">{{ filteredOptions.length }} / {{ optRows.length }} 个</em>
+          {{ $t('dhcp.options.standardOptions') }}
+          <em class="ipam-card-sub">
+            {{ filteredOptions.length }} / {{ optRows.length }}
+            {{ $t('dhcp.common.unitCount') }}
+          </em>
         </span>
       </template>
       <template #extra>
-        <span class="ipam-hint">变更后经 Kea config-set 原子下发</span>
+        <span class="ipam-hint">{{ $t('dhcp.options.changesHint') }}</span>
       </template>
 
       <div class="ipam-toolbar mb-3">
         <div class="ipam-field">
-          <span class="ipam-field__label">关键字</span>
-          <Input v-model:value="optKeyword" allow-clear placeholder="选项码 / 名称 / 值" style="width: 240px" />
+          <span class="ipam-field__label">{{ $t('dhcp.options.keyword') }}</span>
+          <Input
+            v-model:value="optKeyword"
+            allow-clear
+            :placeholder="$t('dhcp.options.optSearchPlaceholder')"
+            style="width: 240px"
+          />
         </div>
         <div class="ipam-field">
-          <span class="ipam-field__label">状态</span>
+          <span class="ipam-field__label">{{ $t('dhcp.options.status') }}</span>
           <Select v-model:value="optStatus" :options="statusOptions" style="width: 130px" />
         </div>
-        <Button size="small" @click="resetOptFilters">重置</Button>
+        <Button size="small" @click="resetOptFilters">
+          {{ $t('dhcp.common.reset') }}
+        </Button>
         <Button type="primary" size="small" @click="openAddOption">
-          <IconifyIcon icon="lucide:plus" class="mr-1" />添加选项
+          <IconifyIcon icon="lucide:plus" class="mr-1" />{{
+            $t('dhcp.options.addOption')
+          }}
         </Button>
         <div class="ipam-toolbar__spacer"></div>
-        <span class="ipam-hint">disabled 选项不会进入 Kea 配置</span>
+        <span class="ipam-hint">{{ $t('dhcp.options.disabledHint') }}</span>
       </div>
 
       <OptGrid :table-data="filteredOptions">
@@ -382,9 +469,17 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         </template>
         <template #op="{ row }">
           <div class="flex items-center gap-1">
-            <Button size="small" @click="editOpt(row as DhcpOptionRow)">编辑</Button>
-            <Popconfirm title="确认删除该选项？" description="删除后不可恢复。" ok-text="删除" cancel-text="取消" @confirm="removeOption(row.id)">
-              <Button size="small" danger>删除</Button>
+            <Button size="small" @click="editOpt(row as DhcpOptionRow)">
+              {{ $t('dhcp.common.edit') }}
+            </Button>
+            <Popconfirm
+              :title="$t('dhcp.options.confirmDeleteOpt')"
+              :description="$t('dhcp.options.deleteDesc')"
+              :ok-text="$t('dhcp.common.delete')"
+              :cancel-text="$t('dhcp.common.cancel')"
+              @confirm="removeOption(row.id)"
+            >
+              <Button size="small" danger>{{ $t('dhcp.common.delete') }}</Button>
             </Popconfirm>
           </div>
         </template>
@@ -395,29 +490,41 @@ onBeforeUnmount(() => timer && clearInterval(timer));
       <template #title>
         <span class="ipam-card-title">
           <IconifyIcon icon="lucide:filter" />
-          类匹配规则
-          <em class="ipam-card-sub">{{ filteredClasses.length }} / {{ clsRows.length }} 条</em>
+          {{ $t('dhcp.options.cls') }}
+          <em class="ipam-card-sub">
+            {{ filteredClasses.length }} / {{ clsRows.length }}
+            {{ $t('dhcp.common.unitRecord') }}
+          </em>
         </span>
       </template>
       <template #extra>
-        <span class="ipam-hint">client-classes · test 命中后下发类内选项</span>
+        <span class="ipam-hint">{{ $t('dhcp.options.clsExtraHint') }}</span>
       </template>
 
       <div class="ipam-toolbar mb-3">
         <div class="ipam-field">
-          <span class="ipam-field__label">关键字</span>
-          <Input v-model:value="clsKeyword" allow-clear placeholder="类名 / test / 下发选项" style="width: 260px" />
+          <span class="ipam-field__label">{{ $t('dhcp.options.keyword') }}</span>
+          <Input
+            v-model:value="clsKeyword"
+            allow-clear
+            :placeholder="$t('dhcp.options.clsSearchPlaceholder')"
+            style="width: 260px"
+          />
         </div>
         <div class="ipam-field">
-          <span class="ipam-field__label">状态</span>
+          <span class="ipam-field__label">{{ $t('dhcp.options.status') }}</span>
           <Select v-model:value="clsStatus" :options="statusOptions" style="width: 130px" />
         </div>
-        <Button size="small" @click="resetClsFilters">重置</Button>
+        <Button size="small" @click="resetClsFilters">
+          {{ $t('dhcp.common.reset') }}
+        </Button>
         <Button type="primary" size="small" @click="openAddClass">
-          <IconifyIcon icon="lucide:plus" class="mr-1" />添加类
+          <IconifyIcon icon="lucide:plus" class="mr-1" />{{
+            $t('dhcp.options.addClass')
+          }}
         </Button>
         <div class="ipam-toolbar__spacer"></div>
-        <span class="ipam-hint">类名是 Kea 引用键，创建后不可修改</span>
+        <span class="ipam-hint">{{ $t('dhcp.options.clsHint') }}</span>
       </div>
 
       <ClsGrid :table-data="filteredClasses">
@@ -432,9 +539,17 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         </template>
         <template #op="{ row }">
           <div class="flex items-center gap-1">
-            <Button size="small" @click="editCls(row as DhcpClassRow)">编辑</Button>
-            <Popconfirm title="确认删除该分类？" description="删除后不可恢复。" ok-text="删除" cancel-text="取消" @confirm="removeClass(row.id)">
-              <Button size="small" danger>删除</Button>
+            <Button size="small" @click="editCls(row as DhcpClassRow)">
+              {{ $t('dhcp.common.edit') }}
+            </Button>
+            <Popconfirm
+              :title="$t('dhcp.options.confirmDeleteCls')"
+              :description="$t('dhcp.options.deleteDesc')"
+              :ok-text="$t('dhcp.common.delete')"
+              :cancel-text="$t('dhcp.common.cancel')"
+              @confirm="removeClass(row.id)"
+            >
+              <Button size="small" danger>{{ $t('dhcp.common.delete') }}</Button>
             </Popconfirm>
           </div>
         </template>
@@ -444,29 +559,32 @@ onBeforeUnmount(() => timer && clearInterval(timer));
     <OptModal class="w-[760px]">
       <div class="ipam-form-grid">
         <label class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">常用选项（快速填充）</span>
+          <span class="ipam-form-field__label">{{ $t('dhcp.options.modal.quickFill') }}</span>
           <Select
             :options="presetOptions"
             allow-clear
             show-search
-            placeholder="选择后自动填入选项码与 Kea 名称"
+            :placeholder="$t('dhcp.options.modal.quickFillPlaceholder')"
             @change="applyPreset"
           />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">选项码<em>*</em></span>
+          <span class="ipam-form-field__label">{{ $t('dhcp.options.modal.code') }}<em>*</em></span>
           <InputNumber v-model:value="optForm.code" :min="1" :max="255" style="width: 100%" />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">Kea 选项名<em>*</em></span>
+          <span class="ipam-form-field__label">{{ $t('dhcp.options.modal.keaName') }}<em>*</em></span>
           <Input v-model:value="optForm.name" placeholder="routers" />
         </label>
         <label class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">选项值<em>*</em></span>
-          <Input v-model:value="optForm.data" placeholder="如 192.168.9.1 / 10.0.0.10,10.0.0.11" />
+          <span class="ipam-form-field__label">{{ $t('dhcp.options.modal.value') }}<em>*</em></span>
+          <Input
+            v-model:value="optForm.data"
+            :placeholder="$t('dhcp.options.modal.valuePlaceholder')"
+          />
         </label>
         <div class="ipam-form-hint ipam-form-field--wide">
-          保存后经 Kea config-set 原子下发；停用的选项不会写入配置文件。
+          {{ $t('dhcp.options.modal.hint') }}
         </div>
       </div>
     </OptModal>
@@ -474,32 +592,42 @@ onBeforeUnmount(() => timer && clearInterval(timer));
     <ClsModal class="w-[820px]">
       <div class="ipam-form-grid">
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">类名<em>*</em></span>
+          <span class="ipam-form-field__label">{{ $t('dhcp.options.classModal.className') }}<em>*</em></span>
           <Input v-model:value="clsForm.name" :disabled="!!editingCls" placeholder="printers" />
         </label>
         <label class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">test 表达式（Kea eval）<em>*</em></span>
+          <span class="ipam-form-field__label">{{ $t('dhcp.options.classModal.testExpr') }}<em>*</em></span>
           <Input v-model:value="clsForm.test" placeholder="option[61].hex == option[61].hex" />
         </label>
         <div class="ipam-form-hint ipam-form-field--wide">
-          命中 test 的客户端将收到该类下的 option-data；类名为 Kea 引用键，创建后不可改。
+          {{ $t('dhcp.options.classModal.hint') }}
         </div>
         <div class="ipam-form-field--wide">
           <div class="mb-2 flex items-center justify-between">
-            <span class="ipam-form-field__label">类内下发选项</span>
+            <span class="ipam-form-field__label">
+              {{ $t('dhcp.options.classModal.optionsInClass') }}
+            </span>
             <Button size="small" @click="addClassRow">
-              <IconifyIcon icon="lucide:plus" class="mr-1" />添加选项
+              <IconifyIcon icon="lucide:plus" class="mr-1" />{{
+                $t('dhcp.options.addOption')
+              }}
             </Button>
           </div>
           <div v-if="clsForm.rows.length === 0" class="ipam-empty ipam-empty--compact">
-            <div class="ipam-empty__title">尚未添加类内选项</div>
-            <div class="ipam-empty__desc">点击「添加选项」为该类配置命中的客户端将收到的 option-data</div>
+            <div class="ipam-empty__title">
+              {{ $t('dhcp.options.classModal.emptyTitle') }}
+            </div>
+            <div class="ipam-empty__desc">
+              {{ $t('dhcp.options.classModal.emptyDesc') }}
+            </div>
           </div>
           <div v-for="(r, i) in clsForm.rows" :key="i" class="ipam-class-row">
             <InputNumber v-model:value="r.optionCode" :min="1" :max="255" style="width: 90px" />
             <Input v-model:value="r.name" style="width: 180px" placeholder="routers" />
             <Input v-model:value="r.data" style="flex: 1; min-width: 200px" placeholder="192.168.9.254" />
-            <Button size="small" danger @click="removeClassRow(i)">移除</Button>
+            <Button size="small" danger @click="removeClassRow(i)">
+              {{ $t('dhcp.options.classModal.remove') }}
+            </Button>
           </div>
         </div>
       </div>

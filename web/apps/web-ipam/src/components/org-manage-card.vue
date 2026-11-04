@@ -9,6 +9,7 @@ import { IconifyIcon } from '@vben/icons';
 import { Button, Card, Input, message, Popconfirm, Tag, Tree } from 'ant-design-vue';
 
 import { createOrg, deleteOrg, listOrgTree, reorderOrgs, updateOrg } from '#/api/ipam';
+import { $t } from '#/locales';
 
 const tree = ref<OrgTreeNode[]>([]);
 const selected = ref<OrgTreeNode>();
@@ -112,14 +113,14 @@ async function onDrop(info: any) {
     return;
   }
   if (!dropToGap || dropPosition === 0) {
-    message.warning('当前仅支持同级拖拽排序（暂不支持跨级移动）');
+    message.warning($t('shared.orgManage.warnSameLevelDrag'));
     await load();
     return;
   }
   const parentId = dragOrg.parentId ? String(dragOrg.parentId) : null;
   const dropParent = dropOrg.parentId ? String(dropOrg.parentId) : null;
   if (dropParent !== parentId) {
-    message.warning('仅支持同级内拖拽排序');
+    message.warning($t('shared.orgManage.warnSameLevelOnly'));
     await load();
     return;
   }
@@ -151,16 +152,16 @@ async function onDrop(info: any) {
   arr.splice(insertAt, 0, moved);
   try {
     await reorderOrgs(parentId, arr);
-    message.success('排序已更新');
+    message.success($t('shared.orgManage.reorderOk'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '排序失败');
+    message.error(error instanceof Error ? error.message : $t('shared.orgManage.reorderFail'));
   }
   await load();
 }
 
 const nameInput = ref('');
 const nameAction = ref<((name: string) => Promise<void>) | null>(null);
-const [NameModal, nameModalApi] = useVbenModal({ draggable: true, confirmText: '确定', onConfirm: () => confirmName() });
+const [NameModal, nameModalApi] = useVbenModal({ draggable: true, confirmText: $t('shared.orgManage.confirmText'), onConfirm: () => confirmName() });
 
 function askName(title: string, initial: string, action: (name: string) => Promise<void>) {
   nameInput.value = initial;
@@ -171,7 +172,7 @@ function askName(title: string, initial: string, action: (name: string) => Promi
 async function confirmName() {
   const name = nameInput.value.trim();
   if (!name) {
-    message.warning('请输入组织名称');
+    message.warning($t('shared.orgManage.nameRequired'));
     return;
   }
   nameModalApi.close();
@@ -180,12 +181,12 @@ async function confirmName() {
   try {
     await action(name);
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '操作失败');
+    message.error(error instanceof Error ? error.message : $t('shared.orgManage.actionFail'));
   }
 }
 
 function addRoot() {
-  askName('根组织名称', '', async (name) => {
+  askName($t('shared.orgManage.rootName'), '', async (name) => {
     await createOrg({ parentId: null, name });
     await load(false);
   });
@@ -193,7 +194,7 @@ function addRoot() {
 function addChild() {
   const sel = selected.value;
   if (!sel) return;
-  askName(`在「${sel.name}」下新建子组织`, '', async (name) => {
+  askName($t('shared.orgManage.childName', { name: sel.name }), '', async (name) => {
     await createOrg({ parentId: sel.id, name });
     await load();
   });
@@ -201,7 +202,7 @@ function addChild() {
 function rename() {
   const sel = selected.value;
   if (!sel) return;
-  askName('改名', sel.name, async (name) => {
+  askName($t('shared.orgManage.rename'), sel.name, async (name) => {
     if (name === sel.name) return;
     await updateOrg(sel.id, { name });
     await load();
@@ -221,27 +222,27 @@ onMounted(() => load(false));
 </script>
 
 <template>
-  <Card title="组织架构">
+  <Card :title="$t('shared.orgManage.title')">
       <template #extra>
         <div class="flex flex-wrap items-center justify-end gap-2">
           <Button type="primary" size="small" @click="addRoot">
-            <IconifyIcon icon="lucide:folder-plus" class="mr-1" />根组织
+            <IconifyIcon icon="lucide:folder-plus" class="mr-1" />{{ $t('shared.orgManage.addRoot') }}
           </Button>
           <Button size="small" :disabled="!selected" @click="addChild">
-            <IconifyIcon icon="lucide:folder-tree" class="mr-1" />子组织
+            <IconifyIcon icon="lucide:folder-tree" class="mr-1" />{{ $t('shared.orgManage.addChild') }}
           </Button>
           <Button size="small" :disabled="!selected" @click="rename">
-            <IconifyIcon icon="lucide:pencil" class="mr-1" />改名
+            <IconifyIcon icon="lucide:pencil" class="mr-1" />{{ $t('shared.orgManage.renameBtn') }}
           </Button>
           <Popconfirm
-            title="确认删除该组织？"
-            description="存在子节点/子网/资产引用时将被 409 拒绝；删除后不可恢复。"
-            ok-text="删除"
-            cancel-text="取消"
+            :title="$t('shared.orgManage.deleteTitle')"
+            :description="$t('shared.orgManage.deleteDesc')"
+            :ok-text="$t('shared.orgManage.delete')"
+            :cancel-text="$t('shared.orgManage.cancel')"
             @confirm="remove"
           >
             <Button size="small" danger :disabled="!selected">
-              <IconifyIcon icon="lucide:trash-2" class="mr-1" />删除
+              <IconifyIcon icon="lucide:trash-2" class="mr-1" />{{ $t('shared.orgManage.deleteBtn') }}
             </Button>
           </Popconfirm>
         </div>
@@ -249,14 +250,22 @@ onMounted(() => load(false));
 
       <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div class="ipam-hint">
-          多级组织树（公司 → 部门 → …），被引用或含子节点时不可删除；
-          <span class="mx-1 font-medium text-primary">拖动节点可同级排序</span>。
-          所有页面的组织筛选均以此处数据为准。
+          {{ $t('shared.orgManage.treeHint') }}
+          <span class="mx-1 font-medium text-primary">
+            {{ $t('shared.orgManage.treeHintDrag') }}
+          </span>
+          {{ $t('shared.orgManage.treeHintTail') }}
         </div>
         <div class="flex shrink-0 items-center gap-2">
-          <Tag color="blue" class="m-0">{{ totalCount }} 个组织</Tag>
-          <Button size="small" @click="expandAll">展开全部</Button>
-          <Button size="small" @click="collapseAll">收起全部</Button>
+          <Tag color="blue" class="m-0">
+            {{ $t('shared.orgManage.orgCount', { n: totalCount }) }}
+          </Tag>
+          <Button size="small" @click="expandAll">
+            {{ $t('shared.orgManage.expandAll') }}
+          </Button>
+          <Button size="small" @click="collapseAll">
+            {{ $t('shared.orgManage.collapseAll') }}
+          </Button>
         </div>
       </div>
 
@@ -294,15 +303,17 @@ onMounted(() => load(false));
         </template>
       </Tree>
       <div v-else class="py-8 text-center text-muted-foreground">
-        暂无组织——点击右上角「+ 根组织」创建第一个节点
+        {{ $t('shared.orgManage.empty') }}
       </div>
     </Card>
     <NameModal>
       <div class="flex items-center gap-2">
-        <span class="shrink-0 text-sm font-medium text-muted-foreground">组织名称</span>
+        <span class="shrink-0 text-sm font-medium text-muted-foreground">
+          {{ $t('shared.orgManage.nameLabel') }}
+        </span>
         <Input
           v-model:value="nameInput"
-          placeholder="请输入组织名称"
+          :placeholder="$t('shared.orgManage.namePlaceholder')"
           autofocus
           class="flex-1"
           @press-enter="confirmName"

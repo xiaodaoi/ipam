@@ -25,6 +25,7 @@ import {
 } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import { $t } from '#/locales';
 
 defineOptions({ name: 'SystemDirectory' });
 
@@ -93,7 +94,9 @@ async function load() {
       /* 角色列表失败不阻塞设置读取 */
     }
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '目录设置加载失败');
+    message.error(
+      error instanceof Error ? error.message : $t('system.directory.msg.loadFailed'),
+    );
   } finally {
     loading.value = false;
   }
@@ -101,7 +104,7 @@ async function load() {
 
 async function save() {
   if (form.enabled && (!form.serverUrl || !form.baseDn)) {
-    message.warning('启用目录服务时，服务器地址与 Base DN 必填');
+    message.warning($t('system.directory.msg.required'));
     return;
   }
   saving.value = true;
@@ -114,9 +117,11 @@ async function save() {
     }
     apply(await updateLDAPSettings(body));
     bindPasswordInput.value = '';
-    message.success('目录服务设置已保存');
+    message.success($t('system.directory.msg.saved'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '保存失败');
+    message.error(
+      error instanceof Error ? error.message : $t('system.directory.msg.saveFailed'),
+    );
   } finally {
     saving.value = false;
   }
@@ -124,16 +129,18 @@ async function save() {
 
 async function runTest() {
   if (!test.username || !test.password) {
-    message.warning('请填写测试账号与口令');
+    message.warning($t('system.directory.msg.testRequired'));
     return;
   }
   testing.value = true;
   testResult.value = null;
   try {
     testResult.value = await testLDAPLogin(test.username, test.password);
-    message.success('目录认证成功');
+    message.success($t('system.directory.msg.testOk'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '目录认证失败');
+    message.error(
+      error instanceof Error ? error.message : $t('system.directory.msg.testFailed'),
+    );
   } finally {
     testing.value = false;
   }
@@ -160,55 +167,71 @@ onMounted(load);
     <PageHeader
       eyebrow="System"
       icon="lucide:network"
-      title="目录服务"
-      description="对接企业 LDAP / Active Directory：目录账号直接登录，按组自动映射角色；口令始终由目录服务校验，平台不保存目录口令。"
+      :title="$t('system.directory.page.title')"
+      :description="$t('system.directory.page.desc')"
     >
       <template #actions>
         <Button size="small" :loading="loading" @click="load">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />刷新
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{
+            $t('system.directory.actions.refresh')
+          }}
         </Button>
         <Button type="primary" size="small" :loading="saving" @click="save">
-          <IconifyIcon icon="lucide:save" class="mr-1 size-3.5" />保存设置
+          <IconifyIcon icon="lucide:save" class="mr-1 size-3.5" />{{
+            $t('system.directory.actions.save')
+          }}
         </Button>
       </template>
     </PageHeader>
 
     <div class="ipam-stat-grid">
       <StatCard
-        label="目录服务"
-        :value="form.enabled ? '已启用' : '未启用'"
+        :label="$t('system.directory.stat.service')"
+        :value="
+          form.enabled
+            ? $t('system.directory.stat.enabled')
+            : $t('system.directory.stat.disabled')
+        "
         icon="lucide:network"
         :tone="form.enabled ? 'green' : 'violet'"
-        :hint="form.enabled ? '目录账号可登录，本地账号不受影响' : '仅本地账号可用'"
+        :hint="
+          form.enabled
+            ? $t('system.directory.stat.serviceHintOn')
+            : $t('system.directory.stat.serviceHintOff')
+        "
       />
       <StatCard
-        label="账号来源"
-        value="本地 + 目录"
+        :label="$t('system.directory.stat.source')"
+        :value="$t('system.directory.stat.sourceValue')"
         icon="lucide:users"
         tone="blue"
-        hint="目录账号首次登录自动创建影子账号"
+        :hint="$t('system.directory.stat.sourceHint')"
       />
       <StatCard
-        label="角色映射"
-        :value="`${roleMapRows.length} 条`"
+        :label="$t('system.directory.stat.mapping')"
+        :value="$t('system.directory.stat.mappingValue', { n: roleMapRows.length })"
         icon="lucide:shield-check"
         tone="cyan"
-        :hint="`未匹配组时使用 ${form.defaultRole || 'user'}`"
+        :hint="
+          $t('system.directory.stat.mappingHint', {
+            role: form.defaultRole || 'user',
+          })
+        "
       />
       <StatCard
-        label="口令校验"
-        value="实时 bind"
+        :label="$t('system.directory.stat.binding')"
+        :value="$t('system.directory.stat.bindingValue')"
         icon="lucide:key-round"
         tone="amber"
-        hint="平台不缓存目录口令"
+        :hint="$t('system.directory.stat.bindingHint')"
       />
     </div>
 
     <Alert
       v-if="form.enabled && form.insecureSkipVerify"
       class="mb-3"
-      message="已跳过 TLS 证书校验"
-      description="仅建议在测试环境使用；生产环境请配置受信任证书，避免目录口令被中间人截获。"
+      :message="$t('system.directory.alert.tlsTitle')"
+      :description="$t('system.directory.alert.tlsDesc')"
       show-icon
       type="warning"
     />
@@ -216,89 +239,126 @@ onMounted(load);
     <Card>
       <template #title>
         <span class="ipam-card-title">
-          <IconifyIcon icon="lucide:server" />连接配置
+          <IconifyIcon icon="lucide:server" />{{
+            $t('system.directory.connection.title')
+          }}
         </span>
       </template>
       <template #extra>
         <Tag class="m-0" :color="form.enabled ? 'green' : 'default'">
-          {{ form.enabled ? '已启用' : '已停用' }}
+          {{
+            form.enabled
+              ? $t('system.directory.tag.enabled')
+              : $t('system.directory.tag.disabled')
+          }}
         </Tag>
       </template>
 
       <div class="ipam-form-grid">
         <div class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">启用目录登录</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.directory.connection.enable')
+          }}</span>
           <div class="flex items-center gap-3">
             <Switch v-model:checked="form.enabled" size="small" />
             <span class="ipam-hint">
-              启用后，未知账号会尝试目录认证；本地账号仍走本地口令
+              {{ $t('system.directory.connection.enableHint') }}
             </span>
           </div>
         </div>
 
         <div class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">服务器地址</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.directory.connection.server')
+          }}</span>
           <Input
             v-model:value="form.serverUrl"
-            placeholder="ldap://ldap.corp.local:389 或 ldaps://ldap.corp.local:636"
+            :placeholder="$t('system.directory.connection.serverPlaceholder')"
           />
           <span class="ipam-hint">
-            建议使用 ldaps:// 或开启 StartTLS；AD 域控通常为 ldap://dc.corp.local:389
+            {{ $t('system.directory.connection.serverHint') }}
           </span>
         </div>
 
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">StartTLS</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.directory.connection.startTls')
+          }}</span>
           <div class="flex items-center gap-2">
             <Switch v-model:checked="form.startTls" size="small" />
-            <span class="ipam-hint">389 端口升级加密</span>
+            <span class="ipam-hint">{{
+              $t('system.directory.connection.startTlsHint')
+            }}</span>
           </div>
         </div>
 
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">跳过证书校验</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.directory.connection.skipVerify')
+          }}</span>
           <div class="flex items-center gap-2">
             <Switch v-model:checked="form.insecureSkipVerify" size="small" />
-            <span class="ipam-hint">仅测试环境</span>
+            <span class="ipam-hint">{{
+              $t('system.directory.connection.skipVerifyHint')
+            }}</span>
           </div>
         </div>
 
         <div class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">Base DN</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.directory.connection.baseDn')
+          }}</span>
           <Input v-model:value="form.baseDn" placeholder="dc=corp,dc=local" />
-          <span class="ipam-hint">用户搜索根，例如 AD 常用 dc=corp,dc=local</span>
+          <span class="ipam-hint">{{
+            $t('system.directory.connection.baseDnHint')
+          }}</span>
         </div>
 
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">服务账号 DN（可选）</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.directory.connection.bindDn')
+          }}</span>
           <Input
             v-model:value="form.bindDn"
             placeholder="cn=svc-ipam,ou=service,dc=corp,dc=local"
           />
-          <span class="ipam-hint">目录不允许匿名搜索时必填</span>
+          <span class="ipam-hint">{{
+            $t('system.directory.connection.bindDnHint')
+          }}</span>
         </div>
 
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">服务账号口令</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.directory.connection.bindPassword')
+          }}</span>
           <InputPassword
             v-model:value="bindPasswordInput"
-            :placeholder="form.hasBindPassword ? '已配置，留空保持不变' : '未配置'"
+            :placeholder="
+              form.hasBindPassword
+                ? $t('system.directory.connection.bindPasswordSet')
+                : $t('system.directory.connection.bindPasswordEmpty')
+            "
             autocomplete="new-password"
           />
           <span class="ipam-hint">
-            也可用环境变量 IPAM_LDAP_BIND_PASSWORD 注入，避免落库
+            {{ $t('system.directory.connection.bindPasswordHint') }}
           </span>
         </div>
 
         <div class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">用户过滤器</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.directory.connection.userFilter')
+          }}</span>
           <Input
             v-model:value="form.userFilter"
             placeholder="(uid={username})"
           />
           <span class="ipam-hint">
-            {username} 为占位符；AD 用 (sAMAccountName={username})，
-            OpenLDAP 用 (uid={username})
+            {{
+              $t('system.directory.connection.userFilterHint', {
+                ph: '{username}',
+              })
+            }}
           </span>
         </div>
       </div>
@@ -307,62 +367,82 @@ onMounted(load);
     <Card>
       <template #title>
         <span class="ipam-card-title">
-          <IconifyIcon icon="lucide:shield-check" />组与角色映射
+          <IconifyIcon icon="lucide:shield-check" />{{
+            $t('system.directory.mapping.title')
+          }}
         </span>
       </template>
       <template #extra>
-        <span class="ipam-hint">未匹配任何组时使用默认角色</span>
+        <span class="ipam-hint">{{ $t('system.directory.mapping.hint') }}</span>
       </template>
 
       <div class="ipam-form-grid">
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">组搜索 Base DN（可选）</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.directory.mapping.groupBaseDn')
+          }}</span>
           <Input
             v-model:value="form.groupBaseDn"
             placeholder="ou=groups,dc=corp,dc=local"
           />
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">组名属性</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.directory.mapping.groupAttr')
+          }}</span>
           <Input v-model:value="form.groupAttr" placeholder="cn" />
         </div>
         <div class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">组过滤器</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.directory.mapping.groupFilter')
+          }}</span>
           <Input
             v-model:value="form.groupFilter"
             placeholder="(&(objectClass=groupOfNames)(member={dn}))"
           />
           <span class="ipam-hint">
-            {dn} 为用户 DN；AD 可用 (&(objectClass=group)(member={dn}))
+            {{
+              $t('system.directory.mapping.groupFilterHint', {
+                ph: '{dn}',
+              })
+            }}
           </span>
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">默认角色</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.directory.mapping.defaultRole')
+          }}</span>
           <Input v-model:value="form.defaultRole" placeholder="user" />
-          <span class="ipam-hint">可用角色：{{ roleNames.join(' / ') }}</span>
+          <span class="ipam-hint">{{
+            $t('system.directory.mapping.rolesAvailable', {
+              roles: roleNames.join(' / '),
+            })
+          }}</span>
         </div>
       </div>
 
       <div class="ipam-toolbar ipam-toolbar--plain mt-3">
         <Input
           v-model:value="newGroup"
-          placeholder="组标识，如 ipam-ops 或 cn=ipam-ops,ou=groups,dc=corp,dc=local"
+          :placeholder="$t('system.directory.mapping.newGroupPlaceholder')"
           style="max-width: 420px"
           @press-enter="addMapping"
         />
         <Input
           v-model:value="newRole"
-          placeholder="角色"
+          :placeholder="$t('system.directory.mapping.newRolePlaceholder')"
           style="width: 140px"
         />
         <Button size="small" @click="addMapping">
-          <IconifyIcon icon="lucide:plus" class="mr-1 size-3.5" />添加映射
+          <IconifyIcon icon="lucide:plus" class="mr-1 size-3.5" />{{
+            $t('system.directory.mapping.add')
+          }}
         </Button>
       </div>
 
       <Table
         :data-source="roleMapRows"
-        :locale="{ emptyText: '暂无映射，目录账号将使用默认角色' }"
+        :locale="{ emptyText: $t('system.directory.mapping.empty') }"
         :pagination="false"
         :row-key="(r: { group: string }) => r.group"
         size="small"
@@ -376,33 +456,45 @@ onMounted(load);
           </template>
           <template v-else-if="column.key === 'op'">
             <Button size="small" danger @click="removeMapping(record.group)">
-              移除
+              {{ $t('system.directory.mapping.remove') }}
             </Button>
           </template>
         </template>
-        <Table.Column key="group" title="目录组" />
-        <Table.Column key="role" title="平台角色" width="160" />
-        <Table.Column key="op" title="操作" width="100" />
+        <Table.Column key="group" :title="$t('system.directory.mapping.colGroup')" />
+        <Table.Column
+          key="role"
+          :title="$t('system.directory.mapping.colRole')"
+          width="160"
+        />
+        <Table.Column
+          key="op"
+          :title="$t('system.directory.mapping.colOp')"
+          width="100"
+        />
       </Table>
     </Card>
 
     <Card>
       <template #title>
         <span class="ipam-card-title">
-          <IconifyIcon icon="lucide:plug-zap" />连通性测试
+          <IconifyIcon icon="lucide:plug-zap" />{{ $t('system.directory.test.title') }}
         </span>
       </template>
       <template #extra>
-        <span class="ipam-hint">使用指定目录账号执行一次真实 bind，不创建账号</span>
+        <span class="ipam-hint">{{ $t('system.directory.test.hint') }}</span>
       </template>
 
       <div class="ipam-form-grid">
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">测试账号</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.directory.test.username')
+          }}</span>
           <Input v-model:value="test.username" placeholder="zhangsan" />
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">测试口令</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.directory.test.password')
+          }}</span>
           <InputPassword
             v-model:value="test.password"
             autocomplete="off"
@@ -412,10 +504,12 @@ onMounted(load);
       </div>
 
       <div class="ipam-toolbar ipam-toolbar--plain mt-3">
-        <span class="ipam-hint">先保存连接配置，再执行测试</span>
+        <span class="ipam-hint">{{ $t('system.directory.test.before') }}</span>
         <span class="ipam-toolbar__spacer"></span>
         <Button type="primary" :loading="testing" @click="runTest">
-          <IconifyIcon icon="lucide:plug-zap" class="mr-1 size-3.5" />测试登录
+          <IconifyIcon icon="lucide:plug-zap" class="mr-1 size-3.5" />{{
+            $t('system.directory.test.submit')
+          }}
         </Button>
       </div>
 
@@ -429,13 +523,13 @@ onMounted(load);
           </span>
         </div>
         <div class="mt-2 flex flex-wrap items-center gap-2">
-          <span class="ipam-hint">映射角色：</span>
+          <span class="ipam-hint">{{ $t('system.directory.test.mappedRoles') }}</span>
           <Tag v-for="r in testResult.roles" :key="r" class="m-0" color="green">
             {{ r }}
           </Tag>
         </div>
         <div class="mt-2 flex flex-wrap items-center gap-2">
-          <span class="ipam-hint">所属组：</span>
+          <span class="ipam-hint">{{ $t('system.directory.test.groups') }}</span>
           <Tag v-for="g in testResult.groups" :key="g" class="m-0">
             {{ g }}
           </Tag>

@@ -11,31 +11,52 @@ import { getSystemInfo, getSystemMetrics } from '#/api/ipam';
 import MetricRing from '#/components/metric-ring.vue';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import { $t } from '#/locales';
 
 defineOptions({ name: 'About' });
 
 const version = (import.meta.env.VITE_APP_VERSION as string) || '5.7.0';
-const mode = import.meta.env.MODE === 'production' ? '生产环境' : '开发环境';
+const mode = computed(() =>
+  import.meta.env.MODE === 'production'
+    ? $t('system.about.mode.prod')
+    : $t('system.about.mode.dev'),
+);
 
 const info = ref<SystemInfo>();
 const metrics = ref<HostMetrics>();
 const loading = ref(false);
 const failed = ref(false);
 
-const capabilities = [
-  { desc: '组织 / 子网 / 地址池与逐地址台账', icon: 'lucide:network', label: '地址空间管理' },
-  { desc: 'Kea 配置下发、租约、保留与双栈联动', icon: 'lucide:server', label: 'DHCPv4 / v6' },
-  { desc: 'Unbound 上游、转发、记录、缓存与封禁', icon: 'lucide:globe', label: 'DNS 解析' },
-  { desc: 'ClickHouse 检索、实时流与操作审计', icon: 'lucide:scroll-text', label: '统一日志' },
-];
+const capabilities = computed(() => [
+  {
+    desc: $t('system.about.cap.addrDesc'),
+    icon: 'lucide:network',
+    label: $t('system.about.cap.addr'),
+  },
+  {
+    desc: $t('system.about.cap.dhcpDesc'),
+    icon: 'lucide:server',
+    label: $t('system.about.cap.dhcp'),
+  },
+  {
+    desc: $t('system.about.cap.dnsDesc'),
+    icon: 'lucide:globe',
+    label: $t('system.about.cap.dns'),
+  },
+  {
+    desc: $t('system.about.cap.logsDesc'),
+    icon: 'lucide:scroll-text',
+    label: $t('system.about.cap.logs'),
+  },
+]);
 
-const stack = [
-  { name: 'Go + Gin', role: '控制面 API / 编排' },
-  { name: 'ISC Kea', role: 'DHCPv4 / DHCPv6 引擎' },
-  { name: 'Unbound', role: '递归 DNS 引擎' },
-  { name: 'ClickHouse', role: '日志存储与聚合' },
-  { name: 'Vue 3 + Vben', role: '管理界面基座' },
-];
+const stack = computed(() => [
+  { name: 'Go + Gin', role: $t('system.about.stack.api') },
+  { name: 'ISC Kea', role: $t('system.about.stack.dhcp') },
+  { name: 'Unbound', role: $t('system.about.stack.dns') },
+  { name: 'ClickHouse', role: $t('system.about.stack.logs') },
+  { name: 'Vue 3 + Vben', role: $t('system.about.stack.ui') },
+]);
 
 function fmtBytes(v?: null | number): string {
   if (v === undefined || v === null || Number.isNaN(v)) return '—';
@@ -57,9 +78,9 @@ function fmtUptime(sec?: number): string {
   const d = Math.floor(sec / 86_400);
   const h = Math.floor((sec % 86_400) / 3600);
   const m = Math.floor((sec % 3600) / 60);
-  if (d > 0) return `${d} 天 ${h} 小时`;
-  if (h > 0) return `${h} 小时 ${m} 分`;
-  return `${m} 分钟`;
+  if (d > 0) return $t('system.about.uptime.days', { d, h });
+  if (h > 0) return $t('system.about.uptime.hours', { h, m });
+  return $t('system.about.uptime.minutes', { m });
 }
 function fmtDecimal(v?: null | number, digits = 2): string {
   if (v === undefined || v === null || Number.isNaN(v)) return '—';
@@ -69,7 +90,7 @@ function fmtDateTime(v?: string): string {
   if (!v) return '—';
   const t = Date.parse(v);
   if (Number.isNaN(t) || t <= 0) return '—';
-  return new Date(t).toLocaleString('zh-CN', { hour12: false });
+  return new Date(t).toLocaleString(undefined, { hour12: false });
 }
 function toneOfPct(pct: number): 'amber' | 'green' | 'red' {
   if (pct > 90) return 'red';
@@ -85,16 +106,20 @@ const rootDisk = computed(
 const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
 const ready = computed(() => info.value?.ready);
 const readyText = computed(() => {
-  if (ready.value === undefined) return '未知';
-  return ready.value ? '正常' : '异常';
+  if (ready.value === undefined) return $t('system.about.ready.unknown');
+  return ready.value
+    ? $t('system.about.ready.ok')
+    : $t('system.about.ready.bad');
 });
 const readyTone = computed<'green' | 'red' | 'violet'>(() => {
   if (ready.value === undefined) return 'violet';
   return ready.value ? 'green' : 'red';
 });
 const readyLabel = computed(() => {
-  if (ready.value === undefined) return '控制面状态未知';
-  return ready.value ? '控制面运行正常' : '控制面依赖异常';
+  if (ready.value === undefined) return $t('system.about.ready.labelUnknown');
+  return ready.value
+    ? $t('system.about.ready.labelOk')
+    : $t('system.about.ready.labelBad');
 });
 
 async function load() {
@@ -109,17 +134,39 @@ async function load() {
 
 const diagnosis = computed(() =>
   [
-    `IPAM 诊断信息 · ${fmtDateTime(new Date().toISOString())}`,
-    `前端版本: v${version} (${mode})`,
-    `控制面: ${info.value?.name ?? '—'} ${info.value?.version ?? '—'}`,
-    `Go 运行时: ${info.value?.goVersion ?? '—'}`,
-    `依赖就绪: ${readyText.value}`,
-    `连续运行: ${fmtUptime(metrics.value?.uptimeSec)}`,
-    `CPU: ${fmtPct(cpuPct.value)} · ${metrics.value?.cpu.cores ?? '—'} 核 · 负载 ${fmtDecimal(metrics.value?.cpu.load1)}/${fmtDecimal(metrics.value?.cpu.load5)}/${fmtDecimal(metrics.value?.cpu.load15)}`,
-    `内存: ${fmtBytes(metrics.value?.memory.usedBytes)} / ${fmtBytes(metrics.value?.memory.totalBytes)} (${fmtPct(memPct.value)})`,
-    ...(metrics.value?.disks ?? []).map(
-      (d) =>
-        `磁盘 ${d.mount}: ${fmtBytes(d.usedBytes)} / ${fmtBytes(d.totalBytes)} (${fmtPct(d.usedPct)}) · ${d.fsType ?? ''}`,
+    $t('system.about.diag.title', {
+      time: fmtDateTime(new Date().toISOString()),
+    }),
+    $t('system.about.diag.frontend', { mode: mode.value, version }),
+    $t('system.about.diag.control', {
+      name: info.value?.name ?? '—',
+      version: info.value?.version ?? '—',
+    }),
+    $t('system.about.diag.go', { v: info.value?.goVersion ?? '—' }),
+    $t('system.about.diag.ready', { state: readyText.value }),
+    $t('system.about.diag.uptime', {
+      v: fmtUptime(metrics.value?.uptimeSec),
+    }),
+    $t('system.about.diag.cpu', {
+      cores: metrics.value?.cpu.cores ?? '—',
+      l1: fmtDecimal(metrics.value?.cpu.load1),
+      l5: fmtDecimal(metrics.value?.cpu.load5),
+      l15: fmtDecimal(metrics.value?.cpu.load15),
+      pct: fmtPct(cpuPct.value),
+    }),
+    $t('system.about.diag.mem', {
+      pct: fmtPct(memPct.value),
+      total: fmtBytes(metrics.value?.memory.totalBytes),
+      used: fmtBytes(metrics.value?.memory.usedBytes),
+    }),
+    ...(metrics.value?.disks ?? []).map((d) =>
+      $t('system.about.diag.disk', {
+        fs: d.fsType ?? '',
+        mount: d.mount,
+        pct: fmtPct(d.usedPct),
+        total: fmtBytes(d.totalBytes),
+        used: fmtBytes(d.usedBytes),
+      }),
     ),
   ].join('\n'),
 );
@@ -127,9 +174,9 @@ const diagnosis = computed(() =>
 async function copyDiagnosis() {
   try {
     await navigator.clipboard.writeText(diagnosis.value);
-    message.success('诊断信息已复制到剪贴板');
+    message.success($t('system.about.diag.copied'));
   } catch {
-    message.warning('浏览器未授予剪贴板权限');
+    message.warning($t('system.about.diag.copyFail'));
   }
 }
 
@@ -141,8 +188,8 @@ onMounted(load);
     <PageHeader
       eyebrow="System"
       icon="lucide:copyright"
-      title="关于平台"
-      description="产品版本、运行环境、核心能力与技术栈信息，可一键复制诊断信息用于问题反馈。"
+      :title="$t('system.about.header.title')"
+      :description="$t('system.about.header.desc')"
     >
       <template #actions>
         <span class="ipam-page-header__meta">
@@ -153,43 +200,63 @@ onMounted(load);
           {{ readyLabel }}
         </span>
         <Button size="small" @click="copyDiagnosis">
-          <IconifyIcon icon="lucide:clipboard-copy" class="mr-1 size-3.5" />复制诊断信息
+          <IconifyIcon icon="lucide:clipboard-copy" class="mr-1 size-3.5" />{{ $t('system.about.header.copy') }}
         </Button>
         <Button size="small" :loading="loading" @click="load">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />刷新
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{ $t('system.about.header.refresh') }}
         </Button>
       </template>
     </PageHeader>
 
     <div class="ipam-stat-grid">
       <StatCard
-        label="产品版本"
+        :label="$t('system.about.stat.version')"
         :value="`v${version}`"
         icon="lucide:package"
         tone="blue"
-        :hint="`控制面 ${info?.version ?? '—'}`"
+        :hint="$t('system.about.stat.versionHint', { v: info?.version ?? '—' })"
       />
       <StatCard
-        label="控制面状态"
+        :label="$t('system.about.stat.status')"
         :value="readyText"
         icon="lucide:server-cog"
         :tone="readyTone"
-        :hint="info?.name ? `${info.name} · ${info.goVersion}` : '等待控制面版本信息…'"
+        :hint="
+          info?.name
+            ? $t('system.about.stat.statusHint', {
+                go: info.goVersion,
+                name: info.name,
+              })
+            : $t('system.about.stat.statusWait')
+        "
       />
       <StatCard
-        label="连续运行"
+        :label="$t('system.about.stat.uptime')"
         :value="fmtUptime(metrics?.uptimeSec)"
         icon="lucide:timer"
         tone="cyan"
-        :hint="metrics ? `采样于 ${fmtDateTime(metrics.ts)}` : '宿主指标暂不可达'"
+        :hint="
+          metrics
+            ? $t('system.about.stat.uptimeHint', {
+                time: fmtDateTime(metrics.ts),
+              })
+            : $t('system.about.stat.uptimeUnavailable')
+        "
       />
       <StatCard
-        label="CPU 使用率"
+        :label="$t('system.about.stat.cpu')"
         :value="metrics ? fmtPct(cpuPct) : '—'"
         icon="lucide:cpu"
         :tone="metrics ? toneOfPct(cpuPct) : 'violet'"
         :progress="metrics ? Math.min(100, cpuPct) : undefined"
-        :hint="metrics ? `${metrics.cpu.cores} 核 · 1 分钟负载 ${fmtDecimal(metrics.cpu.load1)}` : '未能读取 /system/metrics'"
+        :hint="
+          metrics
+            ? $t('system.about.stat.cpuHint', {
+                cores: metrics.cpu.cores,
+                load: fmtDecimal(metrics.cpu.load1),
+              })
+            : $t('system.about.stat.cpuUnavailable')
+        "
       />
     </div>
 
@@ -202,32 +269,31 @@ onMounted(load);
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
               <h2 class="m-0 text-xl font-semibold tracking-tight">
-                DDI 统一 IP 地址管理平台
+                {{ $t('system.about.hero.title') }}
               </h2>
               <Tag color="blue" class="m-0">v{{ version }}</Tag>
               <Tag class="m-0">{{ mode }}</Tag>
               <Tag v-if="info?.version" class="m-0" color="green">
-                控制面 {{ info.version }}
+                {{ $t('system.about.hero.controlPlane', { v: info.version }) }}
               </Tag>
             </div>
             <p class="ipam-hint mt-2">
-              IPAM、DHCPv4/v6、DNS 与统一日志一体化产品，面向企业内网提供地址规划、
-              自动下发、解析服务与安全审计能力。内网离线可部署，无 GPL 依赖。
+              {{ $t('system.about.hero.desc') }}
             </p>
           </div>
         </div>
         <div class="ipam-about-hero__meta">
         <div class="ipam-figure">
-          <span class="ipam-figure__label">服务端时间</span>
+          <span class="ipam-figure__label">{{ $t('system.about.meta.serverTime') }}</span>
           <span class="ipam-figure__value ipam-mono">{{ fmtDateTime(info?.now) }}</span>
         </div>
         <div class="ipam-figure">
-          <span class="ipam-figure__label">运行模式</span>
+          <span class="ipam-figure__label">{{ $t('system.about.meta.mode') }}</span>
           <span class="ipam-figure__value">{{ mode }}</span>
         </div>
           <div class="ipam-figure">
-            <span class="ipam-figure__label">许可协议</span>
-            <span class="ipam-figure__value">商业交付</span>
+            <span class="ipam-figure__label">{{ $t('system.about.meta.license') }}</span>
+            <span class="ipam-figure__value">{{ $t('system.about.meta.licenseValue') }}</span>
           </div>
         </div>
       </div>
@@ -237,44 +303,56 @@ onMounted(load);
       <Card>
         <template #title>
           <span class="ipam-card-title">
-            <IconifyIcon icon="lucide:info" />产品信息
+            <IconifyIcon icon="lucide:info" />{{ $t('system.about.info.title') }}
           </span>
         </template>
         <template #extra>
-          <span class="ipam-hint">构建期注入版本号</span>
+          <span class="ipam-hint">{{ $t('system.about.info.hint') }}</span>
         </template>
         <Descriptions :column="2" bordered size="small">
-          <Descriptions.Item label="产品名称">DDI 统一 IP 地址管理平台</Descriptions.Item>
-          <Descriptions.Item label="前端版本">v{{ version }}</Descriptions.Item>
-          <Descriptions.Item label="控制面版本">
+          <Descriptions.Item :label="$t('system.about.info.product')">
+            {{ $t('system.about.info.productValue') }}
+          </Descriptions.Item>
+          <Descriptions.Item :label="$t('system.about.info.frontend')">
+            v{{ version }}
+          </Descriptions.Item>
+          <Descriptions.Item :label="$t('system.about.info.controlPlane')">
             {{ info?.version ?? '—' }}
           </Descriptions.Item>
-          <Descriptions.Item label="Go 运行时">
+          <Descriptions.Item :label="$t('system.about.info.go')">
             {{ info?.goVersion ?? '—' }}
           </Descriptions.Item>
-          <Descriptions.Item label="运行模式">{{ mode }}</Descriptions.Item>
-          <Descriptions.Item label="界面语言">简体中文</Descriptions.Item>
-          <Descriptions.Item label="服务端时间" :span="2">
+          <Descriptions.Item :label="$t('system.about.info.mode')">
+            {{ mode }}
+          </Descriptions.Item>
+          <Descriptions.Item :label="$t('system.about.info.lang')">
+            {{ $t('system.about.info.langValue') }}
+          </Descriptions.Item>
+          <Descriptions.Item :label="$t('system.about.info.serverTime')" :span="2">
             <span class="ipam-mono">{{ fmtDateTime(info?.now) }}</span>
           </Descriptions.Item>
-          <Descriptions.Item label="许可协议" :span="2">
-            商业交付 · 第三方组件许可见《LICENSES.md》
+          <Descriptions.Item :label="$t('system.about.info.license')" :span="2">
+            {{ $t('system.about.info.licenseValue') }}
           </Descriptions.Item>
         </Descriptions>
         <div v-if="failed" class="ipam-note mt-3">
           <IconifyIcon icon="lucide:triangle-alert" class="mt-0.5 size-3.5 shrink-0" />
-          <span>未能读取 <code>/system/info</code>，控制面版本与状态可能不是最新。</span>
+          <span>
+            {{
+              $t('system.about.info.fail', { code: '/system/info' })
+            }}
+          </span>
         </div>
       </Card>
 
       <Card>
         <template #title>
           <span class="ipam-card-title">
-            <IconifyIcon icon="lucide:activity" />宿主资源
+            <IconifyIcon icon="lucide:activity" />{{ $t('system.about.host.title') }}
           </span>
         </template>
         <template #extra>
-          <span class="ipam-hint">来自 /system/metrics</span>
+          <span class="ipam-hint">{{ $t('system.about.host.hint') }}</span>
         </template>
 
         <Skeleton v-if="loading && !metrics" active :paragraph="{ rows: 5 }" />
@@ -290,7 +368,9 @@ onMounted(load);
               />
               <div class="ipam-gauge__caption">
                 <span>CPU</span>
-                <small>{{ metrics.cpu.cores }} 核</small>
+                <small>
+                  {{ $t('system.about.host.cores', { n: metrics.cpu.cores }) }}
+                </small>
               </div>
             </div>
             <div class="ipam-gauge">
@@ -302,7 +382,7 @@ onMounted(load);
                 :value="memPct"
               />
               <div class="ipam-gauge__caption">
-                <span>内存</span>
+                <span>{{ $t('system.about.host.memory') }}</span>
                 <small>
                   {{ fmtBytes(metrics.memory.usedBytes) }} / {{ fmtBytes(metrics.memory.totalBytes) }}
                 </small>
@@ -317,7 +397,7 @@ onMounted(load);
                 :value="diskPct"
               />
               <div class="ipam-gauge__caption">
-                <span>{{ rootDisk?.mount ?? '根分区' }}</span>
+                <span>{{ rootDisk?.mount ?? $t('system.about.host.rootfs') }}</span>
                 <small>
                   {{ fmtBytes(rootDisk?.usedBytes) }} / {{ fmtBytes(rootDisk?.totalBytes) }}
                 </small>
@@ -343,27 +423,27 @@ onMounted(load);
 
           <div class="ipam-figure-row">
             <div class="ipam-figure">
-              <span class="ipam-figure__label">1 分钟负载</span>
+              <span class="ipam-figure__label">{{ $t('system.about.host.load1') }}</span>
               <span class="ipam-figure__value">{{ fmtDecimal(metrics.cpu.load1) }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">5 分钟负载</span>
+              <span class="ipam-figure__label">{{ $t('system.about.host.load5') }}</span>
               <span class="ipam-figure__value">{{ fmtDecimal(metrics.cpu.load5) }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">15 分钟负载</span>
+              <span class="ipam-figure__label">{{ $t('system.about.host.load15') }}</span>
               <span class="ipam-figure__value">{{ fmtDecimal(metrics.cpu.load15) }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">连续运行</span>
+              <span class="ipam-figure__label">{{ $t('system.about.host.uptime') }}</span>
               <span class="ipam-figure__value">{{ fmtUptime(metrics.uptimeSec) }}</span>
             </div>
           </div>
         </template>
         <div v-else class="ipam-empty ipam-empty--compact">
-          <div class="ipam-empty__title">宿主资源暂不可达</div>
+          <div class="ipam-empty__title">{{ $t('system.about.host.emptyTitle') }}</div>
           <div class="ipam-empty__desc">
-            控制面未挂载宿主 /proc 或指标采集未接线，仅影响本卡片展示。
+            {{ $t('system.about.host.emptyDesc') }}
           </div>
         </div>
       </Card>
@@ -373,7 +453,7 @@ onMounted(load);
       <Card>
         <template #title>
           <span class="ipam-card-title">
-            <IconifyIcon icon="lucide:sparkles" />核心能力
+            <IconifyIcon icon="lucide:sparkles" />{{ $t('system.about.cap.title') }}
           </span>
         </template>
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -392,11 +472,11 @@ onMounted(load);
       <Card>
         <template #title>
           <span class="ipam-card-title">
-            <IconifyIcon icon="lucide:layers" />技术栈
+            <IconifyIcon icon="lucide:layers" />{{ $t('system.about.stack.title') }}
           </span>
         </template>
         <template #extra>
-          <span class="ipam-hint">无 GPL 依赖 · 内网离线可部署</span>
+          <span class="ipam-hint">{{ $t('system.about.stack.hint') }}</span>
         </template>
         <div class="ipam-metric-row">
           <div v-for="item in stack" :key="item.name" class="ipam-metric">

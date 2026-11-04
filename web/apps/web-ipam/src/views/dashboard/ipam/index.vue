@@ -24,12 +24,13 @@ import {
   useOnboardingUsername,
   writeOnboarding,
 } from '#/composables/use-onboarding';
+import { $t } from '#/locales';
 
 type Light = 'down' | 'unknown' | 'up';
-const LIGHT_TEXT: Record<Light, string> = {
-  up: '运行正常',
-  down: '服务异常',
-  unknown: '未接入',
+const LIGHT_TEXT_KEY: Record<Light, string> = {
+  up: 'dashboard.ipam.light.up',
+  down: 'dashboard.ipam.light.down',
+  unknown: 'dashboard.ipam.light.unknown',
 };
 const LIGHT_LABEL: Record<string, string> = {
   postgres: 'PostgreSQL',
@@ -117,7 +118,9 @@ function fmtUptime(sec?: number): string {
   const d = Math.floor(sec / 86_400);
   const h = Math.floor((sec % 86_400) / 3600);
   const m = Math.floor((sec % 3600) / 60);
-  return d > 0 ? `${d}天 ${h}时` : `${h}时 ${m}分`;
+  return d > 0
+    ? $t('dashboard.ipam.host.uptimeDays', { d, h })
+    : $t('dashboard.ipam.host.uptimeHours', { h, m });
 }
 function toneOfPct(pct: number): 'amber' | 'green' | 'red' {
   if (pct > 90) return 'red';
@@ -144,17 +147,29 @@ const onlineAvg = computed(() => {
 });
 
 // ── DNS 查询量 ──
-const RANGES = [
-  { hours: 1, intervalSec: 60, label: '1 小时' },
-  { hours: 6, intervalSec: 300, label: '6 小时' },
-  { hours: 24, intervalSec: 900, label: '24 小时' },
-] as const;
-type RangeHours = (typeof RANGES)[number]['hours'];
+const RANGES = computed(() => [
+  {
+    hours: 1 as const,
+    intervalSec: 60,
+    label: $t('dashboard.ipam.qps.range1h'),
+  },
+  {
+    hours: 6 as const,
+    intervalSec: 300,
+    label: $t('dashboard.ipam.qps.range6h'),
+  },
+  {
+    hours: 24 as const,
+    intervalSec: 900,
+    label: $t('dashboard.ipam.qps.range24h'),
+  },
+]);
+type RangeHours = 1 | 6 | 24;
 
 const qpsRange = ref<RangeHours>(1);
 const qpsPoints = ref<{ count: number; ts: string }[]>([]);
 const currentRange = computed(
-  () => RANGES.find((r) => r.hours === qpsRange.value) ?? RANGES[0],
+  () => RANGES.value.find((r) => r.hours === qpsRange.value) ?? RANGES.value[0]!,
 );
 const qpsBucketMin = computed(() => currentRange.value.intervalSec / 60);
 const qpsSeries = computed(() =>
@@ -227,7 +242,7 @@ const healthServices = computed(() =>
     const state = (data.value?.services?.[
       key as keyof DashboardOverview['services']
     ] ?? 'unknown') as Light;
-    return { key, label, state, text: LIGHT_TEXT[state] };
+    return { key, label, state, text: $t(LIGHT_TEXT_KEY[state]) };
   }),
 );
 const healthUp = computed(
@@ -246,10 +261,14 @@ const healthTone = computed<'amber' | 'green' | 'red'>(() => {
 });
 const healthHint = computed(() => {
   const down = healthServices.value.filter((s) => s.state === 'down');
-  if (down.length > 0) return `需关注：${down.map((s) => s.label).join('、')}`;
+  if (down.length > 0) {
+    return $t('dashboard.ipam.health.hintDown', {
+      names: down.map((s) => s.label).join($t('dashboard.ipam.listSep')),
+    });
+  }
   return healthServices.value.some((s) => s.state === 'unknown')
-    ? '部分组件未配置探测目标'
-    : '全部核心服务运行正常';
+    ? $t('dashboard.ipam.health.hintPartial')
+    : $t('dashboard.ipam.health.hintAll');
 });
 
 // ── 主机资源 ──
@@ -266,17 +285,23 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
     <PageHeader
       eyebrow="Dashboard"
       icon="lucide:layout-dashboard"
-      title="运行概览"
-      description="集中查看地址资源、核心服务健康度与 DNS 运行态势。"
+      :title="$t('dashboard.ipam.header.title')"
+      :description="$t('dashboard.ipam.header.desc')"
     >
       <template #actions>
         <span class="ipam-page-header__meta">
           <IconifyIcon icon="lucide:clock-3" class="size-3.5" />
-          {{ lastUpdated ? `${dayjs(lastUpdated).format('HH:mm:ss')} 更新` : '等待首次加载' }}
+          {{
+            lastUpdated
+              ? $t('dashboard.ipam.header.updatedAt', {
+                  time: dayjs(lastUpdated).format('HH:mm:ss'),
+                })
+              : $t('dashboard.ipam.header.waiting')
+          }}
         </span>
         <Button :loading="loading" @click="refreshAll">
           <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />
-          刷新
+          {{ $t('dashboard.ipam.header.refresh') }}
         </Button>
       </template>
     </PageHeader>
@@ -302,25 +327,30 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
     <!-- 核心指标 -->
     <div class="ipam-stat-grid">
       <StatCard
-        label="今日活跃终端"
+        :label="$t('dashboard.ipam.stat.activeDevices')"
         :value="fmtInt(data?.onlineNow)"
-        unit="台"
+        :unit="$t('dashboard.ipam.unit.devices')"
         icon="lucide:monitor-smartphone"
         tone="blue"
         :spark="onlineSpark"
-        :hint="`新增 ${fmtInt(data?.newTerminals)} · 离线 ${fmtInt(data?.offlineTerminals)}`"
+        :hint="
+          $t('dashboard.ipam.stat.activeHint', {
+            new: fmtInt(data?.newTerminals),
+            offline: fmtInt(data?.offlineTerminals),
+          })
+        "
       />
       <StatCard
-        label="DNS 5 分钟 QPS"
+        :label="$t('dashboard.ipam.stat.qps')"
         :value="fmtDecimal(data?.dns?.qps5m)"
         unit="QPS"
         icon="lucide:activity"
         tone="cyan"
         :spark="qpsSpark"
-        :hint="`近 1 小时均值 ${fmtDecimal(qpsAvgRate)} 次/分`"
+        :hint="$t('dashboard.ipam.stat.qpsHint', { avg: fmtDecimal(qpsAvgRate) })"
       />
       <StatCard
-        label="核心服务健康"
+        :label="$t('dashboard.ipam.stat.health')"
         :value="`${healthUp} / ${healthTotal || '—'}`"
         icon="lucide:shield-check"
         :tone="healthTone"
@@ -328,12 +358,12 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
         :progress="healthRatio"
       />
       <StatCard
-        label="今日 DNS 拦截"
+        :label="$t('dashboard.ipam.stat.blocked')"
         :value="fmtInt(data?.dns?.blockedToday ?? null)"
-        unit="次"
+        :unit="$t('dashboard.ipam.unit.times')"
         icon="lucide:shield-ban"
         tone="violet"
-        hint="封禁名单命中（今日累计）"
+        :hint="$t('dashboard.ipam.stat.blockedHint')"
       />
     </div>
 
@@ -343,12 +373,14 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
         <template #title>
           <span class="ipam-card-title">
             <IconifyIcon icon="lucide:users" />
-            活跃终端趋势
-            <em class="ipam-card-sub">近 24 小时 · 逐小时</em>
+            {{ $t('dashboard.ipam.online.title') }}
+            <em class="ipam-card-sub">{{ $t('dashboard.ipam.online.sub') }}</em>
           </span>
         </template>
         <template #extra>
-          <span class="ipam-hint">峰值 {{ fmtInt(onlinePeak) }} 台</span>
+          <span class="ipam-hint">
+            {{ $t('dashboard.ipam.online.peak', { n: fmtInt(onlinePeak) }) }}
+          </span>
         </template>
 
         <Skeleton v-if="!data" active :paragraph="{ rows: 4 }" />
@@ -359,26 +391,26 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
             :markers="false"
             bars
             tone="blue"
-            unit="台"
+            :unit="$t('dashboard.ipam.unit.devices')"
           />
           <div class="ipam-figure-row">
             <div class="ipam-figure">
-              <span class="ipam-figure__label">今日新增</span>
+              <span class="ipam-figure__label">{{ $t('dashboard.ipam.online.new') }}</span>
               <span class="ipam-figure__value">{{ fmtInt(data?.newTerminals) }}</span>
-              <span class="ipam-figure__unit">台</span>
+              <span class="ipam-figure__unit">{{ $t('dashboard.ipam.unit.devices') }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">离线终端</span>
+              <span class="ipam-figure__label">{{ $t('dashboard.ipam.online.offline') }}</span>
               <span class="ipam-figure__value">{{ fmtInt(data?.offlineTerminals) }}</span>
-              <span class="ipam-figure__unit">台</span>
+              <span class="ipam-figure__unit">{{ $t('dashboard.ipam.unit.devices') }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">小时均值</span>
+              <span class="ipam-figure__label">{{ $t('dashboard.ipam.online.hourlyAvg') }}</span>
               <span class="ipam-figure__value">{{ fmtInt(onlineAvg) }}</span>
-              <span class="ipam-figure__unit">台</span>
+              <span class="ipam-figure__unit">{{ $t('dashboard.ipam.unit.devices') }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">双栈联动成功率</span>
+              <span class="ipam-figure__label">{{ $t('dashboard.ipam.online.dualstack') }}</span>
               <span class="ipam-figure__value">{{ fmtInt(data?.coherenceSuccessRatePct) }}</span>
               <span class="ipam-figure__unit">%</span>
               <span class="ipam-figure__hint">DHCP ↔ DNS</span>
@@ -389,8 +421,8 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
           <div class="ipam-empty__icon">
             <IconifyIcon icon="lucide:bar-chart-3" class="size-5" />
           </div>
-          <div class="ipam-empty__title">暂无活跃终端趋势</div>
-          <div class="ipam-empty__desc">租约数据产生后将自动在此展示。</div>
+          <div class="ipam-empty__title">{{ $t('dashboard.ipam.online.emptyTitle') }}</div>
+          <div class="ipam-empty__desc">{{ $t('dashboard.ipam.online.emptyDesc') }}</div>
         </div>
       </Card>
 
@@ -398,12 +430,18 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
         <template #title>
           <span class="ipam-card-title">
             <IconifyIcon icon="lucide:shield-check" />
-            核心服务健康
+            {{ $t('dashboard.ipam.stat.health') }}
           </span>
         </template>
         <template #extra>
           <span class="ipam-chip" :data-tone="healthTone">
-            {{ healthTone === 'green' ? '正常' : healthTone === 'red' ? '异常' : '待接入' }}
+            {{
+              healthTone === 'green'
+                ? $t('dashboard.ipam.health.ok')
+                : healthTone === 'red'
+                  ? $t('dashboard.ipam.health.bad')
+                  : $t('dashboard.ipam.health.pending')
+            }}
           </span>
         </template>
 
@@ -414,12 +452,12 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
             :thickness="9"
             :tone="healthTone"
             :label="`${healthUp}/${healthTotal || 0}`"
-            caption="服务正常"
+            :caption="$t('dashboard.ipam.health.captionOk')"
             :empty="healthTotal === 0"
           />
           <div class="ipam-health-summary__text">
             <div class="ipam-health-summary__title">{{ healthHint }}</div>
-            <div class="ipam-hint">探测间隔 30 秒 · 未接入=未配置探测目标</div>
+            <div class="ipam-hint">{{ $t('dashboard.ipam.health.probeHint') }}</div>
           </div>
         </div>
 
@@ -440,7 +478,7 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
 
         <div class="ipam-note mt-3">
           <IconifyIcon icon="lucide:info" class="mt-0.5 size-3.5 shrink-0" />
-          <span>PoC 内存模式下未配置探测目标会显示「未接入」，不影响其他功能。</span>
+          <span>{{ $t('dashboard.ipam.health.poc') }}</span>
         </div>
       </Card>
     </div>
@@ -451,15 +489,17 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
         <template #title>
           <span class="ipam-card-title">
             <IconifyIcon icon="lucide:activity" />
-            DNS 查询量
-            <em class="ipam-card-sub">{{ qpsBucketMin }} 分钟分桶</em>
+            {{ $t('dashboard.ipam.qps.title') }}
+            <em class="ipam-card-sub">
+              {{ $t('dashboard.ipam.qps.bucket', { min: qpsBucketMin }) }}
+            </em>
           </span>
         </template>
         <template #extra>
           <div class="ipam-card-tools">
             <span class="ipam-card-legend">
-              <span><i data-kind="peak"></i>峰值</span>
-              <span><i data-kind="avg"></i>均值</span>
+              <span><i data-kind="peak"></i>{{ $t('dashboard.ipam.qps.peak') }}</span>
+              <span><i data-kind="avg"></i>{{ $t('dashboard.ipam.qps.avg') }}</span>
             </span>
             <div class="ipam-seg">
               <button
@@ -483,30 +523,30 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
             :height="188"
             :time-format="qpsRange === 24 ? 'MM-DD HH:mm' : 'HH:mm'"
             tone="cyan"
-            unit="次"
+            :unit="$t('dashboard.ipam.unit.times')"
           />
           <div v-else class="ipam-empty">
             <div class="ipam-empty__icon">
               <IconifyIcon icon="lucide:activity" class="size-5" />
             </div>
-            <div class="ipam-empty__title">暂无查询数据</div>
-            <div class="ipam-empty__desc">DNS 查询日志接入后将在此展示查询趋势。</div>
+            <div class="ipam-empty__title">{{ $t('dashboard.ipam.qps.emptyTitle') }}</div>
+            <div class="ipam-empty__desc">{{ $t('dashboard.ipam.qps.emptyDesc') }}</div>
           </div>
           <div class="ipam-figure-row">
             <div class="ipam-figure">
-              <span class="ipam-figure__label">平均速率</span>
+              <span class="ipam-figure__label">{{ $t('dashboard.ipam.qps.avgRate') }}</span>
               <span class="ipam-figure__value">{{ fmtDecimal(qpsAvgRate) }}</span>
-              <span class="ipam-figure__unit">次/分</span>
+              <span class="ipam-figure__unit">{{ $t('dashboard.ipam.unit.perMin') }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">峰值速率</span>
+              <span class="ipam-figure__label">{{ $t('dashboard.ipam.qps.peakRate') }}</span>
               <span class="ipam-figure__value">{{ fmtDecimal(qpsPeakRate) }}</span>
-              <span class="ipam-figure__unit">次/分</span>
+              <span class="ipam-figure__unit">{{ $t('dashboard.ipam.unit.perMin') }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">区间查询总量</span>
+              <span class="ipam-figure__label">{{ $t('dashboard.ipam.qps.total') }}</span>
               <span class="ipam-figure__value">{{ fmtInt(qpsTotal) }}</span>
-              <span class="ipam-figure__unit">次</span>
+              <span class="ipam-figure__unit">{{ $t('dashboard.ipam.unit.times') }}</span>
             </div>
           </div>
         </template>
@@ -516,13 +556,13 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
         <template #title>
           <span class="ipam-card-title">
             <IconifyIcon icon="lucide:flame" />
-            热门查询域名
-            <em class="ipam-card-sub">近 1 小时</em>
+            {{ $t('dashboard.ipam.top.title') }}
+            <em class="ipam-card-sub">{{ $t('dashboard.ipam.top.sub') }}</em>
           </span>
         </template>
         <template #extra>
           <RouterLink class="ipam-link" to="/logs-center/search">
-            日志明细
+            {{ $t('dashboard.ipam.top.details') }}
             <IconifyIcon icon="lucide:arrow-up-right" class="size-3" />
           </RouterLink>
         </template>
@@ -549,8 +589,8 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
           <div class="ipam-empty__icon">
             <IconifyIcon icon="lucide:flame" class="size-5" />
           </div>
-          <div class="ipam-empty__title">暂无域名数据</div>
-          <div class="ipam-empty__desc">DNS 查询日志接入后展示热门域名。</div>
+          <div class="ipam-empty__title">{{ $t('dashboard.ipam.top.emptyTitle') }}</div>
+          <div class="ipam-empty__desc">{{ $t('dashboard.ipam.top.emptyDesc') }}</div>
         </div>
       </Card>
     </div>
@@ -561,13 +601,18 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
         <template #title>
           <span class="ipam-card-title">
             <IconifyIcon icon="lucide:server" />
-            主机资源
-            <em class="ipam-card-sub">宿主整机 · 每 10 秒刷新</em>
+            {{ $t('dashboard.ipam.host.title') }}
+            <em class="ipam-card-sub">{{ $t('dashboard.ipam.host.sub') }}</em>
           </span>
         </template>
         <template #extra>
           <span v-if="metrics" class="ipam-hint">
-            {{ dayjs(metrics.ts).format('HH:mm:ss') }} 采样 · 开机 {{ fmtUptime(metrics.uptimeSec) }}
+            {{
+              $t('dashboard.ipam.host.sampled', {
+                time: dayjs(metrics.ts).format('HH:mm:ss'),
+                uptime: fmtUptime(metrics.uptimeSec),
+              })
+            }}
           </span>
         </template>
 
@@ -584,7 +629,9 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
               />
               <div class="ipam-gauge__caption">
                 <span>CPU</span>
-                <small>{{ metrics.cpu.cores }} 核</small>
+                <small>
+                  {{ $t('dashboard.ipam.host.cores', { n: metrics.cpu.cores }) }}
+                </small>
               </div>
             </div>
             <div class="ipam-gauge">
@@ -596,7 +643,7 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
                 :label="fmtPct(memPct)"
               />
               <div class="ipam-gauge__caption">
-                <span>内存</span>
+                <span>{{ $t('dashboard.ipam.host.memory') }}</span>
                 <small>
                   {{ fmtBytes(metrics.memory.usedBytes) }} / {{ fmtBytes(metrics.memory.totalBytes) }}
                 </small>
@@ -612,7 +659,7 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
                 :empty="!rootDisk"
               />
               <div class="ipam-gauge__caption">
-                <span>根分区</span>
+                <span>{{ $t('dashboard.ipam.host.rootfs') }}</span>
                 <small>
                   {{ fmtBytes(rootDisk?.usedBytes) }} / {{ fmtBytes(rootDisk?.totalBytes) }}
                 </small>
@@ -639,25 +686,25 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
             <div class="ipam-empty__icon">
               <IconifyIcon icon="lucide:hard-drive" class="size-5" />
             </div>
-            <div class="ipam-empty__title">暂无磁盘数据</div>
-            <div class="ipam-empty__desc">请确认控制面已挂载宿主 /proc 与 /sys。</div>
+            <div class="ipam-empty__title">{{ $t('dashboard.ipam.host.emptyTitle') }}</div>
+            <div class="ipam-empty__desc">{{ $t('dashboard.ipam.host.emptyDesc') }}</div>
           </div>
 
           <div class="ipam-figure-row">
             <div class="ipam-figure">
-              <span class="ipam-figure__label">1 分钟负载</span>
+              <span class="ipam-figure__label">{{ $t('dashboard.ipam.host.load1') }}</span>
               <span class="ipam-figure__value">{{ fmtDecimal(metrics.cpu.load1, 2) }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">5 分钟负载</span>
+              <span class="ipam-figure__label">{{ $t('dashboard.ipam.host.load5') }}</span>
               <span class="ipam-figure__value">{{ fmtDecimal(metrics.cpu.load5, 2) }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">15 分钟负载</span>
+              <span class="ipam-figure__label">{{ $t('dashboard.ipam.host.load15') }}</span>
               <span class="ipam-figure__value">{{ fmtDecimal(metrics.cpu.load15, 2) }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">连续运行</span>
+              <span class="ipam-figure__label">{{ $t('dashboard.ipam.host.uptime') }}</span>
               <span class="ipam-figure__value">{{ fmtUptime(metrics.uptimeSec) }}</span>
             </div>
           </div>
@@ -668,12 +715,12 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
         <template #title>
           <span class="ipam-card-title">
             <IconifyIcon icon="lucide:network" />
-            地址池利用率 Top 5
+            {{ $t('dashboard.ipam.pools.title') }}
           </span>
         </template>
         <template #extra>
           <RouterLink class="ipam-link" to="/dhcp/subnets">
-            子网管理
+            {{ $t('dashboard.ipam.pools.manage') }}
             <IconifyIcon icon="lucide:arrow-up-right" class="size-3" />
           </RouterLink>
         </template>
@@ -692,7 +739,11 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
               </div>
               <div class="ipam-rank__tags">
                 <span class="ipam-rank__cidr ipam-mono">{{ p.cidr }}</span>
-                <span v-if="p.orgName" class="ipam-rank__dept" :title="`部门：${p.orgName}`">
+                <span
+                  v-if="p.orgName"
+                  class="ipam-rank__dept"
+                  :title="$t('dashboard.ipam.pools.dept', { name: p.orgName })"
+                >
                   <IconifyIcon icon="lucide:building-2" class="size-3" />{{ p.orgName }}
                 </span>
               </div>
@@ -703,7 +754,12 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
                 <i :style="{ width: `${Math.min(100, Number(p.pct) || 0)}%` }"></i>
               </div>
               <div class="ipam-rank__meta">
-                已用 {{ fmtInt(p.used) }} / 容量 {{ fmtInt(p.capacity) }}
+                {{
+                  $t('dashboard.ipam.pools.used', {
+                    used: fmtInt(p.used),
+                    capacity: fmtInt(p.capacity),
+                  })
+                }}
               </div>
             </div>
           </div>
@@ -712,8 +768,8 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
           <div class="ipam-empty__icon">
             <IconifyIcon icon="lucide:network" class="size-5" />
           </div>
-          <div class="ipam-empty__title">暂无地址池数据</div>
-          <div class="ipam-empty__desc">创建子网并产生租约后展示利用率排名。</div>
+          <div class="ipam-empty__title">{{ $t('dashboard.ipam.pools.emptyTitle') }}</div>
+          <div class="ipam-empty__desc">{{ $t('dashboard.ipam.pools.emptyDesc') }}</div>
         </div>
       </Card>
     </div>

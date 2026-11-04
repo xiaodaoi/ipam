@@ -12,8 +12,9 @@ import { listLedger, listOrgTree, listSubnets } from '#/api/ipam';
 import OrgFilterCard from '#/components/org-filter-card.vue';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import { $t } from '#/locales';
 
-const showTotal = (t: number) => `共 ${t} 条`;
+const showTotal = (t: number) => $t('dhcpLedger.common.showTotal', { total: t });
 
 // ── 组织筛选 ──
 const orgTree = ref<OrgTreeNode[]>([]);
@@ -112,11 +113,11 @@ async function loadSubnets() {
 type KindFilter = 'all' | 'dynamic' | 'pd';
 const subnetKeyword = ref('');
 const subnetKind = ref<KindFilter>('all');
-const kindOptions = [
-  { label: '全部类型', value: 'all' },
-  { label: '地址池', value: 'dynamic' },
-  { label: 'PD 委派', value: 'pd' },
-];
+const kindOptions = computed(() => [
+  { label: $t('dhcpLedger.v6.kindAll'), value: 'all' },
+  { label: $t('dhcpLedger.v6.kindDynamic'), value: 'dynamic' },
+  { label: $t('dhcpLedger.v6.kindPd'), value: 'pd' },
+]);
 
 const filteredSubnets = computed(() => {
   const kw = subnetKeyword.value.trim().toLowerCase();
@@ -138,12 +139,12 @@ function resetSubnetFilters() {
 const onlineKeyword = ref('');
 type ExpiryFilter = '7d' | '24h' | 'all' | 'expired';
 const expiryFilter = ref<ExpiryFilter>('all');
-const expiryOptions = [
-  { label: '全部到期状态', value: 'all' },
-  { label: '已过期', value: 'expired' },
-  { label: '24 小时内到期', value: '24h' },
-  { label: '7 天内到期', value: '7d' },
-];
+const expiryOptions = computed(() => [
+  { label: $t('dhcpLedger.expiryFilter.all'), value: 'all' },
+  { label: $t('dhcpLedger.expiryFilter.expired'), value: 'expired' },
+  { label: $t('dhcpLedger.expiryFilter.h24'), value: '24h' },
+  { label: $t('dhcpLedger.expiryFilter.d7'), value: '7d' },
+]);
 
 function remainingMs(row: LedgerRow): null | number {
   if (!row.leaseExpiry) return null;
@@ -162,16 +163,18 @@ function expiryTone(row: LedgerRow): string {
 
 function fmtDuration(ms: number): string {
   const mins = Math.max(1, Math.round(Math.abs(ms) / 60_000));
-  if (mins < 60) return `${mins} 分钟`;
+  if (mins < 60) return $t('dhcpLedger.lease.minutes', { n: mins });
   const hours = Math.round(mins / 60);
-  if (hours < 48) return `${hours} 小时`;
-  return `${Math.round(hours / 24)} 天`;
+  if (hours < 48) return $t('dhcpLedger.lease.hours', { n: hours });
+  return $t('dhcpLedger.lease.days', { n: Math.round(hours / 24) });
 }
 
 function expiryText(row: LedgerRow): string {
   const ms = remainingMs(row);
-  if (ms === null) return '无租期';
-  return ms < 0 ? `已过期 ${fmtDuration(ms)}` : `剩余 ${fmtDuration(ms)}`;
+  if (ms === null) return $t('dhcpLedger.lease.noLease');
+  return ms < 0
+    ? $t('dhcpLedger.lease.expired', { duration: fmtDuration(ms) })
+    : $t('dhcpLedger.lease.remaining', { duration: fmtDuration(ms) });
 }
 
 const filteredOnlineRows = computed(() => {
@@ -193,13 +196,32 @@ function resetOnlineFilters() {
   expiryFilter.value = 'all';
 }
 
+const onlineColumns = computed(() => [
+  { title: $t('dhcpLedger.v6.colAddress'), dataIndex: 'address', minWidth: 250 },
+  { title: $t('dhcpLedger.v6.colHostname'), dataIndex: 'hostname', minWidth: 160 },
+  { title: $t('dhcpLedger.v6.colOwner'), dataIndex: 'owner', width: 110 },
+  { title: $t('dhcpLedger.v6.colExpiry'), dataIndex: 'leaseExpiry', width: 210 },
+]);
+
+const subnetEmptyText = computed(() =>
+  subnetKeyword.value || subnetKind.value !== 'all'
+    ? $t('dhcpLedger.v6.emptyFiltered')
+    : $t('dhcpLedger.v6.emptyOrg'),
+);
+
+const onlineEmptyText = computed(() =>
+  onlineKeyword.value || expiryFilter.value !== 'all'
+    ? $t('dhcpLedger.v6.emptyFilteredOnline')
+    : $t('dhcpLedger.v6.emptyOnline'),
+);
+
 // ── 展示辅助 ──
-const v6Cols = [
-  { title: '网段（CIDR / 名称）', dataIndex: 'cidr', minWidth: 240 },
-  { title: '类型', dataIndex: 'kind', width: 100 },
-  { title: '地址池 / PD 委派', dataIndex: 'pools', minWidth: 280 },
-  { title: '在线', dataIndex: 'online', width: 90 },
-];
+const v6Cols = computed(() => [
+  { title: $t('dhcpLedger.v6.colCidrName'), dataIndex: 'cidr', minWidth: 240 },
+  { title: $t('dhcpLedger.v6.colKind'), dataIndex: 'kind', width: 100 },
+  { title: $t('dhcpLedger.v6.colPools'), dataIndex: 'pools', minWidth: 280 },
+  { title: $t('dhcpLedger.v6.colOnline'), dataIndex: 'online', width: 90 },
+]);
 
 function poolText(p: Subnet): string {
   return (
@@ -209,13 +231,13 @@ function poolText(p: Subnet): string {
           ? `PD ${x.startAddr}/${x.prefixLen} → /${x.delegatedLen}`
           : `${x.startAddr} — ${x.endAddr ?? ''}`,
       )
-      .join('；') || '未配置池'
+      .join('；') || $t('dhcpLedger.v6.noPool')
   );
 }
 function kindText(p: Subnet): string {
   const kinds = new Set((p.pools ?? []).map((x: any) => x.kind));
-  if (kinds.has('pd')) return 'PD 委派';
-  if (kinds.has('dynamic')) return '地址池';
+  if (kinds.has('pd')) return $t('dhcpLedger.v6.kindPd');
+  if (kinds.has('dynamic')) return $t('dhcpLedger.v6.kindDynamic');
   return '—';
 }
 function kindColor(p: Subnet): string {
@@ -247,17 +269,17 @@ onMounted(async () => {
     <PageHeader
       eyebrow="DHCP Service"
       icon="lucide:network"
-      title="IPv6 地址台账"
-      description="按子网汇总 IPv6 地址池与 PD 委派使用情况，支持检索在线租约、查看到期剩余时间；IPv6 以子网级汇总，不提供逐地址矩阵。"
+      :title="$t('dhcpLedger.v6.title')"
+      :description="$t('dhcpLedger.v6.desc')"
     >
       <template #actions>
         <span class="ipam-page-header__meta">
           <IconifyIcon icon="lucide:globe" class="size-3.5" />
-          {{ v6Subnets.length }} 个 IPv6 网段 · 在线 {{ onlineTotal }}
+          {{ $t('dhcpLedger.v6.meta', { count: v6Subnets.length, online: onlineTotal }) }}
         </span>
         <Button size="small" :loading="onlineLoading" @click="loadOnline">
           <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />
-          刷新
+          {{ $t('dhcpLedger.common.refresh') }}
         </Button>
       </template>
     </PageHeader>
@@ -274,43 +296,43 @@ onMounted(async () => {
           <div class="ipam-empty__icon">
             <IconifyIcon icon="lucide:globe" class="size-5" />
           </div>
-          <div class="ipam-empty__title">暂无 IPv6 网段</div>
-          <div class="ipam-empty__desc">请先在左侧选择组织，或前往「子网管理」创建 IPv6 网段。</div>
+          <div class="ipam-empty__title">{{ $t('dhcpLedger.v6.emptyTitle') }}</div>
+          <div class="ipam-empty__desc">{{ $t('dhcpLedger.v6.emptyDesc') }}</div>
         </div>
 
         <template v-else>
           <div class="ipam-stat-grid">
             <StatCard
-              label="IPv6 网段"
+              :label="$t('dhcpLedger.v6.statSubnets')"
               :value="v6Subnets.length"
-              unit="个"
+              :unit="$t('dhcpLedger.common.units.count')"
               icon="lucide:globe"
               tone="violet"
-              :hint="`${activeSubnetCount} 个网段有在线地址`"
+              :hint="$t('dhcpLedger.v6.statSubnetsHint', { count: activeSubnetCount })"
             />
             <StatCard
-              label="在线地址"
+              :label="$t('dhcpLedger.v6.statOnline')"
               :value="onlineTotal"
-              unit="条"
+              :unit="$t('dhcpLedger.common.units.item')"
               icon="lucide:radio"
               tone="green"
-              :hint="`覆盖 ${activeSubnetCount} 个网段 · 含 NA/PD 租约`"
+              :hint="$t('dhcpLedger.v6.statOnlineHint', { count: activeSubnetCount })"
             />
             <StatCard
-              label="PD 委派池"
+              :label="$t('dhcpLedger.v6.statPd')"
               :value="pdPoolCount"
-              unit="个"
+              :unit="$t('dhcpLedger.common.units.count')"
               icon="lucide:git-branch"
               tone="cyan"
-              :hint="`动态地址池 ${dynamicPoolCount} 个`"
+              :hint="$t('dhcpLedger.v6.statPdHint', { count: dynamicPoolCount })"
             />
             <StatCard
-              label="当前网段在线"
+              :label="$t('dhcpLedger.v6.statCurrentOnline')"
               :value="onlineRows.length"
-              unit="条"
+              :unit="$t('dhcpLedger.common.units.item')"
               icon="lucide:activity"
               tone="blue"
-              :hint="selectedCidr || '未选择网段'"
+              :hint="selectedCidr || $t('dhcpLedger.common.noSubnetSelected')"
             />
           </div>
 
@@ -318,42 +340,44 @@ onMounted(async () => {
             <template #title>
               <span class="ipam-card-title">
                 <IconifyIcon icon="lucide:layers" />
-                IPv6 子网概览
-                <em class="ipam-card-sub">{{ filteredSubnets.length }} / {{ v6Subnets.length }} 个</em>
+                {{ $t('dhcpLedger.v6.overviewCard') }}
+                <em class="ipam-card-sub">
+                  {{ $t('dhcpLedger.v6.overviewSub', { shown: filteredSubnets.length, total: v6Subnets.length }) }}
+                </em>
               </span>
             </template>
             <template #extra>
               <Space :size="6" wrap>
-                <Tag color="geekblue" class="m-0">{{ v6Subnets.length }} 个网段</Tag>
-                <Tag color="green" class="m-0">{{ onlineTotal }} 在线</Tag>
-                <span class="ipam-hint">地址由 PD 委派 / 地址池动态分配</span>
+                <Tag color="geekblue" class="m-0">{{ $t('dhcpLedger.v6.tagSubnets', { count: v6Subnets.length }) }}</Tag>
+                <Tag color="green" class="m-0">{{ $t('dhcpLedger.v6.tagOnline', { online: onlineTotal }) }}</Tag>
+                <span class="ipam-hint">{{ $t('dhcpLedger.v6.poolHint') }}</span>
               </Space>
             </template>
 
             <div class="ipam-toolbar mb-3">
               <div class="ipam-field">
-                <span class="ipam-field__label">关键字</span>
+                <span class="ipam-field__label">{{ $t('dhcpLedger.common.keyword') }}</span>
                 <Input
                   v-model:value="subnetKeyword"
                   allow-clear
-                  placeholder="CIDR / 子网名称"
+                  :placeholder="$t('dhcpLedger.v6.keywordPlaceholder')"
                   style="width: 240px"
                 />
               </div>
               <div class="ipam-field">
-                <span class="ipam-field__label">类型</span>
+                <span class="ipam-field__label">{{ $t('dhcpLedger.common.type') }}</span>
                 <Select v-model:value="subnetKind" :options="kindOptions" style="width: 140px" />
               </div>
-              <Button size="small" @click="resetSubnetFilters">重置</Button>
+              <Button size="small" @click="resetSubnetFilters">{{ $t('dhcpLedger.common.reset') }}</Button>
               <div class="ipam-toolbar__spacer"></div>
-              <span class="ipam-hint">点击表格行切换下方在线租约</span>
+              <span class="ipam-hint">{{ $t('dhcpLedger.v6.rowHint') }}</span>
             </div>
 
             <Table
               :key="selectedOrgId"
               :data-source="filteredSubnets"
               :columns="v6Cols"
-              :locale="{ emptyText: subnetKeyword || subnetKind !== 'all' ? '没有匹配的 IPv6 网段' : '当前组织暂无 IPv6 网段' }"
+              :locale="{ emptyText: subnetEmptyText }"
               :pagination="{ pageSize: 20, showSizeChanger: true, showTotal }"
               :row-class-name="(r: any) => (r.cidr === selectedCidr ? 'ipam-row-active' : '')"
               :custom-row="(r: any) => ({ onClick: () => onSelectSubnet(r.cidr), style: { cursor: 'pointer' } })"
@@ -364,7 +388,7 @@ onMounted(async () => {
                 <template v-if="column.dataIndex === 'cidr'">
                   <div class="ipam-cell-stack">
                     <span class="ipam-mono">{{ record.cidr }}</span>
-                    <span class="ipam-hint">{{ (record as Subnet).name || '未命名网段' }}</span>
+                    <span class="ipam-hint">{{ (record as Subnet).name || $t('dhcpLedger.common.unnamedSubnet') }}</span>
                   </div>
                 </template>
                 <template v-else-if="column.dataIndex === 'kind'">
@@ -386,50 +410,50 @@ onMounted(async () => {
             <template #title>
               <span class="ipam-card-title">
                 <IconifyIcon icon="lucide:radio-tower" />
-                在线租约
+                {{ $t('dhcpLedger.leaseCard.title') }}
                 <em class="ipam-card-sub">
-                  {{ selectedCidr || '未选择网段' }} · {{ filteredOnlineRows.length }} /
-                  {{ onlineRows.length }} 条
+                  {{
+                    $t('dhcpLedger.leaseCard.sub', {
+                      cidr: selectedCidr || $t('dhcpLedger.common.noSubnetSelected'),
+                      shown: filteredOnlineRows.length,
+                      total: onlineRows.length,
+                    })
+                  }}
                 </em>
               </span>
             </template>
             <template #extra>
               <Space :size="6" wrap>
                 <Tag v-if="currentSubnet?.dnsServers" class="m-0">DNS {{ currentSubnet.dnsServers }}</Tag>
-                <span class="ipam-hint">客户端标识为 DHCPv6 DUID</span>
+                <span class="ipam-hint">{{ $t('dhcpLedger.v6.leaseCardHint') }}</span>
               </Space>
             </template>
 
             <div class="ipam-toolbar mb-3">
               <div class="ipam-field">
-                <span class="ipam-field__label">关键字</span>
+                <span class="ipam-field__label">{{ $t('dhcpLedger.common.keyword') }}</span>
                 <Input
                   v-model:value="onlineKeyword"
                   allow-clear
-                  placeholder="地址 / DUID / 主机名 / 使用人"
+                  :placeholder="$t('dhcpLedger.v6.onlineKeywordPlaceholder')"
                   style="width: 260px"
                 />
               </div>
               <div class="ipam-field">
-                <span class="ipam-field__label">到期</span>
+                <span class="ipam-field__label">{{ $t('dhcpLedger.common.expiry') }}</span>
                 <Select v-model:value="expiryFilter" :options="expiryOptions" style="width: 150px" />
               </div>
-              <Button size="small" @click="resetOnlineFilters">重置</Button>
+              <Button size="small" @click="resetOnlineFilters">{{ $t('dhcpLedger.common.reset') }}</Button>
               <div class="ipam-toolbar__spacer"></div>
-              <span class="ipam-hint">点击上方网段行切换</span>
+              <span class="ipam-hint">{{ $t('dhcpLedger.v6.onlineRowHint') }}</span>
             </div>
 
             <Table
               :key="selectedCidr"
               :data-source="filteredOnlineRows"
               :loading="onlineLoading"
-              :columns="[
-                { title: '在线地址 / 前缀', dataIndex: 'address', minWidth: 250 },
-                { title: '主机名', dataIndex: 'hostname', minWidth: 160 },
-                { title: '使用人', dataIndex: 'owner', width: 110 },
-                { title: '到期时间', dataIndex: 'leaseExpiry', width: 210 },
-              ]"
-              :locale="{ emptyText: onlineKeyword || expiryFilter !== 'all' ? '没有匹配的在线租约' : '该网段暂无在线地址' }"
+              :columns="onlineColumns"
+              :locale="{ emptyText: onlineEmptyText }"
               :pagination="{ pageSize: 20, showSizeChanger: true, showTotal }"
               row-key="address"
               size="small"

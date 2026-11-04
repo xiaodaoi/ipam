@@ -1,0 +1,98 @@
+{
+  "ipam": {
+    "header": {
+      "title": "Overview",
+      "desc": "Address resources, core service health and DNS activity at a glance.",
+      "updatedAt": "Updated {time}",
+      "waiting": "Waiting for first load",
+      "refresh": "Refresh"
+    },
+    "light": {
+      "up": "Running",
+      "down": "Service error",
+      "unknown": "Not connected"
+    },
+    "stat": {
+      "activeDevices": "Active devices today",
+      "activeHint": "New {new} · Offline {offline}",
+      "qps": "DNS QPS (5 min)",
+      "qpsHint": "1-hour average {avg} queries/min",
+      "health": "Core service health",
+      "blocked": "DNS blocks today",
+      "blockedHint": "Blocklist hits (today)"
+    },
+    "unit": {
+      "devices": "",
+      "times": "",
+      "perMin": "queries/min"
+    },
+    "health": {
+      "ok": "Healthy",
+      "bad": "Error",
+      "pending": "Not connected",
+      "captionOk": "Services healthy",
+      "hintDown": "Attention: {names}",
+      "hintPartial": "Some components have no probe target",
+      "hintAll": "All core services are healthy",
+      "probeHint": "Probe interval 30s · Not connected = no probe target",
+      "poc": "In PoC memory mode, components without a probe target show \"Not connected\"; other features are unaffected."
+    },
+    "online": {
+      "title": "Active device trend",
+      "sub": "Last 24 hours · hourly",
+      "peak": "Peak {n}",
+      "new": "New today",
+      "offline": "Offline devices",
+      "hourlyAvg": "Hourly average",
+      "dualstack": "Dual-stack matching",
+      "emptyTitle": "No active device trend",
+      "emptyDesc": "Shown here once lease data is available."
+    },
+    "qps": {
+      "title": "DNS queries",
+      "bucket": "{min}-minute buckets",
+      "peak": "Peak",
+      "avg": "Average",
+      "emptyTitle": "No query data",
+      "emptyDesc": "The query trend appears once DNS query logs are ingested.",
+      "avgRate": "Average rate",
+      "peakRate": "Peak rate",
+      "total": "Total in range",
+      "range1h": "1 hour",
+      "range6h": "6 hours",
+      "range24h": "24 hours"
+    },
+    "top": {
+      "title": "Top queried domains",
+      "sub": "Last hour",
+      "details": "Log details",
+      "emptyTitle": "No domain data",
+      "emptyDesc": "Top domains appear once DNS query logs are ingested."
+    },
+    "host": {
+      "title": "Host resources",
+      "sub": "Host machine · refreshed every 10s",
+      "sampled": "Sampled at {time} · Uptime {uptime}",
+      "cores": "{n} cores",
+      "memory": "Memory",
+      "rootfs": "Root filesystem",
+      "emptyTitle": "No disk data",
+      "emptyDesc": "Make sure the control plane mounts the host /proc and /sys.",
+      "load1": "1-minute load",
+      "load5": "5-minute load",
+      "load15": "15-minute load",
+      "uptime": "Uptime",
+      "uptimeDays": "{d}d {h}h",
+      "uptimeHours": "{h}h {m}m"
+    },
+    "pools": {
+      "title": "Top 5 pool utilization",
+      "manage": "Manage subnets",
+      "dept": "Department: {name}",
+      "used": "{used} used / {capacity} capacity",
+      "emptyTitle": "No pool data",
+      "emptyDesc": "Utilization ranking appears after subnets and leases exist."
+    },
+    "listSep": ", "
+  }
+}

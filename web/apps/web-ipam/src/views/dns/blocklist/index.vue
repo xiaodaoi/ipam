@@ -11,8 +11,9 @@ import { Button, Card, Input, message, Modal, Popconfirm, Select, Switch, Table,
 import { addBlocklistEntry, compilePolicyGroup, createBlocklist, createPolicyGroup, deleteBlocklist, deleteBlocklistEntry, exportBlocklistCsv, importBlocklistEntries, installBuiltinPack, listBlocklistEntries, listBlocklists, listBlocklistVersions, listBuiltinPacks, listPolicyGroups, rollbackBlocklist, syncBlocklist } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import { $t } from '#/locales';
 
-const showTotal = (t: number) => `共 ${t} 条`;
+const showTotal = (t: number) => $t('dns.common.total', { n: t });
 
 const rows = ref<Blocklist[]>([]);
 const loading = ref(false);
@@ -52,10 +53,10 @@ async function sync(id?: string) {
   syncingId.value = id;
   try {
     await syncBlocklist(id);
-    message.success('同步任务已提交');
+    message.success($t('dns.blocklist.msg.syncSubmitted'));
     await load();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '同步失败');
+    message.error(error instanceof Error ? error.message : $t('dns.blocklist.msg.syncFailed'));
   } finally {
     syncingId.value = '';
   }
@@ -63,34 +64,34 @@ async function sync(id?: string) {
 async function removeList(id: string) {
   try {
     await deleteBlocklist(id);
-    message.success('名单已删除');
+    message.success($t('dns.blocklist.msg.listDeleted'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '删除失败');
+    message.error(error instanceof Error ? error.message : $t('dns.common.deleteFailed'));
   }
   await load();
 }
 
-const [CreateModal, createModalApi] = useVbenModal({ draggable: true, title: '新建名单', confirmText: '创建名单', onConfirm: () => createList() });
+const [CreateModal, createModalApi] = useVbenModal({ draggable: true, title: $t('dns.blocklist.newList'), confirmText: $t('dns.blocklist.createConfirm'), onConfirm: () => createList() });
 function openCreate() {
   cForm.value = { name: '', kind: 'custom', syncUrl: '' };
   createModalApi.open();
 }
 async function createList() {
   if (!cForm.value.name) {
-    message.warning('名单名称必填');
+    message.warning($t('dns.blocklist.msg.nameRequired'));
     return;
   }
   if (cForm.value.kind === 'feed' && !cForm.value.syncUrl) {
-    message.warning('订阅名单需填写订阅 URL');
+    message.warning($t('dns.blocklist.msg.feedUrlRequired'));
     return;
   }
   try {
     await createBlocklist({ name: cForm.value.name, kind: cForm.value.kind, syncUrl: cForm.value.syncUrl || undefined });
-    message.success('名单已创建');
+    message.success($t('dns.blocklist.msg.listCreated'));
     cForm.value = { name: '', kind: 'custom', syncUrl: '' };
     createModalApi.close();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '创建失败');
+    message.error(error instanceof Error ? error.message : $t('dns.common.createFailed'));
   }
   await load();
 }
@@ -104,7 +105,7 @@ async function loadPolicyGroups() {
     pgLoading.value = false;
   }
 }
-const [PgModal, pgModalApi] = useVbenModal({ draggable: true, title: '新建策略分组', confirmText: '创建分组', onConfirm: () => createPg() });
+const [PgModal, pgModalApi] = useVbenModal({ draggable: true, title: $t('dns.blocklist.pgModal.title'), confirmText: $t('dns.blocklist.pgModal.createConfirm'), onConfirm: () => createPg() });
 function openCreatePg() {
   pgForm.value = {
     name: '',
@@ -119,7 +120,7 @@ function openCreatePg() {
 }
 async function createPg() {
   if (!pgForm.value.name) {
-    message.warning('分组名称必填');
+    message.warning($t('dns.blocklist.msg.pgNameRequired'));
     return;
   }
   try {
@@ -138,7 +139,7 @@ async function createPg() {
       listIds: pgForm.value.listIds,
       schedule,
     });
-    message.success('策略分组已创建');
+    message.success($t('dns.blocklist.msg.pgCreated'));
     pgForm.value = {
       name: '',
       viewName: 'recursor',
@@ -150,16 +151,16 @@ async function createPg() {
     };
     pgModalApi.close();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '创建失败');
+    message.error(error instanceof Error ? error.message : $t('dns.common.createFailed'));
   }
   await loadPolicyGroups();
 }
 async function compilePg(id: string) {
   try {
     pgResult.value = await compilePolicyGroup(id);
-    message.success('RPZ 编译完成');
+    message.success($t('dns.blocklist.msg.compileOk'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '编译失败');
+    message.error(error instanceof Error ? error.message : $t('dns.blocklist.msg.compileFailed'));
   }
 }
 
@@ -167,13 +168,13 @@ async function compilePg(id: string) {
 const [EntriesDrawer, entriesDrawerApi] = useVbenDrawer({
   class: 'w-[780px]',
   footer: false,
-  title: '名单条目',
+  title: $t('dns.blocklist.entries.title'),
 });
 async function openEntries(r: Blocklist) {
   selId.value = r.id;
   selName.value = r.name;
   entries.value = [];
-  entriesDrawerApi.setState({ title: `名单条目 · ${r.name}` });
+  entriesDrawerApi.setState({ title: $t('dns.blocklist.entries.titleNamed', { name: r.name }) });
   entriesDrawerApi.open();
   await loadEntries();
 }
@@ -189,24 +190,24 @@ async function loadEntries() {
 }
 async function addEntry() {
   if (!eForm.value.pattern) {
-    message.warning('请填写匹配规则');
+    message.warning($t('dns.blocklist.msg.patternRequired'));
     return;
   }
   try {
     await addBlocklistEntry(selId.value, { pattern: eForm.value.pattern, triggerType: eForm.value.triggerType, action: eForm.value.action });
-    message.success('条目已添加');
+    message.success($t('dns.blocklist.msg.entryAdded'));
     eForm.value = { pattern: '', triggerType: 'qname', action: 'nxdomain' };
     await loadEntries();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '添加失败');
+    message.error(error instanceof Error ? error.message : $t('dns.common.addFailed'));
   }
 }
 async function removeEntry(listId: string, pattern: string) {
   try {
     await deleteBlocklistEntry(listId, pattern);
-    message.success('条目已删除');
+    message.success($t('dns.blocklist.msg.entryDeleted'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '删除失败');
+    message.error(error instanceof Error ? error.message : $t('dns.common.deleteFailed'));
   }
   await loadEntries();
 }
@@ -224,18 +225,18 @@ function openCsv() {
 }
 async function submitCsv() {
   if (!csvContent.value.trim()) {
-    message.warning('请粘贴 CSV 内容');
+    message.warning($t('dns.blocklist.msg.csvNeedContent'));
     return;
   }
   csvImporting.value = true;
   try {
     const r = await importBlocklistEntries(selId.value, csvContent.value, csvReplace.value);
-    message.success(`导入完成：新增 ${r.created} 条，跳过 ${r.skipped} 条，共 ${r.total} 条`);
-    if (r.errors?.length) message.warning(r.errors.slice(0, 3).join('；'));
+    message.success($t('dns.blocklist.msg.csvImportOk', { created: r.created, skipped: r.skipped, total: r.total }));
+    if (r.errors?.length) message.warning(r.errors.slice(0, 3).join($t('dns.common.listSep')));
     csvOpen.value = false;
     await Promise.all([loadEntries(), load()]);
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '导入失败');
+    message.error(error instanceof Error ? error.message : $t('dns.blocklist.msg.csvImportFailed'));
   } finally {
     csvImporting.value = false;
   }
@@ -246,7 +247,7 @@ async function exportCsv(id?: string) {
   try {
     await exportBlocklistCsv(listId);
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '导出失败');
+    message.error(error instanceof Error ? error.message : $t('dns.blocklist.msg.csvExportFailed'));
   }
 }
 
@@ -263,7 +264,7 @@ async function openVersions(r: Blocklist) {
     const data = await listBlocklistVersions(r.id);
     versions.value = data.items ?? [];
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '版本加载失败');
+    message.error(error instanceof Error ? error.message : $t('dns.blocklist.msg.versionsLoadFailed'));
   } finally {
     versionsLoading.value = false;
   }
@@ -271,11 +272,11 @@ async function openVersions(r: Blocklist) {
 async function doRollback(version: number) {
   try {
     await rollbackBlocklist(selId.value, version);
-    message.success(`已回滚到 v${version}（当前版本继续递增）`);
+    message.success($t('dns.blocklist.msg.rollbackOk', { version }));
     versionsOpen.value = false;
     await Promise.all([load(), loadEntries()]);
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '回滚失败');
+    message.error(error instanceof Error ? error.message : $t('dns.blocklist.msg.rollbackFailed'));
   }
 }
 
@@ -289,7 +290,7 @@ async function openBuiltin() {
     const data = await listBuiltinPacks();
     packs.value = data.items ?? [];
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '内置库加载失败');
+    message.error(error instanceof Error ? error.message : $t('dns.blocklist.msg.builtinLoadFailed'));
   } finally {
     builtinLoading.value = false;
   }
@@ -297,26 +298,35 @@ async function openBuiltin() {
 async function installPack(key: string) {
   try {
     const b = await installBuiltinPack(key);
-    message.success(`已安装「${b.name}」（${b.version ? `v${b.version}` : ''}）`);
+    message.success($t('dns.blocklist.msg.installed', { name: b.name, version: b.version ? `v${b.version}` : '' }));
     await load();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '安装失败');
+    message.error(error instanceof Error ? error.message : $t('dns.blocklist.msg.installFailed'));
   }
 }
 
-const WEEK_OPTIONS = [
-  { label: '周日', value: 0 },
-  { label: '周一', value: 1 },
-  { label: '周二', value: 2 },
-  { label: '周三', value: 3 },
-  { label: '周四', value: 4 },
-  { label: '周五', value: 5 },
-  { label: '周六', value: 6 },
-];
+const WEEK_OPTIONS = computed(() => [
+  { label: $t('dns.blocklist.week.sun'), value: 0 },
+  { label: $t('dns.blocklist.week.mon'), value: 1 },
+  { label: $t('dns.blocklist.week.tue'), value: 2 },
+  { label: $t('dns.blocklist.week.wed'), value: 3 },
+  { label: $t('dns.blocklist.week.thu'), value: 4 },
+  { label: $t('dns.blocklist.week.fri'), value: 5 },
+  { label: $t('dns.blocklist.week.sat'), value: 6 },
+]);
 
-const KIND_TEXT: Record<string, string> = { builtin: '内置', custom: '自定义', feed: '订阅' };
+const KIND_TEXT = computed<Record<string, string>>(() => ({
+  builtin: $t('dns.blocklist.kind.builtin'),
+  custom: $t('dns.blocklist.kind.custom'),
+  feed: $t('dns.blocklist.kind.feed'),
+}));
 const KIND_COLOR: Record<string, string> = { builtin: 'default', custom: 'blue', feed: 'purple' };
-const ACTION_TEXT: Record<string, string> = { drop: '丢弃', nxdomain: 'NXDOMAIN', redirect: '重定向', tcp_only: '仅 TCP' };
+const ACTION_TEXT = computed<Record<string, string>>(() => ({
+  drop: $t('dns.blocklist.action.drop'),
+  nxdomain: $t('dns.blocklist.action.nxdomain'),
+  redirect: $t('dns.blocklist.action.redirect'),
+  tcp_only: $t('dns.blocklist.action.tcpOnly'),
+}));
 function fmtSync(v?: string) {
   if (!v) return '—';
   const date = new Date(v);
@@ -340,12 +350,12 @@ const stats = computed(() => {
 
 const listKeyword = ref('');
 const listKind = ref<'all' | Blocklist['kind']>('all');
-const kindOptions = [
-  { label: '全部类型', value: 'all' },
-  { label: '内置名单', value: 'builtin' },
-  { label: '自定义', value: 'custom' },
-  { label: '订阅源', value: 'feed' },
-];
+const kindOptions = computed(() => [
+  { label: $t('dns.common.allTypes'), value: 'all' },
+  { label: $t('dns.blocklist.kindOptions.builtin'), value: 'builtin' },
+  { label: $t('dns.blocklist.kindOptions.custom'), value: 'custom' },
+  { label: $t('dns.blocklist.kindOptions.feed'), value: 'feed' },
+]);
 const filteredLists = computed(() => {
   const kw = listKeyword.value.trim().toLowerCase();
   return rows.value.filter((r) => {
@@ -362,9 +372,40 @@ const filteredGroups = computed(() => {
   );
 });
 const pgListOptions = computed(() => rows.value.map((r) => ({
-  label: `${r.name}（${KIND_TEXT[r.kind] ?? r.kind}）`,
+  label: `${r.name}（${KIND_TEXT.value[r.kind] ?? r.kind}）`,
   value: r.id,
 })));
+
+const listColumns = computed(() => [
+  { title: $t('dns.blocklist.list.colName'), dataIndex: 'name', minWidth: 280 },
+  { title: $t('dns.common.type'), dataIndex: 'kind', width: 100 },
+  { title: $t('dns.blocklist.list.colSync'), dataIndex: 'lastSync', minWidth: 200 },
+  { title: $t('dns.common.actions'), key: 'op', width: 240 },
+]);
+const pgColumns = computed(() => [
+  { title: $t('dns.blocklist.pg.colName'), dataIndex: 'name', minWidth: 220 },
+  { title: $t('dns.blocklist.pg.colCidrs'), dataIndex: 'cidrs', minWidth: 240 },
+  { title: $t('dns.blocklist.pg.colLists'), dataIndex: 'listIds', width: 100 },
+  { title: $t('dns.common.actions'), key: 'op', width: 120 },
+]);
+const entryColumns = computed(() => [
+  { title: $t('dns.blocklist.entries.colPattern'), dataIndex: 'pattern', minWidth: 220 },
+  { title: $t('dns.blocklist.entries.colTrigger'), dataIndex: 'triggerType', width: 130 },
+  { title: $t('dns.blocklist.entries.colAction'), dataIndex: 'action', width: 120 },
+  { title: $t('dns.blocklist.entries.colCategory'), dataIndex: 'category', width: 110 },
+  { title: $t('dns.common.actions'), key: 'op', width: 90 },
+]);
+const versionColumns = computed(() => [
+  { title: $t('dns.blocklist.versions.colVersion'), dataIndex: 'version', width: 100 },
+  { title: $t('dns.blocklist.versions.colEntries'), dataIndex: 'entries', width: 100 },
+  { title: $t('dns.blocklist.versions.colTime'), dataIndex: 'createdAt', minWidth: 180 },
+  { title: $t('dns.common.actions'), key: 'op', width: 110 },
+]);
+const packColumns = computed(() => [
+  { title: $t('dns.blocklist.builtin.colPack'), dataIndex: 'name', minWidth: 200 },
+  { title: $t('dns.blocklist.builtin.colEntries'), dataIndex: 'entryCount', width: 80 },
+  { title: $t('dns.common.actions'), key: 'op', width: 100 },
+]);
 
 onMounted(() => {
   void loadPolicyGroups();
@@ -379,55 +420,55 @@ onBeforeUnmount(() => timer && clearInterval(timer));
     <PageHeader
       eyebrow="DNS Service"
       icon="lucide:shield-ban"
-      title="封禁管控"
-      description="维护封禁名单与策略分组，经 RPZ 下发到 resolver 实现域名与应答 IP 拦截。"
+      :title="$t('dns.blocklist.header.title')"
+      :description="$t('dns.blocklist.header.desc')"
     >
       <template #actions>
         <span class="ipam-page-header__meta">
           <IconifyIcon icon="lucide:list-filter" class="size-3.5" />
-          {{ stats.total }} 个名单 · {{ stats.groups }} 个分组
+          {{ $t('dns.blocklist.header.meta', { lists: stats.total, groups: stats.groups }) }}
         </span>
         <Button size="small" :loading="loading" @click="load(); loadPolicyGroups()">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />刷新
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{ $t('dns.common.refresh') }}
         </Button>
         <Button type="primary" size="small" @click="openCreate">
-          <IconifyIcon icon="lucide:plus" class="mr-1" />新建名单
+          <IconifyIcon icon="lucide:plus" class="mr-1" />{{ $t('dns.blocklist.newList') }}
         </Button>
       </template>
     </PageHeader>
 
     <div class="ipam-stat-grid">
       <StatCard
-        label="封禁名单"
+        :label="$t('dns.blocklist.stat.lists')"
         :value="stats.total"
-        unit="个"
+        :unit="$t('dns.common.unit.count')"
         icon="lucide:list-filter"
         tone="blue"
-        :hint="`自定义 ${stats.custom} · 订阅 ${stats.feeds}`"
+        :hint="$t('dns.blocklist.stat.listsHint', { custom: stats.custom, feeds: stats.feeds })"
       />
       <StatCard
-        label="订阅名单"
+        :label="$t('dns.blocklist.stat.feeds')"
         :value="stats.feeds"
-        unit="个"
+        :unit="$t('dns.common.unit.count')"
         icon="lucide:rss"
         tone="violet"
-        :hint="stats.feeds > 0 ? '每 30 秒检查一次同步' : '尚未接入订阅源'"
+        :hint="stats.feeds > 0 ? $t('dns.blocklist.stat.feedsHintOn') : $t('dns.blocklist.stat.feedsHintOff')"
       />
       <StatCard
-        label="策略分组"
+        :label="$t('dns.blocklist.stat.groups')"
         :value="stats.groups"
-        unit="个"
+        :unit="$t('dns.common.unit.count')"
         icon="lucide:network"
         tone="cyan"
-        :hint="stats.groups > 0 ? '按 view 应用 RPZ' : '尚未创建分组'"
+        :hint="stats.groups > 0 ? $t('dns.blocklist.stat.groupsHintOn') : $t('dns.blocklist.stat.groupsHintOff')"
       />
       <StatCard
-        label="内置名单"
+        :label="$t('dns.blocklist.stat.builtin')"
         :value="stats.builtin"
-        unit="个"
+        :unit="$t('dns.common.unit.count')"
         icon="lucide:lock"
         tone="green"
-        :hint="stats.builtin > 0 ? '内置名单不可删除' : '暂无内置名单'"
+        :hint="stats.builtin > 0 ? $t('dns.blocklist.stat.builtinHintOn') : $t('dns.blocklist.stat.builtinHintOff')"
       />
     </div>
 
@@ -435,43 +476,38 @@ onBeforeUnmount(() => timer && clearInterval(timer));
       <template #title>
         <span class="ipam-card-title">
           <IconifyIcon icon="lucide:shield-ban" />
-          封禁名单库
-          <em class="ipam-card-sub">{{ filteredLists.length }} / {{ rows.length }} 个</em>
+          {{ $t('dns.blocklist.listCard.title') }}
+          <em class="ipam-card-sub">{{ $t('dns.blocklist.listCard.sub', { filtered: filteredLists.length, total: rows.length }) }}</em>
         </span>
       </template>
       <template #extra>
-        <span class="ipam-hint">订阅源每 30 秒检查同步 · 失败保留旧版本</span>
+        <span class="ipam-hint">{{ $t('dns.blocklist.listCard.hint') }}</span>
       </template>
 
       <div class="ipam-toolbar mb-3">
         <div class="ipam-field">
-          <span class="ipam-field__label">关键字</span>
-          <Input v-model:value="listKeyword" allow-clear placeholder="名单名称 / 订阅地址" style="width: 240px" />
+          <span class="ipam-field__label">{{ $t('dns.common.keyword') }}</span>
+          <Input v-model:value="listKeyword" allow-clear :placeholder="$t('dns.blocklist.list.kwPlaceholder')" style="width: 240px" />
         </div>
         <div class="ipam-field">
-          <span class="ipam-field__label">类型</span>
+          <span class="ipam-field__label">{{ $t('dns.common.type') }}</span>
           <Select v-model:value="listKind" :options="kindOptions" style="width: 140px" />
         </div>
-        <Button size="small" @click="listKeyword = ''; listKind = 'all'">重置</Button>
+        <Button size="small" @click="listKeyword = ''; listKind = 'all'">{{ $t('dns.common.reset') }}</Button>
         <div class="ipam-toolbar__spacer"></div>
         <Button size="small" @click="openBuiltin">
-          <IconifyIcon icon="lucide:package" class="mr-1" />内置分类库
+          <IconifyIcon icon="lucide:package" class="mr-1" />{{ $t('dns.blocklist.list.builtinLib') }}
         </Button>
         <Button type="primary" size="small" @click="openCreate">
-          <IconifyIcon icon="lucide:plus" class="mr-1" />新建名单
+          <IconifyIcon icon="lucide:plus" class="mr-1" />{{ $t('dns.blocklist.newList') }}
         </Button>
       </div>
 
       <Table
         :data-source="filteredLists"
         :loading="loading"
-        :columns="[
-          { title: '名单（名称 / 订阅地址）', dataIndex: 'name', minWidth: 280 },
-          { title: '类型', dataIndex: 'kind', width: 100 },
-          { title: '同步信息', dataIndex: 'lastSync', minWidth: 200 },
-          { title: '操作', key: 'op', width: 240 },
-        ]"
-        :locale="{ emptyText: listKeyword || listKind !== 'all' ? '没有匹配的封禁名单' : '暂无封禁名单，点击右上角「新建名单」创建' }"
+        :columns="listColumns"
+        :locale="{ emptyText: listKeyword || listKind !== 'all' ? $t('dns.blocklist.list.emptyFiltered') : $t('dns.blocklist.list.empty') }"
         :pagination="{ pageSize: 20, showSizeChanger: true, showTotal }"
         row-key="id"
         size="small"
@@ -480,7 +516,7 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           <template v-if="column.dataIndex === 'name'">
             <div class="ipam-cell-stack">
               <span class="ipam-cell-title">{{ record.name }}</span>
-              <span class="ipam-cell-meta ipam-mono">{{ record.syncUrl || (record.kind === 'builtin' ? '随产品内置，不可编辑' : '本地维护，无订阅地址') }}</span>
+              <span class="ipam-cell-meta ipam-mono">{{ record.syncUrl || (record.kind === 'builtin' ? $t('dns.blocklist.list.metaBuiltin') : $t('dns.blocklist.list.metaLocal')) }}</span>
             </div>
           </template>
           <template v-else-if="column.dataIndex === 'kind'">
@@ -491,31 +527,31 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           <template v-else-if="column.dataIndex === 'lastSync'">
             <div class="ipam-cell-stack">
               <span class="ipam-cell-title" style="font-weight: 400">{{ fmtSync(record.lastSync) }}</span>
-              <span class="ipam-cell-meta">版本 v{{ record.version }}</span>
+              <span class="ipam-cell-meta">{{ $t('dns.blocklist.list.version', { v: record.version }) }}</span>
             </div>
           </template>
           <template v-else-if="column.key === 'op'">
             <div class="flex items-center gap-1">
-              <Button size="small" @click="openEntries(record as Blocklist)">条目</Button>
-              <Button size="small" @click="exportCsv(record.id)">导出</Button>
-              <Button size="small" @click="openVersions(record as Blocklist)">版本</Button>
+              <Button size="small" @click="openEntries(record as Blocklist)">{{ $t('dns.blocklist.list.btnEntries') }}</Button>
+              <Button size="small" @click="exportCsv(record.id)">{{ $t('dns.blocklist.list.btnExport') }}</Button>
+              <Button size="small" @click="openVersions(record as Blocklist)">{{ $t('dns.blocklist.list.btnVersions') }}</Button>
               <Button
                 v-if="record.kind === 'feed'"
                 size="small"
                 :loading="syncingId === record.id"
                 @click="sync(record.id)"
               >
-                立即同步
+                {{ $t('dns.blocklist.list.btnSync') }}
               </Button>
               <Popconfirm
                 v-if="record.kind !== 'builtin'"
-                title="确认删除该名单？"
-                description="名单及其条目将一并删除，不可恢复。"
-                ok-text="删除"
-                cancel-text="取消"
+                :title="$t('dns.blocklist.list.deleteTitle')"
+                :description="$t('dns.blocklist.list.deleteDesc')"
+                :ok-text="$t('dns.common.delete')"
+                :cancel-text="$t('dns.common.cancel')"
                 @confirm="removeList(record.id)"
               >
-                <Button size="small" danger>删除</Button>
+                <Button size="small" danger>{{ $t('dns.common.delete') }}</Button>
               </Popconfirm>
             </div>
           </template>
@@ -524,8 +560,7 @@ onBeforeUnmount(() => timer && clearInterval(timer));
 
       <div class="ipam-note mt-3">
         <IconifyIcon icon="lucide:info" class="mt-0.5 size-3.5 shrink-0" />
-        <span>内置名单不可删除；订阅源同步前自动保存版本快照，可在「版本」中一键回滚；
-          提示页文案与 IP 在「安全与诊断」页配置。</span>
+        <span>{{ $t('dns.blocklist.note') }}</span>
       </div>
     </Card>
 
@@ -533,35 +568,30 @@ onBeforeUnmount(() => timer && clearInterval(timer));
       <template #title>
         <span class="ipam-card-title">
           <IconifyIcon icon="lucide:network" />
-          策略分组
-          <em class="ipam-card-sub">{{ filteredGroups.length }} / {{ pgRows.length }} 个</em>
+          {{ $t('dns.blocklist.pg.title') }}
+          <em class="ipam-card-sub">{{ $t('dns.blocklist.pg.sub', { filtered: filteredGroups.length, total: pgRows.length }) }}</em>
         </span>
       </template>
       <template #extra>
-        <span class="ipam-hint">view 级 RPZ 应用 · 白单优先</span>
+        <span class="ipam-hint">{{ $t('dns.blocklist.pg.hint') }}</span>
       </template>
 
       <div class="ipam-toolbar mb-3">
         <div class="ipam-field">
-          <span class="ipam-field__label">关键字</span>
-          <Input v-model:value="pgKeyword" allow-clear placeholder="分组名称 / view / CIDR" style="width: 240px" />
+          <span class="ipam-field__label">{{ $t('dns.common.keyword') }}</span>
+          <Input v-model:value="pgKeyword" allow-clear :placeholder="$t('dns.blocklist.pg.kwPlaceholder')" style="width: 240px" />
         </div>
         <div class="ipam-toolbar__spacer"></div>
         <Button size="small" @click="openCreatePg">
-          <IconifyIcon icon="lucide:plus" class="mr-1" />创建分组
+          <IconifyIcon icon="lucide:plus" class="mr-1" />{{ $t('dns.blocklist.pg.createBtn') }}
         </Button>
       </div>
 
       <Table
         :data-source="filteredGroups"
         :loading="pgLoading"
-        :columns="[
-          { title: '分组（名称 / view）', dataIndex: 'name', minWidth: 220 },
-          { title: '来源网段', dataIndex: 'cidrs', minWidth: 240 },
-          { title: '名单数', dataIndex: 'listIds', width: 100 },
-          { title: '操作', key: 'op', width: 120 },
-        ]"
-        :locale="{ emptyText: pgKeyword ? '没有匹配的策略分组' : '暂无策略分组，点击「创建分组」按 view 应用 RPZ' }"
+        :columns="pgColumns"
+        :locale="{ emptyText: pgKeyword ? $t('dns.blocklist.pg.emptyFiltered') : $t('dns.blocklist.pg.empty') }"
         :pagination="{ pageSize: 10, showTotal }"
         row-key="id"
         size="small"
@@ -577,13 +607,13 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             <div v-if="(record.cidrs ?? []).length > 0" class="flex flex-wrap gap-1">
               <span v-for="c in record.cidrs" :key="c" class="ipam-chip ipam-mono" data-tone="muted">{{ c }}</span>
             </div>
-            <span v-else class="ipam-hint">全部来源</span>
+            <span v-else class="ipam-hint">{{ $t('dns.blocklist.pg.allSources') }}</span>
           </template>
           <template v-else-if="column.dataIndex === 'listIds'">
-            <span class="ipam-chip" data-tone="blue">{{ (record.listIds ?? []).length }} 个</span>
+            <span class="ipam-chip" data-tone="blue">{{ $t('dns.common.count', { n: (record.listIds ?? []).length }) }}</span>
           </template>
           <template v-else-if="column.key === 'op'">
-            <Button size="small" @click="compilePg(record.id)">编译</Button>
+            <Button size="small" @click="compilePg(record.id)">{{ $t('dns.blocklist.pg.compile') }}</Button>
           </template>
         </template>
       </Table>
@@ -592,9 +622,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         <div class="mb-2 flex items-center justify-between">
           <span class="ipam-card-title">
             <IconifyIcon icon="lucide:file-code-2" />
-            编译结果
+            {{ $t('dns.blocklist.pg.compileResult') }}
           </span>
-          <Button size="small" @click="pgResult = null">收起</Button>
+          <Button size="small" @click="pgResult = null">{{ $t('dns.blocklist.pg.collapse') }}</Button>
         </div>
         <pre class="ipam-code-block">{{ JSON.stringify(pgResult, null, 2) }}</pre>
       </div>
@@ -604,25 +634,25 @@ onBeforeUnmount(() => timer && clearInterval(timer));
     <CreateModal class="w-[640px]">
       <div class="ipam-form-grid">
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">名单名称<em>*</em></span>
-          <Input v-model:value="cForm.name" placeholder="如 恶意域名订阅" />
+          <span class="ipam-form-field__label">{{ $t('dns.blocklist.createModal.nameLabel') }}<em>*</em></span>
+          <Input v-model:value="cForm.name" :placeholder="$t('dns.blocklist.createModal.namePlaceholder')" />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">类型</span>
+          <span class="ipam-form-field__label">{{ $t('dns.common.type') }}</span>
           <Select
             v-model:value="cForm.kind"
             :options="[
-              { value: 'custom', label: '自定义（本地维护）' },
-              { value: 'feed', label: '订阅源（HTTP 拉取）' },
+              { value: 'custom', label: $t('dns.blocklist.createModal.optCustom') },
+              { value: 'feed', label: $t('dns.blocklist.createModal.optFeed') },
             ]"
           />
         </label>
         <label v-if="cForm.kind === 'feed'" class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">订阅 URL<em>*</em></span>
+          <span class="ipam-form-field__label">{{ $t('dns.blocklist.createModal.urlLabel') }}<em>*</em></span>
           <Input v-model:value="cForm.syncUrl" placeholder="https://example.com/blocklist.txt" />
         </label>
         <div class="ipam-form-hint ipam-form-field--wide">
-          订阅源每 30 秒检查一次更新，同步失败保留旧版本；创建后可在列表中添加条目。
+          {{ $t('dns.blocklist.createModal.hint') }}
         </div>
       </div>
     </CreateModal>
@@ -631,36 +661,35 @@ onBeforeUnmount(() => timer && clearInterval(timer));
     <PgModal class="w-[680px]">
       <div class="ipam-form-grid">
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">分组名称<em>*</em></span>
-          <Input v-model:value="pgForm.name" placeholder="如 访客网络" />
+          <span class="ipam-form-field__label">{{ $t('dns.blocklist.pgModal.nameLabel') }}<em>*</em></span>
+          <Input v-model:value="pgForm.name" :placeholder="$t('dns.blocklist.pgModal.namePlaceholder')" />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">view 名称</span>
+          <span class="ipam-form-field__label">{{ $t('dns.blocklist.pgModal.viewLabel') }}</span>
           <Input v-model:value="pgForm.viewName" placeholder="recursor" />
         </label>
         <label class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">来源网段（CIDR）</span>
-          <Input v-model:value="pgForm.cidrs" placeholder="逗号分隔，如 10.0.0.0/8,192.168.0.0/16" />
+          <span class="ipam-form-field__label">{{ $t('dns.blocklist.pgModal.cidrLabel') }}</span>
+          <Input v-model:value="pgForm.cidrs" :placeholder="$t('dns.blocklist.pgModal.cidrPlaceholder')" />
         </label>
         <label class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">关联名单</span>
-          <Select v-model:value="pgForm.listIds" mode="multiple" placeholder="选择生效的封禁名单" :options="pgListOptions" />
+          <span class="ipam-form-field__label">{{ $t('dns.blocklist.pgModal.listsLabel') }}</span>
+          <Select v-model:value="pgForm.listIds" mode="multiple" :placeholder="$t('dns.blocklist.pgModal.listsPlaceholder')" :options="pgListOptions" />
         </label>
         <label class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">生效星期（留空=每天）</span>
-          <Select v-model:value="pgForm.scheduleDays" mode="multiple" :options="WEEK_OPTIONS" placeholder="如仅工作日" />
+          <span class="ipam-form-field__label">{{ $t('dns.blocklist.pgModal.weekLabel') }}</span>
+          <Select v-model:value="pgForm.scheduleDays" mode="multiple" :options="WEEK_OPTIONS" :placeholder="$t('dns.blocklist.pgModal.weekPlaceholder')" />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">开始时间</span>
-          <Input v-model:value="pgForm.scheduleStart" placeholder="09:00" />
+          <span class="ipam-form-field__label">{{ $t('dns.blocklist.pgModal.startLabel') }}</span>
+          <Input v-model:value="pgForm.scheduleStart" :placeholder="$t('dns.blocklist.pgModal.startPlaceholder')" />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">结束时间</span>
-          <Input v-model:value="pgForm.scheduleEnd" placeholder="18:00" />
+          <span class="ipam-form-field__label">{{ $t('dns.blocklist.pgModal.endLabel') }}</span>
+          <Input v-model:value="pgForm.scheduleEnd" :placeholder="$t('dns.blocklist.pgModal.endPlaceholder')" />
         </label>
         <div class="ipam-form-hint ipam-form-field--wide">
-          view 名在同一 resolver 内唯一；白名单优先于黑名单生效。
-          时段留空=全天生效；开始>结束表示跨零点（如 22:00→06:00），窗口外自动撤销该组拦截。
+          {{ $t('dns.blocklist.pgModal.hint') }}
         </div>
       </div>
     </PgModal>
@@ -669,22 +698,22 @@ onBeforeUnmount(() => timer && clearInterval(timer));
     <EntriesDrawer>
       <div class="mb-3 flex flex-wrap items-end gap-2">
         <div class="ipam-field">
-          <span class="ipam-field__label">匹配规则</span>
-          <Input v-model:value="eForm.pattern" placeholder="如 *.gamble.com 或 203.0.113.0/24" style="width: 200px" @press-enter="addEntry" />
+          <span class="ipam-field__label">{{ $t('dns.blocklist.entries.patternLabel') }}</span>
+          <Input v-model:value="eForm.pattern" :placeholder="$t('dns.blocklist.entries.patternPlaceholder')" style="width: 200px" @press-enter="addEntry" />
         </div>
         <div class="ipam-field">
-          <span class="ipam-field__label">触发</span>
+          <span class="ipam-field__label">{{ $t('dns.blocklist.entries.triggerLabel') }}</span>
           <Select
             v-model:value="eForm.triggerType"
             style="width: 150px"
             :options="[
-              { value: 'qname', label: 'qname（域名）' },
-              { value: 'response_ip', label: 'response_ip（应答IP）' },
+              { value: 'qname', label: $t('dns.blocklist.entries.triggerQname') },
+              { value: 'response_ip', label: $t('dns.blocklist.entries.triggerIp') },
             ]"
           />
         </div>
         <div class="ipam-field">
-          <span class="ipam-field__label">动作</span>
+          <span class="ipam-field__label">{{ $t('dns.blocklist.entries.actionLabel') }}</span>
           <Select
             v-model:value="eForm.action"
             style="width: 125px"
@@ -697,46 +726,40 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           />
         </div>
         <Button type="primary" size="small" @click="addEntry">
-          <IconifyIcon icon="lucide:plus" class="mr-1" />添加条目
+          <IconifyIcon icon="lucide:plus" class="mr-1" />{{ $t('dns.blocklist.entries.addBtn') }}
         </Button>
         <Button size="small" @click="openCsv">
-          <IconifyIcon icon="lucide:upload" class="mr-1" />导入 CSV
+          <IconifyIcon icon="lucide:upload" class="mr-1" />{{ $t('dns.blocklist.entries.importCsv') }}
         </Button>
         <Button size="small" @click="exportCsv()">
-          <IconifyIcon icon="lucide:download" class="mr-1" />导出 CSV
+          <IconifyIcon icon="lucide:download" class="mr-1" />{{ $t('dns.blocklist.entries.exportCsv') }}
         </Button>
       </div>
 
       <div class="ipam-summary mb-3">
         <div class="ipam-summary__item">
-          <span class="ipam-summary__label">当前名单</span>
+          <span class="ipam-summary__label">{{ $t('dns.blocklist.entries.currentList') }}</span>
           <span class="ipam-summary__value" style="font-size: 14px">{{ selName }}</span>
         </div>
         <div class="ipam-summary__item">
-          <span class="ipam-summary__label">条目总数</span>
-          <span class="ipam-summary__value">{{ entries.length }}<small>条</small></span>
+          <span class="ipam-summary__label">{{ $t('dns.blocklist.entries.totalEntries') }}</span>
+          <span class="ipam-summary__value">{{ entries.length }}<small>{{ $t('dns.common.unit.item') }}</small></span>
         </div>
         <div class="ipam-summary__item">
-          <span class="ipam-summary__label">域名匹配</span>
-          <span class="ipam-summary__value">{{ entries.filter((e) => e.triggerType === 'qname').length }}<small>条</small></span>
+          <span class="ipam-summary__label">{{ $t('dns.blocklist.entries.qnameEntries') }}</span>
+          <span class="ipam-summary__value">{{ entries.filter((e) => e.triggerType === 'qname').length }}<small>{{ $t('dns.common.unit.item') }}</small></span>
         </div>
         <div class="ipam-summary__item">
-          <span class="ipam-summary__label">应答 IP</span>
-          <span class="ipam-summary__value">{{ entries.filter((e) => e.triggerType === 'response_ip').length }}<small>条</small></span>
+          <span class="ipam-summary__label">{{ $t('dns.blocklist.entries.ipEntries') }}</span>
+          <span class="ipam-summary__value">{{ entries.filter((e) => e.triggerType === 'response_ip').length }}<small>{{ $t('dns.common.unit.item') }}</small></span>
         </div>
       </div>
 
       <Table
         :data-source="entries"
         :loading="eLoading"
-        :columns="[
-          { title: '匹配规则', dataIndex: 'pattern', minWidth: 220 },
-          { title: '触发', dataIndex: 'triggerType', width: 130 },
-          { title: '动作', dataIndex: 'action', width: 120 },
-          { title: '分类', dataIndex: 'category', width: 110 },
-          { title: '操作', key: 'op', width: 90 },
-        ]"
-        :locale="{ emptyText: '该名单暂无条目，使用上方表单添加第一条规则' }"
+        :columns="entryColumns"
+        :locale="{ emptyText: $t('dns.blocklist.entries.empty') }"
         :pagination="{ pageSize: 20, showSizeChanger: true, showTotal }"
         row-key="pattern"
         size="small"
@@ -759,8 +782,8 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             <span class="ipam-hint">{{ record.category || '—' }}</span>
           </template>
           <template v-else-if="column.key === 'op'">
-            <Popconfirm title="确认删除该条目？" description="删除后不可恢复。" ok-text="删除" cancel-text="取消" @confirm="removeEntry(record.listId, record.pattern)">
-              <Button size="small" danger>删除</Button>
+            <Popconfirm :title="$t('dns.blocklist.entries.deleteTitle')" :description="$t('dns.blocklist.entries.deleteDesc')" :ok-text="$t('dns.common.delete')" :cancel-text="$t('dns.common.cancel')" @confirm="removeEntry(record.listId, record.pattern)">
+              <Button size="small" danger>{{ $t('dns.common.delete') }}</Button>
             </Popconfirm>
           </template>
         </template>
@@ -770,15 +793,15 @@ onBeforeUnmount(() => timer && clearInterval(timer));
     <!-- CSV 导入 -->
     <Modal
       v-model:open="csvOpen"
-      title="CSV 导入名单条目"
-      ok-text="开始导入"
-      cancel-text="取消"
+      :title="$t('dns.blocklist.csv.title')"
+      :ok-text="$t('dns.blocklist.csv.ok')"
+      :cancel-text="$t('dns.common.cancel')"
       :confirm-loading="csvImporting"
       @ok="submitCsv"
     >
       <div class="ipam-form-grid">
         <div class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">CSV 内容（pattern[,action[,category]]）</span>
+          <span class="ipam-form-field__label">{{ $t('dns.blocklist.csv.contentLabel') }}</span>
           <Input.TextArea
             v-model:value="csvContent"
             :rows="8"
@@ -787,23 +810,18 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         </div>
         <div class="ipam-form-field--wide flex items-center gap-2">
           <Switch v-model:checked="csvReplace" size="small" />
-          <span class="ipam-hint">导入前清空该名单现有条目（会先保存版本快照，可回滚）</span>
+          <span class="ipam-hint">{{ $t('dns.blocklist.csv.hint') }}</span>
         </div>
       </div>
     </Modal>
 
     <!-- 版本回滚 -->
-    <Modal v-model:open="versionsOpen" title="版本快照与回滚" :footer="null" width="560px">
+    <Modal v-model:open="versionsOpen" :title="$t('dns.blocklist.versions.title')" :footer="null" width="560px">
       <Table
         :data-source="versions"
         :loading="versionsLoading"
-        :columns="[
-          { title: '版本', dataIndex: 'version', width: 100 },
-          { title: '条目数', dataIndex: 'entries', width: 100 },
-          { title: '时间', dataIndex: 'createdAt', minWidth: 180 },
-          { title: '操作', key: 'op', width: 110 },
-        ]"
-        :locale="{ emptyText: '暂无快照：订阅同步、CSV 导入前会自动保存' }"
+        :columns="versionColumns"
+        :locale="{ emptyText: $t('dns.blocklist.versions.empty') }"
         :pagination="false"
         row-key="version"
         size="small"
@@ -817,13 +835,13 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           </template>
           <template v-else-if="column.key === 'op'">
             <Popconfirm
-              title="确认回滚到该版本？"
-              description="当前条目将被快照内容替换，版本号继续递增。"
-              ok-text="回滚"
-              cancel-text="取消"
+              :title="$t('dns.blocklist.versions.rollbackTitle')"
+              :description="$t('dns.blocklist.versions.rollbackDesc')"
+              :ok-text="$t('dns.blocklist.versions.rollbackBtn')"
+              :cancel-text="$t('dns.common.cancel')"
               @confirm="doRollback(record.version)"
             >
-              <Button size="small">回滚</Button>
+              <Button size="small">{{ $t('dns.blocklist.versions.rollbackBtn') }}</Button>
             </Popconfirm>
           </template>
         </template>
@@ -831,15 +849,11 @@ onBeforeUnmount(() => timer && clearInterval(timer));
     </Modal>
 
     <!-- 内置分类库 -->
-    <Modal v-model:open="builtinOpen" title="内置分类库" :footer="null" width="640px">
+    <Modal v-model:open="builtinOpen" :title="$t('dns.blocklist.list.builtinLib')" :footer="null" width="640px">
       <Table
         :data-source="packs"
         :loading="builtinLoading"
-        :columns="[
-          { title: '分类包', dataIndex: 'name', minWidth: 200 },
-          { title: '条目', dataIndex: 'entryCount', width: 80 },
-          { title: '操作', key: 'op', width: 100 },
-        ]"
+        :columns="packColumns"
         :pagination="false"
         row-key="key"
         size="small"
@@ -852,13 +866,13 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             </div>
           </template>
           <template v-else-if="column.key === 'op'">
-            <Button size="small" type="primary" @click="installPack(record.key)">安装</Button>
+            <Button size="small" type="primary" @click="installPack(record.key)">{{ $t('dns.blocklist.builtin.installBtn') }}</Button>
           </template>
         </template>
       </Table>
       <div class="ipam-note mt-3">
         <IconifyIcon icon="lucide:info" class="mt-0.5 size-3.5 shrink-0" />
-        <span>内置库为基线种子（非全量），安装后成为 builtin 名单，可继续增删条目或叠加订阅源。</span>
+        <span>{{ $t('dns.blocklist.builtin.note') }}</span>
       </div>
     </Modal>
   </div>

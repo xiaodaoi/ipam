@@ -12,13 +12,13 @@ defineOptions({ name: 'SystemOrgs' });
     <PageHeader
       eyebrow="System"
       icon="lucide:git-branch"
-      title="组织管理"
-      description="全站唯一组织主数据：公司 → 部门 → … 多级树，DHCP/DNS/资产/日志均引用同一棵树。"
+      :title="$t('system.orgs.title')"
+      :description="$t('system.orgs.desc')"
     >
       <template #actions>
         <span class="ipam-page-header__meta">
           <IconifyIcon icon="lucide:info" class="size-3.5" />
-          被引用或含子节点时不可删除
+          {{ $t('system.orgs.lockedHint') }}
         </span>
       </template>
     </PageHeader>

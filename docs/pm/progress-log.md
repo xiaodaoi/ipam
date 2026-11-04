@@ -4,6 +4,15 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-11-04 · 前端全量 i18n（M6-025）
+- **覆盖**：`web/apps/web-ipam` 全部业务页面/组件/布局，71 个文件、0 处硬编码中文（注释除外）；新增 8 个 locale 命名空间（`dhcp/dhcpLedger/dns/logs/dashboard/system/shared/core`），2573 条文案，zh/en key 结构对称。
+- **机制**：展示型常量（表格列/状态映射/Tab/选项/统计卡）统一改 `computed`，切换语言即时生效；vxe 表格在语言变化后 `setState` 同步列头与空态；日期数字格式去掉硬编码 `zh-CN`。
+- **持久化修复**：上游 `initPreferences()` 合并策略让默认 `app.locale=zh-CN` 恒覆盖缓存，刷新后语言回退。新增 `src/utils/persisted-locale.ts` + `main.ts` 在初始化前读 `preferences-locale`、初始化后回填（不修改上游包），并补 6 条单测。
+- **清理**：删除未挂路由的上游演示页 `views/dashboard/{analytics,workspace}`（死代码，1000+ 行）。
+- **门禁**：`check-ui-i18n.py` OK（71 文件）、`check-i18n-keys.py` OK（9 文件）、`vue-tsc` 0 error、改动 50 文件 eslint 0 error、`sync-webui.sh --build` 11 任务（5.4M）、web 单测 33 用例、E2E 16/16。
+- **语言切换证据**：zh→en 即时生效 + 刷新保持 + 个人中心（含安全设置 TOTP/会话）+ DHCP/DNS/日志/系统四页抽样 + 切回 zh 刷新保持，全部通过。
+- **文档**：`docs/dev/M6-025-i18n实现规范与术语表.md`（新增持久化、vxe、新增文案工作流章节）、任务卡 M6-025、计划表。
+
 ## 2026-11-04 · 首次使用向导（M6-024）
 - **入口**：仪表盘 banner（继续配置 / 稍后再说），完成或忽略后隐藏；向导页可「重新显示向导」复位。
 - **五步检测**：组织 ≥1、子网 ≥1、启用上游 ≥1、区域含记录 ≥1、账号安全（无待改密或已启用 2FA），全部只读、并发执行，单步失败不阻塞。

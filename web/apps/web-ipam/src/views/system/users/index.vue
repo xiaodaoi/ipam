@@ -32,22 +32,41 @@ import {
 } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import { $t } from '#/locales';
 
-const ROLE_META: Record<string, { color: string; desc: string; label: string }> = {
-  admin: { color: 'gold', desc: '可读写全部模块', label: '管理员' },
-  auditor: { color: 'purple', desc: '全模块只读，适合审计岗', label: '审计员' },
-  operator: { color: 'blue', desc: 'DHCP/DNS/资产读写', label: '运维' },
-  user: { color: 'default', desc: '全模块只读', label: '只读' },
-};
+const ROLE_META = computed<
+  Record<string, { color: string; desc: string; label: string }>
+>(() => ({
+  admin: {
+    color: 'gold',
+    desc: $t('system.users.role.adminDesc'),
+    label: $t('system.users.role.admin'),
+  },
+  auditor: {
+    color: 'purple',
+    desc: $t('system.users.role.auditorDesc'),
+    label: $t('system.users.role.auditor'),
+  },
+  operator: {
+    color: 'blue',
+    desc: $t('system.users.role.operatorDesc'),
+    label: $t('system.users.role.operator'),
+  },
+  user: {
+    color: 'default',
+    desc: $t('system.users.role.userDesc'),
+    label: $t('system.users.role.user'),
+  },
+}));
 const roleOptions = ref<{ label: string; value: string }[]>([
   { label: 'admin', value: 'admin' },
   { label: 'user', value: 'user' },
 ]);
-const STATUS_OPTIONS = [
-  { label: '全部状态', value: 'all' },
-  { label: '已启用', value: 'enabled' },
-  { label: '已停用', value: 'disabled' },
-];
+const STATUS_OPTIONS = computed(() => [
+  { label: $t('system.users.status.all'), value: 'all' },
+  { label: $t('system.users.status.enabled'), value: 'enabled' },
+  { label: $t('system.users.status.disabled'), value: 'disabled' },
+]);
 
 const userStore = useUserStore();
 const myUsername = (userStore.userInfo?.username ?? '') as string;
@@ -68,7 +87,7 @@ function fmtDateTime(v?: string): string {
 }
 const isSelf = (username?: string) => !!myUsername && username === myUsername;
 function roleMeta(r: string) {
-  return ROLE_META[r] ?? { color: 'default', desc: '', label: r };
+  return ROLE_META.value[r] ?? { color: 'default', desc: '', label: r };
 }
 function initial(name?: string): string {
   return (name ?? '?').trim().charAt(0).toUpperCase() || '?';
@@ -80,7 +99,9 @@ async function load() {
     const d = await listUsers();
     rows.value = d.items ?? [];
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '账号列表加载失败');
+    message.error(
+      error instanceof Error ? error.message : $t('system.users.msg.loadFailed'),
+    );
   } finally {
     loading.value = false;
   }
@@ -106,7 +127,7 @@ const roleChoices = computed(() => {
   const seen = new Set<string>();
   for (const r of rows.value) for (const role of r.roles) seen.add(role);
   return [
-    { label: '全部角色', value: 'all' },
+    { label: $t('system.users.roleFilterAll'), value: 'all' },
     ...[...seen].map((r) => ({ label: roleMeta(r).label, value: r })),
   ];
 });
@@ -119,6 +140,13 @@ const readOnlyCount = computed(() => total.value - adminCount.value);
 const enabledPct = computed(() =>
   total.value > 0 ? (enabledCount.value / total.value) * 100 : 0,
 );
+const enabledHint = computed(() => {
+  const pct = enabledPct.value.toFixed(0);
+  const disabled = total.value - enabledCount.value;
+  return disabled > 0
+    ? $t('system.users.stat.enabledHintMore', { pct, n: disabled })
+    : $t('system.users.stat.enabledHint', { pct });
+});
 const activeFilters = computed(() => {
   const parts = [keyword.value.trim()];
   if (roleFilter.value === 'all') parts.push('');
@@ -139,7 +167,7 @@ const [CreateModal, createModalApi] = useVbenModal({
   class: 'w-[560px]',
   draggable: true,
   onConfirm: () => add(),
-  title: '新建账号',
+  title: $t('system.users.modal.create'),
 });
 
 function openCreate() {
@@ -147,16 +175,17 @@ function openCreate() {
   createForm.displayName = '';
   createForm.password = '';
   createForm.roles = ['user'];
+  createModalApi.setState({ title: $t('system.users.modal.create') });
   createModalApi.open();
 }
 
 async function add() {
   if (!/^[\w.-]{2,64}$/.test(createForm.username.trim())) {
-    message.warning('登录名需 2–64 位，仅允许字母、数字与 _ . -');
+    message.warning($t('system.users.msg.usernameRule'));
     return;
   }
   if (createForm.password.length < 10) {
-    message.warning('初始口令至少 10 位，且需包含至少 3 类字符');
+    message.warning($t('system.users.msg.passwordRule'));
     return;
   }
   try {
@@ -166,11 +195,17 @@ async function add() {
       roles: createForm.roles,
       username: createForm.username.trim(),
     });
-    message.success(`账号「${createForm.username.trim()}」已创建`);
+    message.success(
+      $t('system.users.msg.created', {
+        name: createForm.username.trim(),
+      }),
+    );
     createModalApi.close();
     await load();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '创建失败');
+    message.error(
+      error instanceof Error ? error.message : $t('system.users.msg.createFailed'),
+    );
   }
 }
 
@@ -185,7 +220,7 @@ const [EditModal, editModalApi] = useVbenModal({
   class: 'w-[520px]',
   draggable: true,
   onConfirm: () => saveEdit(),
-  title: '编辑账号',
+  title: $t('system.users.modal.edit'),
 });
 
 function openEdit(row: UserRow) {
@@ -194,6 +229,7 @@ function openEdit(row: UserRow) {
   editForm.displayName = row.displayName ?? '';
   editForm.roles = [...(row.roles as string[])];
   editForm.enabled = row.enabled;
+  editModalApi.setState({ title: $t('system.users.modal.edit') });
   editModalApi.open();
 }
 
@@ -204,20 +240,28 @@ async function saveEdit() {
       enabled: editForm.enabled,
       roles: editForm.roles,
     });
-    message.success('账号信息已更新');
+    message.success($t('system.users.msg.updated'));
     editModalApi.close();
     await load();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '更新失败');
+    message.error(
+      error instanceof Error ? error.message : $t('system.users.msg.updateFailed'),
+    );
   }
 }
 
 async function toggle(row: UserRow, enabled: boolean) {
   try {
     await updateUser(row.id, { enabled });
-    message.success(enabled ? `已启用「${row.username}」` : `已停用「${row.username}」`);
+    message.success(
+      enabled
+        ? $t('system.users.msg.enabled', { name: row.username })
+        : $t('system.users.msg.disabled', { name: row.username }),
+    );
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '操作失败');
+    message.error(
+      error instanceof Error ? error.message : $t('system.users.msg.opFailed'),
+    );
   }
   await load();
 }
@@ -231,34 +275,44 @@ function openReset(row: UserRow) {
 }
 async function doReset() {
   if (reset.password.length < 10) {
-    message.warning('新口令至少 10 位，且需包含至少 3 类字符');
+    message.warning($t('system.users.msg.newPasswordRule'));
     return;
   }
   try {
     await updateUser(reset.id, { password: reset.password });
-    message.success(`「${reset.username}」的口令已重置`);
+    message.success(
+      $t('system.users.msg.passwordReset', { name: reset.username }),
+    );
     reset.open = false;
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '重置失败');
+    message.error(
+      error instanceof Error ? error.message : $t('system.users.msg.resetFailed'),
+    );
   }
 }
 
 async function resetTotp(row: UserRow) {
   try {
     await updateUser(row.id, { totpReset: true });
-    message.success(`已重置「${row.username}」的双因素认证，请通知其重新绑定`);
+    message.success($t('system.users.msg.totpReset', { name: row.username }));
     await load();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '重置 2FA 失败');
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('system.users.msg.totpResetFailed'),
+    );
   }
 }
 
 async function remove(row: UserRow) {
   try {
     await deleteUser(row.id);
-    message.success(`账号「${row.username}」已删除`);
+    message.success($t('system.users.msg.deleted', { name: row.username }));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '删除失败');
+    message.error(
+      error instanceof Error ? error.message : $t('system.users.msg.deleteFailed'),
+    );
   }
   await load();
 }
@@ -280,7 +334,11 @@ async function openSessions(row: UserRow) {
     const res = await listSystemSessions(row.id);
     sessions.rows = res.items ?? [];
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '会话列表加载失败');
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('system.users.msg.sessionsLoadFailed'),
+    );
   } finally {
     sessions.loading = false;
   }
@@ -289,17 +347,23 @@ async function openSessions(row: UserRow) {
 async function kickSession(row: SessionRow) {
   try {
     await revokeSystemSession(row.id);
-    message.success(`已强制下线「${row.username}」的一个会话`);
+    message.success(
+      $t('system.users.msg.sessionRevoked', { name: row.username }),
+    );
     sessions.rows = sessions.rows.filter((s) => s.id !== row.id);
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '下线失败');
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('system.users.msg.revokeFailed'),
+    );
   }
 }
 
 /** 从 User-Agent 提取可读设备名。 */
 function deviceLabel(ua: string): string {
-  if (!ua) return '未知客户端';
-  let browser = '浏览器';
+  if (!ua) return $t('system.users.sessions.unknownClient');
+  let browser = $t('system.users.sessions.browser');
   if (/Edg\//.test(ua)) browser = 'Edge';
   else if (/Chrome\//.test(ua)) browser = 'Chrome';
   else if (/Firefox\//.test(ua)) browser = 'Firefox';
@@ -329,13 +393,28 @@ function resetFilters() {
   statusFilter.value = 'all';
 }
 
-const columns = [
-  { dataIndex: 'username', key: 'account', title: '账号', minWidth: 220 },
-  { dataIndex: 'roles', key: 'roles', title: '角色', width: 140 },
-  { dataIndex: 'enabled', key: 'enabled', title: '状态', width: 130 },
-  { dataIndex: 'createdAt', key: 'createdAt', title: '创建时间', width: 170 },
-  { dataIndex: 'op', key: 'op', title: '操作', width: 310 },
-];
+const columns = computed(() => [
+  {
+    dataIndex: 'username',
+    key: 'account',
+    title: $t('system.users.col.account'),
+    minWidth: 220,
+  },
+  { dataIndex: 'roles', key: 'roles', title: $t('system.users.col.roles'), width: 140 },
+  {
+    dataIndex: 'enabled',
+    key: 'enabled',
+    title: $t('system.users.col.enabled'),
+    width: 130,
+  },
+  {
+    dataIndex: 'createdAt',
+    key: 'createdAt',
+    title: $t('system.users.col.createdAt'),
+    width: 170,
+  },
+  { dataIndex: 'op', key: 'op', title: $t('system.users.col.op'), width: 310 },
+]);
 
 async function loadRoleOptions() {
   try {
@@ -362,52 +441,71 @@ onBeforeUnmount(() => clearInterval(timer));
     <PageHeader
       eyebrow="System"
       icon="lucide:users"
-      title="账号管理"
-      description="管理控制面登录账号、角色分配与启停状态；口令使用 bcrypt 存储，停用或改密会立即吊销该账号存量会话。"
+      :title="$t('system.users.page.title')"
+      :description="$t('system.users.page.desc')"
     >
       <template #actions>
         <span class="ipam-page-header__meta">
           <IconifyIcon icon="lucide:user-check" class="size-3.5" />
-          {{ enabledCount }}/{{ total }} 个账号已启用
+          {{
+            $t('system.users.header.enabledMeta', {
+              enabled: enabledCount,
+              total,
+            })
+          }}
         </span>
         <Button size="small" :loading="loading" @click="reload">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />刷新
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{
+            $t('system.users.actions.refresh')
+          }}
         </Button>
         <Button type="primary" size="small" @click="openCreate">
-          <IconifyIcon icon="lucide:user-plus" class="mr-1 size-3.5" />新建账号
+          <IconifyIcon icon="lucide:user-plus" class="mr-1 size-3.5" />{{
+            $t('system.users.actions.create')
+          }}
         </Button>
       </template>
     </PageHeader>
 
     <div class="ipam-stat-grid">
       <StatCard
-        label="账号总数"
+        :label="$t('system.users.stat.total')"
         :value="total"
         icon="lucide:users"
         tone="blue"
-        :hint="`当前登录：${myUsername || '—'}`"
+        :hint="
+          $t('system.users.stat.totalHint', { name: myUsername || '—' })
+        "
       />
       <StatCard
-        label="已启用账号"
+        :label="$t('system.users.stat.enabled')"
         :value="enabledCount"
         icon="lucide:user-check"
         tone="green"
         :progress="enabledPct"
-        :hint="`启用率 ${enabledPct.toFixed(0)}%${total - enabledCount > 0 ? ` · 停用 ${total - enabledCount} 个` : ''}`"
+        :hint="enabledHint"
       />
       <StatCard
-        label="管理员"
+        :label="$t('system.users.stat.admin')"
         :value="adminCount"
         icon="lucide:shield-check"
         tone="amber"
-        :hint="adminCount === 0 ? '当前没有管理员账号，请尽快补充' : '可读写全部模块'"
+        :hint="
+          adminCount === 0
+            ? $t('system.users.stat.adminHintEmpty')
+            : $t('system.users.stat.adminHint')
+        "
       />
       <StatCard
-        label="只读账号"
+        :label="$t('system.users.stat.readonly')"
         :value="readOnlyCount"
         icon="lucide:eye"
         tone="violet"
-        :hint="readOnlyCount > 0 ? '写操作将被 RBAC 拦截（403）' : '当前没有只读账号'"
+        :hint="
+          readOnlyCount > 0
+            ? $t('system.users.stat.readonlyHint')
+            : $t('system.users.stat.readonlyHintEmpty')
+        "
       />
     </div>
 
@@ -415,34 +513,42 @@ onBeforeUnmount(() => clearInterval(timer));
       <template #title>
         <span class="ipam-card-title">
           <IconifyIcon icon="lucide:list" />
-          账号列表
+          {{ $t('system.users.list.title') }}
           <em class="ipam-card-sub">{{ filtered.length }} / {{ total }}</em>
         </span>
       </template>
       <template #extra>
         <div class="ipam-card-tools">
-          <span class="ipam-field__label">自动刷新</span>
+          <span class="ipam-field__label">{{
+            $t('system.users.list.autoRefresh')
+          }}</span>
           <Switch
             v-model:checked="autoRefresh"
             size="small"
             @change="(v: any) => toggleAuto(!!v)"
           />
-          <span class="ipam-hint">每 15 秒</span>
+          <span class="ipam-hint">{{
+            $t('system.users.list.autoRefreshHint')
+          }}</span>
         </div>
       </template>
 
       <div class="ipam-toolbar mb-3">
         <div class="ipam-field">
-          <span class="ipam-field__label">关键字</span>
+          <span class="ipam-field__label">{{
+            $t('system.users.filter.keyword')
+          }}</span>
           <Input
             v-model:value="keyword"
             allow-clear
-            placeholder="登录名 / 显示名"
+            :placeholder="$t('system.users.filter.keywordPlaceholder')"
             style="width: 200px"
           />
         </div>
         <div class="ipam-field">
-          <span class="ipam-field__label">角色</span>
+          <span class="ipam-field__label">{{
+            $t('system.users.filter.role')
+          }}</span>
           <Select
             v-model:value="roleFilter"
             style="width: 140px"
@@ -450,7 +556,9 @@ onBeforeUnmount(() => clearInterval(timer));
           />
         </div>
         <div class="ipam-field">
-          <span class="ipam-field__label">状态</span>
+          <span class="ipam-field__label">{{
+            $t('system.users.filter.status')
+          }}</span>
           <Select
             v-model:value="statusFilter"
             style="width: 128px"
@@ -458,11 +566,11 @@ onBeforeUnmount(() => clearInterval(timer));
           />
         </div>
         <Button v-if="activeFilters > 0" size="small" @click="resetFilters">
-          清除筛选
+          {{ $t('system.users.filter.clear') }}
         </Button>
         <div class="ipam-toolbar__spacer"></div>
         <span class="ipam-hint">
-          停用或删除当前登录账号会立即失去访问权限，已做保护
+          {{ $t('system.users.filter.hint') }}
         </span>
       </div>
 
@@ -473,8 +581,8 @@ onBeforeUnmount(() => clearInterval(timer));
         :locale="{
           emptyText:
             activeFilters > 0
-              ? '没有匹配当前筛选条件的账号'
-              : '暂无账号，点击右上角「新建账号」创建',
+              ? $t('system.users.empty.filtered')
+              : $t('system.users.empty.none'),
         }"
         :pagination="false"
         :row-key="(r: UserRow) => r.id"
@@ -490,15 +598,23 @@ onBeforeUnmount(() => clearInterval(timer));
               <div class="ipam-account__body">
                 <div class="ipam-account__line">
                   <span class="ipam-account__name ipam-mono">{{ record.username }}</span>
-                  <Tag v-if="isSelf(record.username)" class="m-0" color="blue">当前登录</Tag>
-                  <Tag v-if="record.mustChangePassword" class="m-0" color="orange">需改密</Tag>
+                  <Tag v-if="isSelf(record.username)" class="m-0" color="blue">
+{{
+                    $t('system.users.tag.self')
+                  }}
+</Tag>
+                  <Tag v-if="record.mustChangePassword" class="m-0" color="orange">
+{{
+                    $t('system.users.tag.mustChange')
+                  }}
+</Tag>
                   <Tag v-if="record.totpEnabled" class="m-0" color="green">2FA</Tag>
                   <Tag v-if="record.authSource === 'ldap'" class="m-0" color="geekblue">
-                    目录账号
+                    {{ $t('system.users.tag.ldap') }}
                   </Tag>
                 </div>
                 <span class="ipam-cell-meta">
-                  {{ record.displayName || '未设置显示名' }}
+                  {{ record.displayName || $t('system.users.noDisplayName') }}
                 </span>
               </div>
             </div>
@@ -521,7 +637,11 @@ onBeforeUnmount(() => clearInterval(timer));
           <template v-else-if="column.key === 'enabled'">
             <div class="flex items-center gap-2">
               <Tooltip
-                :title="isSelf(record.username) ? '不能停用当前登录账号' : ''"
+                :title="
+                  isSelf(record.username)
+                    ? $t('system.users.tooltip.selfDisable')
+                    : ''
+                "
               >
                 <Switch
                   :checked="record.enabled"
@@ -530,7 +650,11 @@ onBeforeUnmount(() => clearInterval(timer));
                   @change="(v: any) => toggle(record as UserRow, !!v)"
                 />
               </Tooltip>
-              <span class="ipam-hint">{{ record.enabled ? '启用' : '停用' }}</span>
+              <span class="ipam-hint">{{
+                record.enabled
+                  ? $t('system.users.enabled')
+                  : $t('system.users.disabled')
+              }}</span>
             </div>
           </template>
           <template v-else-if="column.key === 'createdAt'">
@@ -539,12 +663,14 @@ onBeforeUnmount(() => clearInterval(timer));
           <template v-else-if="column.key === 'op'">
             <div class="flex items-center gap-1">
               <Button size="small" @click="openEdit(record as UserRow)">
-                <IconifyIcon icon="lucide:pencil" class="mr-1 size-3.5" />编辑
+                <IconifyIcon icon="lucide:pencil" class="mr-1 size-3.5" />{{
+                  $t('system.users.action.edit')
+                }}
               </Button>
               <Tooltip
                 :title="
                   record.authSource === 'ldap'
-                    ? '目录账号口令由 LDAP/AD 管理，请在目录服务中重置'
+                    ? $t('system.users.tooltip.ldapPassword')
                     : ''
                 "
               >
@@ -553,29 +679,35 @@ onBeforeUnmount(() => clearInterval(timer));
                   :disabled="record.authSource === 'ldap'"
                   @click="openReset(record as UserRow)"
                 >
-                  <IconifyIcon icon="lucide:key-round" class="mr-1 size-3.5" />重置口令
+                  <IconifyIcon icon="lucide:key-round" class="mr-1 size-3.5" />{{
+                    $t('system.users.action.resetPassword')
+                  }}
                 </Button>
               </Tooltip>
               <Popconfirm
                 v-if="record.totpEnabled"
-                title="确认重置该账号的双因素认证？"
-                description="将清除 TOTP 绑定与恢复码，账号旧会话立即失效，用户需重新绑定。"
-                ok-text="重置"
-                cancel-text="取消"
+                :title="$t('system.users.confirm.totpTitle')"
+                :description="$t('system.users.confirm.totpDesc')"
+                :ok-text="$t('system.users.action.reset')"
+                :cancel-text="$t('system.users.action.cancel')"
                 @confirm="resetTotp(record as UserRow)"
               >
                 <Button size="small">
-                  <IconifyIcon icon="lucide:shield-off" class="mr-1 size-3.5" />重置 2FA
+                  <IconifyIcon icon="lucide:shield-off" class="mr-1 size-3.5" />{{
+                    $t('system.users.action.resetTotp')
+                  }}
                 </Button>
               </Popconfirm>
               <Button size="small" @click="openSessions(record as UserRow)">
-                <IconifyIcon icon="lucide:monitor-smartphone" class="mr-1 size-3.5" />会话
+                <IconifyIcon icon="lucide:monitor-smartphone" class="mr-1 size-3.5" />{{
+                  $t('system.users.action.sessions')
+                }}
               </Button>
               <Popconfirm
-                title="确认删除该账号？"
-                description="删除后该账号立即失效且不可恢复。"
-                ok-text="删除"
-                cancel-text="取消"
+                :title="$t('system.users.confirm.deleteTitle')"
+                :description="$t('system.users.confirm.deleteDesc')"
+                :ok-text="$t('system.users.action.delete')"
+                :cancel-text="$t('system.users.action.cancel')"
                 @confirm="remove(record as UserRow)"
               >
                 <Button
@@ -583,7 +715,7 @@ onBeforeUnmount(() => clearInterval(timer));
                   danger
                   :disabled="isSelf(record.username)"
                 >
-                  删除
+                  {{ $t('system.users.action.delete') }}
                 </Button>
               </Popconfirm>
             </div>
@@ -595,34 +727,45 @@ onBeforeUnmount(() => clearInterval(timer));
     <CreateModal>
       <div class="ipam-form-grid">
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">登录名</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.users.form.username')
+          }}</span>
           <Input
             v-model:value="createForm.username"
-            placeholder="2–64 位，字母数字与 _ . -"
+            :placeholder="$t('system.users.form.usernamePlaceholder')"
           />
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">显示名（可选）</span>
-          <Input v-model:value="createForm.displayName" placeholder="如 网络运维" />
+          <span class="ipam-form-field__label">{{
+            $t('system.users.form.displayName')
+          }}</span>
+          <Input
+            v-model:value="createForm.displayName"
+            :placeholder="$t('system.users.form.displayNamePlaceholder')"
+          />
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">初始口令</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.users.form.initialPassword')
+          }}</span>
           <Input.Password
             v-model:value="createForm.password"
-            placeholder="≥10 位，至少 3 类字符"
+            :placeholder="$t('system.users.form.initialPasswordPlaceholder')"
           />
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">角色</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.users.form.role')
+          }}</span>
           <Select
             v-model:value="createForm.roles"
             mode="multiple"
             :options="roleOptions"
-            placeholder="选择一个或多个角色"
+            :placeholder="$t('system.users.form.rolePlaceholder')"
           />
         </div>
         <div class="ipam-form-hint ipam-form-field--wide">
-          口令仅在请求期接收并以 bcrypt 落库；只读账号的写操作会被 RBAC 拦截（403）。
+          {{ $t('system.users.form.createHint') }}
         </div>
       </div>
     </CreateModal>
@@ -630,53 +773,70 @@ onBeforeUnmount(() => clearInterval(timer));
     <EditModal>
       <div class="ipam-form-grid">
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">登录名</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.users.form.username')
+          }}</span>
           <Input :value="editForm.username" disabled />
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">显示名</span>
-          <Input v-model:value="editForm.displayName" placeholder="如 网络运维" />
+          <span class="ipam-form-field__label">{{
+            $t('system.users.form.displayNameEdit')
+          }}</span>
+          <Input
+            v-model:value="editForm.displayName"
+            :placeholder="$t('system.users.form.displayNamePlaceholder')"
+          />
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">角色</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.users.form.role')
+          }}</span>
           <Select
             v-model:value="editForm.roles"
             mode="multiple"
             :options="roleOptions"
-            placeholder="选择一个或多个角色"
+            :placeholder="$t('system.users.form.rolePlaceholder')"
           />
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">账号状态</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.users.form.accountStatus')
+          }}</span>
           <div class="flex h-8 items-center gap-2">
             <Switch v-model:checked="editForm.enabled" size="small" />
-            <span class="ipam-hint">{{ editForm.enabled ? '允许登录' : '禁止登录' }}</span>
+            <span class="ipam-hint">{{
+              editForm.enabled
+                ? $t('system.users.form.allowLogin')
+                : $t('system.users.form.forbidLogin')
+            }}</span>
           </div>
         </div>
         <div class="ipam-form-hint ipam-form-field--wide">
-          角色与状态变更会立即吊销该账号的存量会话；最后一个管理员不允许降级或停用。
+          {{ $t('system.users.form.editHint') }}
         </div>
       </div>
     </EditModal>
 
     <Modal
       v-model:open="reset.open"
-      :title="`重置口令 · ${reset.username}`"
-      ok-text="确认重置"
-      cancel-text="取消"
+      :title="$t('system.users.reset.title', { name: reset.username })"
+      :ok-text="$t('system.users.reset.ok')"
+      :cancel-text="$t('system.users.action.cancel')"
       @ok="doReset"
     >
       <div class="ipam-form-grid">
         <div class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">新口令（≥10 位，至少 3 类字符）</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.users.reset.label')
+          }}</span>
           <Input.Password
             v-model:value="reset.password"
-            placeholder="输入新口令"
+            :placeholder="$t('system.users.reset.placeholder')"
             @press-enter="doReset"
           />
         </div>
         <div class="ipam-form-hint ipam-form-field--wide">
-          重置后该账号的存量登录会话会立即失效，需要使用新口令重新登录。
+          {{ $t('system.users.reset.hint') }}
         </div>
       </div>
     </Modal>
@@ -684,12 +844,16 @@ onBeforeUnmount(() => clearInterval(timer));
     <Modal
       v-model:open="sessions.open"
       :footer="null"
-      :title="`登录会话 · ${sessions.username}`"
+      :title="$t('system.users.sessions.title', { name: sessions.username })"
       :width="640"
     >
-      <div v-if="sessions.loading" class="ipam-hint py-4">加载中…</div>
+      <div v-if="sessions.loading" class="ipam-hint py-4">
+{{
+        $t('system.users.sessions.loading')
+      }}
+</div>
       <div v-else-if="sessions.rows.length === 0" class="ipam-hint py-4">
-        该账号当前没有活跃会话
+        {{ $t('system.users.sessions.empty') }}
       </div>
       <div v-else class="flex flex-col gap-2">
         <div
@@ -700,21 +864,34 @@ onBeforeUnmount(() => clearInterval(timer));
           <div class="min-w-0">
             <div class="flex items-center gap-2">
               <span class="font-medium">{{ deviceLabel(s.userAgent) }}</span>
-              <Tag v-if="s.current" class="m-0" color="blue">当前操作会话</Tag>
+              <Tag v-if="s.current" class="m-0" color="blue">
+{{
+                $t('system.users.sessions.current')
+              }}
+</Tag>
             </div>
             <div class="ipam-hint break-all">
-              {{ s.ip || '未知 IP' }} · 登录 {{ fmtDateTime(s.createdAt) }} ·
-              最近活动 {{ fmtDateTime(s.lastSeenAt) }}
+              {{
+                $t('system.users.sessions.meta', {
+                  ip: s.ip || $t('system.users.sessions.unknownIp'),
+                  login: fmtDateTime(s.createdAt),
+                  last: fmtDateTime(s.lastSeenAt),
+                })
+              }}
             </div>
           </div>
           <Popconfirm
-            title="确认强制下线该会话？"
-            description="该设备上的访问/刷新令牌将立即失效，用户需要重新登录。"
-            ok-text="下线"
-            cancel-text="取消"
+            :title="$t('system.users.sessions.confirmTitle')"
+            :description="$t('system.users.sessions.confirmDesc')"
+            :ok-text="$t('system.users.sessions.ok')"
+            :cancel-text="$t('system.users.sessions.cancel')"
             @confirm="kickSession(s)"
           >
-            <Button danger size="small">强制下线</Button>
+            <Button danger size="small">
+{{
+              $t('system.users.sessions.kick')
+            }}
+</Button>
           </Popconfirm>
         </div>
       </div>

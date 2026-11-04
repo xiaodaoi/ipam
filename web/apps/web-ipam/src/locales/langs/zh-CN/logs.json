@@ -1,0 +1,490 @@
+{
+  "storage": {
+    "kpi": {
+      "rows": "在线日志行数",
+      "rowsHint": "最早分区 {m}",
+      "rowsEmpty": "暂无在线分区",
+      "disk": "磁盘占用",
+      "diskHint": "{n} 个活跃分区",
+      "archives": "归档文件",
+      "unit": "份",
+      "archiveHint": "最近归档 {m}",
+      "archiveEmpty": "尚未生成 Parquet 归档",
+      "ttl": "当前日志 TTL",
+      "ttlUnit": "天",
+      "ttlHint": "归档保留 {n} 个月"
+    },
+    "policy": {
+      "title": "存储策略",
+      "retention": "日志保留天数",
+      "days": "天",
+      "keepMonths": "归档保留月数",
+      "months": "个月",
+      "auto": "自动归档",
+      "autoOn": "每月 1 日 02:00 自动导出上月为 Parquet",
+      "autoOff": "仅支持手动导出",
+      "hint": "到期分区由 ClickHouse TTL 自动滚动删除；归档文件不占在线存储，删除归档不影响在线数据。",
+      "save": "保存存储策略",
+      "retentionWarn": "保留天数需在 1–3650 之间",
+      "monthsWarn": "归档保留月数需在 1–120 之间",
+      "saved": "存储策略已保存并生效",
+      "saveFail": "保存失败"
+    },
+    "online": {
+      "title": "在线存储",
+      "hint": "来自 ClickHouse system.parts",
+      "totalRows": "总行数",
+      "disk": "磁盘占用",
+      "earliest": "最早月份",
+      "ttl": "当前 TTL",
+      "partitionHint": "按月分区 · 点击月份填入归档导出",
+      "partitions": "{n} 个分区",
+      "pick": "点击填入 {m} 归档导出",
+      "rows": "{n} 行 · {size}",
+      "emptyTitle": "暂无在线分区",
+      "emptyDesc": "ClickHouse 尚未写入日志，或存储统计接口暂不可达。"
+    },
+    "archive": {
+      "title": "日志归档",
+      "count": "{n} 份",
+      "filter": "筛选月份",
+      "refresh": "刷新",
+      "exportMonth": "导出月份",
+      "export": "导出该月",
+      "hint": "按月生成 Parquet 归档，不影响 ClickHouse 在线数据",
+      "emptyNoArchive": "暂无归档：填写月份后点「导出该月」，或开启自动归档每月生成",
+      "emptyNoMatch": "没有匹配该月份的归档",
+      "total": "共 {n} 份",
+      "download": "下载",
+      "deleteTitle": "确认删除该归档？",
+      "deleteDesc": "仅删除归档文件与记录，不影响 ClickHouse 在线数据。",
+      "delete": "删除",
+      "cancel": "取消",
+      "auto": "自动",
+      "manual": "手动",
+      "col": {
+        "month": "月份",
+        "rows": "行数",
+        "size": "文件大小",
+        "source": "来源",
+        "created": "导出时间",
+        "actions": "操作"
+      },
+      "monthWarn": "请输入 YYYY-MM 格式的月份",
+      "exported": "已导出 {m} 归档",
+      "exportFail": "导出失败",
+      "deleted": "已删除 {m} 归档",
+      "deleteFail": "删除失败",
+      "downloadFail": "下载失败"
+    },
+    "page": {
+      "title": "存储与归档",
+      "description": "统一管理日志保留策略、ClickHouse 在线分区与按月 Parquet 归档，兼顾查询性能、存储成本与合规留存。",
+      "meta": "ClickHouse TTL + Parquet 归档",
+      "queryOnline": "查询在线日志"
+    }
+  },
+  "common": {
+    "range": {
+      "1h": "近 1 小时",
+      "6h": "近 6 小时",
+      "24h": "近 24 小时",
+      "7d": "近 7 天",
+      "30d": "近 30 天"
+    },
+    "custom": "自定义",
+    "customRange": "自定义区间",
+    "startTime": "开始时间",
+    "endTime": "结束时间",
+    "refresh": "刷新",
+    "query": "查询",
+    "reset": "重置",
+    "exportCsv": "导出 CSV",
+    "copyJson": "复制 JSON",
+    "times": "次",
+    "seconds": "秒",
+    "rowsDetail": "日志明细",
+    "topDomains": "热门域名",
+    "topClients": "活跃客户端",
+    "noTrend": "暂无趋势数据",
+    "share": "占事件总量 {pct}",
+    "blockedShare": "占 DNS 查询 {pct}",
+    "noBlocked": "当前时间窗无拦截事件",
+    "clipboardDenied": "浏览器未授予剪贴板权限",
+    "figures": {
+      "total": "窗口总量",
+      "avg": "平均每桶",
+      "peak": "峰值每桶",
+      "blockedShare": "拦截占比",
+      "allEvents": "全量事件",
+      "bucket": "分桶粒度"
+    }
+  },
+  "overview": {
+    "title": "日志概览",
+    "description": "汇总 DHCP 与 DNS 事件规模、查询趋势、热门域名与客户端，并同步展示最近的管理操作审计。",
+    "updatedAt": "更新于 {time}",
+    "kpi": {
+      "total": "事件总量",
+      "totalHint": "{range} · 自动刷新 60 秒",
+      "dns": "DNS 查询",
+      "dhcp": "DHCP 事件",
+      "blocked": "封禁拦截"
+    },
+    "trend": {
+      "title": "查询趋势",
+      "bucket": "{n} 秒分桶",
+      "peak": "峰值",
+      "avg": "均值",
+      "emptyDesc": "ClickHouse 中还没有可聚合的事件，触发一次 DNS 查询或 DHCP 续约后即可看到曲线。"
+    },
+    "compose": {
+      "title": "流量构成",
+      "dnsShare": "DNS 查询占比",
+      "dns": "DNS 查询",
+      "dhcp": "DHCP 事件",
+      "blocked": "封禁拦截（DNS 子集）",
+      "other": "未分类事件",
+      "emptyTitle": "暂无流量数据",
+      "emptyDesc": "时间窗内没有 DHCP/DNS 事件，接入日志采集后自动汇总。",
+      "note": "拦截事件同时计入 DNS 查询；比例按当前时间窗实时计算。"
+    },
+    "topDomains": {
+      "emptyTitle": "暂无域名数据",
+      "emptyDesc": "DNS 查询日志接入后展示热门域名排行。"
+    },
+    "topClients": {
+      "subtitle": "Top 8 · 按 MAC",
+      "emptyTitle": "暂无客户端数据",
+      "emptyDesc": "DHCP 事件携带 MAC 后即可按客户端聚合。"
+    },
+    "recentAudit": {
+      "title": "最近操作审计",
+      "viewAll": "查看全部",
+      "empty": "当前时间窗没有管理操作记录"
+    },
+    "columns": {
+      "time": "时间",
+      "actor": "调用者",
+      "type": "类型",
+      "action": "动作",
+      "resource": "资源",
+      "status": "状态"
+    },
+    "actor": {
+      "human": "人工",
+      "bot": "Bot",
+      "system": "系统"
+    }
+  },
+  "search": {
+    "title": "查询检索",
+    "description": "跨 DHCP 与 DNS 统一检索：时间窗、事件类型、域名、客户端与应答地址可组合过滤，结果支持明细下钻与 CSV 导出。",
+    "hits": "{range} · 命中 {n} 条",
+    "kpi": {
+      "total": "时间窗事件总量",
+      "totalHint": "{range} · {n} 个时间分桶",
+      "dns": "DNS 查询量",
+      "dhcp": "DHCP 事件",
+      "blocked": "封禁拦截"
+    },
+    "filters": {
+      "title": "检索条件",
+      "active": "已启用 {n} 项过滤",
+      "inactive": "时间窗最大 31 天 · 条件自动记忆",
+      "collapse": "收起字段",
+      "more": "更多字段",
+      "keyword": "关键字",
+      "keywordPlaceholder": "域名 / MAC / IP 模糊匹配",
+      "type": "事件类型",
+      "typePlaceholder": "全部类型",
+      "typeDns": "DNS 查询",
+      "typeDhcp": "DHCP 事件",
+      "action": "动作",
+      "actionPlaceholder": "全部动作",
+      "domain": "域名",
+      "domainPlaceholder": "子串匹配，如 example.com",
+      "mac": "客户端 MAC",
+      "macPlaceholder": "支持冒号或 12 位 hex",
+      "clientIp": "客户端 IP",
+      "clientIpPlaceholder": "精确地址或 CIDR",
+      "sip": "来源 IP",
+      "sipPlaceholder": "DNS 查询发起方",
+      "answerIp": "应答 IP",
+      "answerIpPlaceholder": "A/AAAA 应答地址"
+    },
+    "actionOptions": {
+      "resolve": "resolve（正常解析）",
+      "blocked": "blocked（封禁拦截）",
+      "passthru": "passthru（放行）",
+      "cached": "cached（缓存命中）",
+      "lease_commit": "lease_commit（租约下发）",
+      "lease_renew": "lease_renew（租约续约）",
+      "lease_release": "lease_release（租约释放）",
+      "lease_expire": "lease_expire（租约过期）",
+      "lease_decline": "lease_decline（客户端拒绝）"
+    },
+    "results": {
+      "title": "检索结果",
+      "count": "{n} 条",
+      "hint": "点击任意行查看完整字段 · 每 {n} 条一页",
+      "deepPagingLimited": " · 仅可浏览前 1 万条，更早数据请缩小时间窗或导出 CSV",
+      "total": "共 {n} 条",
+      "emptyFiltered": "没有匹配当前条件的日志，请调整过滤字段或扩大时间窗",
+      "empty": "当前时间窗暂无日志，等待 DHCP/DNS 事件接入"
+    },
+    "columns": {
+      "time": "时间",
+      "type": "类型",
+      "domain": "域名",
+      "client": "客户端",
+      "answer": "应答",
+      "sip": "来源 IP",
+      "action": "动作"
+    },
+    "aggColumns": {
+      "domain": "域名",
+      "mac": "客户端 MAC",
+      "count": "事件数"
+    },
+    "domainTotal": "共 {n} 个域名",
+    "emptyDomain": "当前过滤条件下没有域名聚合数据",
+    "emptyClient": "当前过滤条件下没有客户端聚合数据（DHCP 事件通常携带 MAC）",
+    "qps": {
+      "tab": "QPS 趋势",
+      "emptyDesc": "当前过滤条件下没有可聚合的事件。"
+    },
+    "detail": {
+      "title": "日志详情",
+      "copied": "已复制当前日志 JSON",
+      "time": "事件时间",
+      "severity": "日志级别",
+      "domain": "域名",
+      "action": "动作",
+      "mac": "客户端 MAC",
+      "clientIp": "客户端 IP",
+      "sip": "来源 IP",
+      "rcode": "应答码 / 分类",
+      "answerIp": "应答 IP",
+      "raw": "原始详情"
+    },
+    "messages": {
+      "selectRange": "请选择自定义时间范围",
+      "queryFail": "日志查询失败",
+      "exportStarted": "CSV 导出已开始下载",
+      "exportFail": "导出失败"
+    }
+  },
+  "audit": {
+    "title": "操作审计",
+    "description": "记录人工、Bot 与系统对配置资源的变更操作，支持调用者/动作/资源组合检索、明细下钻与 CSV 归档。",
+    "meta": "{range} · 共 {n} 条",
+    "chain": {
+      "valid": "链完整 {n}",
+      "invalid": "链异常",
+      "verify": "完整性校验"
+    },
+    "kpi": {
+      "total": "操作总数",
+      "totalHint": "{range} · 仅统计变更类请求",
+      "human": "人工操作",
+      "bot": "Bot 调用",
+      "system": "系统自动",
+      "share": "占操作总数 {pct}"
+    },
+    "card": {
+      "title": "审计事件",
+      "loaded": "已加载 {loaded} / {total}",
+      "order": "按时间倒序 · 游标分页",
+      "autoRefresh": "自动刷新"
+    },
+    "filters": {
+      "actorType": "调用者类型",
+      "actorPlaceholder": "全部调用者",
+      "human": "人工",
+      "bot": "Bot",
+      "system": "系统",
+      "action": "动作",
+      "actionPlaceholder": "全部动作",
+      "resource": "资源 / 路径",
+      "resourcePlaceholder": "按资源名或请求路径子串匹配，如 /subnets"
+    },
+    "actionOptions": {
+      "create": "create（新建）",
+      "update": "update（更新）",
+      "delete": "delete（删除）",
+      "login": "login（登录）",
+      "logout": "logout（登出）"
+    },
+    "columns": {
+      "time": "时间",
+      "actor": "调用者",
+      "type": "类型",
+      "action": "动作",
+      "resource": "资源",
+      "status": "状态"
+    },
+    "empty": "当前时间窗与过滤条件下没有审计记录",
+    "footer": {
+      "loaded": "已加载 {n} 条",
+      "remaining": "，尚有 {n} 条",
+      "loadMore": "加载更多",
+      "lastPage": "已到最后一页"
+    },
+    "csvHeader": {
+      "time": "时间",
+      "actor": "调用者",
+      "type": "类型",
+      "action": "动作",
+      "method": "方法",
+      "path": "路径",
+      "resource": "资源",
+      "status": "状态码",
+      "detail": "详情"
+    },
+    "detail": {
+      "title": "审计详情",
+      "copied": "已复制当前审计 JSON",
+      "time": "时间",
+      "actor": "调用者",
+      "tokenSub": "Token 主体",
+      "methodStatus": "请求方法 / 状态",
+      "path": "请求路径",
+      "resource": "资源",
+      "extra": "补充说明",
+      "before": "变更前实体（脱敏快照）",
+      "beforeEmpty": "未登记该类资源的变更前快照，或为首次创建",
+      "payload": "脱敏请求体（变更后意图）",
+      "chainHash": "完整性链哈希",
+      "chainHashEmpty": "历史记录未生成链哈希"
+    },
+    "messages": {
+      "selectRange": "请选择自定义时间范围",
+      "windowMax": "审计查询时间窗最大 31 天",
+      "queryFail": "审计查询失败",
+      "exportEmpty": "当前条件下没有可导出的审计记录",
+      "exported": "已导出 {n} 条审计记录",
+      "exportLimit": "单次最多导出 5000 条，请缩小时间窗",
+      "exportFail": "导出失败",
+      "chainValid": "审计链完整（校验 {n} 条）",
+      "chainInvalid": "{message}（ID {id}）",
+      "chainOk": "审计链完整",
+      "chainBad": "审计链异常",
+      "verifyFail": "完整性校验失败"
+    }
+  },
+  "export": {
+    "title": "外发与采样",
+    "description": "将统一日志外发到 Syslog / Kafka / Webhook（SIEM），并按容量策略选择全量、抽样或仅异常。",
+    "disk": "磁盘 {value}",
+    "saveApply": "保存并应用",
+    "kpi": {
+      "enabled": "已启用",
+      "disabled": "未启用",
+      "syslogHint": "标准 RFC5424 外发",
+      "kafkaHint": "面向 SIEM/数据平台",
+      "webhookHint": "JSON over HTTP",
+      "sampling": "采样策略",
+      "samplingHint": "按 1/N 抽样写入/外发",
+      "errorsHint": "仅非 INFO 日志",
+      "allHint": "全量采集",
+      "degradedHint": "磁盘水位自动降级中（用户策略 {policy}）"
+    },
+    "sampling": {
+      "all": "全量",
+      "errors": "仅异常",
+      "sample": "1/{n}",
+      "errorsDegraded": "仅异常（自动降级）",
+      "sampleDegraded": "1/{n}（自动降级）"
+    },
+    "diskNote": {
+      "usage": "当前根分区使用率 {pct}；",
+      "unknown": "未知",
+      "degraded": "已连续超限，系统自动切换为「仅异常」采样以保护磁盘（用户策略 {policy}）；使用率降至 85% 以下并稳定后自动恢复（本次开始：{time}）。",
+      "degradedNoTime": "已连续超限，系统自动切换为「仅异常」采样以保护磁盘（用户策略 {policy}）；使用率降至 85% 以下并稳定后自动恢复。",
+      "over90": "已超过 90%，将在连续 3 次检查后自动切换为仅异常；也可立即手动切换并清理归档。",
+      "over85": "超过 85%，请关注容量；持续高于 90% 将触发自动降级。",
+      "normal": "容量正常，未触发自动降级。"
+    },
+    "channels": {
+      "title": "外发通道",
+      "hint": "保存后 Vector --watch-config 自动热加载",
+      "syslogDesc": "标准 RFC5424，面向 SIEM / 日志采集",
+      "kafkaDesc": "面向 SIEM / 数据平台的高吞吐管道",
+      "webhookDesc": "JSON over HTTP，推送到自定义接收端点",
+      "address": "地址",
+      "protocol": "协议",
+      "on": "启用",
+      "off": "关闭"
+    },
+    "samplingCard": {
+      "title": "采样与容量",
+      "mode": "采样模式",
+      "modeAll": "全量（推荐）",
+      "modeSample": "按比例抽样",
+      "modeErrors": "仅异常（非 INFO）",
+      "rate": "抽样比例 1/N",
+      "hint": "采样同时作用于 ClickHouse 入库与全部外发通道；磁盘 85% 预警、90% 自动降级为仅异常，恢复到 85% 以下自动还原。生产切换请评估审计/合规留存要求。",
+      "footer": "外发失败由 Vector 内部重试，不阻塞 ClickHouse 入库"
+    },
+    "messages": {
+      "loadFail": "策略加载失败",
+      "saved": "已保存，Vector 将自动重载配置",
+      "saveFail": "保存失败"
+    }
+  },
+  "tail": {
+    "title": "实时日志流",
+    "description": "SSE 实时接收 DHCP 与 DNS 事件，支持暂停缓存、关键字高亮、自动滚动与本地导出，用于现场排障与演示。",
+    "status": {
+      "connecting": "连接中",
+      "live": "实时接收",
+      "reconnecting": "重连中…"
+    },
+    "meta": "{status} · 已接收 {n} 条",
+    "reconnect": "重新连接",
+    "kpi": {
+      "connection": "连接状态",
+      "liveHint": "SSE 通道已建立，事件实时推送",
+      "reconnectHint": "断线后自动退避重连，最长 15 秒",
+      "received": "已接收事件",
+      "lastArrival": "最近事件 {time}",
+      "waiting": "等待首条事件…",
+      "visible": "当前显示",
+      "filtered": "已按关键字/拦截条件过滤",
+      "buffer": "缓冲区 {used}/{total} 条",
+      "rate": "接收速率",
+      "rateUnit": "条/秒",
+      "rateHint": "近 5 秒滑动平均 · 拦截 {n} 条"
+    },
+    "card": {
+      "title": "事件流",
+      "paused": "已暂停 · 缓存 {n} 条",
+      "resume": "恢复",
+      "pause": "暂停",
+      "clear": "清空"
+    },
+    "filter": {
+      "type": "类型",
+      "all": "全部",
+      "keyword": "关键字",
+      "keywordPlaceholder": "域名 / MAC / IP / 详情",
+      "onlyBlocked": "仅看拦截",
+      "autoScroll": "自动滚动",
+      "buffer": "缓冲区",
+      "bufferOption": "最近 {n} 条"
+    },
+    "copy": "复制",
+    "export": "导出",
+    "emptyFiltered": "没有匹配当前过滤条件的事件",
+    "emptyPaused": "已暂停显示，恢复后合并缓存事件",
+    "emptyWaiting": "等待事件…（触发 dig 或 DHCP 事件后此处实时滚动）",
+    "messages": {
+      "exportEmpty": "当前没有可导出的日志行",
+      "exported": "已导出 {n} 行",
+      "copyEmpty": "当前没有可复制的日志行",
+      "copied": "已复制 {n} 行",
+      "clipboardDenied": "浏览器未授予剪贴板权限"
+    }
+  }
+}

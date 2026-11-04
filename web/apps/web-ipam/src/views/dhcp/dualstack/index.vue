@@ -11,8 +11,9 @@ import { Button, Card, Input, InputNumber, message, Popconfirm, Select, Switch, 
 import { createDualstackIdentity, createDualstackTemplate, deleteDualstackIdentity, deleteDualstackTemplate, listDualstackConflicts, listDualstackIdentities, listDualstackTemplates, listSubnets, updateDualstackTemplate } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import { $t } from '#/locales';
 
-const showTotal = (t: number) => `共 ${t} 条`;
+const showTotal = (t: number) => $t('dhcp.dualstack.showTotal', { n: t });
 const rows = ref<DualstackTemplate[]>([]);
 const loading = ref(false);
 
@@ -78,7 +79,10 @@ function loadAll() {
 }
 function edit(r: DualstackTemplate) {
   editingId.value = r.id;
-  formModalApi.setState({ title: '编辑模板', confirmText: '保存修改' });
+  formModalApi.setState({
+    title: $t('dhcp.dualstack.modal.editTitle'),
+    confirmText: $t('dhcp.dualstack.modal.saveEdit'),
+  });
   formModalApi.open();
   form.value = {
     name: r.name, ipv4Cidr: r.ipv4Cidr, ipv6Prefix: r.ipv6Prefix, encoding: r.encoding,
@@ -86,12 +90,15 @@ function edit(r: DualstackTemplate) {
     matchScheme: r.matchScheme ?? 'auto',
   };
 }
-const [FormModal, formModalApi] = useVbenModal({ draggable: true, title: '双栈绑定模板', confirmText: '创建模板', onConfirm: () => add() });
+const [FormModal, formModalApi] = useVbenModal({ draggable: true, title: $t('dhcp.dualstack.modal.title'), confirmText: $t('dhcp.dualstack.modal.create'), onConfirm: () => add() });
 function openAdd() {
   // 不能先 cancelEdit()（其 close() 异步，会在 open() 后把 isOpen 置回 false）
   editingId.value = '';
   form.value = { name: '', ipv4Cidr: '', ipv6Prefix: '', encoding: 'B', expr: '{v4.hextet4}', dnsSync: true, graceHours: 24, matchScheme: 'auto' };
-  formModalApi.setState({ title: '新建双栈绑定模板', confirmText: '创建模板' });
+  formModalApi.setState({
+    title: $t('dhcp.dualstack.modal.newTitle'),
+    confirmText: $t('dhcp.dualstack.modal.create'),
+  });
   formModalApi.open();
 }
 function cancelEdit() {
@@ -104,23 +111,23 @@ function cancelEdit() {
 }
 async function add() {
   if (!form.value.name || !form.value.ipv4Cidr || !form.value.ipv6Prefix) {
-    message.warning('名称、IPv4 网段、IPv6 前缀均为必填');
+    message.warning($t('dhcp.dualstack.messages.required'));
     return;
   }
-  if (!EXPR_OPTIONS.some((o) => o.value === form.value.expr)) {
-    message.warning('请选择表达式');
+  if (!EXPR_OPTIONS.value.some((o) => o.value === form.value.expr)) {
+    message.warning($t('dhcp.dualstack.messages.needExpr'));
     return;
   }
   if (form.value.graceHours < 0 || form.value.graceHours > 720) {
-    message.warning('宽限期需在 0–720 小时之间');
+    message.warning($t('dhcp.dualstack.messages.graceRange'));
     return;
   }
   if (editingId.value) {
     await updateDualstackTemplate(editingId.value, { ...form.value });
-    message.success('模板已更新');
+    message.success($t('dhcp.dualstack.messages.templateUpdated'));
   } else {
     await createDualstackTemplate({ ...form.value });
-    message.success('模板已创建');
+    message.success($t('dhcp.dualstack.messages.templateCreated'));
   }
   cancelEdit();
   await load();
@@ -133,7 +140,7 @@ async function remove(id?: string) {
 // ── MAC↔DUID 映射（M3-013）──
 async function removeIdentity(mac: string) {
   await deleteDualstackIdentity(mac);
-  message.success('映射已删除');
+  message.success($t('dhcp.dualstack.messages.mappingDeleted'));
   await loadIdentities();
   await loadConflicts();
 }
@@ -145,7 +152,7 @@ function openMapping(c: DualstackConflict) {
   mappingForm.value = { mac: (c.v4Macs ?? [])[0] ?? '', duid: c.duid, note: '' };
   mappingModalApi.open();
 }
-const [MappingModal, mappingModalApi] = useVbenModal({ draggable: true, title: '设为 MAC↔DUID 映射', confirmText: '创建映射', onConfirm: () => submitMapping() });
+const [MappingModal, mappingModalApi] = useVbenModal({ draggable: true, title: $t('dhcp.dualstack.mappingModal.title'), confirmText: $t('dhcp.dualstack.mappingModal.create'), onConfirm: () => submitMapping() });
 async function submitMapping() {
   if (!mappingForm.value.mac || !mappingForm.value.duid) return;
   await createDualstackIdentity({
@@ -153,7 +160,7 @@ async function submitMapping() {
     duid: mappingForm.value.duid,
     note: mappingForm.value.note || undefined,
   });
-  message.success('映射已创建');
+  message.success($t('dhcp.dualstack.messages.mappingCreated'));
   mappingModalApi.close();
   await loadIdentities();
   await loadConflicts();
@@ -162,45 +169,59 @@ function canSetMapping(c: DualstackConflict): boolean {
   return (c.v4Macs?.length ?? 0) > 0;
 }
 function disableHint(c: DualstackConflict): string {
-  if (c.reason === 'no_mac_signal') return '该冲突无 MAC 信号，无可选候选';
-  if (c.reason === 'pinned_mismatch') return '钉死方案回落且无候选 MAC，需先在 v4 侧补充信号';
-  return '无候选 MAC';
+  if (c.reason === 'no_mac_signal')
+    return $t('dhcp.dualstack.disableHint.noMac');
+  if (c.reason === 'pinned_mismatch')
+    return $t('dhcp.dualstack.disableHint.pinned');
+  return $t('dhcp.dualstack.disableHint.none');
 }
 
 onMounted(loadAll);
 
-const ENC_TEXT: Record<string, string> = { B: 'B 型', A: 'A 型', CUSTOM: '自定义' };
-const EXAMPLE = '例：192.168.0.10 → 2407::192:168:0:10';
+const ENC_TEXT = computed<Record<string, string>>(() => ({
+  B: $t('dhcp.dualstack.encText.B'),
+  A: $t('dhcp.dualstack.encText.A'),
+  CUSTOM: $t('dhcp.dualstack.encText.CUSTOM'),
+}));
+const EXAMPLE = computed(() => $t('dhcp.dualstack.example'));
 
 // 仅列出后端 ApplyTemplate 已实现的两种；其余写法会报 unsupported expr（CUSTOM 待实现）
-const EXPR_OPTIONS = [
-  { value: '{v4.hextet4}', label: '{v4.hextet4}（B 型 · 十进制镜像，地址可读）' },
-  { value: '{v4.hex32}', label: '{v4.hex32}（A 型 · v4 压入末 32 位，紧凑）' },
-];
+const EXPR_OPTIONS = computed(() => [
+  {
+    value: '{v4.hextet4}',
+    label: `{v4.hextet4}${$t('dhcp.dualstack.exprHextet4Suffix')}`,
+  },
+  {
+    value: '{v4.hex32}',
+    label: `{v4.hex32}${$t('dhcp.dualstack.exprHex32Suffix')}`,
+  },
+]);
 
 function onExprChange(v: unknown) {
   if (v === '{v4.hextet4}') form.value.encoding = 'B';
   else if (v === '{v4.hex32}') form.value.encoding = 'A';
 }
 
-const SCHEME_TEXT: Record<DualstackMatchScheme, string> = {
-  auto: '自动（优先级链）',
-  option79: '中继 option79',
-  'client-id': 'RFC4361',
-  'duid-llt': 'DUID 内嵌 MAC',
-  hostname: '主机名',
-  admin: '人工映射',
-};
-const SCHEME_HINT: Record<DualstackMatchScheme, string> = {
-  auto: '按 admin→option79→client-id→duid-llt→hostname 优先级链自动关联',
-  option79: '需中继开 RFC6939 且 kea hook 已加载',
-  'client-id': '需客户端 DHCPv4 携带 RFC4361 client-id（即 DUID）',
-  'duid-llt': '从 DUID-LLT 内嵌 MAC 提取关联',
-  hostname: '按主机名反查 v4 租约，同名歧义进冲突清单',
-  admin: '仅认人工映射，未建映射进冲突清单',
-};
-const SCHEME_OPTIONS = (['auto', 'option79', 'client-id', 'duid-llt', 'hostname', 'admin'] as const).map(
-  (v) => ({ value: v, label: SCHEME_TEXT[v] }),
+const SCHEME_TEXT = computed<Record<DualstackMatchScheme, string>>(() => ({
+  auto: $t('dhcp.dualstack.schemeText.auto'),
+  option79: $t('dhcp.dualstack.schemeText.option79'),
+  'client-id': $t('dhcp.dualstack.schemeText.client-id'),
+  'duid-llt': $t('dhcp.dualstack.schemeText.duid-llt'),
+  hostname: $t('dhcp.dualstack.schemeText.hostname'),
+  admin: $t('dhcp.dualstack.schemeText.admin'),
+}));
+const SCHEME_HINT = computed<Record<DualstackMatchScheme, string>>(() => ({
+  auto: $t('dhcp.dualstack.schemeHint.auto'),
+  option79: $t('dhcp.dualstack.schemeHint.option79'),
+  'client-id': $t('dhcp.dualstack.schemeHint.client-id'),
+  'duid-llt': $t('dhcp.dualstack.schemeHint.duid-llt'),
+  hostname: $t('dhcp.dualstack.schemeHint.hostname'),
+  admin: $t('dhcp.dualstack.schemeHint.admin'),
+}));
+const SCHEME_OPTIONS = computed(() =>
+  (['auto', 'option79', 'client-id', 'duid-llt', 'hostname', 'admin'] as const).map(
+    (v) => ({ value: v, label: SCHEME_TEXT.value[v] }),
+  ),
 );
 const SCHEME_COLOR: Record<string, string> = {
   auto: 'blue', admin: 'purple', option79: 'cyan', 'client-id': 'geekblue', 'duid-llt': 'green', hostname: 'orange',
@@ -208,20 +229,23 @@ const SCHEME_COLOR: Record<string, string> = {
 
 function schemeText(v: unknown): string {
   if (typeof v !== 'string' || v === '') return 'auto';
-  return SCHEME_TEXT[v as DualstackMatchScheme] ?? v;
+  return SCHEME_TEXT.value[v as DualstackMatchScheme] ?? v;
 }
 
-const CONFLICT_TEXT: Record<string, string> = {
-  ambiguous_hostname: '同名歧义',
-  no_mac_signal: '无 MAC 信号',
-  pinned_mismatch: '钉死方案回落',
-};
+const CONFLICT_TEXT = computed<Record<string, string>>(() => ({
+  ambiguous_hostname: $t('dhcp.dualstack.conflictText.ambiguous_hostname'),
+  no_mac_signal: $t('dhcp.dualstack.conflictText.no_mac_signal'),
+  pinned_mismatch: $t('dhcp.dualstack.conflictText.pinned_mismatch'),
+}));
 const CONFLICT_COLOR: Record<string, string> = {
   ambiguous_hostname: 'orange',
   no_mac_signal: 'default',
   pinned_mismatch: 'red',
 };
-const SOURCE_TEXT: Record<string, string> = { admin: '人工', auto: '自动' };
+const SOURCE_TEXT = computed<Record<string, string>>(() => ({
+  admin: $t('dhcp.dualstack.sourceText.admin'),
+  auto: $t('dhcp.dualstack.sourceText.auto'),
+}));
 
 // ── 指标与筛选 ──
 const templateStats = computed(() => {
@@ -248,15 +272,15 @@ const tplKeyword = ref('');
 type EncFilter = 'A' | 'all' | 'B';
 const tplEncoding = ref<EncFilter>('all');
 const tplScheme = ref<'all' | DualstackMatchScheme>('all');
-const encOptions = [
-  { label: '全部编码', value: 'all' },
-  { label: 'B 型（可读）', value: 'B' },
-  { label: 'A 型（紧凑）', value: 'A' },
-];
-const schemeFilterOptions = [
-  { label: '全部匹配方案', value: 'all' },
-  ...SCHEME_OPTIONS,
-];
+const encOptions = computed(() => [
+  { label: $t('dhcp.dualstack.encFilterAll'), value: 'all' },
+  { label: $t('dhcp.dualstack.encB'), value: 'B' },
+  { label: $t('dhcp.dualstack.encA'), value: 'A' },
+]);
+const schemeFilterOptions = computed(() => [
+  { label: $t('dhcp.dualstack.schemeAll'), value: 'all' },
+  ...SCHEME_OPTIONS.value,
+]);
 
 const filteredTemplates = computed(() => {
   const kw = tplKeyword.value.trim().toLowerCase();
@@ -275,11 +299,11 @@ function resetTplFilters() {
 
 const idKeyword = ref('');
 const idSource = ref<'admin' | 'all' | 'auto'>('all');
-const sourceOptions = [
-  { label: '全部来源', value: 'all' },
-  { label: '人工确认', value: 'admin' },
-  { label: '自动学习', value: 'auto' },
-];
+const sourceOptions = computed(() => [
+  { label: $t('dhcp.dualstack.sourceAll'), value: 'all' },
+  { label: $t('dhcp.dualstack.sourceAdmin'), value: 'admin' },
+  { label: $t('dhcp.dualstack.sourceAuto'), value: 'auto' },
+]);
 const filteredIdentities = computed(() => {
   const kw = idKeyword.value.trim().toLowerCase();
   return identityRows.value.filter((r) => {
@@ -294,16 +318,54 @@ function resetIdFilters() {
 }
 
 const cfReason = ref<'all' | DualstackConflict['reason']>('all');
-const reasonOptions = [
-  { label: '全部原因', value: 'all' },
-  { label: '同名歧义', value: 'ambiguous_hostname' },
-  { label: '无 MAC 信号', value: 'no_mac_signal' },
-  { label: '钉死方案回落', value: 'pinned_mismatch' },
-];
+const reasonOptions = computed(() => [
+  { label: $t('dhcp.dualstack.reasonAll'), value: 'all' },
+  { label: $t('dhcp.dualstack.conflictText.ambiguous_hostname'), value: 'ambiguous_hostname' },
+  { label: $t('dhcp.dualstack.conflictText.no_mac_signal'), value: 'no_mac_signal' },
+  { label: $t('dhcp.dualstack.conflictText.pinned_mismatch'), value: 'pinned_mismatch' },
+]);
 const filteredConflicts = computed(() =>
   cfReason.value === 'all'
     ? conflictRows.value
     : conflictRows.value.filter((c) => c.reason === cfReason.value),
+);
+
+// ── 表格列 / 空状态（随语言切换）──
+const tplColumns = computed(() => [
+  { title: $t('dhcp.dualstack.col.template'), dataIndex: 'name', minWidth: 260 },
+  { title: $t('dhcp.dualstack.col.expr'), dataIndex: 'expr', minWidth: 220 },
+  { title: $t('dhcp.dualstack.col.scheme'), dataIndex: 'matchScheme', width: 140 },
+  { title: $t('dhcp.dualstack.col.runtime'), dataIndex: 'dnsSync', width: 150 },
+  { title: $t('dhcp.dualstack.col.op'), key: 'op', width: 130 },
+]);
+const tplEmptyText = computed(() =>
+  tplKeyword.value || tplEncoding.value !== 'all' || tplScheme.value !== 'all'
+    ? $t('dhcp.dualstack.templateEmptyFiltered')
+    : $t('dhcp.dualstack.templateEmpty'),
+);
+
+const identityColumns = computed(() => [
+  { title: $t('dhcp.dualstack.col.identity'), dataIndex: 'mac' },
+  { title: $t('dhcp.dualstack.col.source'), dataIndex: 'source', width: 76 },
+  { title: $t('dhcp.dualstack.col.updatedAt'), dataIndex: 'updatedAt', width: 128 },
+  { title: $t('dhcp.dualstack.col.op'), key: 'op', width: 66 },
+]);
+const identityEmptyText = computed(() =>
+  idKeyword.value || idSource.value !== 'all'
+    ? $t('dhcp.dualstack.identityEmptyFiltered')
+    : $t('dhcp.dualstack.identityEmpty'),
+);
+
+const conflictColumns = computed(() => [
+  { title: $t('dhcp.dualstack.col.hostname'), dataIndex: 'hostname' },
+  { title: $t('dhcp.dualstack.col.macs'), dataIndex: 'v4Macs', width: 120 },
+  { title: $t('dhcp.dualstack.col.reason'), dataIndex: 'reason', width: 100 },
+  { title: $t('dhcp.dualstack.col.op'), key: 'op', width: 84 },
+]);
+const conflictEmptyText = computed(() =>
+  cfReason.value === 'all'
+    ? $t('dhcp.dualstack.conflictEmpty')
+    : $t('dhcp.dualstack.conflictEmptyFiltered'),
 );
 
 function fmtShortTime(v?: string): string {
@@ -327,56 +389,84 @@ function fmtTime(v?: string): string {
     <PageHeader
       eyebrow="DHCP Service"
       icon="lucide:layers"
-      title="双栈管理"
-      description="配置 IPv4 地址池与 IPv6 前缀的绑定映射，维护 MAC↔DUID 身份并处理未解析冲突。"
+      :title="$t('dhcp.dualstack.title')"
+      :description="$t('dhcp.dualstack.description')"
     >
       <template #actions>
         <span class="ipam-page-header__meta">
           <IconifyIcon icon="lucide:layout-template" class="size-3.5" />
-          {{ templateStats.total }} 个模板 · {{ conflictStats.total }} 条冲突
+          {{
+            $t('dhcp.dualstack.meta', {
+              templates: templateStats.total,
+              conflicts: conflictStats.total,
+            })
+          }}
         </span>
         <Button size="small" :loading="loading" @click="loadAll()">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />刷新
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{
+            $t('dhcp.common.refresh')
+          }}
         </Button>
         <Button type="primary" size="small" @click="openAdd()">
-          <IconifyIcon icon="lucide:plus" class="mr-1" />新建模板
+          <IconifyIcon icon="lucide:plus" class="mr-1" />{{
+            $t('dhcp.dualstack.newTemplate')
+          }}
         </Button>
       </template>
     </PageHeader>
 
     <div class="ipam-stat-grid">
       <StatCard
-        label="绑定模板"
+        :label="$t('dhcp.dualstack.stat.templateLabel')"
         :value="templateStats.total"
-        unit="个"
+        :unit="$t('dhcp.common.unitCount')"
         icon="lucide:layout-template"
         tone="blue"
-        :hint="`${templateStats.auto} 个走自动优先级链`"
+        :hint="
+          $t('dhcp.dualstack.stat.templateHint', { n: templateStats.auto })
+        "
       />
       <StatCard
-        label="身份映射"
+        :label="$t('dhcp.dualstack.stat.identityLabel')"
         :value="identityStats.total"
-        unit="条"
+        :unit="$t('dhcp.common.unitRecord')"
         icon="lucide:fingerprint"
         tone="cyan"
-        :hint="`人工 ${identityStats.admin} · 自动 ${identityStats.auto}`"
+        :hint="
+          $t('dhcp.dualstack.stat.identityHint', {
+            admin: identityStats.admin,
+            auto: identityStats.auto,
+          })
+        "
       />
       <StatCard
-        label="未解析冲突"
+        :label="$t('dhcp.dualstack.stat.conflictLabel')"
         :value="conflictStats.total"
-        unit="条"
+        :unit="$t('dhcp.common.unitRecord')"
         icon="lucide:triangle-alert"
         :tone="conflictStats.total > 0 ? 'amber' : 'green'"
-        :hint="conflictStats.total > 0 ? `同名 ${conflictStats.ambiguous} · 无信号 ${conflictStats.noMac} · 回落 ${conflictStats.pinned}` : '当前没有待处理冲突'"
+        :hint="
+          conflictStats.total > 0
+            ? $t('dhcp.dualstack.stat.conflictHint', {
+                ambiguous: conflictStats.ambiguous,
+                noMac: conflictStats.noMac,
+                pinned: conflictStats.pinned,
+              })
+            : $t('dhcp.dualstack.stat.conflictOk')
+        "
       />
       <StatCard
-        label="DNS 同步模板"
+        :label="$t('dhcp.dualstack.stat.dnsLabel')"
         :value="templateStats.dnsSync"
-        unit="个"
+        :unit="$t('dhcp.common.unitCount')"
         icon="lucide:refresh-cw"
         tone="violet"
         :progress="templateStats.total > 0 ? (templateStats.dnsSync / templateStats.total) * 100 : 0"
-        :hint="`${templateStats.total - templateStats.dnsSync} 个模板未开启同步`"
+        :hint="
+          $t('dhcp.dualstack.stat.dnsHint', {
+            n: templateStats.total - templateStats.dnsSync,
+          })
+        "
       />
     </div>
 
@@ -384,67 +474,82 @@ function fmtTime(v?: string): string {
       <template #title>
         <span class="ipam-card-title">
           <IconifyIcon icon="lucide:layout-template" />
-          双栈绑定模板
-          <em class="ipam-card-sub">{{ filteredTemplates.length }} / {{ rows.length }} 个</em>
+          {{ $t('dhcp.dualstack.templateCard') }}
+          <em class="ipam-card-sub">
+            {{ filteredTemplates.length }} / {{ rows.length }}
+            {{ $t('dhcp.common.unitCount') }}
+          </em>
         </span>
       </template>
       <template #extra>
-        <span class="ipam-hint">daemon 按租约 IPv4 最长前缀自动选择模板</span>
+        <span class="ipam-hint">{{ $t('dhcp.dualstack.templateExtra') }}</span>
       </template>
 
       <div class="ipam-summary mb-3">
         <div class="ipam-summary__item">
-          <span class="ipam-summary__label">模板总数</span>
-          <span class="ipam-summary__value">{{ templateStats.total }}<small>个</small></span>
+          <span class="ipam-summary__label">
+            {{ $t('dhcp.dualstack.summary.total') }}
+          </span>
+          <span class="ipam-summary__value">{{ templateStats.total }}<small>{{
+              $t('dhcp.common.unitCount')
+            }}</small></span>
         </div>
         <div class="ipam-summary__item">
-          <span class="ipam-summary__label">自动匹配</span>
-          <span class="ipam-summary__value">{{ templateStats.auto }}<small>个</small></span>
+          <span class="ipam-summary__label">
+            {{ $t('dhcp.dualstack.summary.auto') }}
+          </span>
+          <span class="ipam-summary__value">{{ templateStats.auto }}<small>{{
+              $t('dhcp.common.unitCount')
+            }}</small></span>
         </div>
         <div class="ipam-summary__item">
-          <span class="ipam-summary__label">DNS 同步</span>
-          <span class="ipam-summary__value">{{ templateStats.dnsSync }}<small>个</small></span>
+          <span class="ipam-summary__label">
+            {{ $t('dhcp.dualstack.summary.dnsSync') }}
+          </span>
+          <span class="ipam-summary__value">{{ templateStats.dnsSync }}<small>{{
+              $t('dhcp.common.unitCount')
+            }}</small></span>
         </div>
         <div class="ipam-summary__item">
-          <span class="ipam-summary__label">未解析冲突</span>
-          <span class="ipam-summary__value">{{ conflictStats.total }}<small>条</small></span>
+          <span class="ipam-summary__label">
+            {{ $t('dhcp.dualstack.summary.conflicts') }}
+          </span>
+          <span class="ipam-summary__value">{{ conflictStats.total }}<small>{{
+              $t('dhcp.common.unitRecord')
+            }}</small></span>
         </div>
       </div>
 
       <div class="ipam-toolbar mb-3">
         <div class="ipam-field">
-          <span class="ipam-field__label">关键字</span>
+          <span class="ipam-field__label">{{ $t('dhcp.dualstack.keyword') }}</span>
           <Input
             v-model:value="tplKeyword"
             allow-clear
-            placeholder="名称 / IPv4 / IPv6 / 表达式"
+            :placeholder="$t('dhcp.dualstack.templateSearchPlaceholder')"
             style="width: 240px"
           />
         </div>
         <div class="ipam-field">
-          <span class="ipam-field__label">编码</span>
+          <span class="ipam-field__label">{{ $t('dhcp.dualstack.encoding') }}</span>
           <Select v-model:value="tplEncoding" :options="encOptions" style="width: 140px" />
         </div>
         <div class="ipam-field">
-          <span class="ipam-field__label">匹配方案</span>
+          <span class="ipam-field__label">{{ $t('dhcp.dualstack.scheme') }}</span>
           <Select v-model:value="tplScheme" :options="schemeFilterOptions" style="width: 160px" />
         </div>
-        <Button size="small" @click="resetTplFilters">重置</Button>
+        <Button size="small" @click="resetTplFilters">
+          {{ $t('dhcp.dualstack.reset') }}
+        </Button>
         <div class="ipam-toolbar__spacer"></div>
-        <span class="ipam-hint">A 型压入末 32 位 · B 型十进制镜像</span>
+        <span class="ipam-hint">{{ $t('dhcp.dualstack.encodingHint') }}</span>
       </div>
 
       <Table
         :data-source="filteredTemplates"
         :loading="loading"
-        :columns="[
-          { title: '模板（IPv4 → IPv6）', dataIndex: 'name', minWidth: 260 },
-          { title: '编码 / 表达式', dataIndex: 'expr', minWidth: 220 },
-          { title: '匹配方案', dataIndex: 'matchScheme', width: 140 },
-          { title: '运行参数', dataIndex: 'dnsSync', width: 150 },
-          { title: '操作', key: 'op', width: 130 },
-        ]"
-        :locale="{ emptyText: tplKeyword || tplEncoding !== 'all' || tplScheme !== 'all' ? '没有匹配的模板' : '暂无绑定模板，点击右上角「新建模板」创建' }"
+        :columns="tplColumns"
+        :locale="{ emptyText: tplEmptyText }"
         :pagination="{ pageSize: 20, showSizeChanger: true, showTotal }"
         row-key="id"
         size="small"
@@ -472,16 +577,31 @@ function fmtTime(v?: string): string {
           <template v-else-if="column.dataIndex === 'dnsSync'">
             <div class="flex flex-wrap gap-1">
               <span class="ipam-chip" :data-tone="record.dnsSync ? 'green' : 'muted'">
-                DNS {{ record.dnsSync ? '同步' : '不同步' }}
+                DNS
+                {{
+                  record.dnsSync
+                    ? $t('dhcp.dualstack.dnsOn')
+                    : $t('dhcp.dualstack.dnsOff')
+                }}
               </span>
-              <span class="ipam-chip" data-tone="muted">宽限 {{ record.graceHours ?? 24 }}h</span>
+              <span class="ipam-chip" data-tone="muted">
+                {{ $t('dhcp.dualstack.grace', { h: record.graceHours ?? 24 }) }}
+              </span>
             </div>
           </template>
           <template v-else-if="column.key === 'op'">
             <div class="flex items-center gap-1">
-              <Button size="small" @click="edit(record as DualstackTemplate)">编辑</Button>
-              <Popconfirm title="确认删除该模板？" description="删除后不可恢复。" ok-text="删除" cancel-text="取消" @confirm="remove(record.id)">
-                <Button size="small" danger>删除</Button>
+              <Button size="small" @click="edit(record as DualstackTemplate)">
+                {{ $t('dhcp.common.edit') }}
+              </Button>
+              <Popconfirm
+                :title="$t('dhcp.dualstack.confirmDeleteTemplate')"
+                :description="$t('dhcp.dualstack.deleteDesc')"
+                :ok-text="$t('dhcp.common.delete')"
+                :cancel-text="$t('dhcp.common.cancel')"
+                @confirm="remove(record.id)"
+              >
+                <Button size="small" danger>{{ $t('dhcp.common.delete') }}</Button>
               </Popconfirm>
             </div>
           </template>
@@ -494,35 +614,40 @@ function fmtTime(v?: string): string {
         <template #title>
           <span class="ipam-card-title">
             <IconifyIcon icon="lucide:fingerprint" />
-            MAC ↔ DUID 映射
-            <em class="ipam-card-sub">{{ filteredIdentities.length }} / {{ identityRows.length }} 条</em>
+            {{ $t('dhcp.dualstack.identitiesCard') }}
+            <em class="ipam-card-sub">
+              {{ filteredIdentities.length }} / {{ identityRows.length }}
+              {{ $t('dhcp.common.unitRecord') }}
+            </em>
           </span>
         </template>
         <template #extra>
-          <span class="ipam-hint">人工维护 + 自动学习</span>
+          <span class="ipam-hint">{{ $t('dhcp.dualstack.identitiesExtra') }}</span>
         </template>
 
         <div class="ipam-toolbar mb-3">
           <div class="ipam-field">
-            <span class="ipam-field__label">关键字</span>
-            <Input v-model:value="idKeyword" allow-clear placeholder="MAC / DUID / 备注" style="width: 190px" />
+            <span class="ipam-field__label">{{ $t('dhcp.dualstack.keyword') }}</span>
+            <Input
+              v-model:value="idKeyword"
+              allow-clear
+              :placeholder="$t('dhcp.dualstack.identitySearchPlaceholder')"
+              style="width: 190px"
+            />
           </div>
           <div class="ipam-field">
-            <span class="ipam-field__label">来源</span>
+            <span class="ipam-field__label">{{ $t('dhcp.dualstack.sourceLabel') }}</span>
             <Select v-model:value="idSource" :options="sourceOptions" style="width: 130px" />
           </div>
-          <Button size="small" @click="resetIdFilters">重置</Button>
+          <Button size="small" @click="resetIdFilters">
+            {{ $t('dhcp.dualstack.reset') }}
+          </Button>
         </div>
 
         <Table
           :data-source="filteredIdentities"
-          :columns="[
-            { title: '身份（MAC / DUID）', dataIndex: 'mac' },
-            { title: '来源', dataIndex: 'source', width: 76 },
-            { title: '更新时间', dataIndex: 'updatedAt', width: 128 },
-            { title: '操作', key: 'op', width: 66 },
-          ]"
-          :locale="{ emptyText: idKeyword || idSource !== 'all' ? '没有匹配的身份映射' : '暂无映射，冲突处理时人工建立或由匹配方案自动学习' }"
+          :columns="identityColumns"
+          :locale="{ emptyText: identityEmptyText }"
           :pagination="{ pageSize: 10, showSizeChanger: false, showTotal }"
           row-key="mac"
           size="small"
@@ -544,8 +669,14 @@ function fmtTime(v?: string): string {
               <span class="ipam-hint">{{ fmtTime(record.updatedAt) }}</span>
             </template>
             <template v-else-if="column.key === 'op'">
-              <Popconfirm title="确认删除该映射？" description="删除后不可恢复。" ok-text="删除" cancel-text="取消" @confirm="removeIdentity(record.mac)">
-                <Button size="small" danger>删除</Button>
+              <Popconfirm
+                :title="$t('dhcp.dualstack.confirmDeleteMapping')"
+                :description="$t('dhcp.dualstack.deleteDesc')"
+                :ok-text="$t('dhcp.common.delete')"
+                :cancel-text="$t('dhcp.common.cancel')"
+                @confirm="removeIdentity(record.mac)"
+              >
+                <Button size="small" danger>{{ $t('dhcp.common.delete') }}</Button>
               </Popconfirm>
             </template>
           </template>
@@ -556,33 +687,35 @@ function fmtTime(v?: string): string {
         <template #title>
           <span class="ipam-card-title">
             <IconifyIcon icon="lucide:triangle-alert" />
-            未解析冲突
-            <em class="ipam-card-sub">{{ filteredConflicts.length }} / {{ conflictRows.length }} 条</em>
+            {{ $t('dhcp.dualstack.conflictsCard') }}
+            <em class="ipam-card-sub">
+              {{ filteredConflicts.length }} / {{ conflictRows.length }}
+              {{ $t('dhcp.common.unitRecord') }}
+            </em>
           </span>
         </template>
         <template #extra>
-          <Tag v-if="conflictStats.total > 0" color="orange" class="m-0">需人工确认</Tag>
-          <Tag v-else color="green" class="m-0">全部已解析</Tag>
+          <Tag v-if="conflictStats.total > 0" color="orange" class="m-0">
+            {{ $t('dhcp.dualstack.needsConfirm') }}
+          </Tag>
+          <Tag v-else color="green" class="m-0">
+            {{ $t('dhcp.dualstack.allResolved') }}
+          </Tag>
         </template>
 
         <div class="ipam-toolbar mb-3">
           <div class="ipam-field">
-            <span class="ipam-field__label">原因</span>
+            <span class="ipam-field__label">{{ $t('dhcp.dualstack.reasonLabel') }}</span>
             <Select v-model:value="cfReason" :options="reasonOptions" style="width: 160px" />
           </div>
           <div class="ipam-toolbar__spacer"></div>
-          <span class="ipam-hint">为冲突选择 v4 MAC 后建立映射</span>
+          <span class="ipam-hint">{{ $t('dhcp.dualstack.reasonExtra') }}</span>
         </div>
 
         <Table
           :data-source="filteredConflicts"
-          :columns="[
-            { title: '终端（主机名 / v6 地址）', dataIndex: 'hostname' },
-            { title: 'v4 MAC 候选', dataIndex: 'v4Macs', width: 120 },
-            { title: '原因 / 时间', dataIndex: 'reason', width: 100 },
-            { title: '操作', key: 'op', width: 84 },
-          ]"
-          :locale="{ emptyText: cfReason !== 'all' ? '该原因下没有冲突' : '暂无未解析冲突，双栈关联健康' }"
+          :columns="conflictColumns"
+          :locale="{ emptyText: conflictEmptyText }"
           :pagination="{ pageSize: 10, showSizeChanger: false, showTotal }"
           row-key="duid"
           size="small"
@@ -590,15 +723,21 @@ function fmtTime(v?: string): string {
           <template #bodyCell="{ column, record }">
             <template v-if="column.dataIndex === 'hostname'">
               <div class="ipam-cell-stack">
-                <span class="ipam-cell-title">{{ record.hostname || '未命名终端' }}</span>
-                <span class="ipam-cell-meta ipam-mono">{{ record.v6Ip || '无 v6 地址' }}</span>
+                <span class="ipam-cell-title">
+                  {{ record.hostname || $t('dhcp.dualstack.unnamedTerminal') }}
+                </span>
+                <span class="ipam-cell-meta ipam-mono">
+                  {{ record.v6Ip || $t('dhcp.dualstack.noV6') }}
+                </span>
               </div>
             </template>
             <template v-else-if="column.dataIndex === 'v4Macs'">
               <div v-if="record.v4Macs?.length" class="flex flex-wrap gap-1">
                 <span v-for="m in record.v4Macs" :key="m" class="ipam-chip ipam-mono" data-tone="cyan">{{ m }}</span>
               </div>
-              <span v-else class="ipam-hint">无候选</span>
+              <span v-else class="ipam-hint">
+                {{ $t('dhcp.dualstack.noCandidate') }}
+              </span>
             </template>
             <template v-else-if="column.dataIndex === 'reason'">
               <div class="ipam-cell-stack">
@@ -609,9 +748,15 @@ function fmtTime(v?: string): string {
               </div>
             </template>
             <template v-else-if="column.key === 'op'">
-              <Button v-if="canSetMapping(record as DualstackConflict)" size="small" @click="openMapping(record as DualstackConflict)">设为映射</Button>
+              <Button v-if="canSetMapping(record as DualstackConflict)" size="small" @click="openMapping(record as DualstackConflict)">
+                {{ $t('dhcp.dualstack.setMapping') }}
+              </Button>
               <Tooltip v-else :title="disableHint(record as DualstackConflict)">
-                <span><Button size="small" disabled>设为映射</Button></span>
+                <span>
+                  <Button size="small" disabled>
+                    {{ $t('dhcp.dualstack.setMapping') }}
+                  </Button>
+                </span>
               </Tooltip>
             </template>
           </template>
@@ -622,42 +767,81 @@ function fmtTime(v?: string): string {
     <FormModal class="w-[880px]">
       <div class="ipam-form-grid">
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">模板名称<em>*</em></span>
-          <Input v-model:value="form.name" placeholder="办公-v4池A" />
+          <span class="ipam-form-field__label">{{ $t('dhcp.dualstack.modal.name') }}<em>*</em></span>
+          <Input
+            v-model:value="form.name"
+            :placeholder="$t('dhcp.dualstack.modal.namePlaceholder')"
+          />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">IPv4 网段<em>*</em></span>
-          <Select v-model:value="form.ipv4Cidr" show-search :options="v4Options" placeholder="选择 IPv4 子网" />
+          <span class="ipam-form-field__label">{{ $t('dhcp.dualstack.modal.ipv4') }}<em>*</em></span>
+          <Select
+            v-model:value="form.ipv4Cidr"
+            show-search
+            :options="v4Options"
+            :placeholder="$t('dhcp.dualstack.modal.ipv4Placeholder')"
+          />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">IPv6 前缀<em>*</em></span>
-          <Select v-model:value="form.ipv6Prefix" show-search :options="v6Options" placeholder="选择 IPv6 子网" />
+          <span class="ipam-form-field__label">{{ $t('dhcp.dualstack.modal.ipv6') }}<em>*</em></span>
+          <Select
+            v-model:value="form.ipv6Prefix"
+            show-search
+            :options="v6Options"
+            :placeholder="$t('dhcp.dualstack.modal.ipv6Placeholder')"
+          />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">地址编码</span>
+          <span class="ipam-form-field__label">
+            {{ $t('dhcp.dualstack.modal.encoding') }}
+          </span>
           <Select v-model:value="form.encoding" :options="(['B', 'A'] as const).map((v) => ({ value: v, label: ENC_TEXT[v] }))" />
         </label>
         <label class="ipam-form-field ipam-form-field--wide">
-          <span class="ipam-form-field__label">生成表达式</span>
-          <Select v-model:value="form.expr" :options="EXPR_OPTIONS" placeholder="选择表达式" @change="onExprChange" />
+          <span class="ipam-form-field__label">
+            {{ $t('dhcp.dualstack.modal.expr') }}
+          </span>
+          <Select
+            v-model:value="form.expr"
+            :options="EXPR_OPTIONS"
+            :placeholder="$t('dhcp.dualstack.modal.exprPlaceholder')"
+            @change="onExprChange"
+          />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">匹配方案</span>
+          <span class="ipam-form-field__label">
+            {{ $t('dhcp.dualstack.modal.scheme') }}
+          </span>
           <Select v-model:value="form.matchScheme" :options="SCHEME_OPTIONS" />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">宽限期（小时）</span>
+          <span class="ipam-form-field__label">
+            {{ $t('dhcp.dualstack.modal.grace') }}
+          </span>
           <InputNumber v-model:value="form.graceHours" :min="0" :max="720" style="width: 100%" />
         </label>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">DNS 同步</span>
+          <span class="ipam-form-field__label">
+            {{ $t('dhcp.dualstack.modal.dnsSync') }}
+          </span>
           <div class="flex h-8 items-center gap-2">
             <Switch v-model:checked="form.dnsSync" size="small" />
-            <span class="ipam-hint">{{ form.dnsSync ? '双栈联动时同步 A/AAAA 记录' : '仅生成地址，不写 DNS' }}</span>
+            <span class="ipam-hint">
+              {{
+                form.dnsSync
+                  ? $t('dhcp.dualstack.modal.dnsSyncOn')
+                  : $t('dhcp.dualstack.modal.dnsSyncOff')
+              }}
+            </span>
           </div>
         </div>
         <div class="ipam-form-hint ipam-form-field--wide">
-          {{ EXAMPLE }}；{{ SCHEME_HINT[form.matchScheme] }}
+          {{
+            $t('dhcp.dualstack.exampleLine', {
+              example: EXAMPLE,
+              hint: SCHEME_HINT[form.matchScheme],
+            })
+          }}
         </div>
       </div>
     </FormModal>
@@ -665,7 +849,9 @@ function fmtTime(v?: string): string {
     <MappingModal class="w-[460px]">
       <div class="flex flex-col gap-3">
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">v4 MAC 候选</span>
+          <span class="ipam-form-field__label">
+            {{ $t('dhcp.dualstack.mappingModal.mac') }}
+          </span>
           <Select v-if="mappingMacOptions.length > 1" v-model:value="mappingForm.mac" :options="mappingMacOptions" />
           <Input v-else v-model:value="mappingForm.mac" readonly />
         </label>
@@ -674,10 +860,17 @@ function fmtTime(v?: string): string {
           <Input v-model:value="mappingForm.duid" readonly />
         </label>
         <label class="ipam-form-field">
-          <span class="ipam-form-field__label">备注</span>
-          <Input v-model:value="mappingForm.note" placeholder="可选，说明人工确认依据" />
+          <span class="ipam-form-field__label">
+            {{ $t('dhcp.dualstack.mappingModal.note') }}
+          </span>
+          <Input
+            v-model:value="mappingForm.note"
+            :placeholder="$t('dhcp.dualstack.mappingModal.notePlaceholder')"
+          />
         </label>
-        <div class="ipam-form-hint">映射建立后该终端立即从冲突清单移除，并参与后续双栈关联。</div>
+        <div class="ipam-form-hint">
+          {{ $t('dhcp.dualstack.mappingModal.hint') }}
+        </div>
       </div>
     </MappingModal>
   </div>

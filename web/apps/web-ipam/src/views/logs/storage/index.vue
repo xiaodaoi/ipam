@@ -5,6 +5,7 @@ import { Button } from 'ant-design-vue';
 
 import LogStoragePanel from '#/components/log-storage-panel.vue';
 import PageHeader from '#/components/page-header.vue';
+import { $t } from '#/locales';
 </script>
 
 <template>
@@ -12,17 +13,17 @@ import PageHeader from '#/components/page-header.vue';
     <PageHeader
       eyebrow="Log Center"
       icon="lucide:database"
-      title="存储与归档"
-      description="统一管理日志保留策略、ClickHouse 在线分区与按月 Parquet 归档，兼顾查询性能、存储成本与合规留存。"
+      :title="$t('logs.storage.page.title')"
+      :description="$t('logs.storage.page.description')"
     >
       <template #actions>
         <span class="ipam-page-header__meta">
           <IconifyIcon icon="lucide:hard-drive" class="size-3.5" />
-          ClickHouse TTL + Parquet 归档
+          {{ $t('logs.storage.page.meta') }}
         </span>
         <RouterLink to="/logs-center/search">
           <Button size="small">
-            <IconifyIcon icon="lucide:search" class="mr-1 size-3.5" />查询在线日志
+            <IconifyIcon icon="lucide:search" class="mr-1 size-3.5" />{{ $t('logs.storage.page.queryOnline') }}
           </Button>
         </RouterLink>
       </template>

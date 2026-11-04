@@ -3,25 +3,27 @@ import { computed } from 'vue';
 
 import { ProfileNotificationSetting } from '@vben/common-ui';
 
+import { $t } from '#/locales';
+
 const formSchema = computed(() => {
   return [
     {
       value: true,
       fieldName: 'accountPassword',
-      label: '账户密码',
-      description: '其他用户的消息将以站内信的形式通知',
+      label: $t('core.profile.notification.accountPassword'),
+      description: $t('core.profile.notification.accountPasswordDesc'),
     },
     {
       value: true,
       fieldName: 'systemMessage',
-      label: '系统消息',
-      description: '系统消息将以站内信的形式通知',
+      label: $t('core.profile.notification.systemMessage'),
+      description: $t('core.profile.notification.systemMessageDesc'),
     },
     {
       value: true,
       fieldName: 'todoTask',
-      label: '待办任务',
-      description: '待办任务将以站内信的形式通知',
+      label: $t('core.profile.notification.todo'),
+      description: $t('core.profile.notification.todoDesc'),
     },
   ];
 });

@@ -20,18 +20,28 @@ import {
 import { createRole, deleteRole, listRoles, updateRole } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import { $t } from '#/locales';
 
 // 权限域（M2-035：6 域 × read/write = 12 权限点）
-const PERM_DOMAINS = [
-  { icon: 'lucide:layout-dashboard', key: 'dash', label: '仪表盘' },
-  { icon: 'lucide:scroll-text', key: 'logs', label: '日志中心' },
-  { icon: 'lucide:network', key: 'dhcp', label: 'DHCP 服务' },
-  { icon: 'lucide:globe', key: 'dns', label: 'DNS 服务' },
-  { icon: 'lucide:boxes', key: 'assets', label: '资产台账' },
-  { icon: 'lucide:settings', key: 'system', label: '系统管理' },
+const DOMAIN_DEFS = [
+  { icon: 'lucide:layout-dashboard', key: 'dash' },
+  { icon: 'lucide:scroll-text', key: 'logs' },
+  { icon: 'lucide:network', key: 'dhcp' },
+  { icon: 'lucide:globe', key: 'dns' },
+  { icon: 'lucide:boxes', key: 'assets' },
+  { icon: 'lucide:settings', key: 'system' },
 ];
-const ALL_PERMS = PERM_DOMAINS.flatMap((d) => [`${d.key}:read`, `${d.key}:write`]);
-const READ_PERMS = PERM_DOMAINS.map((d) => `${d.key}:read`);
+const PERM_DOMAINS = computed(() =>
+  DOMAIN_DEFS.map((d) => ({
+    ...d,
+    label: $t(`system.roles.domain.${d.key}`),
+  })),
+);
+const ALL_PERMS = DOMAIN_DEFS.flatMap((d) => [
+  `${d.key}:read`,
+  `${d.key}:write`,
+]);
+const READ_PERMS = DOMAIN_DEFS.map((d) => `${d.key}:read`);
 
 const rows = ref<RoleRow[]>([]);
 const loading = ref(false);
@@ -56,7 +66,7 @@ const coverage = computed(() => {
 });
 
 function permLabels(r: RoleRow): string[] {
-  return PERM_DOMAINS.filter((d) =>
+  return PERM_DOMAINS.value.filter((d) =>
     (r.permissions ?? []).some((p) => p.startsWith(`${d.key}:`)),
   ).map((d) => d.label);
 }
@@ -68,27 +78,36 @@ function domainAccess(r: RoleRow, key: string): 'none' | 'r' | 'rw' | 'w' {
   if (hasWrite) return 'w';
   return 'none';
 }
-const ACCESS_TEXT: Record<string, string> = {
+const ACCESS_TEXT = computed<Record<string, string>>(() => ({
   none: '—',
-  r: '读',
-  rw: '读写',
-  w: '写',
-};
-const ACCESS_TITLE: Record<string, string> = {
-  none: '无权限',
-  r: '只读',
-  rw: '读写',
-  w: '仅写',
-};
+  r: $t('system.roles.access.r'),
+  rw: $t('system.roles.access.rw'),
+  w: $t('system.roles.access.w'),
+}));
+const ACCESS_TITLE = computed<Record<string, string>>(() => ({
+  none: $t('system.roles.accessTitle.none'),
+  r: $t('system.roles.accessTitle.r'),
+  rw: $t('system.roles.accessTitle.rw'),
+  w: $t('system.roles.accessTitle.w'),
+}));
 function accessText(r: RoleRow, key: string): string {
-  return ACCESS_TEXT[domainAccess(r, key)] ?? '—';
+  return ACCESS_TEXT.value[domainAccess(r, key)] ?? '—';
 }
 function accessTitle(r: RoleRow, key: string): string {
-  return ACCESS_TITLE[domainAccess(r, key)] ?? '无权限';
+  return (
+    ACCESS_TITLE.value[domainAccess(r, key)] ??
+    $t('system.roles.accessTitle.none')
+  );
 }
 function setType(key: string) {
   typeFilter.value = key as 'all' | 'builtin' | 'custom';
 }
+
+const TYPE_TABS = computed(() => [
+  { key: 'all', label: $t('system.roles.filter.all') },
+  { key: 'builtin', label: $t('system.roles.filter.builtin') },
+  { key: 'custom', label: $t('system.roles.filter.custom') },
+]);
 
 async function load() {
   loading.value = true;
@@ -96,7 +115,9 @@ async function load() {
     const d = await listRoles();
     rows.value = d.items ?? [];
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '角色列表加载失败');
+    message.error(
+      error instanceof Error ? error.message : $t('system.roles.msg.loadFailed'),
+    );
   } finally {
     loading.value = false;
   }
@@ -121,9 +142,9 @@ function openCreate() {
   modal.perms = [];
   modal.readonly = false;
   roleModalApi.setState({
-    confirmText: '创建角色',
+    confirmText: $t('system.roles.modal.createOk'),
     showCancelButton: true,
-    title: '新建角色',
+    title: $t('system.roles.modal.createTitle'),
   });
   roleModalApi.open();
 }
@@ -133,9 +154,9 @@ function openView(r: RoleRow) {
   modal.perms = [...(r.permissions ?? [])];
   modal.readonly = true;
   roleModalApi.setState({
-    confirmText: '关闭',
+    confirmText: $t('system.roles.modal.close'),
     showCancelButton: false,
-    title: `查看角色：${r.name}`,
+    title: $t('system.roles.modal.viewTitle', { name: r.name }),
   });
   roleModalApi.open();
 }
@@ -145,9 +166,9 @@ function openEdit(r: RoleRow) {
   modal.perms = [...(r.permissions ?? [])];
   modal.readonly = false;
   roleModalApi.setState({
-    confirmText: '保存修改',
+    confirmText: $t('system.roles.modal.editOk'),
     showCancelButton: true,
-    title: `编辑角色：${r.name}`,
+    title: $t('system.roles.modal.editTitle', { name: r.name }),
   });
   roleModalApi.open();
 }
@@ -195,34 +216,40 @@ async function save() {
     return;
   }
   if (!modal.editing && !modal.name.trim()) {
-    message.warning('请填写角色名');
+    message.warning($t('system.roles.msg.nameRequired'));
     return;
   }
   if (modal.perms.length === 0) {
-    message.warning('请至少勾选一个权限点');
+    message.warning($t('system.roles.msg.permRequired'));
     return;
   }
   try {
     if (modal.editing) {
       await updateRole(modal.editing, { permissions: modal.perms });
-      message.success(`角色「${modal.editing}」权限已更新`);
+      message.success(
+        $t('system.roles.msg.updated', { name: modal.editing }),
+      );
     } else {
       await createRole({ name: modal.name.trim(), permissions: modal.perms });
-      message.success(`角色「${modal.name.trim()}」已创建`);
+      message.success($t('system.roles.msg.created', { name: modal.name.trim() }));
     }
     roleModalApi.close();
     await load();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '保存失败');
+    message.error(
+      error instanceof Error ? error.message : $t('system.roles.msg.saveFailed'),
+    );
   }
 }
 
 async function remove(r: RoleRow) {
   try {
     await deleteRole(r.name);
-    message.success(`角色「${r.name}」已删除`);
+    message.success($t('system.roles.msg.deleted', { name: r.name }));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '删除失败');
+    message.error(
+      error instanceof Error ? error.message : $t('system.roles.msg.deleteFailed'),
+    );
   }
   await load();
 }
@@ -232,13 +259,33 @@ function resetFilters() {
   typeFilter.value = 'all';
 }
 
-const columns = [
-  { dataIndex: 'name', key: 'name', title: '角色', minWidth: 190 },
-  { dataIndex: 'builtin', key: 'builtin', title: '类型', width: 96 },
-  { dataIndex: 'permissions', key: 'coverage', title: '权限覆盖', width: 190 },
-  { dataIndex: 'perms', key: 'perms', title: '权限明细', minWidth: 300 },
-  { dataIndex: 'op', key: 'op', title: '操作', width: 150 },
-];
+const columns = computed(() => [
+  {
+    dataIndex: 'name',
+    key: 'name',
+    title: $t('system.roles.col.name'),
+    minWidth: 190,
+  },
+  {
+    dataIndex: 'builtin',
+    key: 'builtin',
+    title: $t('system.roles.col.builtin'),
+    width: 96,
+  },
+  {
+    dataIndex: 'permissions',
+    key: 'coverage',
+    title: $t('system.roles.col.coverage'),
+    width: 190,
+  },
+  {
+    dataIndex: 'perms',
+    key: 'perms',
+    title: $t('system.roles.col.perms'),
+    minWidth: 300,
+  },
+  { dataIndex: 'op', key: 'op', title: $t('system.roles.col.op'), width: 150 },
+]);
 
 onMounted(load);
 </script>
@@ -248,52 +295,65 @@ onMounted(load);
     <PageHeader
       eyebrow="System"
       icon="lucide:shield-check"
-      title="角色管理"
-      description="基于「权限域 × 读/写」定义角色；内置角色不可修改或删除，自定义角色可随时调整权限点。"
+      :title="$t('system.roles.page.title')"
+      :description="$t('system.roles.page.desc')"
     >
       <template #actions>
         <span class="ipam-page-header__meta">
           <IconifyIcon icon="lucide:key-round" class="size-3.5" />
-          {{ ALL_PERMS.length }} 个权限点 · {{ PERM_DOMAINS.length }} 个权限域
+          {{
+            $t('system.roles.header.meta', {
+              perms: ALL_PERMS.length,
+              domains: PERM_DOMAINS.length,
+            })
+          }}
         </span>
         <Button size="small" :loading="loading" @click="load">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />刷新
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{
+            $t('system.roles.actions.refresh')
+          }}
         </Button>
         <Button type="primary" size="small" @click="openCreate">
-          <IconifyIcon icon="lucide:plus" class="mr-1 size-3.5" />新建角色
+          <IconifyIcon icon="lucide:plus" class="mr-1 size-3.5" />{{
+            $t('system.roles.actions.create')
+          }}
         </Button>
       </template>
     </PageHeader>
 
     <div class="ipam-stat-grid">
       <StatCard
-        label="角色总数"
+        :label="$t('system.roles.stat.total')"
         :value="total"
         icon="lucide:shield-check"
         tone="blue"
-        hint="账号可同时持有多个角色，权限取并集"
+        :hint="$t('system.roles.stat.totalHint')"
       />
       <StatCard
-        label="内置角色"
+        :label="$t('system.roles.stat.builtin')"
         :value="builtinCount"
         icon="lucide:lock"
         tone="violet"
-        hint="admin / operator / auditor / user，只读"
+        :hint="$t('system.roles.stat.builtinHint')"
       />
       <StatCard
-        label="自定义角色"
+        :label="$t('system.roles.stat.custom')"
         :value="customCount"
         icon="lucide:sparkles"
         tone="cyan"
-        :hint="customCount > 0 ? '可随时编辑权限点或删除' : '尚未创建自定义角色'"
+        :hint="
+          customCount > 0
+            ? $t('system.roles.stat.customHint')
+            : $t('system.roles.stat.customHintEmpty')
+        "
       />
       <StatCard
-        label="权限点覆盖"
+        :label="$t('system.roles.stat.coverage')"
         :value="`${coverage} / ${ALL_PERMS.length}`"
         icon="lucide:key-round"
         tone="green"
         :progress="(coverage / ALL_PERMS.length) * 100"
-        hint="全部角色合计覆盖的权限点"
+        :hint="$t('system.roles.stat.coverageHint')"
       />
     </div>
 
@@ -301,31 +361,29 @@ onMounted(load);
       <template #title>
         <span class="ipam-card-title">
           <IconifyIcon icon="lucide:list-tree" />
-          角色列表
+          {{ $t('system.roles.list.title') }}
           <em class="ipam-card-sub">{{ filtered.length }} / {{ total }}</em>
         </span>
       </template>
       <template #extra>
-        <span class="ipam-hint">读 → 域:read · 写 → 域:write</span>
+        <span class="ipam-hint">{{ $t('system.roles.list.rule') }}</span>
       </template>
 
       <div class="ipam-toolbar mb-3">
         <div class="ipam-field">
-          <span class="ipam-field__label">关键字</span>
+          <span class="ipam-field__label">{{
+            $t('system.roles.filter.keyword')
+          }}</span>
           <Input
             v-model:value="keyword"
             allow-clear
-            placeholder="角色名"
+            :placeholder="$t('system.roles.filter.keywordPlaceholder')"
             style="width: 200px"
           />
         </div>
         <div class="ipam-seg">
           <button
-            v-for="t in [
-              { key: 'all', label: '全部' },
-              { key: 'builtin', label: '内置' },
-              { key: 'custom', label: '自定义' },
-            ]"
+            v-for="t in TYPE_TABS"
             :key="t.key"
             type="button"
             :data-active="typeFilter === t.key"
@@ -339,7 +397,7 @@ onMounted(load);
           size="small"
           @click="resetFilters"
         >
-          清除筛选
+          {{ $t('system.roles.filter.clear') }}
         </Button>
       </div>
 
@@ -350,8 +408,8 @@ onMounted(load);
         :locale="{
           emptyText:
             keyword || typeFilter !== 'all'
-              ? '没有匹配当前筛选条件的角色'
-              : '暂无自定义角色，点击右上角「新建角色」创建',
+              ? $t('system.roles.empty.filtered')
+              : $t('system.roles.empty.none'),
         }"
         :pagination="false"
         :row-key="(r: RoleRow) => r.name"
@@ -363,20 +421,29 @@ onMounted(load);
             <div class="ipam-cell-stack">
               <span class="ipam-account__name ipam-mono">{{ record.name }}</span>
               <span class="ipam-cell-meta">
-                可访问 {{ permLabels(record as RoleRow).length }} / {{ PERM_DOMAINS.length }} 个模块
+                {{
+                  $t('system.roles.cell.access', {
+                    n: permLabels(record as RoleRow).length,
+                    total: PERM_DOMAINS.length,
+                  })
+                }}
               </span>
             </div>
           </template>
           <template v-else-if="column.key === 'builtin'">
             <Tag class="m-0" :color="record.builtin ? 'blue' : 'green'">
-              {{ record.builtin ? '内置' : '自定义' }}
+              {{
+                record.builtin
+                  ? $t('system.roles.cell.builtin')
+                  : $t('system.roles.cell.custom')
+              }}
             </Tag>
           </template>
           <template v-else-if="column.key === 'coverage'">
             <div class="ipam-cell-stack">
               <span class="ipam-perm-count">
                 {{ (record.permissions ?? []).length }} / {{ ALL_PERMS.length }}
-                <em>权限点</em>
+                <em>{{ $t('system.roles.cell.permCount') }}</em>
               </span>
               <div class="ipam-progress ipam-perm-bar">
                 <i
@@ -394,7 +461,12 @@ onMounted(load);
                 :key="dom.key"
                 class="ipam-perm-chip"
                 :data-access="domainAccess(record as RoleRow, dom.key)"
-                :title="`${dom.label}：${accessTitle(record as RoleRow, dom.key)}`"
+                :title="
+                  $t('system.roles.cell.chipTitle', {
+                    domain: dom.label,
+                    access: accessTitle(record as RoleRow, dom.key),
+                  })
+                "
               >
                 {{ dom.label }}
                 <b>{{ accessText(record as RoleRow, dom.key) }}</b>
@@ -411,17 +483,25 @@ onMounted(load);
                   :icon="record.builtin ? 'lucide:eye' : 'lucide:pencil'"
                   class="mr-1 size-3.5"
                 />
-                {{ record.builtin ? '查看' : '编辑' }}
+                {{
+                  record.builtin
+                    ? $t('system.roles.action.view')
+                    : $t('system.roles.action.edit')
+                }}
               </Button>
               <Popconfirm
                 v-if="!record.builtin"
-                title="确认删除该角色？"
-                description="删除后持有该角色的账号将失去对应权限。"
-                ok-text="删除"
-                cancel-text="取消"
+                :title="$t('system.roles.confirm.deleteTitle')"
+                :description="$t('system.roles.confirm.deleteDesc')"
+                :ok-text="$t('system.roles.action.delete')"
+                :cancel-text="$t('system.roles.action.cancel')"
                 @confirm="remove(record as RoleRow)"
               >
-                <Button size="small" danger>删除</Button>
+                <Button size="small" danger>
+{{
+                  $t('system.roles.action.delete')
+                }}
+</Button>
               </Popconfirm>
             </div>
           </template>
@@ -432,34 +512,40 @@ onMounted(load);
     <RoleModal>
       <div class="ipam-form-grid mb-3">
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">角色名</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.roles.modal.name')
+          }}</span>
           <Input
             v-model:value="modal.name"
             :disabled="!!modal.editing"
-            placeholder="如 network-ops"
+            :placeholder="$t('system.roles.modal.namePlaceholder')"
           />
         </div>
         <div class="ipam-form-field">
-          <span class="ipam-form-field__label">已选权限点</span>
+          <span class="ipam-form-field__label">{{
+            $t('system.roles.modal.selected')
+          }}</span>
           <div class="ipam-perm-selected">
             <b>{{ modal.perms.length }}</b> / {{ ALL_PERMS.length }}
-            <span class="ipam-hint">个</span>
+            <span class="ipam-hint">{{
+              $t('system.roles.modal.selectedUnit')
+            }}</span>
           </div>
         </div>
       </div>
 
       <div class="ipam-toolbar mb-3">
         <Button size="small" :disabled="modal.readonly" @click="selectAll">
-          全选 {{ ALL_PERMS.length }} 项
+          {{ $t('system.roles.modal.selectAll', { n: ALL_PERMS.length }) }}
         </Button>
         <Button size="small" :disabled="modal.readonly" @click="selectReadOnly">
-          仅只读
+          {{ $t('system.roles.modal.readOnly') }}
         </Button>
         <Button size="small" :disabled="modal.readonly" @click="clearPerms">
-          清空
+          {{ $t('system.roles.modal.clear') }}
         </Button>
         <div class="ipam-toolbar__spacer"></div>
-        <span class="ipam-hint">勾选「编辑」会自动包含「查看」</span>
+        <span class="ipam-hint">{{ $t('system.roles.modal.hintSelect') }}</span>
       </div>
 
       <div class="ipam-perm-grid">
@@ -473,7 +559,7 @@ onMounted(load);
               :disabled="modal.readonly"
               @change="(e: any) => checkDomain(dom.key, e.target.checked)"
             >
-              全选
+              {{ $t('system.roles.modal.all') }}
             </Checkbox>
           </div>
           <div class="ipam-perm-card__body">
@@ -482,14 +568,14 @@ onMounted(load);
               :disabled="modal.readonly"
               @change="(e: any) => togglePerm(`${dom.key}:read`, e.target.checked)"
             >
-              查看
+              {{ $t('system.roles.modal.read') }}
             </Checkbox>
             <Checkbox
               :checked="has(`${dom.key}:write`)"
               :disabled="modal.readonly"
               @change="(e: any) => togglePerm(`${dom.key}:write`, e.target.checked)"
             >
-              编辑
+              {{ $t('system.roles.modal.write') }}
             </Checkbox>
           </div>
         </div>
@@ -497,10 +583,10 @@ onMounted(load);
 
       <div class="ipam-form-hint mt-3">
         <template v-if="modal.readonly">
-          内置角色权限由系统预置，不可修改或删除；如需更细粒度授权请创建自定义角色。
+          {{ $t('system.roles.modal.readonlyHint') }}
         </template>
         <template v-else>
-          角色创建后名称不可修改；权限变更对持有该角色的账号立即生效（下次请求即按新权限校验）。
+          {{ $t('system.roles.modal.editableHint') }}
         </template>
       </div>
     </RoleModal>

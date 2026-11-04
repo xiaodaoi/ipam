@@ -26,30 +26,38 @@ import { exportLogsCsv, getLogQps, listLogs, listLogTop } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
 import TrendChart from '#/components/trend-chart.vue';
+import { $t } from '#/locales';
 
 import { useLogWindowStats } from '../use-log-window-stats';
 
 const STORAGE_KEY = 'ipam.logs.search.filters.v1';
 
-const PRESETS = [
-  { hours: 1, key: '1h', label: '近 1 小时' },
-  { hours: 6, key: '6h', label: '近 6 小时' },
-  { hours: 24, key: '24h', label: '近 24 小时' },
-  { hours: 168, key: '7d', label: '近 7 天' },
+const PRESET_HOURS = [
+  { hours: 1, key: '1h' },
+  { hours: 6, key: '6h' },
+  { hours: 24, key: '24h' },
+  { hours: 168, key: '7d' },
 ] as const;
-type PresetKey = 'custom' | (typeof PRESETS)[number]['key'];
+type PresetKey = 'custom' | (typeof PRESET_HOURS)[number]['key'];
 
-const ACTION_OPTIONS = [
-  { label: 'resolve（正常解析）', value: 'resolve' },
-  { label: 'blocked（封禁拦截）', value: 'blocked' },
-  { label: 'passthru（放行）', value: 'passthru' },
-  { label: 'cached（缓存命中）', value: 'cached' },
-  { label: 'lease_commit（租约下发）', value: 'lease_commit' },
-  { label: 'lease_renew（租约续约）', value: 'lease_renew' },
-  { label: 'lease_release（租约释放）', value: 'lease_release' },
-  { label: 'lease_expire（租约过期）', value: 'lease_expire' },
-  { label: 'lease_decline（客户端拒绝）', value: 'lease_decline' },
-];
+const presets = computed(() =>
+  PRESET_HOURS.map((p) => ({
+    ...p,
+    label: $t(`logs.common.range.${p.key}`),
+  })),
+);
+
+const ACTION_OPTIONS = computed(() => [
+  { label: $t('logs.search.actionOptions.resolve'), value: 'resolve' },
+  { label: $t('logs.search.actionOptions.blocked'), value: 'blocked' },
+  { label: $t('logs.search.actionOptions.passthru'), value: 'passthru' },
+  { label: $t('logs.search.actionOptions.cached'), value: 'cached' },
+  { label: $t('logs.search.actionOptions.lease_commit'), value: 'lease_commit' },
+  { label: $t('logs.search.actionOptions.lease_renew'), value: 'lease_renew' },
+  { label: $t('logs.search.actionOptions.lease_release'), value: 'lease_release' },
+  { label: $t('logs.search.actionOptions.lease_expire'), value: 'lease_expire' },
+  { label: $t('logs.search.actionOptions.lease_decline'), value: 'lease_decline' },
+]);
 
 const TYPE_META: Record<string, { color: string; label: string }> = {
   dhcp: { color: 'cyan', label: 'DHCP' },
@@ -121,26 +129,27 @@ function pct(part: number, all: number): string {
 // ── 时间窗（快照语义：查询时冻结，避免翻页过程中时间漂移）──
 const preset = ref<PresetKey>('6h');
 const customRange = ref<[Dayjs, Dayjs]>();
-const window = ref({ from: '', to: '', label: '' });
+const window = ref({ from: '', to: '', labelKey: 'logs.common.range.6h' });
+const windowLabel = computed(() => $t(window.value.labelKey));
 
 function refreshWindow(): boolean {
   if (preset.value === 'custom') {
     if (!customRange.value) {
-      message.info('请选择自定义时间范围');
+      message.info($t('logs.search.messages.selectRange'));
       return false;
     }
     window.value = {
       from: customRange.value[0].toISOString(),
       to: customRange.value[1].toISOString(),
-      label: '自定义区间',
+      labelKey: 'logs.common.customRange',
     };
     return true;
   }
-  const p = PRESETS.find((x) => x.key === preset.value) ?? PRESETS[1]!;
+  const p = PRESET_HOURS.find((x) => x.key === preset.value) ?? PRESET_HOURS[1]!;
   window.value = {
     from: new Date(Date.now() - p.hours * 3_600_000).toISOString(),
     to: new Date().toISOString(),
-    label: p.label,
+    labelKey: `logs.common.range.${p.key}`,
   };
   return true;
 }
@@ -195,7 +204,7 @@ function restoreFilters() {
     if (saved.filters) {
       Object.assign(filters, saved.filters);
     }
-    if (saved.preset && PRESETS.some((p) => p.key === saved.preset)) {
+    if (saved.preset && PRESET_HOURS.some((p) => p.key === saved.preset)) {
       preset.value = saved.preset as PresetKey;
     }
   } catch {
@@ -216,7 +225,7 @@ function applyRouteQuery() {
   if (str(q.answerIp)) filters.answerIp = str(q.answerIp);
   if (str(q.q)) filters.q = str(q.q);
   const range = str(q.range);
-  if (PRESETS.some((p) => p.key === range)) preset.value = range as PresetKey;
+  if (PRESET_HOURS.some((p) => p.key === range)) preset.value = range as PresetKey;
 }
 
 function syncRoute() {
@@ -255,7 +264,9 @@ async function fetchRows() {
   } catch (error) {
     rows.value = [];
     total.value = 0;
-    message.error(error instanceof Error ? error.message : '日志查询失败');
+    message.error(
+      error instanceof Error ? error.message : $t('logs.search.messages.queryFail'),
+    );
   } finally {
     loading.value = false;
   }
@@ -382,9 +393,11 @@ async function onExport() {
       if (typeof v === 'string' && v) params[k] = v;
     }
     await exportLogsCsv(params);
-    message.success('CSV 导出已开始下载');
+    message.success($t('logs.search.messages.exportStarted'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '导出失败');
+    message.error(
+      error instanceof Error ? error.message : $t('logs.search.messages.exportFail'),
+    );
   }
 }
 
@@ -393,7 +406,7 @@ const detail = ref<LogRow>();
 const [DetailDrawer, detailDrawerApi] = useVbenDrawer({
   class: 'w-[620px]',
   footer: false,
-  title: '日志详情',
+  title: $t('logs.search.detail.title'),
 });
 
 function openDetail(r: LogRow) {
@@ -412,31 +425,31 @@ async function copyDetail() {
   if (!detail.value) return;
   try {
     await navigator.clipboard.writeText(JSON.stringify(detail.value, null, 2));
-    message.success('已复制当前日志 JSON');
+    message.success($t('logs.search.detail.copied'));
   } catch {
-    message.warning('浏览器未授予剪贴板权限');
+    message.warning($t('logs.common.clipboardDenied'));
   }
 }
 
-const columns = [
-  { dataIndex: 'ts', key: 'ts', title: '时间', width: 132 },
-  { dataIndex: 'type', key: 'type', title: '类型', width: 76 },
-  { dataIndex: 'domain', ellipsis: true, key: 'domain', title: '域名' },
-  { dataIndex: 'client', key: 'client', title: '客户端', width: 178 },
-  { dataIndex: 'answer', key: 'answer', title: '应答', width: 170 },
-  { dataIndex: 'sip', key: 'sip', title: '来源 IP', width: 132 },
-  { dataIndex: 'action', key: 'action', title: '动作', width: 118 },
-];
-const topDomainColumns = [
+const columns = computed(() => [
+  { dataIndex: 'ts', key: 'ts', title: $t('logs.search.columns.time'), width: 132 },
+  { dataIndex: 'type', key: 'type', title: $t('logs.search.columns.type'), width: 76 },
+  { dataIndex: 'domain', ellipsis: true, key: 'domain', title: $t('logs.search.columns.domain') },
+  { dataIndex: 'client', key: 'client', title: $t('logs.search.columns.client'), width: 178 },
+  { dataIndex: 'answer', key: 'answer', title: $t('logs.search.columns.answer'), width: 170 },
+  { dataIndex: 'sip', key: 'sip', title: $t('logs.search.columns.sip'), width: 132 },
+  { dataIndex: 'action', key: 'action', title: $t('logs.search.columns.action'), width: 118 },
+]);
+const topDomainColumns = computed(() => [
   { dataIndex: 'rank', key: 'rank', title: '#', width: 52 },
-  { dataIndex: 'key', key: 'key', title: '域名', ellipsis: true },
-  { dataIndex: 'count', key: 'count', title: '事件数', width: 110 },
-];
-const topClientColumns = [
+  { dataIndex: 'key', key: 'key', title: $t('logs.search.aggColumns.domain'), ellipsis: true },
+  { dataIndex: 'count', key: 'count', title: $t('logs.search.aggColumns.count'), width: 110 },
+]);
+const topClientColumns = computed(() => [
   { dataIndex: 'rank', key: 'rank', title: '#', width: 52 },
-  { dataIndex: 'key', key: 'key', title: '客户端 MAC', width: 200 },
-  { dataIndex: 'count', key: 'count', title: '事件数', width: 110 },
-];
+  { dataIndex: 'key', key: 'key', title: $t('logs.search.aggColumns.mac'), width: 200 },
+  { dataIndex: 'count', key: 'count', title: $t('logs.search.aggColumns.count'), width: 110 },
+]);
 
 function withRank(list: TopEntry[]) {
   return list.map((item, i) => ({ ...item, rank: i + 1 }));
@@ -451,11 +464,23 @@ const domainPagination = computed(() => ({
   showSizeChanger: true,
   showQuickJumper: true,
   size: 'small' as const,
-  showTotal: (total: number) => `共 ${total} 个域名`,
+  showTotal: (total: number) => $t('logs.search.domainTotal', { n: total }),
 }));
 
 const kpiValue = (v?: number) => (v === undefined ? '—' : fmtInt(v));
 const stats = computed(() => kpi.stats.value);
+
+const resultHint = computed(() => {
+  const base = $t('logs.search.results.hint', { n: pageSize.value });
+  return deepPagingLimited.value
+    ? base + $t('logs.search.results.deepPagingLimited')
+    : base;
+});
+const rowsEmpty = computed(() =>
+  activeFilterCount.value > 0 || preset.value !== '6h'
+    ? $t('logs.search.results.emptyFiltered')
+    : $t('logs.search.results.empty'),
+);
 
 let timer: ReturnType<typeof setInterval> | undefined;
 onMounted(() => {
@@ -479,52 +504,52 @@ onBeforeUnmount(() => timer && clearInterval(timer));
     <PageHeader
       eyebrow="Log Center"
       icon="lucide:search"
-      title="查询检索"
-      description="跨 DHCP 与 DNS 统一检索：时间窗、事件类型、域名、客户端与应答地址可组合过滤，结果支持明细下钻与 CSV 导出。"
+      :title="$t('logs.search.title')"
+      :description="$t('logs.search.description')"
     >
       <template #actions>
         <span class="ipam-page-header__meta">
           <IconifyIcon icon="lucide:database" class="size-3.5" />
-          {{ window.label }} · 命中 {{ fmtInt(total) }} 条
+          {{ $t('logs.search.hits', { range: windowLabel, n: fmtInt(total) }) }}
         </span>
         <Button size="small" @click="reload">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />刷新
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{ $t('logs.common.refresh') }}
         </Button>
         <Button size="small" type="primary" @click="onExport">
-          <IconifyIcon icon="lucide:download" class="mr-1 size-3.5" />导出 CSV
+          <IconifyIcon icon="lucide:download" class="mr-1 size-3.5" />{{ $t('logs.common.exportCsv') }}
         </Button>
       </template>
     </PageHeader>
 
     <div class="ipam-stat-grid">
       <StatCard
-        label="时间窗事件总量"
+        :label="$t('logs.search.kpi.total')"
         :value="kpiValue(stats?.total)"
         icon="lucide:activity"
         tone="blue"
         :spark="stats?.spark"
-        :hint="`${window.label} · ${stats?.buckets ?? 0} 个时间分桶`"
+        :hint="$t('logs.search.kpi.totalHint', { range: windowLabel, n: stats?.buckets ?? 0 })"
       />
       <StatCard
-        label="DNS 查询量"
+        :label="$t('logs.search.kpi.dns')"
         :value="kpiValue(stats?.dns)"
         icon="lucide:globe"
         tone="cyan"
-        :hint="`占事件总量 ${pct(stats?.dns ?? 0, stats?.total ?? 0)}`"
+        :hint="$t('logs.common.share', { pct: pct(stats?.dns ?? 0, stats?.total ?? 0) })"
       />
       <StatCard
-        label="DHCP 事件"
+        :label="$t('logs.search.kpi.dhcp')"
         :value="kpiValue(stats?.dhcp)"
         icon="lucide:network"
         tone="green"
-        :hint="`占事件总量 ${pct(stats?.dhcp ?? 0, stats?.total ?? 0)}`"
+        :hint="$t('logs.common.share', { pct: pct(stats?.dhcp ?? 0, stats?.total ?? 0) })"
       />
       <StatCard
-        label="封禁拦截"
+        :label="$t('logs.search.kpi.blocked')"
         :value="kpiValue(stats?.blocked)"
         icon="lucide:shield-ban"
         :tone="(stats?.blocked ?? 0) > 0 ? 'red' : 'violet'"
-        :hint="(stats?.blocked ?? 0) > 0 ? `占 DNS 查询 ${pct(stats?.blocked ?? 0, stats?.dns ?? 0)}` : '当前时间窗无拦截事件'"
+        :hint="(stats?.blocked ?? 0) > 0 ? $t('logs.common.blockedShare', { pct: pct(stats?.blocked ?? 0, stats?.dns ?? 0) }) : $t('logs.common.noBlocked')"
       />
     </div>
 
@@ -532,19 +557,19 @@ onBeforeUnmount(() => timer && clearInterval(timer));
       <template #title>
         <span class="ipam-card-title">
           <IconifyIcon icon="lucide:sliders-horizontal" />
-          检索条件
+          {{ $t('logs.search.filters.title') }}
         </span>
       </template>
       <template #extra>
         <span class="ipam-hint">
-          {{ activeFilterCount > 0 ? `已启用 ${activeFilterCount} 项过滤` : '时间窗最大 31 天 · 条件自动记忆' }}
+          {{ activeFilterCount > 0 ? $t('logs.search.filters.active', { n: activeFilterCount }) : $t('logs.search.filters.inactive') }}
         </span>
       </template>
 
       <div class="ipam-toolbar mb-3">
         <div class="ipam-seg">
           <button
-            v-for="p in PRESETS"
+            v-for="p in presets"
             :key="p.key"
             type="button"
             :data-active="preset === p.key"
@@ -557,7 +582,7 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             :data-active="preset === 'custom'"
             @click="onPreset('custom')"
           >
-            自定义
+            {{ $t('logs.common.custom') }}
           </button>
         </div>
         <DatePicker.RangePicker
@@ -566,97 +591,97 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           :show-time="{ format: 'HH:mm:ss' }"
           format="YYYY-MM-DD HH:mm:ss"
           style="width: 340px"
-          :placeholder="['开始时间', '结束时间']"
+          :placeholder="[$t('logs.common.startTime'), $t('logs.common.endTime')]"
           @change="onRangeChange"
         />
         <div class="ipam-toolbar__spacer"></div>
         <Button size="small" @click="advanced = !advanced">
           <IconifyIcon icon="lucide:list-filter" class="mr-1 size-3.5" />
-          {{ advanced ? '收起字段' : '更多字段' }}
+          {{ advanced ? $t('logs.search.filters.collapse') : $t('logs.search.filters.more') }}
         </Button>
-        <Button size="small" @click="resetFilters">重置</Button>
+        <Button size="small" @click="resetFilters">{{ $t('logs.common.reset') }}</Button>
         <Button type="primary" size="small" @click="query">
-          <IconifyIcon icon="lucide:search" class="mr-1 size-3.5" />查询
+          <IconifyIcon icon="lucide:search" class="mr-1 size-3.5" />{{ $t('logs.common.query') }}
         </Button>
       </div>
 
       <div class="ipam-filter-grid">
         <label class="ipam-filter-field">
-          <span class="ipam-filter-field__label">关键字</span>
+          <span class="ipam-filter-field__label">{{ $t('logs.search.filters.keyword') }}</span>
           <Input
             v-model:value="filters.q"
             allow-clear
-            placeholder="域名 / MAC / IP 模糊匹配"
+            :placeholder="$t('logs.search.filters.keywordPlaceholder')"
             @press-enter="query"
           />
         </label>
         <label class="ipam-filter-field">
-          <span class="ipam-filter-field__label">事件类型</span>
+          <span class="ipam-filter-field__label">{{ $t('logs.search.filters.type') }}</span>
           <Select
             v-model:value="filters.type"
             allow-clear
-            placeholder="全部类型"
+            :placeholder="$t('logs.search.filters.typePlaceholder')"
             :options="[
-              { value: 'dns', label: 'DNS 查询' },
-              { value: 'dhcp', label: 'DHCP 事件' },
+              { value: 'dns', label: $t('logs.search.filters.typeDns') },
+              { value: 'dhcp', label: $t('logs.search.filters.typeDhcp') },
             ]"
           />
         </label>
         <label class="ipam-filter-field">
-          <span class="ipam-filter-field__label">动作</span>
+          <span class="ipam-filter-field__label">{{ $t('logs.search.filters.action') }}</span>
           <Select
             v-model:value="filters.action"
             allow-clear
             show-search
             option-filter-prop="label"
-            placeholder="全部动作"
+            :placeholder="$t('logs.search.filters.actionPlaceholder')"
             :options="ACTION_OPTIONS"
           />
         </label>
         <label class="ipam-filter-field">
-          <span class="ipam-filter-field__label">域名</span>
+          <span class="ipam-filter-field__label">{{ $t('logs.search.filters.domain') }}</span>
           <Input
             v-model:value="filters.domain"
             allow-clear
-            placeholder="子串匹配，如 example.com"
+            :placeholder="$t('logs.search.filters.domainPlaceholder')"
             @press-enter="query"
           />
         </label>
 
         <template v-if="advanced">
           <label class="ipam-filter-field">
-            <span class="ipam-filter-field__label">客户端 MAC</span>
+            <span class="ipam-filter-field__label">{{ $t('logs.search.filters.mac') }}</span>
             <Input
               v-model:value="filters.mac"
               allow-clear
-              placeholder="支持冒号或 12 位 hex"
+              :placeholder="$t('logs.search.filters.macPlaceholder')"
               @press-enter="query"
             />
           </label>
           <label class="ipam-filter-field">
-            <span class="ipam-filter-field__label">客户端 IP</span>
+            <span class="ipam-filter-field__label">{{ $t('logs.search.filters.clientIp') }}</span>
             <Input
               v-model:value="filters.ip"
               allow-clear
-              placeholder="精确地址或 CIDR"
+              :placeholder="$t('logs.search.filters.clientIpPlaceholder')"
               @press-enter="query"
             />
           </label>
           <label class="ipam-filter-field">
-            <span class="ipam-filter-field__label">来源 IP</span>
+            <span class="ipam-filter-field__label">{{ $t('logs.search.filters.sip') }}</span>
             <Input
               v-model:value="filters.sip"
               allow-clear
-              placeholder="DNS 查询发起方"
+              :placeholder="$t('logs.search.filters.sipPlaceholder')"
               @press-enter="query"
             />
           </label>
           <label class="ipam-filter-field">
-            <span class="ipam-filter-field__label">应答 IP</span>
+            <span class="ipam-filter-field__label">{{ $t('logs.search.filters.answerIp') }}</span>
             <Input
               v-model:value="filters.answerIp"
               allow-clear
-              placeholder="A/AAAA 应答地址"
+              :placeholder="$t('logs.search.filters.answerIpPlaceholder')"
               @press-enter="query"
             />
           </label>
@@ -668,22 +693,16 @@ onBeforeUnmount(() => timer && clearInterval(timer));
       <template #title>
         <span class="ipam-card-title">
           <IconifyIcon icon="lucide:scroll-text" />
-          检索结果
-          <em class="ipam-card-sub">{{ fmtInt(total) }} 条</em>
+          {{ $t('logs.search.results.title') }}
+          <em class="ipam-card-sub">{{ $t('logs.search.results.count', { n: fmtInt(total) }) }}</em>
         </span>
       </template>
       <template #extra>
-        <span class="ipam-hint">
-          点击任意行查看完整字段 · 每 {{ pageSize }} 条一页{{
-            deepPagingLimited
-              ? ' · 仅可浏览前 1 万条，更早数据请缩小时间窗或导出 CSV'
-              : ''
-          }}
-        </span>
+        <span class="ipam-hint">{{ resultHint }}</span>
       </template>
 
       <Tabs v-model:active-key="activeTab">
-        <TabPane key="rows" tab="日志明细">
+        <TabPane key="rows" :tab="$t('logs.common.rowsDetail')">
           <Table
             :columns="columns"
             :custom-row="rowProps"
@@ -696,12 +715,12 @@ onBeforeUnmount(() => timer && clearInterval(timer));
               position: ['bottomLeft'],
               showSizeChanger: true,
               pageSizeOptions: ['20', '50', '100', '200'],
-              showTotal: (t: number) => `共 ${t} 条`,
+              showTotal: (t: number) => $t('logs.search.results.total', { n: t }),
               onChange: onPageChange,
             }"
             :row-key="(r: LogRow) => [r.ts, r.clientMac, r.domain, r.answerIp, r.action].join('|')"
             :scroll="{ x: 920 }"
-            :locale="{ emptyText: activeFilterCount > 0 || preset !== '6h' ? '没有匹配当前条件的日志，请调整过滤字段或扩大时间窗' : '当前时间窗暂无日志，等待 DHCP/DNS 事件接入' }"
+            :locale="{ emptyText: rowsEmpty }"
             size="small"
           >
             <template #bodyCell="{ column, record }">
@@ -755,12 +774,12 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           </Table>
         </TabPane>
 
-        <TabPane key="domain" tab="热门域名">
+        <TabPane key="domain" :tab="$t('logs.common.topDomains')">
           <Table
             :columns="topDomainColumns"
             :data-source="topDomainRows"
             :loading="aggLoading"
-            :locale="{ emptyText: '当前过滤条件下没有域名聚合数据' }"
+            :locale="{ emptyText: $t('logs.search.emptyDomain') }"
             :pagination="domainPagination"
             row-key="key"
             size="small"
@@ -780,12 +799,12 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           </Table>
         </TabPane>
 
-        <TabPane key="client" tab="活跃客户端">
+        <TabPane key="client" :tab="$t('logs.common.topClients')">
           <Table
             :columns="topClientColumns"
             :data-source="topClientRows"
             :loading="aggLoading"
-            :locale="{ emptyText: '当前过滤条件下没有客户端聚合数据（DHCP 事件通常携带 MAC）' }"
+            :locale="{ emptyText: $t('logs.search.emptyClient') }"
             :pagination="false"
             row-key="key"
             size="small"
@@ -805,7 +824,7 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           </Table>
         </TabPane>
 
-        <TabPane key="qps" tab="QPS 趋势">
+        <TabPane key="qps" :tab="$t('logs.search.qps.tab')">
           <TrendChart
             v-if="qpsChart.length > 0"
             :data="qpsChart"
@@ -813,32 +832,32 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             :markers="true"
             :time-format="preset === '1h' || preset === '6h' ? 'HH:mm' : 'MM-DD HH:mm'"
             tone="blue"
-            unit="次"
+            :unit="$t('logs.common.times')"
           />
           <div v-else-if="!aggLoading" class="ipam-empty ipam-empty--compact">
-            <div class="ipam-empty__title">暂无趋势数据</div>
-            <div class="ipam-empty__desc">当前过滤条件下没有可聚合的事件。</div>
+            <div class="ipam-empty__title">{{ $t('logs.common.noTrend') }}</div>
+            <div class="ipam-empty__desc">{{ $t('logs.search.qps.emptyDesc') }}</div>
           </div>
           <div class="ipam-figure-row">
             <div class="ipam-figure">
-              <span class="ipam-figure__label">窗口总量</span>
+              <span class="ipam-figure__label">{{ $t('logs.common.figures.total') }}</span>
               <span class="ipam-figure__value">{{ fmtInt(qpsTotal) }}</span>
-              <span class="ipam-figure__unit">次</span>
+              <span class="ipam-figure__unit">{{ $t('logs.common.times') }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">平均每桶</span>
+              <span class="ipam-figure__label">{{ $t('logs.common.figures.avg') }}</span>
               <span class="ipam-figure__value">{{ qpsAvg.toFixed(1) }}</span>
-              <span class="ipam-figure__unit">次</span>
+              <span class="ipam-figure__unit">{{ $t('logs.common.times') }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">峰值每桶</span>
+              <span class="ipam-figure__label">{{ $t('logs.common.figures.peak') }}</span>
               <span class="ipam-figure__value">{{ fmtInt(qpsPeak) }}</span>
-              <span class="ipam-figure__unit">次</span>
+              <span class="ipam-figure__unit">{{ $t('logs.common.times') }}</span>
             </div>
             <div class="ipam-figure">
-              <span class="ipam-figure__label">分桶粒度</span>
+              <span class="ipam-figure__label">{{ $t('logs.common.figures.bucket') }}</span>
               <span class="ipam-figure__value">{{ aggBucketSeconds() }}</span>
-              <span class="ipam-figure__unit">秒</span>
+              <span class="ipam-figure__unit">{{ $t('logs.common.seconds') }}</span>
             </div>
           </div>
         </TabPane>
@@ -857,52 +876,52 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           <span class="ipam-mono text-xs">{{ fmtDateTime(detail.ts) }}</span>
           <span class="ipam-toolbar__spacer"></span>
           <Button size="small" @click="copyDetail">
-            <IconifyIcon icon="lucide:copy" class="mr-1 size-3.5" />复制 JSON
+            <IconifyIcon icon="lucide:copy" class="mr-1 size-3.5" />{{ $t('logs.common.copyJson') }}
           </Button>
         </div>
 
         <div class="ipam-detail-grid">
           <div class="ipam-detail-item">
-            <div class="ipam-detail-item__label">事件时间</div>
+            <div class="ipam-detail-item__label">{{ $t('logs.search.detail.time') }}</div>
             <div class="ipam-detail-item__value">{{ fmtDateTime(detail.ts) }}</div>
           </div>
           <div class="ipam-detail-item">
-            <div class="ipam-detail-item__label">日志级别</div>
+            <div class="ipam-detail-item__label">{{ $t('logs.search.detail.severity') }}</div>
             <div class="ipam-detail-item__value">{{ detail.severity || '—' }}</div>
           </div>
           <div class="ipam-detail-item">
-            <div class="ipam-detail-item__label">域名</div>
+            <div class="ipam-detail-item__label">{{ $t('logs.search.detail.domain') }}</div>
             <div class="ipam-detail-item__value">{{ detail.domain || '—' }}</div>
           </div>
           <div class="ipam-detail-item">
-            <div class="ipam-detail-item__label">动作</div>
+            <div class="ipam-detail-item__label">{{ $t('logs.search.detail.action') }}</div>
             <div class="ipam-detail-item__value">{{ detail.action || '—' }}</div>
           </div>
           <div class="ipam-detail-item">
-            <div class="ipam-detail-item__label">客户端 MAC</div>
+            <div class="ipam-detail-item__label">{{ $t('logs.search.detail.mac') }}</div>
             <div class="ipam-detail-item__value ipam-mono">{{ fmtMac(detail.clientMac) || '—' }}</div>
           </div>
           <div class="ipam-detail-item">
-            <div class="ipam-detail-item__label">客户端 IP</div>
+            <div class="ipam-detail-item__label">{{ $t('logs.search.detail.clientIp') }}</div>
             <div class="ipam-detail-item__value ipam-mono">{{ detail.clientIp || '—' }}</div>
           </div>
           <div class="ipam-detail-item">
-            <div class="ipam-detail-item__label">来源 IP</div>
+            <div class="ipam-detail-item__label">{{ $t('logs.search.detail.sip') }}</div>
             <div class="ipam-detail-item__value ipam-mono">{{ detail.sip || '—' }}</div>
           </div>
           <div class="ipam-detail-item">
-            <div class="ipam-detail-item__label">应答码 / 分类</div>
+            <div class="ipam-detail-item__label">{{ $t('logs.search.detail.rcode') }}</div>
             <div class="ipam-detail-item__value">
               {{ detail.rcode || '—' }}
               <span v-if="detail.category" class="ipam-hint"> · {{ detail.category }}</span>
             </div>
           </div>
           <div class="ipam-detail-item ipam-detail-item--wide">
-            <div class="ipam-detail-item__label">应答 IP</div>
+            <div class="ipam-detail-item__label">{{ $t('logs.search.detail.answerIp') }}</div>
             <div class="ipam-detail-item__value ipam-mono">{{ detail.answerIp || '—' }}</div>
           </div>
           <div class="ipam-detail-item ipam-detail-item--wide">
-            <div class="ipam-detail-item__label">原始详情</div>
+            <div class="ipam-detail-item__label">{{ $t('logs.search.detail.raw') }}</div>
             <div class="ipam-detail-item__value">{{ detail.detail || '—' }}</div>
           </div>
         </div>

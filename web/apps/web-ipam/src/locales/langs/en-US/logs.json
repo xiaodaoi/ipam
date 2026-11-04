@@ -1,0 +1,490 @@
+{
+  "storage": {
+    "kpi": {
+      "rows": "Online log rows",
+      "rowsHint": "Earliest partition {m}",
+      "rowsEmpty": "No online partitions",
+      "disk": "Disk usage",
+      "diskHint": "{n} active partitions",
+      "archives": "Archive files",
+      "unit": "files",
+      "archiveHint": "Latest archive {m}",
+      "archiveEmpty": "No Parquet archive yet",
+      "ttl": "Current log TTL",
+      "ttlUnit": "days",
+      "ttlHint": "Archives kept {n} months"
+    },
+    "policy": {
+      "title": "Storage policy",
+      "retention": "Log retention (days)",
+      "days": "days",
+      "keepMonths": "Archive retention (months)",
+      "months": "months",
+      "auto": "Auto archive",
+      "autoOn": "Export last month to Parquet on the 1st at 02:00",
+      "autoOff": "Manual export only",
+      "hint": "Expired partitions are rolled off automatically by ClickHouse TTL. Archives do not consume online storage, and deleting an archive does not affect online data.",
+      "save": "Save storage policy",
+      "retentionWarn": "Retention days must be between 1 and 3650",
+      "monthsWarn": "Archive retention months must be between 1 and 120",
+      "saved": "Storage policy saved and applied",
+      "saveFail": "Save failed"
+    },
+    "online": {
+      "title": "Online storage",
+      "hint": "From ClickHouse system.parts",
+      "totalRows": "Total rows",
+      "disk": "Disk usage",
+      "earliest": "Earliest month",
+      "ttl": "Current TTL",
+      "partitionHint": "Monthly partitions · click a month to fill the export field",
+      "partitions": "{n} partitions",
+      "pick": "Click to fill {m} for export",
+      "rows": "{n} rows · {size}",
+      "emptyTitle": "No online partitions",
+      "emptyDesc": "ClickHouse has not written logs yet, or the storage stats endpoint is unreachable."
+    },
+    "archive": {
+      "title": "Log archives",
+      "count": "{n} files",
+      "filter": "Filter month",
+      "refresh": "Refresh",
+      "exportMonth": "Export month",
+      "export": "Export month",
+      "hint": "Generates monthly Parquet archives without affecting ClickHouse online data",
+      "emptyNoArchive": "No archives yet: enter a month and click \"Export month\", or enable auto archive",
+      "emptyNoMatch": "No archive matches that month",
+      "total": "{n} total",
+      "download": "Download",
+      "deleteTitle": "Delete this archive?",
+      "deleteDesc": "Only the archive file and record are deleted; ClickHouse online data is not affected.",
+      "delete": "Delete",
+      "cancel": "Cancel",
+      "auto": "Auto",
+      "manual": "Manual",
+      "col": {
+        "month": "Month",
+        "rows": "Rows",
+        "size": "File size",
+        "source": "Source",
+        "created": "Exported at",
+        "actions": "Actions"
+      },
+      "monthWarn": "Enter a month in YYYY-MM format",
+      "exported": "Exported archive {m}",
+      "exportFail": "Export failed",
+      "deleted": "Deleted archive {m}",
+      "deleteFail": "Delete failed",
+      "downloadFail": "Download failed"
+    },
+    "page": {
+      "title": "Storage & Archive",
+      "description": "Manages log retention policies, ClickHouse online partitions and monthly Parquet archives, balancing query performance, storage cost and compliance retention.",
+      "meta": "ClickHouse TTL + Parquet archive",
+      "queryOnline": "Query online logs"
+    }
+  },
+  "common": {
+    "range": {
+      "1h": "Last 1 hour",
+      "6h": "Last 6 hours",
+      "24h": "Last 24 hours",
+      "7d": "Last 7 days",
+      "30d": "Last 30 days"
+    },
+    "custom": "Custom",
+    "customRange": "Custom range",
+    "startTime": "Start time",
+    "endTime": "End time",
+    "refresh": "Refresh",
+    "query": "Search",
+    "reset": "Reset",
+    "exportCsv": "Export CSV",
+    "copyJson": "Copy JSON",
+    "times": "times",
+    "seconds": "s",
+    "rowsDetail": "Log entries",
+    "topDomains": "Top domains",
+    "topClients": "Active clients",
+    "noTrend": "No trend data",
+    "share": "{pct} of total events",
+    "blockedShare": "{pct} of DNS queries",
+    "noBlocked": "No blocked events in this window",
+    "clipboardDenied": "Clipboard permission denied by the browser",
+    "figures": {
+      "total": "Window total",
+      "avg": "Average per bucket",
+      "peak": "Peak per bucket",
+      "blockedShare": "Blocked ratio",
+      "allEvents": "All events",
+      "bucket": "Bucket size"
+    }
+  },
+  "overview": {
+    "title": "Log overview",
+    "description": "Aggregates DHCP and DNS event volume, query trends, top domains and clients, plus the latest administrative audit entries.",
+    "updatedAt": "Updated at {time}",
+    "kpi": {
+      "total": "Total events",
+      "totalHint": "{range} · auto refresh every 60s",
+      "dns": "DNS queries",
+      "dhcp": "DHCP events",
+      "blocked": "Blocked requests"
+    },
+    "trend": {
+      "title": "Query trend",
+      "bucket": "{n}s buckets",
+      "peak": "Peak",
+      "avg": "Average",
+      "emptyDesc": "No events can be aggregated yet. Trigger a DNS query or a DHCP renewal to see the curve."
+    },
+    "compose": {
+      "title": "Traffic composition",
+      "dnsShare": "DNS query share",
+      "dns": "DNS queries",
+      "dhcp": "DHCP events",
+      "blocked": "Blocked requests (DNS subset)",
+      "other": "Unclassified events",
+      "emptyTitle": "No traffic data",
+      "emptyDesc": "No DHCP/DNS events in this window. Data is aggregated once log ingestion is connected.",
+      "note": "Blocked events are also counted as DNS queries; ratios are computed live for the current window."
+    },
+    "topDomains": {
+      "emptyTitle": "No domain data",
+      "emptyDesc": "Top domains appear once DNS query logs are ingested."
+    },
+    "topClients": {
+      "subtitle": "Top 8 · by MAC",
+      "emptyTitle": "No client data",
+      "emptyDesc": "Clients are aggregated once DHCP events carry a MAC address."
+    },
+    "recentAudit": {
+      "title": "Recent audit",
+      "viewAll": "View all",
+      "empty": "No administrative operations in this window"
+    },
+    "columns": {
+      "time": "Time",
+      "actor": "Actor",
+      "type": "Type",
+      "action": "Action",
+      "resource": "Resource",
+      "status": "Status"
+    },
+    "actor": {
+      "human": "Human",
+      "bot": "Bot",
+      "system": "System"
+    }
+  },
+  "search": {
+    "title": "Search",
+    "description": "Unified search across DHCP and DNS: combine time window, event type, domain, client and answer address filters, with drill-down details and CSV export.",
+    "hits": "{range} · {n} matches",
+    "kpi": {
+      "total": "Events in window",
+      "totalHint": "{range} · {n} time buckets",
+      "dns": "DNS queries",
+      "dhcp": "DHCP events",
+      "blocked": "Blocked requests"
+    },
+    "filters": {
+      "title": "Search filters",
+      "active": "{n} filters active",
+      "inactive": "Max 31-day window · filters remembered",
+      "collapse": "Hide fields",
+      "more": "More fields",
+      "keyword": "Keyword",
+      "keywordPlaceholder": "Fuzzy match on domain / MAC / IP",
+      "type": "Event type",
+      "typePlaceholder": "All types",
+      "typeDns": "DNS query",
+      "typeDhcp": "DHCP event",
+      "action": "Action",
+      "actionPlaceholder": "All actions",
+      "domain": "Domain",
+      "domainPlaceholder": "Substring match, e.g. example.com",
+      "mac": "Client MAC",
+      "macPlaceholder": "Colon-separated or 12-char hex",
+      "clientIp": "Client IP",
+      "clientIpPlaceholder": "Exact address or CIDR",
+      "sip": "Source IP",
+      "sipPlaceholder": "DNS query originator",
+      "answerIp": "Answer IP",
+      "answerIpPlaceholder": "A/AAAA answer address"
+    },
+    "actionOptions": {
+      "resolve": "resolve (normal resolution)",
+      "blocked": "blocked (blocked request)",
+      "passthru": "passthru (passed through)",
+      "cached": "cached (cache hit)",
+      "lease_commit": "lease_commit (lease assigned)",
+      "lease_renew": "lease_renew (lease renewed)",
+      "lease_release": "lease_release (lease released)",
+      "lease_expire": "lease_expire (lease expired)",
+      "lease_decline": "lease_decline (client declined)"
+    },
+    "results": {
+      "title": "Results",
+      "count": "{n} entries",
+      "hint": "Click any row for full fields · {n} per page",
+      "deepPagingLimited": " · Only the first 10,000 entries are browsable; narrow the time window or export CSV for older data",
+      "total": "{n} total",
+      "emptyFiltered": "No logs match the current filters; adjust the filters or widen the time window",
+      "empty": "No logs in this window yet; waiting for DHCP/DNS events"
+    },
+    "columns": {
+      "time": "Time",
+      "type": "Type",
+      "domain": "Domain",
+      "client": "Client",
+      "answer": "Answer",
+      "sip": "Source IP",
+      "action": "Action"
+    },
+    "aggColumns": {
+      "domain": "Domain",
+      "mac": "Client MAC",
+      "count": "Events"
+    },
+    "domainTotal": "{n} domains in total",
+    "emptyDomain": "No domain aggregation data for the current filters",
+    "emptyClient": "No client aggregation data for the current filters (DHCP events usually carry a MAC)",
+    "qps": {
+      "tab": "QPS trend",
+      "emptyDesc": "No events can be aggregated for the current filters."
+    },
+    "detail": {
+      "title": "Log detail",
+      "copied": "Current log JSON copied",
+      "time": "Event time",
+      "severity": "Severity",
+      "domain": "Domain",
+      "action": "Action",
+      "mac": "Client MAC",
+      "clientIp": "Client IP",
+      "sip": "Source IP",
+      "rcode": "RCODE / category",
+      "answerIp": "Answer IP",
+      "raw": "Raw detail"
+    },
+    "messages": {
+      "selectRange": "Select a custom time range",
+      "queryFail": "Log query failed",
+      "exportStarted": "CSV export download started",
+      "exportFail": "Export failed"
+    }
+  },
+  "audit": {
+    "title": "Audit",
+    "description": "Records configuration changes made by humans, bots and the system, with actor/action/resource search, drill-down details and CSV archiving.",
+    "meta": "{range} · {n} total",
+    "chain": {
+      "valid": "Chain intact {n}",
+      "invalid": "Chain broken",
+      "verify": "Verify integrity"
+    },
+    "kpi": {
+      "total": "Total operations",
+      "totalHint": "{range} · change requests only",
+      "human": "Human operations",
+      "bot": "Bot calls",
+      "system": "System automatic",
+      "share": "{pct} of total operations"
+    },
+    "card": {
+      "title": "Audit events",
+      "loaded": "Loaded {loaded} / {total}",
+      "order": "Newest first · cursor pagination",
+      "autoRefresh": "Auto refresh"
+    },
+    "filters": {
+      "actorType": "Actor type",
+      "actorPlaceholder": "All actors",
+      "human": "Human",
+      "bot": "Bot",
+      "system": "System",
+      "action": "Action",
+      "actionPlaceholder": "All actions",
+      "resource": "Resource / path",
+      "resourcePlaceholder": "Substring match on resource name or request path, e.g. /subnets"
+    },
+    "actionOptions": {
+      "create": "create (new)",
+      "update": "update (update)",
+      "delete": "delete (delete)",
+      "login": "login (sign in)",
+      "logout": "logout (sign out)"
+    },
+    "columns": {
+      "time": "Time",
+      "actor": "Actor",
+      "type": "Type",
+      "action": "Action",
+      "resource": "Resource",
+      "status": "Status"
+    },
+    "empty": "No audit records for the current window and filters",
+    "footer": {
+      "loaded": "Loaded {n} entries",
+      "remaining": ", {n} more",
+      "loadMore": "Load more",
+      "lastPage": "End of results"
+    },
+    "csvHeader": {
+      "time": "Time",
+      "actor": "Actor",
+      "type": "Type",
+      "action": "Action",
+      "method": "Method",
+      "path": "Path",
+      "resource": "Resource",
+      "status": "Status code",
+      "detail": "Detail"
+    },
+    "detail": {
+      "title": "Audit detail",
+      "copied": "Current audit JSON copied",
+      "time": "Time",
+      "actor": "Actor",
+      "tokenSub": "Token subject",
+      "methodStatus": "Method / status",
+      "path": "Request path",
+      "resource": "Resource",
+      "extra": "Notes",
+      "before": "Entity before change (masked snapshot)",
+      "beforeEmpty": "No before-change snapshot registered for this resource type, or this is the first creation",
+      "payload": "Masked request body (intended change)",
+      "chainHash": "Integrity chain hash",
+      "chainHashEmpty": "Chain hash was not generated for historical records"
+    },
+    "messages": {
+      "selectRange": "Select a custom time range",
+      "windowMax": "Audit query window is limited to 31 days",
+      "queryFail": "Audit query failed",
+      "exportEmpty": "No audit records to export for the current filters",
+      "exported": "Exported {n} audit records",
+      "exportLimit": "At most 5000 records per export; narrow the time window",
+      "exportFail": "Export failed",
+      "chainValid": "Audit chain intact ({n} verified)",
+      "chainInvalid": "{message} (ID {id})",
+      "chainOk": "Audit chain intact",
+      "chainBad": "Audit chain broken",
+      "verifyFail": "Integrity verification failed"
+    }
+  },
+  "export": {
+    "title": "Export & Sampling",
+    "description": "Forward unified logs to Syslog / Kafka / Webhook (SIEM) and choose full, sampled or errors-only based on capacity policy.",
+    "disk": "Disk {value}",
+    "saveApply": "Save and apply",
+    "kpi": {
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "syslogHint": "Standard RFC5424 forwarding",
+      "kafkaHint": "For SIEM / data platforms",
+      "webhookHint": "JSON over HTTP",
+      "sampling": "Sampling policy",
+      "samplingHint": "1/N sampling for ingest/forward",
+      "errorsHint": "Non-INFO logs only",
+      "allHint": "Full collection",
+      "degradedHint": "Auto-degraded by disk usage (user policy {policy})"
+    },
+    "sampling": {
+      "all": "Full",
+      "errors": "Errors only",
+      "sample": "1/{n}",
+      "errorsDegraded": "Errors only (auto-degraded)",
+      "sampleDegraded": "1/{n} (auto-degraded)"
+    },
+    "diskNote": {
+      "usage": "Current root partition usage {pct}; ",
+      "unknown": "unknown",
+      "degraded": "the limit has been exceeded repeatedly, so the system automatically switched to errors-only sampling to protect the disk (user policy {policy}); it recovers automatically once usage stays below 85% (this start: {time}).",
+      "degradedNoTime": "the limit has been exceeded repeatedly, so the system automatically switched to errors-only sampling to protect the disk (user policy {policy}); it recovers automatically once usage stays below 85%.",
+      "over90": "usage is above 90%, so it will switch to errors-only after 3 consecutive checks; you can also switch manually now and clean up archives.",
+      "over85": "usage is above 85%, please watch capacity; staying above 90% triggers automatic degradation.",
+      "normal": "capacity is normal and automatic degradation is not triggered."
+    },
+    "channels": {
+      "title": "Export channels",
+      "hint": "Vector reloads automatically via --watch-config after saving",
+      "syslogDesc": "Standard RFC5424, for SIEM / log collectors",
+      "kafkaDesc": "High-throughput pipeline for SIEM / data platforms",
+      "webhookDesc": "JSON over HTTP pushed to a custom endpoint",
+      "address": "Address",
+      "protocol": "Protocol",
+      "on": "On",
+      "off": "Off"
+    },
+    "samplingCard": {
+      "title": "Sampling & capacity",
+      "mode": "Sampling mode",
+      "modeAll": "Full (recommended)",
+      "modeSample": "Proportional sampling",
+      "modeErrors": "Errors only (non-INFO)",
+      "rate": "Sampling ratio 1/N",
+      "hint": "Sampling applies to both ClickHouse ingestion and all export channels; 85% disk usage raises a warning, 90% degrades to errors-only automatically, and it restores below 85%. Evaluate audit/compliance retention requirements before changing this in production.",
+      "footer": "Vector retries failed exports internally and never blocks ClickHouse ingestion"
+    },
+    "messages": {
+      "loadFail": "Failed to load policy",
+      "saved": "Saved; Vector will reload the configuration automatically",
+      "saveFail": "Save failed"
+    }
+  },
+  "tail": {
+    "title": "Live tail",
+    "description": "Receives DHCP and DNS events in real time over SSE, with pause buffering, keyword highlighting, auto-scroll and local export for on-site troubleshooting and demos.",
+    "status": {
+      "connecting": "Connecting",
+      "live": "Live",
+      "reconnecting": "Reconnecting…"
+    },
+    "meta": "{status} · {n} received",
+    "reconnect": "Reconnect",
+    "kpi": {
+      "connection": "Connection status",
+      "liveHint": "SSE channel established, events pushed in real time",
+      "reconnectHint": "Reconnects with backoff after disconnection, up to 15 seconds",
+      "received": "Events received",
+      "lastArrival": "Latest event {time}",
+      "waiting": "Waiting for the first event…",
+      "visible": "Currently shown",
+      "filtered": "Filtered by keyword/blocked condition",
+      "buffer": "Buffer {used}/{total} entries",
+      "rate": "Receive rate",
+      "rateUnit": "rows/s",
+      "rateHint": "5-second moving average · {n} blocked"
+    },
+    "card": {
+      "title": "Event stream",
+      "paused": "Paused · {n} buffered",
+      "resume": "Resume",
+      "pause": "Pause",
+      "clear": "Clear"
+    },
+    "filter": {
+      "type": "Type",
+      "all": "All",
+      "keyword": "Keyword",
+      "keywordPlaceholder": "Domain / MAC / IP / detail",
+      "onlyBlocked": "Blocked only",
+      "autoScroll": "Auto scroll",
+      "buffer": "Buffer",
+      "bufferOption": "Last {n} entries"
+    },
+    "copy": "Copy",
+    "export": "Export",
+    "emptyFiltered": "No events match the current filters",
+    "emptyPaused": "Display paused; buffered events merge after resuming",
+    "emptyWaiting": "Waiting for events… (dig or DHCP events will stream here in real time)",
+    "messages": {
+      "exportEmpty": "No log rows to export",
+      "exported": "Exported {n} rows",
+      "copyEmpty": "No log rows to copy",
+      "copied": "Copied {n} rows",
+      "clipboardDenied": "Clipboard permission denied by the browser"
+    }
+  }
+}

@@ -12,9 +12,10 @@ import { deleteAsset, listAssets, listOrgTree, upsertAsset } from '#/api/ipam';
 import OrgFilterCard from '#/components/org-filter-card.vue';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import { $t } from '#/locales';
 import { normalizeMacInput } from '#/utils/mac';
 
-const showTotal = (t: number) => `共 ${t} 条`;
+const showTotal = (t: number) => $t('dhcpLedger.common.showTotal', { total: t });
 
 // ── 组织筛选（左侧树） ──
 const orgTree = ref<OrgTreeNode[]>([]);
@@ -63,11 +64,11 @@ const loading = ref(false);
 const keyword = ref('');
 type Scope = 'all' | 'tagged' | 'unassigned';
 const scope = ref<Scope>('all');
-const scopeOptions = [
-  { label: '全部资产', value: 'all' },
-  { label: '未归属组织', value: 'unassigned' },
-  { label: '已打标签', value: 'tagged' },
-];
+const scopeOptions = computed(() => [
+  { label: $t('dhcpLedger.assets.scopeAll'), value: 'all' },
+  { label: $t('dhcpLedger.assets.scopeUnassigned'), value: 'unassigned' },
+  { label: $t('dhcpLedger.assets.scopeTagged'), value: 'tagged' },
+]);
 
 async function load() {
   loading.value = true;
@@ -94,6 +95,20 @@ const visibleRows = computed(() => {
   return rows.value;
 });
 
+const assetColumns = computed(() => [
+  { title: $t('dhcpLedger.assets.colTerminal'), dataIndex: 'mac', minWidth: 190 },
+  { title: $t('dhcpLedger.assets.colOwnerDept'), dataIndex: 'owner', minWidth: 130 },
+  { title: $t('dhcpLedger.assets.colOrg'), dataIndex: 'orgId', minWidth: 180 },
+  { title: $t('dhcpLedger.assets.colTags'), dataIndex: 'tags', width: 130 },
+  { title: $t('dhcpLedger.common.actions'), key: 'op', width: 110 },
+]);
+
+const emptyText = computed(() =>
+  keyword.value || scope.value !== 'all'
+    ? $t('dhcpLedger.assets.emptyFiltered')
+    : $t('dhcpLedger.assets.emptyList'),
+);
+
 // ── 资产指标 ──
 const stats = computed(() => {
   const total = rows.value.length;
@@ -119,11 +134,19 @@ const stats = computed(() => {
 // ── CSV 导出（当前筛选结果，含完整组织路径） ──
 function csvCell(v: unknown): string {
   const s = String(v ?? '');
-  return /[",\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
+  const needsQuote = s.includes('"') || s.includes(',') || s.includes('\n');
+  return needsQuote ? `"${s.replaceAll('"', '""')}"` : s;
 }
 
 function exportCsv() {
-  const header = ['MAC', '使用人', '部门', '所属组织', '标签', '备注'];
+  const header = [
+    $t('dhcpLedger.assets.csv.mac'),
+    $t('dhcpLedger.assets.csv.owner'),
+    $t('dhcpLedger.assets.csv.dept'),
+    $t('dhcpLedger.assets.csv.org'),
+    $t('dhcpLedger.assets.csv.tags'),
+    $t('dhcpLedger.assets.csv.note'),
+  ];
   const lines = visibleRows.value.map((r) =>
     [
       r.mac,
@@ -143,7 +166,7 @@ function exportCsv() {
   a.download = `assets-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
-  message.success(`已导出 ${visibleRows.value.length} 条资产`);
+  message.success($t('dhcpLedger.assets.exportDone', { count: visibleRows.value.length }));
 }
 
 // ── 登记 / 编辑 ──
@@ -159,8 +182,8 @@ const form = reactive({
 
 const [FormModal, formModalApi] = useVbenModal({
   draggable: true,
-  title: '登记资产',
-  confirmText: '保存',
+  title: $t('dhcpLedger.assets.modalCreate'),
+  confirmText: $t('dhcpLedger.assets.modalSave'),
   onConfirm: () => save(),
 });
 
@@ -176,7 +199,10 @@ function resetForm() {
 
 function openCreate() {
   resetForm();
-  formModalApi.setState({ title: '登记资产', confirmText: '登记' });
+  formModalApi.setState({
+    title: $t('dhcpLedger.assets.modalCreate'),
+    confirmText: $t('dhcpLedger.assets.modalRegister'),
+  });
   formModalApi.open();
 }
 
@@ -189,18 +215,21 @@ function openEdit(r: Asset) {
   form.orgId = r.orgId || undefined;
   form.tags = [...(r.tags ?? [])];
   form.note = r.note ?? '';
-  formModalApi.setState({ title: `编辑资产：${r.mac}`, confirmText: '保存修改' });
+  formModalApi.setState({
+    title: $t('dhcpLedger.assets.modalEditTitle', { mac: r.mac }),
+    confirmText: $t('dhcpLedger.assets.modalSaveChanges'),
+  });
   formModalApi.open();
 }
 
 async function save() {
   const mac = editingMac.value || normalizeMacInput(form.mac);
   if (!mac) {
-    message.warning('请填写合法 MAC（支持 C4-3D-1A-07-EB-2B / C43D1A07EB2B / 冒号分隔，大小写均可）');
+    message.warning($t('dhcpLedger.common.invalidMac'));
     return;
   }
   if (!form.owner.trim()) {
-    message.warning('请填写使用人');
+    message.warning($t('dhcpLedger.assets.ownerRequired'));
     return;
   }
   try {
@@ -213,20 +242,22 @@ async function save() {
       tags: [...form.tags],
       note: form.note.trim() || undefined,
     });
-    message.success(editingMac.value ? '资产已更新' : '资产已登记');
+    message.success(
+      editingMac.value ? $t('dhcpLedger.assets.updated') : $t('dhcpLedger.assets.created'),
+    );
     formModalApi.close();
     await load();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '保存失败');
+    message.error(error instanceof Error ? error.message : $t('dhcpLedger.assets.saveFailed'));
   }
 }
 
 async function remove(mac: string) {
   try {
     await deleteAsset(mac);
-    message.success('资产已删除');
+    message.success($t('dhcpLedger.assets.deleted'));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '删除失败');
+    message.error(error instanceof Error ? error.message : $t('dhcpLedger.assets.deleteFailed'));
   }
   await load();
 }
@@ -242,20 +273,20 @@ onMounted(async () => {
     <PageHeader
       eyebrow="DHCP Service"
       icon="lucide:contact"
-      title="资产登记"
-      description="以 MAC 为身份键登记使用人 / 部门 / 组织 / 备注，终端换址不丢；为日志中心提供「终端 → 组织」关联链。"
+      :title="$t('dhcpLedger.assets.title')"
+      :description="$t('dhcpLedger.assets.desc')"
     >
       <template #actions>
         <span class="ipam-page-header__meta">
           <IconifyIcon icon="lucide:contact-round" class="size-3.5" />
-          {{ stats.total }} 条资产 · 覆盖 {{ stats.deptCount }} 个部门
+          {{ $t('dhcpLedger.assets.meta', { total: stats.total, departments: stats.deptCount }) }}
         </span>
         <Button size="small" :loading="loading" @click="load">
           <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />
-          刷新
+          {{ $t('dhcpLedger.common.refresh') }}
         </Button>
         <Button type="primary" size="small" @click="openCreate">
-          <IconifyIcon icon="lucide:plus" class="mr-1" />登记资产
+          <IconifyIcon icon="lucide:plus" class="mr-1" />{{ $t('dhcpLedger.assets.create') }}
         </Button>
       </template>
     </PageHeader>
@@ -270,37 +301,37 @@ onMounted(async () => {
       <div class="ipam-subnets-main">
         <div class="ipam-stat-grid">
           <StatCard
-            label="资产总数"
+            :label="$t('dhcpLedger.assets.statTotal')"
             :value="stats.total"
-            unit="条"
+            :unit="$t('dhcpLedger.common.units.item')"
             icon="lucide:contact"
             tone="blue"
-            :hint="`覆盖 ${stats.ownerCount} 位使用人`"
+            :hint="$t('dhcpLedger.assets.statTotalHint', { count: stats.ownerCount })"
           />
           <StatCard
-            label="已归属组织"
+            :label="$t('dhcpLedger.assets.statAssigned')"
             :value="stats.assigned"
-            unit="条"
+            :unit="$t('dhcpLedger.common.units.item')"
             icon="lucide:building-2"
             tone="cyan"
             :progress="stats.total > 0 ? (stats.assigned / stats.total) * 100 : 0"
-            :hint="`未归属 ${stats.unassigned} 条`"
+            :hint="$t('dhcpLedger.assets.statAssignedHint', { count: stats.unassigned })"
           />
           <StatCard
-            label="使用人"
+            :label="$t('dhcpLedger.assets.statOwners')"
             :value="stats.ownerCount"
-            unit="位"
+            :unit="$t('dhcpLedger.common.units.person')"
             icon="lucide:user-round"
             tone="green"
-            :hint="`按使用人去重 · ${stats.deptCount} 个部门`"
+            :hint="$t('dhcpLedger.assets.statOwnersHint', { count: stats.deptCount })"
           />
           <StatCard
-            label="标签覆盖"
+            :label="$t('dhcpLedger.assets.statTags')"
             :value="stats.tagged"
-            unit="条"
+            :unit="$t('dhcpLedger.common.units.item')"
             icon="lucide:tags"
             :tone="stats.tagCount > 0 ? 'violet' : 'amber'"
-            :hint="`共 ${stats.tagCount} 个不同标签`"
+            :hint="$t('dhcpLedger.assets.statTagsHint', { count: stats.tagCount })"
           />
         </div>
 
@@ -308,50 +339,46 @@ onMounted(async () => {
           <template #title>
             <span class="ipam-card-title">
               <IconifyIcon icon="lucide:clipboard-list" />
-              资产清单
-              <em class="ipam-card-sub">{{ visibleRows.length }} / {{ rows.length }} 条</em>
+              {{ $t('dhcpLedger.assets.listCard') }}
+              <em class="ipam-card-sub">
+                {{ $t('dhcpLedger.assets.listCardSub', { shown: visibleRows.length, total: rows.length }) }}
+              </em>
             </span>
           </template>
           <template #extra>
-            <span class="ipam-hint">以 MAC 幂等登记 · 与 IP 解耦</span>
+            <span class="ipam-hint">{{ $t('dhcpLedger.assets.listCardHint') }}</span>
           </template>
 
           <div class="ipam-toolbar mb-3">
             <div class="ipam-field">
-              <span class="ipam-field__label">关键字</span>
+              <span class="ipam-field__label">{{ $t('dhcpLedger.common.keyword') }}</span>
               <Input
                 v-model:value="keyword"
                 allow-clear
-                placeholder="MAC / 使用人 / 部门"
+                :placeholder="$t('dhcpLedger.assets.keywordPlaceholder')"
                 style="width: 240px"
                 @press-enter="load"
               />
             </div>
             <div class="ipam-field">
-              <span class="ipam-field__label">范围</span>
+              <span class="ipam-field__label">{{ $t('dhcpLedger.common.scope') }}</span>
               <Select v-model:value="scope" :options="scopeOptions" style="width: 150px" />
             </div>
-            <Button size="small" @click="load">查询</Button>
-            <Button size="small" @click="resetFilters">重置</Button>
+            <Button size="small" @click="load">{{ $t('dhcpLedger.common.query') }}</Button>
+            <Button size="small" @click="resetFilters">{{ $t('dhcpLedger.common.reset') }}</Button>
             <div class="ipam-toolbar__spacer"></div>
             <Button size="small" :disabled="visibleRows.length === 0" @click="exportCsv">
               <IconifyIcon icon="lucide:download" class="mr-1 size-3.5" />
-              导出 CSV
+              {{ $t('dhcpLedger.common.exportCsv') }}
             </Button>
-            <span class="ipam-hint">登记信息与 IP 解耦，终端换址后保持不变</span>
+            <span class="ipam-hint">{{ $t('dhcpLedger.assets.hintDecoupled') }}</span>
           </div>
 
           <Table
             :data-source="visibleRows"
             :loading="loading"
-            :columns="[
-              { title: '终端（MAC / 备注）', dataIndex: 'mac', minWidth: 190 },
-              { title: '使用人 / 部门', dataIndex: 'owner', minWidth: 130 },
-              { title: '所属组织', dataIndex: 'orgId', minWidth: 180 },
-              { title: '标签', dataIndex: 'tags', width: 130 },
-              { title: '操作', key: 'op', width: 110 },
-            ]"
-            :locale="{ emptyText: keyword || scope !== 'all' ? '没有匹配的资产登记' : '当前组织暂无资产，点击右上角「登记资产」添加' }"
+            :columns="assetColumns"
+            :locale="{ emptyText }"
             :pagination="{ pageSize: 20, showSizeChanger: true, showTotal }"
             row-key="mac"
             size="small"
@@ -369,7 +396,7 @@ onMounted(async () => {
               <template v-else-if="column.dataIndex === 'owner'">
                 <div class="ipam-cell-stack">
                   <span class="ipam-cell-title">{{ record.owner || '—' }}</span>
-                  <span class="ipam-cell-meta">{{ record.dept || '未填写部门' }}</span>
+                  <span class="ipam-cell-meta">{{ record.dept || $t('dhcpLedger.assets.noDept') }}</span>
                 </div>
               </template>
               <template v-else-if="column.dataIndex === 'orgId'">
@@ -384,7 +411,7 @@ onMounted(async () => {
                     <span v-else>{{ seg }}</span>
                   </template>
                 </span>
-                <span v-else class="ipam-chip" data-tone="amber">未归属</span>
+                <span v-else class="ipam-chip" data-tone="amber">{{ $t('dhcpLedger.assets.unassigned') }}</span>
               </template>
               <template v-else-if="column.dataIndex === 'tags'">
                 <template v-if="record.tags?.length">
@@ -394,15 +421,15 @@ onMounted(async () => {
               </template>
               <template v-else-if="column.key === 'op'">
                 <div class="flex items-center gap-1">
-                  <Button size="small" @click="openEdit(record as Asset)">编辑</Button>
+                  <Button size="small" @click="openEdit(record as Asset)">{{ $t('dhcpLedger.common.edit') }}</Button>
                   <Popconfirm
-                    title="确认删除该资产登记？"
-                    description="删除后使用人 / 部门 / 备注将丢失（不影响 DHCP 下发）。"
-                    ok-text="删除"
-                    cancel-text="取消"
+                    :title="$t('dhcpLedger.assets.deleteConfirmTitle')"
+                    :description="$t('dhcpLedger.assets.deleteConfirmDesc')"
+                    :ok-text="$t('dhcpLedger.common.delete')"
+                    :cancel-text="$t('dhcpLedger.common.cancel')"
                     @confirm="remove(record.mac)"
                   >
-                    <Button size="small" danger>删除</Button>
+                    <Button size="small" danger>{{ $t('dhcpLedger.common.delete') }}</Button>
                   </Popconfirm>
                 </div>
               </template>
@@ -415,45 +442,57 @@ onMounted(async () => {
     <FormModal class="w-[560px]">
       <div class="space-y-2">
         <div class="flex items-center gap-2">
-          <span class="w-16 shrink-0 text-right text-xs text-gray-400">MAC 地址</span>
+          <span class="w-16 shrink-0 text-right text-xs text-gray-400">{{ $t('dhcpLedger.assets.form.mac') }}</span>
           <Input
             v-model:value="form.mac"
             :disabled="!!editingMac"
-            placeholder="如 C4-3D-1A-07-EB-2B"
+            :placeholder="$t('dhcpLedger.common.macExample')"
             style="width: 300px"
           />
         </div>
         <div class="flex items-center gap-2">
-          <span class="w-16 shrink-0 text-right text-xs text-gray-400">使用人</span>
-          <Input v-model:value="form.owner" placeholder="使用人 / 责任人" style="width: 300px" />
+          <span class="w-16 shrink-0 text-right text-xs text-gray-400">{{ $t('dhcpLedger.assets.form.owner') }}</span>
+          <Input
+            v-model:value="form.owner"
+            :placeholder="$t('dhcpLedger.assets.form.ownerPlaceholder')"
+            style="width: 300px"
+          />
         </div>
         <div class="flex items-center gap-2">
-          <span class="w-16 shrink-0 text-right text-xs text-gray-400">部门</span>
-          <Input v-model:value="form.dept" placeholder="部门（可选）" style="width: 300px" />
+          <span class="w-16 shrink-0 text-right text-xs text-gray-400">{{ $t('dhcpLedger.assets.form.dept') }}</span>
+          <Input
+            v-model:value="form.dept"
+            :placeholder="$t('dhcpLedger.assets.form.deptPlaceholder')"
+            style="width: 300px"
+          />
         </div>
         <div class="flex items-center gap-2">
-          <span class="w-16 shrink-0 text-right text-xs text-gray-400">所属组织</span>
+          <span class="w-16 shrink-0 text-right text-xs text-gray-400">{{ $t('dhcpLedger.assets.form.org') }}</span>
           <Select
             v-model:value="form.orgId"
-            placeholder="选择组织（可选）"
+            :placeholder="$t('dhcpLedger.assets.form.orgPlaceholder')"
             allow-clear
             :options="orgOptions"
             style="width: 300px"
           />
         </div>
         <div class="flex items-center gap-2">
-          <span class="w-16 shrink-0 text-right text-xs text-gray-400">标签</span>
+          <span class="w-16 shrink-0 text-right text-xs text-gray-400">{{ $t('dhcpLedger.assets.form.tags') }}</span>
           <Select
             v-model:value="form.tags"
             mode="tags"
-            placeholder="回车添加标签（可选）"
+            :placeholder="$t('dhcpLedger.assets.form.tagsPlaceholder')"
             :token-separators="[',']"
             style="width: 300px"
           />
         </div>
         <div class="flex items-center gap-2">
-          <span class="w-16 shrink-0 text-right text-xs text-gray-400">备注</span>
-          <Input v-model:value="form.note" placeholder="备注（可选）" style="width: 300px" />
+          <span class="w-16 shrink-0 text-right text-xs text-gray-400">{{ $t('dhcpLedger.assets.form.note') }}</span>
+          <Input
+            v-model:value="form.note"
+            :placeholder="$t('dhcpLedger.assets.form.notePlaceholder')"
+            style="width: 300px"
+          />
         </div>
       </div>
     </FormModal>

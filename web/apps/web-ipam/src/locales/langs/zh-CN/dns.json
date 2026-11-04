@@ -1,0 +1,678 @@
+{
+  "common": {
+    "total": "共 {n} 条",
+    "refresh": "刷新",
+    "reset": "重置",
+    "edit": "编辑",
+    "delete": "删除",
+    "cancel": "取消",
+    "save": "保存",
+    "on": "开启",
+    "off": "关闭",
+    "enabled": "已启用",
+    "disabled": "已停用",
+    "allStatus": "全部状态",
+    "allTypes": "全部类型",
+    "actions": "操作",
+    "keyword": "关键字",
+    "type": "类型",
+    "status": "状态",
+    "count": "{n} 个",
+    "listSep": "；",
+    "deleteFailed": "删除失败",
+    "createFailed": "创建失败",
+    "updateFailed": "更新失败",
+    "saveFailed": "保存失败",
+    "addFailed": "添加失败",
+    "actionFailed": "操作失败",
+    "deletedToast": "已删除",
+    "removedSuffix": "（已摘除）",
+    "unit": {
+      "count": "个",
+      "item": "条",
+      "times": "次"
+    }
+  },
+  "blocklist": {
+    "header": {
+      "title": "封禁管控",
+      "desc": "维护封禁名单与策略分组，经 RPZ 下发到 resolver 实现域名与应答 IP 拦截。",
+      "meta": "{lists} 个名单 · {groups} 个分组"
+    },
+    "newList": "新建名单",
+    "createConfirm": "创建名单",
+    "stat": {
+      "lists": "封禁名单",
+      "feeds": "订阅名单",
+      "groups": "策略分组",
+      "builtin": "内置名单",
+      "listsHint": "自定义 {custom} · 订阅 {feeds}",
+      "feedsHintOn": "每 30 秒检查一次同步",
+      "feedsHintOff": "尚未接入订阅源",
+      "groupsHintOn": "按 view 应用 RPZ",
+      "groupsHintOff": "尚未创建分组",
+      "builtinHintOn": "内置名单不可删除",
+      "builtinHintOff": "暂无内置名单"
+    },
+    "listCard": {
+      "title": "封禁名单库",
+      "sub": "{filtered} / {total} 个",
+      "hint": "订阅源每 30 秒检查同步 · 失败保留旧版本"
+    },
+    "list": {
+      "kwPlaceholder": "名单名称 / 订阅地址",
+      "builtinLib": "内置分类库",
+      "colName": "名单（名称 / 订阅地址）",
+      "colSync": "同步信息",
+      "emptyFiltered": "没有匹配的封禁名单",
+      "empty": "暂无封禁名单，点击右上角「新建名单」创建",
+      "metaBuiltin": "随产品内置，不可编辑",
+      "metaLocal": "本地维护，无订阅地址",
+      "version": "版本 v{v}",
+      "btnEntries": "条目",
+      "btnExport": "导出",
+      "btnVersions": "版本",
+      "btnSync": "立即同步",
+      "deleteTitle": "确认删除该名单？",
+      "deleteDesc": "名单及其条目将一并删除，不可恢复。"
+    },
+    "note": "内置名单不可删除；订阅源同步前自动保存版本快照，可在「版本」中一键回滚； 提示页文案与 IP 在「安全与诊断」页配置。",
+    "pg": {
+      "title": "策略分组",
+      "sub": "{filtered} / {total} 个",
+      "hint": "view 级 RPZ 应用 · 白单优先",
+      "kwPlaceholder": "分组名称 / view / CIDR",
+      "createBtn": "创建分组",
+      "colName": "分组（名称 / view）",
+      "colCidrs": "来源网段",
+      "colLists": "名单数",
+      "emptyFiltered": "没有匹配的策略分组",
+      "empty": "暂无策略分组，点击「创建分组」按 view 应用 RPZ",
+      "allSources": "全部来源",
+      "compile": "编译",
+      "compileResult": "编译结果",
+      "collapse": "收起"
+    },
+    "week": {
+      "sun": "周日",
+      "mon": "周一",
+      "tue": "周二",
+      "wed": "周三",
+      "thu": "周四",
+      "fri": "周五",
+      "sat": "周六"
+    },
+    "kind": {
+      "builtin": "内置",
+      "custom": "自定义",
+      "feed": "订阅"
+    },
+    "action": {
+      "drop": "丢弃",
+      "nxdomain": "NXDOMAIN",
+      "redirect": "重定向",
+      "tcpOnly": "仅 TCP"
+    },
+    "kindOptions": {
+      "builtin": "内置名单",
+      "custom": "自定义",
+      "feed": "订阅源"
+    },
+    "createModal": {
+      "nameLabel": "名单名称",
+      "namePlaceholder": "如 恶意域名订阅",
+      "optCustom": "自定义（本地维护）",
+      "optFeed": "订阅源（HTTP 拉取）",
+      "urlLabel": "订阅 URL",
+      "hint": "订阅源每 30 秒检查一次更新，同步失败保留旧版本；创建后可在列表中添加条目。"
+    },
+    "pgModal": {
+      "title": "新建策略分组",
+      "createConfirm": "创建分组",
+      "nameLabel": "分组名称",
+      "namePlaceholder": "如 访客网络",
+      "viewLabel": "view 名称",
+      "cidrLabel": "来源网段（CIDR）",
+      "cidrPlaceholder": "逗号分隔，如 10.0.0.0/8,192.168.0.0/16",
+      "listsLabel": "关联名单",
+      "listsPlaceholder": "选择生效的封禁名单",
+      "weekLabel": "生效星期（留空=每天）",
+      "weekPlaceholder": "如仅工作日",
+      "startLabel": "开始时间",
+      "startPlaceholder": "09:00",
+      "endLabel": "结束时间",
+      "endPlaceholder": "18:00",
+      "hint": "view 名在同一 resolver 内唯一；白名单优先于黑名单生效。 时段留空=全天生效；开始>结束表示跨零点（如 22:00→06:00），窗口外自动撤销该组拦截。"
+    },
+    "entries": {
+      "title": "名单条目",
+      "titleNamed": "名单条目 · {name}",
+      "colPattern": "匹配规则",
+      "colTrigger": "触发",
+      "colAction": "动作",
+      "colCategory": "分类",
+      "patternLabel": "匹配规则",
+      "patternPlaceholder": "如 *.gamble.com 或 203.0.113.0/24",
+      "triggerLabel": "触发",
+      "triggerQname": "qname（域名）",
+      "triggerIp": "response_ip（应答IP）",
+      "actionLabel": "动作",
+      "addBtn": "添加条目",
+      "importCsv": "导入 CSV",
+      "exportCsv": "导出 CSV",
+      "currentList": "当前名单",
+      "totalEntries": "条目总数",
+      "qnameEntries": "域名匹配",
+      "ipEntries": "应答 IP",
+      "empty": "该名单暂无条目，使用上方表单添加第一条规则",
+      "deleteTitle": "确认删除该条目？",
+      "deleteDesc": "删除后不可恢复。"
+    },
+    "csv": {
+      "title": "CSV 导入名单条目",
+      "ok": "开始导入",
+      "contentLabel": "CSV 内容（pattern[,action[,category]]）",
+      "hint": "导入前清空该名单现有条目（会先保存版本快照，可回滚）"
+    },
+    "versions": {
+      "title": "版本快照与回滚",
+      "colVersion": "版本",
+      "colEntries": "条目数",
+      "colTime": "时间",
+      "empty": "暂无快照：订阅同步、CSV 导入前会自动保存",
+      "rollbackTitle": "确认回滚到该版本？",
+      "rollbackDesc": "当前条目将被快照内容替换，版本号继续递增。",
+      "rollbackBtn": "回滚"
+    },
+    "builtin": {
+      "colPack": "分类包",
+      "colEntries": "条目",
+      "installBtn": "安装",
+      "note": "内置库为基线种子（非全量），安装后成为 builtin 名单，可继续增删条目或叠加订阅源。"
+    },
+    "msg": {
+      "syncSubmitted": "同步任务已提交",
+      "syncFailed": "同步失败",
+      "listDeleted": "名单已删除",
+      "nameRequired": "名单名称必填",
+      "feedUrlRequired": "订阅名单需填写订阅 URL",
+      "listCreated": "名单已创建",
+      "pgNameRequired": "分组名称必填",
+      "pgCreated": "策略分组已创建",
+      "compileOk": "RPZ 编译完成",
+      "compileFailed": "编译失败",
+      "patternRequired": "请填写匹配规则",
+      "entryAdded": "条目已添加",
+      "entryDeleted": "条目已删除",
+      "csvNeedContent": "请粘贴 CSV 内容",
+      "csvImportOk": "导入完成：新增 {created} 条，跳过 {skipped} 条，共 {total} 条",
+      "csvImportFailed": "导入失败",
+      "csvExportFailed": "导出失败",
+      "versionsLoadFailed": "版本加载失败",
+      "rollbackOk": "已回滚到 v{version}（当前版本继续递增）",
+      "rollbackFailed": "回滚失败",
+      "builtinLoadFailed": "内置库加载失败",
+      "installed": "已安装「{name}」（{version}）",
+      "installFailed": "安装失败"
+    }
+  },
+  "records": {
+    "header": {
+      "title": "解析记录",
+      "desc": "按区域维护 A / AAAA / CNAME / PTR / TXT / SRV / MX 记录，并查看 DHCP 双栈联动自动生成的记录。",
+      "meta": "{zones} 个区域 · {records} 条记录"
+    },
+    "actions": {
+      "newZone": "新建区域",
+      "importHosts": "导入 hosts",
+      "addRecord": "新增记录"
+    },
+    "stat": {
+      "zones": "DNS 区域",
+      "zoneHint": "{enabled} 个启用 · {disabled} 个停用",
+      "records": "当前区域记录",
+      "recordsHint": "{zone} · 启用 {enabled} 条",
+      "selectZone": "请选择区域",
+      "linked": "联动记录",
+      "linkedHintOn": "由 DHCP 双栈联动自动派生",
+      "linkedHintOff": "暂无联动记录",
+      "disabled": "停用记录",
+      "disabledHint": "启用率 {pct}%",
+      "disabledHintOff": "当前区域暂无记录"
+    },
+    "zoneCard": {
+      "title": "DNS 区域",
+      "searchPlaceholder": "搜索区域",
+      "statusEnabled": "启用中",
+      "emptyTitleNoZone": "暂无 DNS 区域",
+      "emptyTitleNoMatch": "没有匹配的区域",
+      "emptyDescNoZone": "点击右上角「新建区域」创建第一个权威或本地区域",
+      "emptyDescNoMatch": "调整搜索关键字或状态筛选"
+    },
+    "recordCard": {
+      "title": "解析记录",
+      "noZone": "未选择区域",
+      "tabRec": "静态记录（{n}）",
+      "tabLinked": "联动记录（{n}）",
+      "kwPlaceholder": "记录名 / 完整域名 / 记录值",
+      "statusEnabled": "已启用",
+      "statusDisabled": "已停用",
+      "colName": "记录（相对名 / 完整域名）",
+      "colType": "类型",
+      "colTtl": "TTL",
+      "colValue": "记录值",
+      "colEnabled": "启用",
+      "emptyNoRecords": "该区域暂无解析记录，点击「新增记录」创建",
+      "emptyFiltered": "没有匹配的解析记录",
+      "deleteTitle": "确认删除该解析记录？",
+      "deleteDesc": "删除后不可恢复。"
+    },
+    "linked": {
+      "kwPlaceholder": "记录名 / 值 / 来源 MAC",
+      "hint": "只读 · 由 DHCP 双栈联动维护",
+      "note": "联动记录由 DHCP 双栈联动自动生成：终端通过 DHCP 获取地址时，控制面按「主机名 → IP」自动派生 A / AAAA 记录并随租约实时同步。此处只读，修改请到 DHCP 侧变更主机名或绑定。",
+      "colName": "名称",
+      "colValue": "值",
+      "colMac": "来源 MAC",
+      "emptyNoRecords": "该区域暂无联动记录",
+      "emptyFiltered": "没有匹配的联动记录"
+    },
+    "emptyNoZone": {
+      "title": "尚未选择区域",
+      "desc": "在左侧选择一个区域查看解析记录，或点击「新建区域」创建"
+    },
+    "addModal": {
+      "nameLabel": "记录名称",
+      "namePlaceholder": "如 www、api.corp.local 或 *.example.com",
+      "nameHint": "通配仅允许最左标签（*.example.com）；* 单独使用表示区顶点泛解析",
+      "typeLabel": "类型",
+      "valueLabel": "记录值",
+      "valuePlaceholder": "A/AAAA 填 IP；CNAME/PTR 填域名（尾点）",
+      "ttlLabel": "TTL（秒）",
+      "fqdnLabel": "解析后完整域名",
+      "nameFallback": "记录名",
+      "hint": "记录创建后立即可解析；若与联动记录冲突，静态记录优先。"
+    },
+    "editModal": {
+      "nameLabel": "名称",
+      "nameHint": "通配仅允许最左标签（*.example.com）",
+      "valuePlaceholder": "A=IP / CNAME=域名（尾点）",
+      "enabledLabel": "启用",
+      "enabledHintOn": "参与解析应答",
+      "enabledHintOff": "保留配置但不参与应答"
+    },
+    "zoneModal": {
+      "domainLabel": "域名",
+      "domainPlaceholder": "如 office.local 或 crphbz.com",
+      "kindLabel": "区域类型",
+      "kindAuth": "auth（权威）",
+      "kindLocal": "local（本地）",
+      "kindSecondary": "secondary（AXFR 从区）",
+      "primaryLabel": "主服务器",
+      "primaryPlaceholder": "如 10.61.40.53 或 10.61.40.53:5353（多个用逗号分隔）",
+      "hint": "权威区域对外应答；本地区域仅对内网客户端生效；secondary 区从主服务器 AXFR 同步（本地区域记录只读，由主服务器维护）。域名保存时自动补尾点。"
+    },
+    "hosts": {
+      "title": "导入 hosts",
+      "ok": "开始导入",
+      "contentLabel": "hosts 内容（IP name [alias...]）",
+      "contentPlaceholder": "# 注释\n10.0.0.10 app.corp.local app\nfd00::10 v6.corp.local",
+      "hint": "每个名称创建 A/AAAA 记录（TTL 300）；重复记录自动跳过；导入后自动重渲染 zonefile。",
+      "needContent": "请粘贴 hosts 内容",
+      "importOk": "导入完成：新增 {created}，跳过 {skipped}",
+      "importFailed": "导入失败"
+    },
+    "msg": {
+      "warnNoZone": "请先选择或新建区域",
+      "warnZone": "请先选择区域",
+      "warnNameValue": "请填写记录名称与记录值",
+      "warnNameValueRequired": "名称与值必填",
+      "created": "记录已创建",
+      "updated": "记录已更新",
+      "deleted": "记录已删除",
+      "zoneCreated": "区域已创建",
+      "zoneUpdated": "区域已更新",
+      "zoneDeleted": "区域已删除",
+      "addTitle": "新增解析记录",
+      "addConfirm": "创建记录",
+      "addTitleNamed": "新增记录 · {name}",
+      "editTitleNamed": "编辑记录 · {name}",
+      "deleteTitle": "删除记录 {name}",
+      "deleteContent": "将删除 {zone} 下的 {name} {type} 记录。",
+      "zoneCreateTitle": "新建 DNS 区域",
+      "zoneCreateConfirm": "创建区域",
+      "zoneEditTitle": "编辑区域 · {name}",
+      "saveChanges": "保存修改",
+      "zoneDeleteTitle": "删除区域 {name}",
+      "zoneDeleteContent": "其下全部解析记录将一并删除，且从 resolver 配置移除。"
+    }
+  },
+  "upstream": {
+    "header": {
+      "title": "上游 DNS 服务器",
+      "desc": "维护递归查询使用的上游服务器与协议，按健康探测结果自动摘除不可用节点。",
+      "meta": "{up}/{total} 在线 · {enabled} 已启用"
+    },
+    "actions": {
+      "add": "添加上游"
+    },
+    "stat": {
+      "total": "上游总数",
+      "totalHint": "{enabled} 个已启用 · {disabled} 个停用",
+      "up": "在线上游",
+      "upHint": "在线率 {pct}%",
+      "upHintOff": "尚未配置上游",
+      "abnormal": "异常 / 未探测",
+      "abnormalHint": "已摘除 {down} · 探测中 {unknown}",
+      "rtt": "平均 RTT",
+      "rttHint": "最快 {ms} ms",
+      "rttHintOff": "等待首次探测结果"
+    },
+    "card": {
+      "title": "上游服务器列表",
+      "sub": "{filtered} / {total} 个",
+      "hint": "每 15 秒自动刷新健康状态"
+    },
+    "summary": {
+      "up": "在线",
+      "down": "已摘除",
+      "unknown": "探测中",
+      "rtt": "平均 RTT"
+    },
+    "toolbar": {
+      "kwPlaceholder": "名称 / 地址",
+      "proto": "协议",
+      "health": "健康状态",
+      "hint": "摘除中的上游不参与递归选路"
+    },
+    "col": {
+      "name": "上游（名称 / 地址）",
+      "proto": "协议 / 权重",
+      "health": "健康",
+      "lastCheck": "最近探测",
+      "enabled": "启用"
+    },
+    "emptyFiltered": "没有匹配的上游服务器",
+    "empty": "暂无上游服务器，点击右上角「添加上游」创建",
+    "weight": "权重 {n}",
+    "fails": "连续失败 {n}",
+    "deleteTitle": "确认删除该上游？",
+    "deleteDesc": "删除后不可恢复。",
+    "health": {
+      "up": "在线",
+      "down": "已摘除",
+      "unknown": "探测中"
+    },
+    "protoOption": {
+      "all": "全部协议"
+    },
+    "msg": {
+      "warnNameAddr": "名称与地址必填",
+      "warnAddr": "请填写至少一个上游地址",
+      "updated": "上游已更新并下发 resolver",
+      "added": "上游已添加",
+      "editTitle": "编辑上游",
+      "saveChanges": "保存修改",
+      "modalTitle": "上游 DNS 服务器",
+      "modalConfirmAdd": "添加",
+      "addTitle": "添加上游 DNS"
+    },
+    "form": {
+      "nameLabel": "名称",
+      "namePlaceholder": "如 阿里公共 DNS",
+      "protoLabel": "协议",
+      "protoUdp": "UDP（默认 53）",
+      "protoTcp": "TCP",
+      "protoDot": "DoT（853）",
+      "tlsLabel": "TLS 名称（SNI）",
+      "tlsPlaceholder": "如 cloudflare-dns.com / dns.alidns.com",
+      "tlsHint": "用于证书校验的上游主机名；留空则按地址直连（部分上游会拒绝）",
+      "addrLabel": "地址",
+      "addrPlaceholder": "可填多个，逗号分隔，如 223.5.5.5:53,223.6.6.6:53",
+      "weightLabel": "权重",
+      "enabledLabel": "启用",
+      "enabledHintOn": "参与递归选路",
+      "enabledHintOff": "配置保留但不参与选路",
+      "hintWeight": "权重越高被选中的概率越大；DoT 渲染为 ",
+      "hintTail": "，端口缺省 853。 DoT 与明文上游混用时只取 DoT 目标（避免明文回落）。"
+    }
+  },
+  "security": {
+    "header": {
+      "title": "安全与诊断",
+      "desc": "配置应答限速、DNSSEC 校验与传输策略，并通过解析测试台验证真实查询结果。",
+      "meta": "RRL {rrl} · DNSSEC {dnssec}"
+    },
+    "actions": {
+      "save": "保存并生效"
+    },
+    "stat": {
+      "rrl": "应答限速（RRL）",
+      "rrlOn": "已开启",
+      "rrlOff": "已关闭",
+      "rrlHintOn": "超限来源按配额丢弃应答",
+      "rrlHintOff": "关闭时可能被放大攻击利用",
+      "rate": "限速阈值",
+      "rateUnit": "次/秒",
+      "rateHintOn": "按来源 IP 计算的每秒配额",
+      "rateHintOff": "开启限速后可配置",
+      "dnssec": "DNSSEC 校验",
+      "dnssecOn": "已启用",
+      "dnssecOff": "未启用",
+      "dnssecHintOn": "校验签名链，拒绝被篡改应答",
+      "dnssecHintOff": "建议对外解析开启",
+      "last": "最近诊断",
+      "untested": "未测试",
+      "lastHint": "最近 {time} 完成查询",
+      "lastHintOff": "在下方测试台发起一次查询"
+    },
+    "policy": {
+      "title": "安全策略",
+      "hint": "保存后经 resolver 配置重载生效"
+    },
+    "form": {
+      "rrlLabel": "启用应答限速（RRL）",
+      "rrlHintOn": "对超限来源丢弃应答",
+      "rrlHintOff": "当前不做应答限速",
+      "rateLabel": "ip-ratelimit（次/秒）",
+      "rateHint": "按来源 IP 计算的每秒应答配额",
+      "dnssecLabel": "DNSSEC 校验（B-10）",
+      "dnssecHintOn": "校验签名链完整性",
+      "dnssecHintOff": "不校验应答签名",
+      "tcpLabel": "仅 TCP 响应（防 UDP 放大）",
+      "tcpHintOn": "UDP 查询返回截断，强制 TCP 重试",
+      "tcpHintOff": "UDP/TCP 均可应答",
+      "hint": "限速超限的来源 IP 将被丢弃应答（按 resolver 官方 ip-ratelimit 语义）；仅 TCP 响应会对部分老客户端造成解析延迟。",
+      "save": "保存并生效"
+    },
+    "blockPage": {
+      "label": "拦截提示页",
+      "hint": "redirect 类封禁条目将解析到下方 IP，浏览器访问时展示说明页； 留空则 redirect 条目按 NXDOMAIN 处理。",
+      "preview": "预览提示页",
+      "ipLabel": "提示页 IP",
+      "ipPlaceholder": "如 10.61.40.9",
+      "titleLabel": "标题",
+      "titlePlaceholder": "访问已被拦截",
+      "msgLabel": "正文说明",
+      "msgPlaceholder": "该域名根据网络使用策略被禁止访问，请联系网络管理员。"
+    },
+    "loading": {
+      "title": "安全参数加载中",
+      "desc": "若长时间无响应，请检查控制面连通性后重试"
+    },
+    "test": {
+      "title": "解析测试台",
+      "hint": "dig 式实时查询 · 支持模拟来源 IP 命中 view",
+      "nameLabel": "查询名称",
+      "namePlaceholder": "如 example.com；PTR 直接填 192.168.0.10",
+      "typeLabel": "类型",
+      "clientLabel": "模拟来源 IP",
+      "clientPlaceholder": "可选，用于验证 view 命中",
+      "run": "查询",
+      "lastQuery": "上次查询 {time}",
+      "rcode": "响应码",
+      "rtt": "往返耗时",
+      "server": "应答服务器",
+      "view": "命中 view",
+      "viewDefault": "默认",
+      "answers": "答案数",
+      "colName": "记录名",
+      "colType": "类型",
+      "colTtl": "TTL",
+      "colValue": "值",
+      "emptyAnswersTitle": "没有答案记录",
+      "emptyAnswersDesc": "响应码为 {rcode}，可能是域名不存在、被拦截或上游超时",
+      "emptyTitle": "尚未发起查询",
+      "emptyDesc": "输入域名与类型后点击「查询」，结果将展示响应码、耗时、view 与答案明细"
+    },
+    "msg": {
+      "saved": "安全参数已保存并生效",
+      "needName": "请输入要查询的域名",
+      "queryFailed": "查询失败"
+    }
+  },
+  "cache": {
+    "header": {
+      "title": "缓存与性能",
+      "desc": "调整 resolver 缓存 TTL、过期兜底与单域名覆盖策略，并查看查询量概览。",
+      "meta": "TTL {min}–{max}s · {covers} 条覆盖"
+    },
+    "actions": {
+      "save": "保存并生效"
+    },
+    "stat": {
+      "qps1h": "最近 1 小时查询",
+      "qps1hHintOn": "按小时聚合的最近一个窗口",
+      "qps1hHintOff": "暂无查询数据",
+      "total": "近 24 小时总查询",
+      "totalHint": "每小时均值 {n} 次",
+      "peak": "小时峰值",
+      "peakHintOn": "窗口内单小时最高查询量",
+      "peakHintOff": "等待数据采集",
+      "covers": "TTL 覆盖",
+      "coversHintOn": "单域名覆盖优先于全局 TTL",
+      "coversHintOff": "尚未设置单域名覆盖"
+    },
+    "card": {
+      "params": "缓存参数",
+      "hint": "保存后经 resolver 配置重载生效"
+    },
+    "form": {
+      "minLabel": "最小 TTL（秒）",
+      "minHint": "0 表示不限制，按应答原始 TTL 缓存",
+      "maxLabel": "最大 TTL（秒）",
+      "maxHint": "应答 TTL 超过该值时按此值截断",
+      "serveExpiredLabel": "serve-expired（过期旧值兜底）",
+      "serveExpiredOn": "上游超时先应答过期缓存",
+      "serveExpiredOff": "过期即重新递归",
+      "policy": "当前策略"
+    },
+    "loading": {
+      "title": "参数加载中",
+      "desc": "若长时间无响应，请检查控制面连通性后重试"
+    },
+    "flush": {
+      "title": "手动清空缓存",
+      "zoneLabel": "目标 zone",
+      "zonePlaceholder": "留空表示清空全部缓存",
+      "confirmTitle": "确认清空缓存？",
+      "confirmDescZone": "将清空 {zone} 的缓存条目。",
+      "confirmDescAll": "将清空全部缓存，可能造成瞬时回源压力。",
+      "ok": "清空",
+      "btn": "清空缓存",
+      "hint": "清空后首个查询会重新回源上游"
+    },
+    "ttl": {
+      "title": "每域名 TTL 覆盖",
+      "sub": "{n} 条",
+      "hint": "优先级高于全局缓存 TTL",
+      "domainLabel": "域名",
+      "domainPlaceholder": "如 update.corp.local.",
+      "valueLabel": "TTL（秒）",
+      "add": "设置覆盖",
+      "toolbarHint": "相同域名重复提交将覆盖原值",
+      "colDomain": "域名",
+      "colTtl": "TTL（秒）",
+      "colHuman": "折合",
+      "emptyTitle": "暂无 TTL 覆盖",
+      "emptyDesc": "为更新频繁的域名设置较短 TTL，可在上方表单添加",
+      "days": "{n} 天",
+      "hours": "{n} 小时",
+      "minutes": "{n} 分钟",
+      "seconds": "{n} 秒"
+    },
+    "msg": {
+      "saved": "参数已保存并经 checkconf-reload 生效",
+      "flushOk": "已清空：{n}（{cmd}）",
+      "flushFailed": "清空失败",
+      "warnDomainTtl": "域名与 TTL 必填",
+      "ttlSaved": "TTL 覆盖已保存"
+    }
+  },
+  "forward": {
+    "header": {
+      "title": "条件转发规则",
+      "desc": "按域名后缀将查询转发到指定上游，最长后缀优先匹配，未命中时回落到默认上游。",
+      "meta": "{total} 条规则 · {enabled} 条启用"
+    },
+    "actions": {
+      "add": "添加转发规则"
+    },
+    "stat": {
+      "rules": "转发规则",
+      "rulesHint": "最长后缀优先匹配",
+      "enabled": "已启用规则",
+      "enabledHint": "停用 {n} 条不参与选路",
+      "enabledHintOff": "尚未配置转发规则",
+      "linked": "关联上游",
+      "linkedHint": "在线 {online} · 已摘除 {down}",
+      "linkedHintOff": "按上游健康状态选路",
+      "defaults": "默认后缀",
+      "defaultsHintOn": "根域名「.」承接全部未命中查询",
+      "defaultsHintOff": "未配置默认转发，走递归"
+    },
+    "card": {
+      "title": "转发规则列表",
+      "sub": "{filtered} / {total} 条",
+      "hint": "未命中规则的查询走默认上游"
+    },
+    "toolbar": {
+      "kwPlaceholder": "域名后缀 / 备注 / 上游",
+      "hint": "域名后缀保存时自动补尾点"
+    },
+    "col": {
+      "domain": "域名后缀 / 备注",
+      "upstream": "转发上游",
+      "enabled": "启用"
+    },
+    "emptyFiltered": "没有匹配的转发规则",
+    "empty": "暂无转发规则，点击右上角「添加转发规则」创建",
+    "defaultForward": "默认转发（全部未命中查询）",
+    "noNote": "未填写备注",
+    "noUpstream": "未指定上游",
+    "deleteTitle": "确认删除该转发规则？",
+    "deleteDesc": "删除后不可恢复。",
+    "note": "匹配顺序按后缀长度降序；同一后缀只保留一条规则，编辑时仅允许调整上游与备注。",
+    "msg": {
+      "warnRequired": "域名后缀与转发上游必填",
+      "updated": "转发规则已更新",
+      "created": "转发规则已创建",
+      "modalTitle": "转发规则",
+      "addTitle": "添加转发规则",
+      "createConfirm": "创建规则",
+      "editTitle": "编辑转发规则",
+      "saveChanges": "保存修改",
+      "deleted": "转发规则已删除",
+      "confirmAdd": "添加"
+    },
+    "form": {
+      "domainLabel": "域名后缀",
+      "domainPlaceholder": "如 corp.local（最长后缀优先匹配，可用 . 表示默认）",
+      "upstreamLabel": "转发上游",
+      "upstreamPlaceholder": "选择上游 DNS",
+      "noteLabel": "备注",
+      "notePlaceholder": "可选，说明该后缀的业务用途",
+      "hint": "未填写尾点时会自动补全为 FQDN；规则保存后即时下发到 resolver。"
+    }
+  }
+}

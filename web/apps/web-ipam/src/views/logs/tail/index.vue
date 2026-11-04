@@ -8,6 +8,7 @@ import { Button, Card, Input, message, Select, Switch, Tag } from 'ant-design-vu
 import { openLogTail } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import { $t } from '#/locales';
 
 interface TailRow {
   action?: string;
@@ -24,15 +25,17 @@ interface TailRow {
   type: string;
 }
 
-const BUFFER_OPTIONS = [200, 500, 1000, 2000].map((n) => ({
-  label: `最近 ${n} 条`,
-  value: n,
+const BUFFER_OPTIONS = computed(() =>
+  [200, 500, 1000, 2000].map((n) => ({
+    label: $t('logs.tail.filter.bufferOption', { n }),
+    value: n,
+  })),
+);
+const STATUS_META = computed(() => ({
+  connecting: { color: 'processing', text: $t('logs.tail.status.connecting') },
+  live: { color: 'success', text: $t('logs.tail.status.live') },
+  reconnecting: { color: 'warning', text: $t('logs.tail.status.reconnecting') },
 }));
-const STATUS_META = {
-  connecting: { color: 'processing', text: '连接中' },
-  live: { color: 'success', text: '实时接收' },
-  reconnecting: { color: 'warning', text: '重连中…' },
-} as const;
 
 const rows = ref<TailRow[]>([]);
 const pending = ref<TailRow[]>([]);
@@ -225,7 +228,7 @@ function shortDetail(v?: string): string {
 
 function exportTxt() {
   if (filtered.value.length === 0) {
-    message.warning('当前没有可导出的日志行');
+    message.warning($t('logs.tail.messages.exportEmpty'));
     return;
   }
   const lines = filtered.value.map((r) =>
@@ -257,12 +260,12 @@ function exportTxt() {
   a.download = `ipam-tail-${stamp}.txt`;
   a.click();
   URL.revokeObjectURL(url);
-  message.success(`已导出 ${filtered.value.length} 行`);
+  message.success($t('logs.tail.messages.exported', { n: filtered.value.length }));
 }
 
 async function copyVisible() {
   if (filtered.value.length === 0) {
-    message.warning('当前没有可复制的日志行');
+    message.warning($t('logs.tail.messages.copyEmpty'));
     return;
   }
   const text = filtered.value
@@ -270,9 +273,9 @@ async function copyVisible() {
     .join('\n');
   try {
     await navigator.clipboard.writeText(text);
-    message.success(`已复制 ${filtered.value.length} 行`);
+    message.success($t('logs.tail.messages.copied', { n: filtered.value.length }));
   } catch {
-    message.warning('浏览器未授予剪贴板权限');
+    message.warning($t('logs.tail.messages.clipboardDenied'));
   }
 }
 
@@ -298,8 +301,8 @@ onBeforeUnmount(() => {
     <PageHeader
       eyebrow="Log Center"
       icon="lucide:radio"
-      title="实时日志流"
-      description="SSE 实时接收 DHCP 与 DNS 事件，支持暂停缓存、关键字高亮、自动滚动与本地导出，用于现场排障与演示。"
+      :title="$t('logs.tail.title')"
+      :description="$t('logs.tail.description')"
     >
       <template #actions>
         <span class="ipam-page-header__meta">
@@ -307,43 +310,43 @@ onBeforeUnmount(() => {
             class="ipam-status-dot"
             :data-state="status === 'live' ? 'up' : status === 'reconnecting' ? 'down' : 'unknown'"
           ></span>
-          {{ STATUS_META[status].text }} · 已接收 {{ fmtInt(received) }} 条
+          {{ $t('logs.tail.meta', { status: STATUS_META[status].text, n: fmtInt(received) }) }}
         </span>
         <Button size="small" @click="reload">
-          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />重新连接
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{ $t('logs.tail.reconnect') }}
         </Button>
       </template>
     </PageHeader>
 
     <div class="ipam-stat-grid">
       <StatCard
-        label="连接状态"
+        :label="$t('logs.tail.kpi.connection')"
         :value="STATUS_META[status].text"
         icon="lucide:plug-zap"
         :tone="status === 'live' ? 'green' : status === 'reconnecting' ? 'amber' : 'blue'"
-        :hint="status === 'live' ? 'SSE 通道已建立，事件实时推送' : '断线后自动退避重连，最长 15 秒'"
+        :hint="status === 'live' ? $t('logs.tail.kpi.liveHint') : $t('logs.tail.kpi.reconnectHint')"
       />
       <StatCard
-        label="已接收事件"
+        :label="$t('logs.tail.kpi.received')"
         :value="fmtInt(received)"
         icon="lucide:inbox"
         tone="blue"
-        :hint="lastArrival ? `最近事件 ${fmtTime(lastArrival)}` : '等待首条事件…'"
+        :hint="lastArrival ? $t('logs.tail.kpi.lastArrival', { time: fmtTime(lastArrival) }) : $t('logs.tail.kpi.waiting')"
       />
       <StatCard
-        label="当前显示"
+        :label="$t('logs.tail.kpi.visible')"
         :value="fmtInt(filtered.length)"
         icon="lucide:list-filter"
         tone="cyan"
-        :hint="keyword || onlyBlocked ? '已按关键字/拦截条件过滤' : `缓冲区 ${rows.length}/${bufferSize} 条`"
+        :hint="keyword || onlyBlocked ? $t('logs.tail.kpi.filtered') : $t('logs.tail.kpi.buffer', { used: rows.length, total: bufferSize })"
       />
       <StatCard
-        label="接收速率"
+        :label="$t('logs.tail.kpi.rate')"
         :value="rate.toFixed(1)"
-        unit="条/秒"
+        :unit="$t('logs.tail.kpi.rateUnit')"
         icon="lucide:gauge"
         :tone="rate > 0 ? 'green' : 'violet'"
-        :hint="`近 5 秒滑动平均 · 拦截 ${blockedCount} 条`"
+        :hint="$t('logs.tail.kpi.rateHint', { n: blockedCount })"
       />
     </div>
 
@@ -351,7 +354,7 @@ onBeforeUnmount(() => {
       <template #title>
         <span class="ipam-card-title">
           <IconifyIcon icon="lucide:terminal" />
-          事件流
+          {{ $t('logs.tail.card.title') }}
           <em class="ipam-card-sub">events.tail</em>
         </span>
       </template>
@@ -361,26 +364,26 @@ onBeforeUnmount(() => {
             {{ STATUS_META[status].text }}
           </Tag>
           <span v-if="paused" class="ipam-chip" data-tone="amber">
-            已暂停 · 缓存 {{ pending.length }} 条
+            {{ $t('logs.tail.card.paused', { n: pending.length }) }}
           </span>
           <Button size="small" :type="paused ? 'primary' : 'default'" @click="togglePause">
             <IconifyIcon :icon="paused ? 'lucide:play' : 'lucide:pause'" class="mr-1 size-3.5" />
-            {{ paused ? '恢复' : '暂停' }}
+            {{ paused ? $t('logs.tail.card.resume') : $t('logs.tail.card.pause') }}
           </Button>
           <Button size="small" @click="clearRows">
-            <IconifyIcon icon="lucide:eraser" class="mr-1 size-3.5" />清空
+            <IconifyIcon icon="lucide:eraser" class="mr-1 size-3.5" />{{ $t('logs.tail.card.clear') }}
           </Button>
         </div>
       </template>
 
       <div class="ipam-toolbar mb-3">
         <div class="ipam-field">
-          <span class="ipam-field__label">类型</span>
+          <span class="ipam-field__label">{{ $t('logs.tail.filter.type') }}</span>
           <Select
             v-model:value="filterType"
             style="width: 120px"
             allow-clear
-            placeholder="全部"
+            :placeholder="$t('logs.tail.filter.all')"
             :options="[
               { value: 'dhcp', label: 'DHCP' },
               { value: 'dns', label: 'DNS' },
@@ -389,11 +392,11 @@ onBeforeUnmount(() => {
           />
         </div>
         <div class="ipam-field">
-          <span class="ipam-field__label">关键字</span>
+          <span class="ipam-field__label">{{ $t('logs.tail.filter.keyword') }}</span>
           <Input
             v-model:value="keyword"
             allow-clear
-            placeholder="域名 / MAC / IP / 详情"
+            :placeholder="$t('logs.tail.filter.keywordPlaceholder')"
             style="width: 200px"
           />
         </div>
@@ -402,14 +405,14 @@ onBeforeUnmount(() => {
           :type="onlyBlocked ? 'primary' : 'default'"
           @click="onlyBlocked = !onlyBlocked"
         >
-          <IconifyIcon icon="lucide:shield-ban" class="mr-1 size-3.5" />仅看拦截
+          <IconifyIcon icon="lucide:shield-ban" class="mr-1 size-3.5" />{{ $t('logs.tail.filter.onlyBlocked') }}
         </Button>
         <div class="ipam-field">
-          <span class="ipam-field__label">自动滚动</span>
+          <span class="ipam-field__label">{{ $t('logs.tail.filter.autoScroll') }}</span>
           <Switch v-model:checked="autoScroll" size="small" />
         </div>
         <div class="ipam-field">
-          <span class="ipam-field__label">缓冲区</span>
+          <span class="ipam-field__label">{{ $t('logs.tail.filter.buffer') }}</span>
           <Select
             v-model:value="bufferSize"
             style="width: 118px"
@@ -419,10 +422,10 @@ onBeforeUnmount(() => {
         <div class="ipam-toolbar__spacer"></div>
         <div class="flex items-center gap-2">
           <Button size="small" @click="copyVisible">
-            <IconifyIcon icon="lucide:copy" class="mr-1 size-3.5" />复制
+            <IconifyIcon icon="lucide:copy" class="mr-1 size-3.5" />{{ $t('logs.tail.copy') }}
           </Button>
           <Button size="small" @click="exportTxt">
-            <IconifyIcon icon="lucide:download" class="mr-1 size-3.5" />导出
+            <IconifyIcon icon="lucide:download" class="mr-1 size-3.5" />{{ $t('logs.tail.export') }}
           </Button>
         </div>
       </div>
@@ -443,9 +446,9 @@ onBeforeUnmount(() => {
         <div ref="bodyRef" class="ipam-tail__body">
           <div v-if="filtered.length === 0" class="ipam-tail__empty">
             <IconifyIcon icon="lucide:satellite-dish" class="mb-2 size-6" />
-            <div v-if="keyword || onlyBlocked">没有匹配当前过滤条件的事件</div>
-            <div v-else-if="paused">已暂停显示，恢复后合并缓存事件</div>
-            <div v-else>等待事件…（触发 dig 或 DHCP 事件后此处实时滚动）</div>
+            <div v-if="keyword || onlyBlocked">{{ $t('logs.tail.emptyFiltered') }}</div>
+            <div v-else-if="paused">{{ $t('logs.tail.emptyPaused') }}</div>
+            <div v-else>{{ $t('logs.tail.emptyWaiting') }}</div>
           </div>
           <div
             v-for="(r, i) in filtered"
