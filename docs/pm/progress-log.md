@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-11-04 · 备份恢复非破坏性演练
+- **PostgreSQL**：用与 `PgRunner.Restore` 相同的 `pg_restore --clean --if-exists --no-owner --no-privileges` 将备份恢复到独立库 `ipam_restore_verify`；核心表行数一致（users/roles/org_group/subnet/address_pool/reservation/dns_record/upstream/dhcp_options 全部 OK）；`operation_audit`/`schema_migrations`/`backup_record` 差异来自备份时间点之后的增量与测试清理，符合预期。
+- **ClickHouse**：`logs-2026-10.parquet`（504MB）恢复到临时表 21,683,463 行 == 库内该月行数。
+- **清理**：临时库与临时表均已删除，未影响现网数据。
+- **边界**：原地破坏性 `POST /system/backups/{id}/restore` 仍需维护窗口，本条不替代 Gate 2 的最终勾选。
+
 ## 2026-11-04 · 备份复用历史月份 Parquet（M6-030）
 - **问题**：每次备份全量重导所有月份；180 天 ≈ 40GB 日志时单次备份超窗口、7 份保留 ≈280GB，商业化部署不可持续。
 - **方案**：用 `system.parts` 每月行数作为指纹写入 manifest；最近成功备份同月行数一致且文件尾 `PAR1` 时用 `os.Link` 硬链接复用，行数变化（含迟到/回填）自动重导；旧 manifest 无指纹则全量重导一次形成基线。
