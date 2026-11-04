@@ -4,6 +4,15 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-11-04 · 前端对外术语去技术化（M6-031）
+- **问题**：默认界面直接显示 `PostgreSQL / ClickHouse / Kea DHCP / Unbound DNS` 等服务健康卡标题，`dhcp.json`/`logs.json` 仍有 `lease_cmds`、`config-set`、`option-data`、`system.parts`、`Vector`、`Parquet` 等实现细节，客户可据此推断技术栈。
+- **策略**：三档处置——A 直接删定语（≈60%，如「已同步至 Kea」→「已同步」）、B 换业务词（≈30%，如「Kea 配置下发」→「DHCP 配置下发」）、C 原样保留（关于页开源组件 + 服务健康卡 tooltip 运维排障）。
+- **改动**：仪表盘 `LIGHT_LABEL` 改为 locale 驱动（新增 `dashboard.ipam.service.*`，tooltip 保留原名）；`Kea #N`/`lease_cmds · NA/PD`/`ClickHouse TTL` 全部 i18n 化；zh-CN 48 处 + en-US 47 处文案成对改写；关于页区块改「开源组件与许可」并注明许可归属用途。
+- **门禁**：新增 `scripts/check-ui-terms.py`（`--self-test` 7 用例 + 全量扫描 127 文件）+ `scripts/ui-terms-allowlist.txt`（仅关于页）+ 行级 `ipam-term-allow`；已接入 `scripts/make-part.sh lint`。
+- **验证**：术语门禁 0 处、i18n 双门禁 OK、`vue-tsc` 0 error、eslint 0 error、单测 33、E2E 17/17；浏览器实测仪表盘可见文案为「配置数据库 / 日志存储 / DHCP 服务 / DNS 解析服务」且 tooltip 仍可查原名，`/dhcp/`、`/dhcp/options`、`/dhcp/leases`、`/logs-center/storage`、`/system/backup` 可见文案均无技术名（脚本断言）。
+- **边界**：英文 `/system/about` 仍保留组件原名（法务归属，符合预期）；后端返回的 `detail` 与 API 字段名（`keaSubnetId` 等）本轮未改。
+
+
 ## 2026-11-04 · 备份恢复非破坏性演练
 - **PostgreSQL**：用与 `PgRunner.Restore` 相同的 `pg_restore --clean --if-exists --no-owner --no-privileges` 将备份恢复到独立库 `ipam_restore_verify`；核心表行数一致（users/roles/org_group/subnet/address_pool/reservation/dns_record/upstream/dhcp_options 全部 OK）；`operation_audit`/`schema_migrations`/`backup_record` 差异来自备份时间点之后的增量与测试清理，符合预期。
 - **ClickHouse**：`logs-2026-10.parquet`（504MB）恢复到临时表 21,683,463 行 == 库内该月行数。

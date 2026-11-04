@@ -76,15 +76,15 @@
       "addr": "地址空间管理",
       "addrDesc": "组织 / 子网 / 地址池与逐地址台账",
       "dhcp": "DHCPv4 / v6",
-      "dhcpDesc": "Kea 配置下发、租约、保留与双栈联动",
+      "dhcpDesc": "DHCP 配置下发、租约、保留与双栈联动",
       "dns": "DNS 解析",
-      "dnsDesc": "Unbound 上游、转发、记录、缓存与封禁",
+      "dnsDesc": "DNS 上游、转发、记录、缓存与封禁",
       "logs": "统一日志",
-      "logsDesc": "ClickHouse 检索、实时流与操作审计"
+      "logsDesc": "日志检索、实时流与操作审计"
     },
     "stack": {
-      "title": "技术栈",
-      "hint": "无 GPL 依赖 · 内网离线可部署",
+      "title": "开源组件与许可",
+      "hint": "仅用于许可归属说明 · 无 GPL 依赖",
       "api": "控制面 API / 编排",
       "dhcp": "DHCPv4 / DHCPv6 引擎",
       "dns": "递归 DNS 引擎",
@@ -390,7 +390,7 @@
   "backup": {
     "page": {
       "title": "备份与恢复",
-      "desc": "备份 PostgreSQL、配置目录与 ClickHouse 日志；支持下载、恢复与每日自动策略。恢复会覆盖当前数据，请在维护窗口执行。"
+      "desc": "备份配置数据库、配置目录与日志存储；支持下载、恢复与每日自动策略。恢复会覆盖当前数据，请在维护窗口执行。"
     },
     "actions": {
       "refresh": "刷新",
@@ -442,7 +442,7 @@
     },
     "confirm": {
       "restoreTitle": "确认从该备份恢复？",
-      "restoreDesc": "将覆盖当前 PostgreSQL 数据与 ClickHouse 日志，期间管理页面可能短暂不可用。",
+      "restoreDesc": "将覆盖当前配置数据与日志存储，期间管理页面可能短暂不可用。",
       "restoreOk": "恢复",
       "deleteTitle": "确认删除该备份？",
       "deleteDesc": "备份文件与记录将一并删除，不可恢复。",
@@ -456,7 +456,7 @@
       "off": "已关闭",
       "hour": "执行小时（UTC）",
       "retention": "保留份数",
-      "dataHint": "自动备份包含 PG、配置目录与 ClickHouse 日志 Parquet",
+      "dataHint": "自动备份包含配置数据库、配置目录与日志归档文件",
       "scheduleHint": "每日检查一次，按 UTC 执行",
       "retentionHint": "超出保留份数的旧备份会被自动删除；升级前建议手动创建一份并下载留存。"
     },
@@ -670,7 +670,7 @@
       "ready": "依赖就绪",
       "ok": "正常",
       "bad": "异常",
-      "readyHintOn": "PostgreSQL 等关键依赖可达",
+      "readyHintOn": "关键依赖服务均可达",
       "readyHintOff": "请检查依赖服务与日志",
       "uptime": "连续运行",
       "uptimeHint": "采样于 {time}",

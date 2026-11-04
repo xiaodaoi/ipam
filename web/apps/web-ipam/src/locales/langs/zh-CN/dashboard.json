@@ -12,6 +12,12 @@
       "down": "服务异常",
       "unknown": "未接入"
     },
+    "service": {
+      "postgres": "配置数据库",
+      "clickhouse": "日志存储",
+      "kea": "DHCP 服务",
+      "unbound": "DNS 解析服务"
+    },
     "stat": {
       "activeDevices": "今日活跃终端",
       "activeHint": "新增 {new} · 离线 {offline}",

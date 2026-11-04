@@ -312,7 +312,9 @@ onMounted(reloadAll);
           </span>
         </template>
         <template #extra>
-          <span class="ipam-hint">ClickHouse TTL</span>
+          <span class="ipam-hint">{{
+            $t('logs.storage.policy.engineTag')
+          }}</span>
         </template>
 
         <div class="ipam-form-grid">

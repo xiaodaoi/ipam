@@ -89,7 +89,7 @@
       },
       "subnet": {
         "title": "规划 DHCP 子网",
-        "desc": "添加 IPv4/IPv6 子网与地址池，变更会自动下发 Kea。"
+        "desc": "添加 IPv4/IPv6 子网与地址池，变更会自动下发。"
       },
       "upstream": {
         "title": "配置 DNS 上游",

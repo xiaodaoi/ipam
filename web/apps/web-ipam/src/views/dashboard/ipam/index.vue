@@ -32,11 +32,20 @@ const LIGHT_TEXT_KEY: Record<Light, string> = {
   down: 'dashboard.ipam.light.down',
   unknown: 'dashboard.ipam.light.unknown',
 };
-const LIGHT_LABEL: Record<string, string> = {
-  postgres: 'PostgreSQL',
-  clickhouse: 'ClickHouse',
-  kea: 'Kea DHCP',
-  unbound: 'Unbound DNS',
+/**
+ * 服务健康卡的展示顺序。
+ * 键名与后端 `/dashboard` 返回的 `services` 字段一一对应，不可随文案调整。
+ */
+const SERVICE_KEYS = ['postgres', 'clickhouse', 'kea', 'unbound'] as const;
+/**
+ * 仅供运维排障的原始组件名，只出现在服务健康卡的 tooltip 中，
+ * 不参与默认展示，避免向客户暴露技术栈。
+ */
+const SERVICE_TECH: Record<string, string> = {
+  postgres: 'PostgreSQL', // ipam-term-allow: 仅 tooltip
+  clickhouse: 'ClickHouse', // ipam-term-allow: 仅 tooltip
+  kea: 'Kea', // ipam-term-allow: 仅 tooltip
+  unbound: 'Unbound', // ipam-term-allow: 仅 tooltip
 };
 
 const router = useRouter();
@@ -241,11 +250,17 @@ async function loadTopDomains() {
 
 // ── 服务健康 ──
 const healthServices = computed(() =>
-  Object.entries(LIGHT_LABEL).map(([key, label]) => {
+  SERVICE_KEYS.map((key) => {
     const state = (data.value?.services?.[
       key as keyof DashboardOverview['services']
     ] ?? 'unknown') as Light;
-    return { key, label, state, text: $t(LIGHT_TEXT_KEY[state]) };
+    return {
+      key,
+      label: $t(`dashboard.ipam.service.${key}`),
+      state,
+      tech: SERVICE_TECH[key],
+      text: $t(LIGHT_TEXT_KEY[state]),
+    };
   }),
 );
 const healthUp = computed(
@@ -500,6 +515,7 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
             :key="s.key"
             class="ipam-health-item"
             :data-state="s.state"
+            :title="s.tech"
           >
             <span class="ipam-health-item__dot"></span>
             <div class="min-w-0">

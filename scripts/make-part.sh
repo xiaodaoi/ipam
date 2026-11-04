@@ -52,6 +52,13 @@ case "$part" in
     else
       echo "skip web-lint: 底座未引入"
     fi
+    # 对外术语门禁（M6-031）：默认界面不得出现底层产品名与实现细节。
+    if command -v python3 >/dev/null 2>&1; then
+      python3 "$root/scripts/check-ui-terms.py" --self-test || rc=1
+      python3 "$root/scripts/check-ui-terms.py" || rc=1
+    else
+      echo "skip ui-terms: python3 未就绪"
+    fi
     ;;
   *) echo "unknown part: $part"; exit 2 ;;
 esac

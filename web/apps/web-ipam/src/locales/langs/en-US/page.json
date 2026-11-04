@@ -89,7 +89,7 @@
       },
       "subnet": {
         "title": "Plan DHCP subnets",
-        "desc": "Add IPv4/IPv6 subnets and pools; changes are pushed to Kea automatically."
+        "desc": "Add IPv4/IPv6 subnets and pools; changes are applied automatically."
       },
       "upstream": {
         "title": "Configure DNS upstreams",

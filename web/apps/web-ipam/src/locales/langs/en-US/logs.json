@@ -9,21 +9,22 @@
       "archives": "Archive files",
       "unit": "files",
       "archiveHint": "Latest archive {m}",
-      "archiveEmpty": "No Parquet archive yet",
-      "ttl": "Current log TTL",
+      "archiveEmpty": "No archive yet",
+      "ttl": "Current retention",
       "ttlUnit": "days",
       "ttlHint": "Archives kept {n} months"
     },
     "policy": {
       "title": "Storage policy",
+      "engineTag": "Auto purge",
       "retention": "Log retention (days)",
       "days": "days",
       "keepMonths": "Archive retention (months)",
       "months": "months",
       "auto": "Auto archive",
-      "autoOn": "Export last month to Parquet on the 1st at 02:00",
+      "autoOn": "Archive previous month on the 1st at 02:00",
       "autoOff": "Manual export only",
-      "hint": "Expired partitions are rolled off automatically by ClickHouse TTL. Archives do not consume online storage, and deleting an archive does not affect online data.",
+      "hint": "Expired partitions are rolled off automatically by the retention policy. Archives do not consume online storage, and deleting an archive does not affect online data.",
       "save": "Save storage policy",
       "retentionWarn": "Retention days must be between 1 and 3650",
       "monthsWarn": "Archive retention months must be between 1 and 120",
@@ -32,17 +33,17 @@
     },
     "online": {
       "title": "Online storage",
-      "hint": "From ClickHouse system.parts",
+      "hint": "From storage partition stats",
       "totalRows": "Total rows",
       "disk": "Disk usage",
       "earliest": "Earliest month",
-      "ttl": "Current TTL",
+      "ttl": "Current retention",
       "partitionHint": "Monthly partitions · click a month to fill the export field",
       "partitions": "{n} partitions",
       "pick": "Click to fill {m} for export",
       "rows": "{n} rows · {size}",
       "emptyTitle": "No online partitions",
-      "emptyDesc": "ClickHouse has not written logs yet, or the storage stats endpoint is unreachable."
+      "emptyDesc": "The log store has not received any data yet, or the storage stats endpoint is unreachable."
     },
     "archive": {
       "title": "Log archives",
@@ -51,13 +52,13 @@
       "refresh": "Refresh",
       "exportMonth": "Export month",
       "export": "Export month",
-      "hint": "Generates monthly Parquet archives without affecting ClickHouse online data",
+      "hint": "Generates monthly archive files without affecting online data",
       "emptyNoArchive": "No archives yet: enter a month and click \"Export month\", or enable auto archive",
       "emptyNoMatch": "No archive matches that month",
       "total": "{n} total",
       "download": "Download",
       "deleteTitle": "Delete this archive?",
-      "deleteDesc": "Only the archive file and record are deleted; ClickHouse online data is not affected.",
+      "deleteDesc": "Only the archive file and record are deleted; online data is not affected.",
       "delete": "Delete",
       "cancel": "Cancel",
       "auto": "Auto",
@@ -79,8 +80,8 @@
     },
     "page": {
       "title": "Storage & Archive",
-      "description": "Manages log retention policies, ClickHouse online partitions and monthly Parquet archives, balancing query performance, storage cost and compliance retention.",
-      "meta": "ClickHouse TTL + Parquet archive",
+      "description": "Manages log retention policies, online partitions and monthly archives, balancing query performance, storage cost and compliance retention.",
+      "meta": "Online partitions + archive files",
       "queryOnline": "Query online logs"
     }
   },
@@ -408,7 +409,7 @@
     },
     "channels": {
       "title": "Export channels",
-      "hint": "Vector reloads automatically via --watch-config after saving",
+      "hint": "Configuration hot-reloads after saving",
       "syslogDesc": "Standard RFC5424, for SIEM / log collectors",
       "kafkaDesc": "High-throughput pipeline for SIEM / data platforms",
       "webhookDesc": "JSON over HTTP pushed to a custom endpoint",
@@ -424,12 +425,12 @@
       "modeSample": "Proportional sampling",
       "modeErrors": "Errors only (non-INFO)",
       "rate": "Sampling ratio 1/N",
-      "hint": "Sampling applies to both ClickHouse ingestion and all export channels; 85% disk usage raises a warning, 90% degrades to errors-only automatically, and it restores below 85%. Evaluate audit/compliance retention requirements before changing this in production.",
-      "footer": "Vector retries failed exports internally and never blocks ClickHouse ingestion"
+      "hint": "Sampling applies to both log ingestion and all export channels; 85% disk usage raises a warning, 90% degrades to errors-only automatically, and it restores below 85%. Evaluate audit/compliance retention requirements before changing this in production.",
+      "footer": "The collector retries failed exports internally and never blocks log ingestion"
     },
     "messages": {
       "loadFail": "Failed to load policy",
-      "saved": "Saved; Vector will reload the configuration automatically",
+      "saved": "Saved; the collector will reload the configuration automatically",
       "saveFail": "Save failed"
     }
   },

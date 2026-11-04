@@ -884,12 +884,12 @@ async function remove(id?: string) {
   try {
     await deleteSubnet(id);
   } catch {
-    // 引用保护/Kea 下发失败：detail 已由 request 层 message 展示
+    // 引用保护/下发失败：detail 已由 request 层 message 展示
   }
   await loadAll();
 }
 
-// ── PD / NA 租约（Kea 实时） ──────────────────────────────────────────
+// ── PD / NA 租约（实时） ──────────────────────────────────────────────
 const lease6Rows = ref<DhcpLease6Row[]>([]);
 const lease6Loading = ref(false);
 
@@ -1307,9 +1307,13 @@ onMounted(async () => {
                     v-if="row.keaSubnetId"
                     class="ipam-chip"
                     data-tone="green"
-                    :title="`Kea subnet-id ${row.keaSubnetId}`"
+                    :title="
+                      $t('dhcp.subnets.grid.subnetIdTip', {
+                        id: row.keaSubnetId,
+                      })
+                    "
                   >
-                    Kea #{{ row.keaSubnetId }}
+                    #{{ row.keaSubnetId }}
                   </span>
                   <span v-else class="ipam-chip" data-tone="amber">
                     {{ $t('dhcp.subnets.grid.notIssued') }}
@@ -1513,7 +1517,7 @@ onMounted(async () => {
             </template>
           </SubnetGrid>
 
-          <!-- IPv6：Kea 实时租约 -->
+          <!-- IPv6：实时租约 -->
           <template v-if="familyTab === 'v6'">
             <Divider class="!my-5" />
             <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -1521,8 +1525,12 @@ onMounted(async () => {
                 <IconifyIcon icon="lucide:radio-tower" />
                 {{ $t('dhcp.subnets.lease6.title') }}
                 <em class="ipam-card-sub">
-                  Kea lease_cmds · NA {{ lease6NaCount }} / PD
-                  {{ lease6PdCount }}
+                  {{
+                    $t('dhcp.subnets.lease6.meta', {
+                      na: lease6NaCount,
+                      pd: lease6PdCount,
+                    })
+                  }}
                 </em>
               </span>
               <Button
@@ -1732,7 +1740,7 @@ onMounted(async () => {
         </template>
       </div>
 
-      <!-- 规划信息（M6-022）：仅规划展示，不参与 Kea 下发 -->
+      <!-- 规划信息（M6-022）：仅规划展示，不参与下发 -->
       <Divider plain style="margin: 16px 0 12px" orientation="left">
         {{ $t('dhcp.subnets.form.planning') }}
         <span class="text-xs text-gray-400">

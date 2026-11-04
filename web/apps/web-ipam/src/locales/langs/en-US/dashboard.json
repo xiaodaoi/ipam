@@ -12,6 +12,12 @@
       "down": "Service error",
       "unknown": "Not connected"
     },
+    "service": {
+      "postgres": "Configuration database",
+      "clickhouse": "Log store",
+      "kea": "DHCP service",
+      "unbound": "DNS resolver"
+    },
     "stat": {
       "activeDevices": "Active devices today",
       "activeHint": "New {new} · Offline {offline}",

@@ -76,15 +76,15 @@
       "addr": "Address space management",
       "addrDesc": "Organizations / subnets / pools and per-address ledger",
       "dhcp": "DHCPv4 / v6",
-      "dhcpDesc": "Kea config delivery, leases, reservations and dual-stack linkage",
+      "dhcpDesc": "DHCP config delivery, leases, reservations and dual-stack linkage",
       "dns": "DNS resolution",
-      "dnsDesc": "Unbound upstreams, forwarding, records, cache and blocking",
+      "dnsDesc": "DNS upstreams, forwarding, records, cache and blocking",
       "logs": "Unified logging",
-      "logsDesc": "ClickHouse search, live streams and audit trail"
+      "logsDesc": "Log search, live streams and audit trail"
     },
     "stack": {
-      "title": "Tech stack",
-      "hint": "No GPL dependencies · Deployable offline",
+      "title": "Open-source components and licenses",
+      "hint": "Listed for license attribution only · No GPL dependencies",
       "api": "Control plane API / orchestration",
       "dhcp": "DHCPv4 / DHCPv6 engine",
       "dns": "Recursive DNS engine",
@@ -390,7 +390,7 @@
   "backup": {
     "page": {
       "title": "Backup and restore",
-      "desc": "Back up PostgreSQL, the config directory and ClickHouse logs; supports download, restore and a daily policy. Restoring overwrites current data, so run it in a maintenance window."
+      "desc": "Back up the configuration database, the config directory and the log store; supports download, restore and a daily policy. Restoring overwrites current data, so run it in a maintenance window."
     },
     "actions": {
       "refresh": "Refresh",
@@ -442,7 +442,7 @@
     },
     "confirm": {
       "restoreTitle": "Restore from this backup?",
-      "restoreDesc": "This overwrites current PostgreSQL data and ClickHouse logs; the admin UI may be briefly unavailable meanwhile.",
+      "restoreDesc": "This overwrites current configuration data and the log store; the admin UI may be briefly unavailable meanwhile.",
       "restoreOk": "Restore",
       "deleteTitle": "Delete this backup?",
       "deleteDesc": "The backup file and record are deleted together and cannot be recovered.",
@@ -456,7 +456,7 @@
       "off": "Off",
       "hour": "Execution hour (UTC)",
       "retention": "Retention count",
-      "dataHint": "Automatic backups include PG, the config directory and ClickHouse log Parquet files",
+      "dataHint": "Automatic backups include the configuration database, the config directory and log archive files",
       "scheduleHint": "Checked once a day and executed in UTC",
       "retentionHint": "Backups beyond the retention count are deleted automatically; create and download one manually before an upgrade."
     },
@@ -670,7 +670,7 @@
       "ready": "Dependencies ready",
       "ok": "Healthy",
       "bad": "Error",
-      "readyHintOn": "Key dependencies such as PostgreSQL are reachable",
+      "readyHintOn": "All key dependencies are reachable",
       "readyHintOff": "Check the dependency services and logs",
       "uptime": "Uptime",
       "uptimeHint": "Sampled at {time}",

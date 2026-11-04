@@ -9,21 +9,22 @@
       "archives": "归档文件",
       "unit": "份",
       "archiveHint": "最近归档 {m}",
-      "archiveEmpty": "尚未生成 Parquet 归档",
-      "ttl": "当前日志 TTL",
+      "archiveEmpty": "尚未生成归档文件",
+      "ttl": "当前保留天数",
       "ttlUnit": "天",
       "ttlHint": "归档保留 {n} 个月"
     },
     "policy": {
       "title": "存储策略",
+      "engineTag": "自动清理",
       "retention": "日志保留天数",
       "days": "天",
       "keepMonths": "归档保留月数",
       "months": "个月",
       "auto": "自动归档",
-      "autoOn": "每月 1 日 02:00 自动导出上月为 Parquet",
+      "autoOn": "每月 1 日 02:00 自动归档上月日志",
       "autoOff": "仅支持手动导出",
-      "hint": "到期分区由 ClickHouse TTL 自动滚动删除；归档文件不占在线存储，删除归档不影响在线数据。",
+      "hint": "到期分区按保留策略自动滚动删除；归档文件不占在线存储，删除归档不影响在线数据。",
       "save": "保存存储策略",
       "retentionWarn": "保留天数需在 1–3650 之间",
       "monthsWarn": "归档保留月数需在 1–120 之间",
@@ -32,17 +33,17 @@
     },
     "online": {
       "title": "在线存储",
-      "hint": "来自 ClickHouse system.parts",
+      "hint": "来自存储分区统计",
       "totalRows": "总行数",
       "disk": "磁盘占用",
       "earliest": "最早月份",
-      "ttl": "当前 TTL",
+      "ttl": "当前保留天数",
       "partitionHint": "按月分区 · 点击月份填入归档导出",
       "partitions": "{n} 个分区",
       "pick": "点击填入 {m} 归档导出",
       "rows": "{n} 行 · {size}",
       "emptyTitle": "暂无在线分区",
-      "emptyDesc": "ClickHouse 尚未写入日志，或存储统计接口暂不可达。"
+      "emptyDesc": "日志存储尚未写入数据，或存储统计接口暂不可达。"
     },
     "archive": {
       "title": "日志归档",
@@ -51,13 +52,13 @@
       "refresh": "刷新",
       "exportMonth": "导出月份",
       "export": "导出该月",
-      "hint": "按月生成 Parquet 归档，不影响 ClickHouse 在线数据",
+      "hint": "按月生成归档文件，不影响在线数据",
       "emptyNoArchive": "暂无归档：填写月份后点「导出该月」，或开启自动归档每月生成",
       "emptyNoMatch": "没有匹配该月份的归档",
       "total": "共 {n} 份",
       "download": "下载",
       "deleteTitle": "确认删除该归档？",
-      "deleteDesc": "仅删除归档文件与记录，不影响 ClickHouse 在线数据。",
+      "deleteDesc": "仅删除归档文件与记录，不影响在线数据。",
       "delete": "删除",
       "cancel": "取消",
       "auto": "自动",
@@ -79,8 +80,8 @@
     },
     "page": {
       "title": "存储与归档",
-      "description": "统一管理日志保留策略、ClickHouse 在线分区与按月 Parquet 归档，兼顾查询性能、存储成本与合规留存。",
-      "meta": "ClickHouse TTL + Parquet 归档",
+      "description": "统一管理日志保留策略、在线分区与按月归档，兼顾查询性能、存储成本与合规留存。",
+      "meta": "在线分区 + 归档文件",
       "queryOnline": "查询在线日志"
     }
   },
@@ -136,7 +137,7 @@
       "bucket": "{n} 秒分桶",
       "peak": "峰值",
       "avg": "均值",
-      "emptyDesc": "ClickHouse 中还没有可聚合的事件，触发一次 DNS 查询或 DHCP 续约后即可看到曲线。"
+      "emptyDesc": "日志存储中还没有可聚合的事件，触发一次 DNS 查询或 DHCP 续约后即可看到曲线。"
     },
     "compose": {
       "title": "流量构成",
@@ -408,7 +409,7 @@
     },
     "channels": {
       "title": "外发通道",
-      "hint": "保存后 Vector --watch-config 自动热加载",
+      "hint": "保存后配置自动热加载",
       "syslogDesc": "标准 RFC5424，面向 SIEM / 日志采集",
       "kafkaDesc": "面向 SIEM / 数据平台的高吞吐管道",
       "webhookDesc": "JSON over HTTP，推送到自定义接收端点",
@@ -424,12 +425,12 @@
       "modeSample": "按比例抽样",
       "modeErrors": "仅异常（非 INFO）",
       "rate": "抽样比例 1/N",
-      "hint": "采样同时作用于 ClickHouse 入库与全部外发通道；磁盘 85% 预警、90% 自动降级为仅异常，恢复到 85% 以下自动还原。生产切换请评估审计/合规留存要求。",
-      "footer": "外发失败由 Vector 内部重试，不阻塞 ClickHouse 入库"
+      "hint": "采样同时作用于日志入库与全部外发通道；磁盘 85% 预警、90% 自动降级为仅异常，恢复到 85% 以下自动还原。生产切换请评估审计/合规留存要求。",
+      "footer": "外发失败由采集服务自动重试，不阻塞日志入库"
     },
     "messages": {
       "loadFail": "策略加载失败",
-      "saved": "已保存，Vector 将自动重载配置",
+      "saved": "已保存，采集服务将自动重载配置",
       "saveFail": "保存失败"
     }
   },
