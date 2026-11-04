@@ -4,6 +4,17 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-11-04 · GA 发布前检查（pre-flight）实测收口
+- **工具链/构建/测试/静态/契约**：`doctor.sh` exit 0（corepack/spectral 缺失但可 npx 替代，未达 `--strict`）；`make-part.sh build` exit 0；`make-part.sh test` exit 0；`make-part.sh lint` exit 0（golangci-lint `0 issues`）；`gen-openapi.sh --check` OK。
+- **E2E**：17/17（含英文切换、图标零外链）。
+- **安全抽查**：未授权 `/subnets` 401、`TRACE /` 405、2MB body 413；CSP/Referrer-Policy/nosniff/X-Frame-Options 均在（开发栈为 HTTP，HSTS/TLS 需生产栈）。
+- **审计链**：`/audits/verify` → `checked=259, valid=true`。
+- **/metrics 令牌**：临时设置 `IPAM_METRICS_TOKEN` → 无令牌 401、错令牌 401、正确令牌 200；恢复开发默认。
+- **License 演练**：Ed25519 签发并激活 5000 台上限 → `licensed=true`、235/5000；改签 `max=1` → `terminalsOverLimit=true` 且服务不中断；`DELETE` 回 community。
+- **备份演练**：修复 M6-028 后手动备份 `success`（4 月 / 623,615,501 字节 / Parquet 均以 `PAR1` 结尾 / `2026-08` 读回 3932 行一致）；超时探针 2s 与 35s 均 `failed` 且目录清理。**恢复演练（破坏性）仍待维护窗口**。
+- **离线包**：10 镜像 + bundle 生成成功（2.7GB），`sha256sum -c` 11 项 OK；M6-029 修复 `.env`/`certs/` 泄漏并内置自检；离线实装待目标机。
+- **仍未关闭（外部依赖）**：M6-003B 双机 HA、M6-012B Helm、M6-010B5 RA/circuit-id/冲突探测、镜像 CVE/SBOM/签名（CI）、客户 2 周试用、破坏性恢复演练。
+
 ## 2026-11-04 · 离线交付包密钥红线修复（M6-029）
 - **问题**：`scripts/package-offline.sh` 整目录打包 `deploy/`，实测 `ipam-bundle.tar.gz` 含 `deploy/compose/.env`（POSTGRES/ClickHouse 口令、IPAM_JWT_SECRET）与 `certs/`；`dist/` 未被 `.gitignore` 忽略（2.7GB 误提交风险）。
 - **修复**：tar 增加 `--exclude`（`.env`、`certs/`、`*.pem/*.key/*.crt/*.p12/*.pfx`）；新增 `scripts/check-bundle-secrets.sh` 打包后自检（命中即 exit 1）；`.gitignore` 增加 `dist/`。
