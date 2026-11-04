@@ -48,6 +48,9 @@ observability/metrics_token
 # 本地构建的 licensegen 工具
 /licensegen
 
+# 离线交付包产物（scripts/package-offline.sh；含镜像 tar，体积大，不入库）
+dist/
+
 # E2E/压测产物
 tests/e2e/artifacts/
 web/coverage/

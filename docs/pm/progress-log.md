@@ -4,6 +4,12 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-11-04 · 离线交付包密钥红线修复（M6-029）
+- **问题**：`scripts/package-offline.sh` 整目录打包 `deploy/`，实测 `ipam-bundle.tar.gz` 含 `deploy/compose/.env`（POSTGRES/ClickHouse 口令、IPAM_JWT_SECRET）与 `certs/`；`dist/` 未被 `.gitignore` 忽略（2.7GB 误提交风险）。
+- **修复**：tar 增加 `--exclude`（`.env`、`certs/`、`*.pem/*.key/*.crt/*.p12/*.pfx`）；新增 `scripts/check-bundle-secrets.sh` 打包后自检（命中即 exit 1）；`.gitignore` 增加 `dist/`。
+- **验证**：构造脏包 → exit 1 并列出命中项；干净包 → exit 0；真实离线包自检 OK、清单仅 `.env.example`、`sha256sum -c` 11 项全 OK；解包确认 `.env` 缺失、`.env.example` 存在（`install.sh` 会生成）。
+- **文档**：任务卡 M6-029、GA 核对表 Gate 7 与发布前清单、§12。
+
 ## 2026-11-04 · 备份日志导出超时与完整性修复（M6-028）
 - **现象**：GA 抽测手动备份在 `clickhouse export 2026-10` 失败，客户端 5 分钟超时；`system.query_log` 显示同一查询在空闲时 142.9s、负载下 746s 后触发服务端 `max_execution_time=600`。根因是客户端 `Timeout=5m`、URL `max_execution_time=600`、备份总预算 30m 三者硬编码且矛盾。
 - **修复**：新增 `IPAM_CH_EXPORT_TIMEOUT`（默认 30m）与 `IPAM_BACKUP_TIMEOUT`（默认 2h）；导出预算同时决定客户端 context 与服务端 `max_execution_time`（服务端少 30s），去掉固定 `http.Client.Timeout`；`httpQuery`（恢复/清空）共用同一预算。
