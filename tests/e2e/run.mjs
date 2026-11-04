@@ -135,13 +135,14 @@ async function main() {
     await step('DHCP 子网管理', async () => {
       await page.goto(urlFor('/dhcp/subnets'), { waitUntil: 'domcontentloaded' });
       await waitText(page, '子网管理');
-      await page.locator('.ant-table, .ipam-empty, [class*="empty"]').first().waitFor({ timeout: 15_000 });
+      // 子网页已切换 vxe-table；:visible 避免命中默认隐藏的 empty 占位块。
+      await page.locator('.vxe-table:visible, .ant-table:visible, .ipam-empty:visible').first().waitFor({ timeout: 15_000 });
     });
 
     await step('未登记终端发现', async () => {
       await page.goto(urlFor('/dhcp/ledger/discovered'), { waitUntil: 'domcontentloaded' });
       await waitText(page, '未登记终端');
-      await page.locator('.ant-table, [class*="empty"]').first().waitFor({ timeout: 15_000 });
+      await page.locator('.vxe-table:visible, .ant-table:visible, .ipam-empty:visible').first().waitFor({ timeout: 15_000 });
     });
 
     await step('租约管理 v4/v6 切换', async () => {

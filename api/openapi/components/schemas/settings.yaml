@@ -28,6 +28,19 @@ DnsSettings:
       type: boolean
       default: false
       description: 仅 TCP 响应（防 UDP 放大）
+    blockPageIP:
+      type: string
+      description: |
+        拦截提示页地址（M6-023）：action=redirect 的封禁条目解析结果指向该 IP，
+        由控制面 `/blocked` 页面承载提示文案；留空则 redirect 条目按 NXDOMAIN 处理。
+    blockPageTitle:
+      type: string
+      maxLength: 64
+      description: 拦截提示页标题（留空使用站点默认）
+    blockPageMessage:
+      type: string
+      maxLength: 500
+      description: 拦截提示页正文说明（留空使用默认文案）
 
 PerDomainTtl:
   type: object

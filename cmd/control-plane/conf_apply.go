@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"log"
-	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -60,7 +60,7 @@ func (a *confApplier) apply(ctx context.Context) (unboundengine.ConfInput, error
 			continue
 		}
 		for _, addr := range u.Addrs {
-			in.DefaultFwd = append(in.DefaultFwd, unboundengine.NormalizeAddr(addr))
+			in.DefaultFwd = append(in.DefaultFwd, forwardAddr(u, addr))
 		}
 		break // 默认转发取第一个 enabled 上游（公网回落，不含内网 DNS，M3-011）
 	}
@@ -83,7 +83,9 @@ func (a *confApplier) apply(ctx context.Context) (unboundengine.ConfInput, error
 			if !ok || !u.Enabled {
 				continue
 			}
-			rc.Addrs = append(rc.Addrs, normalizeAddrs(u.Addrs)...)
+			for _, addr := range u.Addrs {
+				rc.Addrs = append(rc.Addrs, forwardAddr(u, addr))
+			}
 		}
 		if len(rc.Addrs) > 0 {
 			in.Rules = append(in.Rules, rc)
@@ -95,7 +97,18 @@ func (a *confApplier) apply(ctx context.Context) (unboundengine.ConfInput, error
 		return in, err
 	}
 	for _, z := range zones {
-		if z.Kind != "auth" || !z.Enabled {
+		if !z.Enabled {
+			continue
+		}
+		// secondary 区（M6-023）：axfr 从主服务器同步，仅渲染 auth-zone primary。
+		if z.Kind == "secondary" {
+			in.AuthZones = append(in.AuthZones, unboundengine.AuthZoneConf{
+				Name:      normalizeZoneName(z.Name),
+				Secondary: splitCSV(z.Primary),
+			})
+			continue
+		}
+		if z.Kind != "auth" {
 			continue
 		}
 		records, err := a.zoneRepo.ListRecords(ctx, z.ID)
@@ -103,12 +116,25 @@ func (a *confApplier) apply(ctx context.Context) (unboundengine.ConfInput, error
 			continue
 		}
 		az := unboundengine.AuthZoneConf{Name: z.Name}
+		wildcard := false
 		for _, rec := range records {
-			if rec.Enabled {
-				az.Records = append(az.Records, unboundengine.ZoneRecord{
-					Name: fqdn(rec.Name, z.Name), Type: rec.RecType, TTL: rec.TTL, Data: rec.Rdata,
-				})
+			if !rec.Enabled {
+				continue
 			}
+			if strings.Contains(rec.Name, "*") {
+				wildcard = true
+			}
+			az.Records = append(az.Records, unboundengine.ZoneRecord{
+				Name: fqdn(rec.Name, z.Name), Type: rec.RecType, TTL: rec.TTL, Data: rec.Rdata,
+			})
+		}
+		// M6-023：local-data 不支持通配名，含 * 的区改用 auth-zone + zonefile。
+		if wildcard {
+			path, err := a.writeZonefile(z.Name, az.Records)
+			if err != nil {
+				return in, err
+			}
+			az.ZonefilePath = path
 		}
 		in.AuthZones = append(in.AuthZones, az)
 	}
@@ -151,16 +177,65 @@ func (a *confApplier) apply(ctx context.Context) (unboundengine.ConfInput, error
 	return in, nil
 }
 
-func normalizeAddrs(addrs []string) []string {
-	out := make([]string, 0, len(addrs))
-	for _, a := range addrs {
-		host, port, err := net.SplitHostPort(unboundengine.NormalizeAddr(a))
-		if err != nil {
-			continue
+// zoneURLRoot 容器内可见的 zonefile 根（compose 将宿主 config/unbound 挂到该路径）。
+const zoneURLRoot = "/etc/unbound-rendered/zones"
+
+// writeZonefile 原子写入区文件并返回容器内引用路径。
+func (a *confApplier) writeZonefile(zone string, records []unboundengine.ZoneRecord) (string, error) {
+	dir := filepath.Join(filepath.Dir(a.confPath), "zones")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	name := strings.TrimSuffix(normalizeZoneName(zone), ".")
+	if name == "" {
+		name = "root"
+	}
+	safe := strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '.', r == '-', r == '_':
+			return r
+		default:
+			return '_'
 		}
-		out = append(out, host+"@"+port)
+	}, name) + ".zone"
+	path := filepath.Join(dir, safe)
+	tmp := path + ".candidate"
+	if err := osWrite(tmp, string(unboundengine.RenderZonefile(zone, records))); err != nil {
+		return "", err
+	}
+	if err := osRename(tmp, path); err != nil {
+		return "", err
+	}
+	return zoneURLRoot + "/" + safe, nil
+}
+
+// forwardAddr 上游地址 → 转发目标（protocol=dot 时带 TLSName）。
+func forwardAddr(u dnsmodule.Upstream, addr string) unboundengine.ForwardAddr {
+	fa := unboundengine.ForwardAddr{Addr: unboundengine.NormalizeAddr(addr)}
+	if u.Protocol == "dot" {
+		fa.TLSName = u.TLSName
+	}
+	return fa
+}
+
+// splitCSV 逗号分隔串 → 去空切片（主服务器列表）。
+func splitCSV(s string) []string {
+	out := []string{}
+	for _, part := range strings.Split(s, ",") {
+		if p := strings.TrimSpace(part); p != "" {
+			out = append(out, p)
+		}
 	}
 	return out
+}
+
+// normalizeZoneName 区域名补尾点（unbound auth-zone 名称需 FQDN）。
+func normalizeZoneName(n string) string {
+	n = strings.TrimSpace(n)
+	if n == "" || strings.HasSuffix(n, ".") {
+		return n
+	}
+	return n + "."
 }
 
 func fqdn(name, zone string) string {

@@ -5,7 +5,10 @@ DnsZone:
   properties:
     id: { type: string, format: uuid }
     name: { type: string, description: FQDN 如 corp.local. }
-    kind: { type: string, enum: [auth, local] }
+    kind: { type: string, enum: [auth, local, secondary] }
+    primary:
+      type: string
+      description: kind=secondary 的主服务器地址（逗号分隔 ip[:port]，M6-023 AXFR）
     enabled: { type: boolean }
 
 DnsZoneCreate:
@@ -13,13 +16,15 @@ DnsZoneCreate:
   required: [name]
   properties:
     name: { type: string }
-    kind: { type: string, enum: [auth, local], default: auth }
+    kind: { type: string, enum: [auth, local, secondary], default: auth }
+    primary: { type: string, description: kind=secondary 的主服务器地址（逗号分隔，M6-023） }
 
 DnsZoneUpdate:
   type: object
   properties:
     name: { type: string, description: 重命名区域（尾点容错） }
-    kind: { type: string, enum: [auth, local] }
+    kind: { type: string, enum: [auth, local, secondary] }
+    primary: { type: string, description: kind=secondary 的主服务器地址（逗号分隔） }
     enabled: { type: boolean, description: 启用/停用区域（停用即不再渲染解析） }
 
 DnsRecord:
@@ -29,7 +34,9 @@ DnsRecord:
   properties:
     id: { type: string, format: uuid }
     zoneId: { type: string, format: uuid }
-    name: { type: string, description: 相对名（www）或 FQDN }
+    name:
+      type: string
+      description: 相对名（www）、FQDN，或通配（*.example.com / *，M6-023；仅允许最左标签为 *）
     recType: { type: string, enum: [A, AAAA, CNAME, PTR, TXT, SRV, MX] }
     ttl: { type: integer, minimum: 1, maximum: 86400 }
     rdata: { type: string, description: 记录数据（A=IP/CNAME=目标/PTR=域名） }

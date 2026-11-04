@@ -183,3 +183,13 @@ func (e ExecController) LocalZone(_ context.Context, name, zoneType string) erro
 func (e ExecController) LocalZoneRemove(_ context.Context, name string) error {
 	return e.run("local_zone_remove", name)
 }
+
+// LocalData 运行时本地记录（unbound-control local_data "<name> <ttl> IN <type> <rdata>"）。
+func (e ExecController) LocalData(_ context.Context, data string) error {
+	return e.run("local_data", data)
+}
+
+// LocalDataRemove 移除本地记录。
+func (e ExecController) LocalDataRemove(_ context.Context, name string) error {
+	return e.run("local_data_remove", name)
+}

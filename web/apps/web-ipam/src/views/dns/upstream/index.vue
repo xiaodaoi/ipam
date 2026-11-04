@@ -20,8 +20,8 @@ type Health = 'down' | 'unknown' | 'up';
 const rows = ref<Upstream[]>([]);
 const editingId = ref<string>();
 const loading = ref(false);
-const form = ref<{ addr: string; enabled: boolean; name: string; protocol: Proto; weight: number }>({
-  name: '', addr: '', protocol: 'udp', weight: 1, enabled: true,
+const form = ref<{ addr: string; enabled: boolean; name: string; protocol: Proto; tlsName: string; weight: number }>({
+  name: '', addr: '', protocol: 'udp', tlsName: '', weight: 1, enabled: true,
 });
 let timer: ReturnType<typeof setInterval> | undefined;
 
@@ -50,6 +50,7 @@ async function add() {
         name: form.value.name,
         addrs,
         protocol: form.value.protocol,
+        tlsName: form.value.tlsName,
         weight: form.value.weight,
         enabled: form.value.enabled,
       });
@@ -59,13 +60,14 @@ async function add() {
         name: form.value.name,
         addrs,
         protocol: form.value.protocol,
+        tlsName: form.value.tlsName,
         weight: form.value.weight,
         enabled: form.value.enabled,
       });
       message.success('上游已添加');
     }
     editingId.value = undefined;
-    form.value = { name: '', addr: '', protocol: 'udp', weight: 1, enabled: true };
+    form.value = { name: '', addr: '', protocol: 'udp', tlsName: '', weight: 1, enabled: true };
     formModalApi.close();
   } catch (error) {
     message.error(error instanceof Error ? error.message : '操作失败');
@@ -80,6 +82,7 @@ function edit(r: Upstream) {
     name: r.name,
     addr: (r.addrs ?? []).join(','),
     protocol: (r.protocol as Proto) ?? 'udp',
+    tlsName: r.tlsName ?? '',
     weight: r.weight ?? 1,
     enabled: r.enabled ?? true,
   };
@@ -88,7 +91,7 @@ const [FormModal, formModalApi] = useVbenModal({ draggable: true, title: '上游
 function openAdd() {
   // 不能先 close()（异步回写 isOpen 会把刚打开的弹窗关掉）
   editingId.value = undefined;
-  form.value = { name: '', addr: '', protocol: 'udp', weight: 1, enabled: true };
+  form.value = { name: '', addr: '', protocol: 'udp', tlsName: '', weight: 1, enabled: true };
   formModalApi.setState({ title: '添加上游 DNS', confirmText: '添加' });
   formModalApi.open();
 }
@@ -374,6 +377,11 @@ function resetFilters() {
             ]"
           />
         </label>
+        <label v-if="form.protocol === 'dot'" class="ipam-form-field ipam-form-field--wide">
+          <span class="ipam-form-field__label">TLS 名称（SNI）</span>
+          <Input v-model:value="form.tlsName" placeholder="如 cloudflare-dns.com / dns.alidns.com" />
+          <span class="ipam-hint">用于证书校验的上游主机名；留空则按地址直连（部分上游会拒绝）</span>
+        </label>
         <label class="ipam-form-field ipam-form-field--wide">
           <span class="ipam-form-field__label">地址<em>*</em></span>
           <Input v-model:value="form.addr" placeholder="可填多个，逗号分隔，如 223.5.5.5:53,223.6.6.6:53" />
@@ -390,7 +398,8 @@ function resetFilters() {
           </div>
         </div>
         <div class="ipam-form-hint ipam-form-field--wide">
-          权重越高被选中的概率越大；DoT 需上游支持 853 端口 TLS 握手。
+          权重越高被选中的概率越大；DoT 渲染为 <code>forward-tls-upstream</code>，端口缺省 853。
+          DoT 与明文上游混用时只取 DoT 目标（避免明文回落）。
         </div>
       </div>
     </FormModal>

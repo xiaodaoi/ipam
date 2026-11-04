@@ -184,6 +184,18 @@ paths:
     $ref: './paths/blocklist.yaml#/BlocklistItem'
   /dns/blocklists/{listId}/entries:
     $ref: './paths/blocklist.yaml#/BlocklistEntriesCollection'
+  /dns/blocklists/{listId}/entries/import:
+    $ref: './paths/blocklist.yaml#/BlocklistEntryImport'
+  /dns/blocklists/{listId}/entries/export:
+    $ref: './paths/blocklist.yaml#/BlocklistEntryExport'
+  /dns/blocklists/{listId}/versions:
+    $ref: './paths/blocklist.yaml#/BlocklistVersionsCollection'
+  /dns/blocklists/{listId}/versions/{version}/rollback:
+    $ref: './paths/blocklist.yaml#/BlocklistVersionRollback'
+  /dns/blocklists/builtin:
+    $ref: './paths/blocklist.yaml#/BuiltinPacksCollection'
+  /dns/blocklists/builtin/{key}/install:
+    $ref: './paths/blocklist.yaml#/BuiltinPackInstall'
   /dns/policy-groups:
     $ref: './paths/blocklist.yaml#/PolicyGroupsCollection'
   /dns/policy-groups/{groupId}/compile:
@@ -461,6 +473,20 @@ components:
       $ref: './components/schemas/blocklist.yaml#/PolicyGroupCreate'
     RpzCompileResult:
       $ref: './components/schemas/blocklist.yaml#/RpzCompileResult'
+    PolicySchedule:
+      $ref: './components/schemas/blocklist.yaml#/PolicySchedule'
+    BlocklistImportRequest:
+      $ref: './components/schemas/blocklist.yaml#/BlocklistImportRequest'
+    BlocklistImportResult:
+      $ref: './components/schemas/blocklist.yaml#/BlocklistImportResult'
+    BlocklistVersion:
+      $ref: './components/schemas/blocklist.yaml#/BlocklistVersion'
+    BlocklistVersionList:
+      $ref: './components/schemas/blocklist.yaml#/BlocklistVersionList'
+    BuiltinPack:
+      $ref: './components/schemas/blocklist.yaml#/BuiltinPack'
+    BuiltinPackList:
+      $ref: './components/schemas/blocklist.yaml#/BuiltinPackList'
     DnsSettings:
       $ref: './components/schemas/settings.yaml#/DnsSettings'
     PerDomainTtl:

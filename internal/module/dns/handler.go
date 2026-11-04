@@ -54,6 +54,7 @@ func (h *DnsHandler) CreateUpstream(c *gin.Context) {
 		Name:     body.Name,
 		Addrs:    body.Addrs,
 		Protocol: protocol,
+		TLSName:  derefStr(body.TlsName),
 		Weight:   deref(body.Weight, 1),
 		Enabled:  deref(body.Enabled, true),
 	}
@@ -92,6 +93,9 @@ func (h *DnsHandler) UpdateUpstream(c *gin.Context, upstreamId rtypes.UUID) {
 	}
 	if body.Protocol != nil {
 		cur.Protocol = string(*body.Protocol)
+	}
+	if body.TlsName != nil {
+		cur.TLSName = *body.TlsName
 	}
 	if body.Weight != nil {
 		cur.Weight = *body.Weight
@@ -150,6 +154,7 @@ func toGenUpstream(u Upstream, h Health) apigen.Upstream {
 		Name:     u.Name,
 		Addrs:    u.Addrs,
 		Protocol: protocol,
+		TlsName:  strPtr(u.TLSName),
 		Weight:   u.Weight,
 		Enabled:  u.Enabled,
 		Health: struct {

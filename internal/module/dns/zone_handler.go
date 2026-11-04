@@ -43,9 +43,7 @@ func (h *ZoneHandler) ListDnsZones(c *gin.Context) {
 	}
 	items := make([]apigen.DnsZone, 0, len(list))
 	for _, z := range list {
-		items = append(items, apigen.DnsZone{
-			Id: *uuidPtr(z.ID), Name: z.Name, Kind: apigen.DnsZoneKind(z.Kind), Enabled: z.Enabled,
-		})
+		items = append(items, toGenZone(z))
 	}
 	c.JSON(http.StatusOK, apigen.DnsZoneList{Items: items, Total: &[]int{len(items)}[0]})
 }
@@ -60,12 +58,12 @@ func (h *ZoneHandler) CreateDnsZone(c *gin.Context) {
 	if body.Kind != nil {
 		kind = string(*body.Kind)
 	}
-	z, err := h.svc.CreateZone(c.Request.Context(), Zone{Name: body.Name, Kind: kind, Enabled: true})
+	z, err := h.svc.CreateZone(c.Request.Context(), Zone{Name: body.Name, Kind: kind, Primary: derefStr(body.Primary), Enabled: true})
 	if err != nil {
 		problem.Write(c, http.StatusConflict, "https://ipam.local/problems/zone-name-dup", "ZONE_NAME_DUP", "区域已存在")
 		return
 	}
-	c.JSON(http.StatusCreated, apigen.DnsZone{Id: *uuidPtr(z.ID), Name: z.Name, Kind: apigen.DnsZoneKind(z.Kind), Enabled: z.Enabled})
+	c.JSON(http.StatusCreated, toGenZone(z))
 }
 
 func (h *ZoneHandler) DeleteDnsZone(c *gin.Context, zoneId rtypes.UUID) {
@@ -104,6 +102,9 @@ func (h *ZoneHandler) UpdateDnsZone(c *gin.Context, zoneId rtypes.UUID) {
 	if body.Kind != nil {
 		cur.Kind = string(*body.Kind)
 	}
+	if body.Primary != nil {
+		cur.Primary = *body.Primary
+	}
 	if body.Enabled != nil {
 		cur.Enabled = *body.Enabled
 	}
@@ -117,7 +118,7 @@ func (h *ZoneHandler) UpdateDnsZone(c *gin.Context, zoneId rtypes.UUID) {
 		}
 		return
 	}
-	c.JSON(http.StatusOK, apigen.DnsZone{Id: *uuidPtr(updated.ID), Name: updated.Name, Kind: apigen.DnsZoneKind(updated.Kind), Enabled: updated.Enabled})
+	c.JSON(http.StatusOK, toGenZone(updated))
 }
 
 func (h *ZoneHandler) ListDnsRecords(c *gin.Context, zoneId rtypes.UUID) {
@@ -149,10 +150,10 @@ func (h *ZoneHandler) CreateDnsRecord(c *gin.Context, zoneId rtypes.UUID) {
 	}
 	saved, err := h.svc.CreateRecord(c.Request.Context(), zoneId.String(), r)
 	if err != nil {
-		switch err {
-		case ErrRecordNameDup:
+		switch {
+		case errors.Is(err, ErrRecordNameDup):
 			problem.Write(c, http.StatusConflict, "https://ipam.local/problems/record-name-dup", "RECORD_NAME_DUP", "同名同类型记录已存在")
-		case ErrBadRdata:
+		case errors.Is(err, ErrBadRdata):
 			problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "BAD_RDATA", err.Error())
 		default:
 			problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "INTERNAL", err.Error())
@@ -292,6 +293,20 @@ func toGenRecord(r Record) apigen.DnsRecord {
 		Enabled: &r.Enabled,
 	}
 }
+
+// toGenZone 区域模型 → 契约（M6-023：含 secondary 主服务器）。
+func toGenZone(z Zone) apigen.DnsZone {
+	primary := z.Primary
+	return apigen.DnsZone{
+		Id:      *uuidPtr(z.ID),
+		Name:    z.Name,
+		Kind:    apigen.DnsZoneKind(z.Kind),
+		Primary: &primary,
+		Enabled: z.Enabled,
+	}
+}
+
+func strPtr(s string) *string { return &s }
 
 func uuidPtr(s string) *rtypes.UUID {
 	u := guuid.MustParse(s)

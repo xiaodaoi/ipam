@@ -63,7 +63,12 @@ func TestService_创建触发下发与状态合并(t *testing.T) {
 	}
 }
 
-type fakeCtl struct{ synced, ruleSyncs, zoneReloads, reloads, localZones int }
+type fakeCtl struct {
+	synced, ruleSyncs, zoneReloads, reloads, localZones int
+	localData                                           []string
+	removedZones                                        []string
+	zoneTypes                                           map[string]string
+}
 
 func (f *fakeCtl) SyncForward(context.Context, []Upstream) error {
 	f.synced++
@@ -77,11 +82,23 @@ func (f *fakeCtl) AuthZoneReload(context.Context, string) error {
 	f.zoneReloads++
 	return nil
 }
-func (f *fakeCtl) LocalZone(context.Context, string, string) error {
+func (f *fakeCtl) LocalZone(_ context.Context, name, zt string) error {
 	f.localZones++
+	if f.zoneTypes == nil {
+		f.zoneTypes = map[string]string{}
+	}
+	f.zoneTypes[name] = zt
 	return nil
 }
-func (f *fakeCtl) LocalZoneRemove(context.Context, string) error    { return nil }
+func (f *fakeCtl) LocalZoneRemove(_ context.Context, name string) error {
+	f.removedZones = append(f.removedZones, name)
+	return nil
+}
+func (f *fakeCtl) LocalData(_ context.Context, data string) error {
+	f.localData = append(f.localData, data)
+	return nil
+}
+func (f *fakeCtl) LocalDataRemove(context.Context, string) error   { return nil }
 func (f *fakeCtl) CheckConf(context.Context, string, string) error { return nil }
 func (f *fakeCtl) Reload(context.Context) error {
 	f.reloads++

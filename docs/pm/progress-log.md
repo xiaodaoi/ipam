@@ -3,6 +3,18 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+
+## 2026-11-04 · DNS 能力补齐 009B2（M6-023）
+- **泛域名**：记录名校验（仅最左 `*`）；实测 unbound `local-data` 不展开通配，含 `*` 的区域改渲染 `auth-zone + zonefile`（自动生成 SOA/NS），多级子域/区顶点/显式记录行为符合 RFC 1034。
+- **DoT**：Upstream `tlsName` → `forward-tls-upstream: yes` + `ip@853#sni`；dot/udp 混用只取 dot。
+- **Secondary**：`kind=secondary/primary` → `auth-zone` + `primary: ip@port` + fallback/for-downstream/for-upstream，不写 local-data。
+- **提示页**：设置项 `blockPageIP/Title/Message` + 免认证 `/blocked`；redirect 条目指向提示页 IP，设置变更自动重放。
+- **时段策略**：`Schedule{days,start,end}`（跨零点/空=全天），每分钟 `Reconcile` 下发/撤销；实测窗口外不下发、窗口内 NXDOMAIN。
+- **名单运营**：CSV 导入/导出、版本快照/回滚（订阅同步与导入前自动快照）、5 类内置分类库。
+- **关键修正**：通配 redirect 原用 `*.name` local-data 无效，改为 `local-zone redirect` + 区顶点 A；区类型切换先删后加。
+- **契约/迁移**：spec + `0040_dns_ext.sql`（含修复 `dns_record_rec_type_check` 历史缺口）、`0041_blocklist_version.sql`。
+- **验证**：`go test ./...`、`vue-tsc`、`pnpm build:ipam`（11 任务）通过；真实栈迁移、内置库/CSV/回滚、DoT、secondary、提示页、时段、泛解析均实测。
+- **文档**：`docs/dev/M6-023-DNS能力补齐实现说明.md`；M6-009 卡 009B2 完成（NOTIFY 后续）。
 ## 2026-11-03 · 子网级规划元数据（M6-022）
 - 子网新增 `vlan/site/purpose/owner` 四字段（迁移 0039），创建/更新/列表/详情全链路打通；仅规划展示，不进入 Kea 配置。
 - 更新语义支持清空（指针非 nil 才覆盖），前端以空串提交；`vlan <> ''` 部分索引便于按 VLAN 检索。

@@ -555,18 +555,32 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	if pool != nil {
 		blRepo = dnsmodule.NewPgBlocklistRepo(pool)
 	}
+	var settingsRepo dnsmodule.SettingsRepo = dnsmodule.NewMemSettingsRepo()
+	if pool != nil {
+		settingsRepo = dnsmodule.NewPgSettingsRepo(pool)
+	}
 	blSvc := dnsmodule.NewBlocklistService(blRepo, nil, unboundCtl, "/var/lib/ipam/rpz")
+	// M6-023：redirect 封禁指向提示页 IP（settings.cache.blockPageIP）。
+	blSvc.SetBlockPageResolver(func(ctx context.Context) string {
+		raw, ok, err := settingsRepo.Get(ctx, "cache")
+		if err != nil || !ok {
+			return ""
+		}
+		var s dnsmodule.Settings
+		if json.Unmarshal(raw, &s) != nil {
+			return ""
+		}
+		return strings.TrimSpace(s.BlockPageIP)
+	})
 	// M2-033：启动重放封禁 local_zone（unbound 重启后运行时态恢复）
 	go func() {
 		if err := blSvc.ReplayAll(rootCtx); err != nil {
 			log.Printf("[bl-replay] %v", err)
 		}
 	}()
+	// M6-023：策略时段调度（每分钟收敛，窗口切换自动生效/撤销）。
+	dnsmodule.StartScheduleScheduler(rootCtx, blSvc, time.Minute)
 	blH := dnsmodule.NewBlocklistHandler(blSvc)
-	var settingsRepo dnsmodule.SettingsRepo = dnsmodule.NewMemSettingsRepo()
-	if pool != nil {
-		settingsRepo = dnsmodule.NewPgSettingsRepo(pool)
-	}
 	applier := &confApplier{
 		pool: pool, upRepo: upRepo, frRepo: frRepo, zoneRepo: zoneRepo,
 		blRepo: blRepo, settings: settingsRepo, ctl: unboundCtl,
@@ -576,8 +590,13 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		_, err := applier.apply(ctx)
 		if err != nil {
 			log.Printf("[settings-notify] %v", err)
+			return err
 		}
-		return err
+		// 提示页 IP 可能变化：重放封禁运行时态，使 redirect 条目指向新地址（M6-023）。
+		if err := blSvc.ReplayAll(ctx); err != nil {
+			log.Printf("[settings-notify] blocklist replay: %v", err)
+		}
+		return nil
 	})
 	dnsSvc.RulesSync = fwdSvc.SyncRules
 	fwdSvc.FileApply = func(ctx context.Context) error {
@@ -589,6 +608,8 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		return err
 	}
 	settingsH := dnsmodule.NewSettingsHandler(settingsSvc, settingsRepo)
+	// 拦截提示页（M6-023）：redirect 封禁解析到本机后由该路由展示说明（免认证）。
+	r.GET("/blocked", dnsmodule.BlockPageHandler(settingsRepo))
 
 	// 启动收敛（M3-011 事故教训：unbound 容器重建后运行态转发区丢失）——
 	// 全量渲染+checkconf+reload 把文件与运行态都收敛到 DB 现状；unbound 未就绪则重试。

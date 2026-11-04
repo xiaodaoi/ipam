@@ -223,5 +223,7 @@ func (f fakeUnbound) AuthZoneReload(context.Context, string) error    { return n
 func (f fakeUnbound) CheckConf(context.Context, string, string) error { return nil }
 func (f fakeUnbound) LocalZone(context.Context, string, string) error { return nil }
 func (f fakeUnbound) LocalZoneRemove(context.Context, string) error   { return nil }
+func (f fakeUnbound) LocalData(context.Context, string) error         { return nil }
+func (f fakeUnbound) LocalDataRemove(context.Context, string) error   { return nil }
 func (f fakeUnbound) Reload(context.Context) error                    { return nil }
 func (f fakeUnbound) FlushZone(context.Context, string) error         { return nil }

@@ -10,6 +10,9 @@ Upstream:
       items: { type: string, description: "ip[:port]，默认 53" }
       minItems: 1
     protocol: { type: string, enum: [udp, tcp, dot] }
+    tlsName:
+      type: string
+      description: DoT 上游 TLS SNI/证书名（如 cloudflare-dns.com；protocol=dot 时生效，M6-023）
     weight: { type: integer, minimum: 0 }
     enabled: { type: boolean }
     health:
@@ -31,6 +34,7 @@ UpstreamCreate:
       items: { type: string }
       minItems: 1
     protocol: { type: string, enum: [udp, tcp, dot], default: udp }
+    tlsName: { type: string, description: DoT TLS SNI/证书名（protocol=dot 时生效） }
     weight: { type: integer, minimum: 0, default: 1 }
     enabled: { type: boolean, default: true }
 
@@ -40,6 +44,7 @@ UpstreamUpdate:
     name: { type: string, maxLength: 64 }
     addrs: { type: array, items: { type: string }, minItems: 1 }
     protocol: { type: string, enum: [udp, tcp, dot] }
+    tlsName: { type: string, description: DoT TLS SNI/证书名 }
     weight: { type: integer, minimum: 0 }
     enabled: { type: boolean }
 

@@ -18,6 +18,7 @@ type Upstream struct {
 	Name     string
 	Addrs    []string
 	Protocol string
+	TLSName  string // DoT SNI/证书名（protocol=dot，M6-023）
 	Weight   int
 	Enabled  bool
 }
@@ -53,9 +54,13 @@ type UnboundController interface {
 	// AuthZoneReload 单区刷新（auth_zone_reload <zone>）。
 	AuthZoneReload(ctx context.Context, zoneID string) error
 	// LocalZone 运行时本地域（M2-033 黑名单：local_zone static <name> → NXDOMAIN 拦截）。
-	LocalZone(ctx context.Context, zoneType, name string) error
+	LocalZone(ctx context.Context, name, zoneType string) error
 	// LocalZoneRemove 移除本地域。
 	LocalZoneRemove(ctx context.Context, name string) error
+	// LocalData 运行时本地记录（M6-023：redirect 封禁指向提示页 IP）。
+	LocalData(ctx context.Context, data string) error
+	// LocalDataRemove 移除本地记录。
+	LocalDataRemove(ctx context.Context, name string) error
 	// CheckConf 校验配置片段。
 	CheckConf(ctx context.Context, confPath, renderedBlock string) error
 	// Reload 全量 reload。
@@ -291,7 +296,7 @@ type PgUpstreamRepo struct{ pool *pgxpool.Pool }
 
 func NewPgUpstreamRepo(pool *pgxpool.Pool) *PgUpstreamRepo { return &PgUpstreamRepo{pool: pool} }
 
-const upCols = `id::text, name, addrs, protocol, weight, enabled`
+const upCols = `id::text, name, addrs, protocol, coalesce(tls_name,''), weight, enabled`
 
 func (r *PgUpstreamRepo) List(ctx context.Context) ([]Upstream, error) {
 	rows, err := r.pool.Query(ctx, `SELECT `+upCols+` FROM upstream ORDER BY created_at`)
@@ -302,7 +307,7 @@ func (r *PgUpstreamRepo) List(ctx context.Context) ([]Upstream, error) {
 	out := []Upstream{}
 	for rows.Next() {
 		var u Upstream
-		if err := rows.Scan(&u.ID, &u.Name, &u.Addrs, &u.Protocol, &u.Weight, &u.Enabled); err == nil {
+		if err := rows.Scan(&u.ID, &u.Name, &u.Addrs, &u.Protocol, &u.TLSName, &u.Weight, &u.Enabled); err == nil {
 			out = append(out, u)
 		}
 	}
@@ -312,7 +317,7 @@ func (r *PgUpstreamRepo) List(ctx context.Context) ([]Upstream, error) {
 func (r *PgUpstreamRepo) Get(ctx context.Context, id string) (Upstream, bool, error) {
 	var u Upstream
 	err := r.pool.QueryRow(ctx, `SELECT `+upCols+` FROM upstream WHERE id=$1`, id).
-		Scan(&u.ID, &u.Name, &u.Addrs, &u.Protocol, &u.Weight, &u.Enabled)
+		Scan(&u.ID, &u.Name, &u.Addrs, &u.Protocol, &u.TLSName, &u.Weight, &u.Enabled)
 	if err == pgx.ErrNoRows {
 		return Upstream{}, false, nil
 	}
@@ -325,16 +330,16 @@ func (r *PgUpstreamRepo) Get(ctx context.Context, id string) (Upstream, bool, er
 func (r *PgUpstreamRepo) Create(ctx context.Context, u Upstream) (Upstream, error) {
 	var id string
 	err := r.pool.QueryRow(ctx,
-		`INSERT INTO upstream(name, addrs, protocol, weight, enabled) VALUES($1,$2,$3,$4,$5) RETURNING id::text`,
-		u.Name, u.Addrs, u.Protocol, u.Weight, u.Enabled).Scan(&id)
+		`INSERT INTO upstream(name, addrs, protocol, tls_name, weight, enabled) VALUES($1,$2,$3,$4,$5,$6) RETURNING id::text`,
+		u.Name, u.Addrs, u.Protocol, u.TLSName, u.Weight, u.Enabled).Scan(&id)
 	u.ID = id
 	return u, err
 }
 
 func (r *PgUpstreamRepo) Update(ctx context.Context, u Upstream) error {
 	_, err := r.pool.Exec(ctx,
-		`UPDATE upstream SET name=$2, addrs=$3, protocol=$4, weight=$5, enabled=$6 WHERE id=$1`,
-		u.ID, u.Name, u.Addrs, u.Protocol, u.Weight, u.Enabled)
+		`UPDATE upstream SET name=$2, addrs=$3, protocol=$4, tls_name=$5, weight=$6, enabled=$7 WHERE id=$1`,
+		u.ID, u.Name, u.Addrs, u.Protocol, u.TLSName, u.Weight, u.Enabled)
 	return err
 }
 

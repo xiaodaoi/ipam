@@ -74,7 +74,7 @@ PolicyGroup:
     viewName: { type: string, description: 对应 unbound view 名（唯一） }
     cidrs: { type: array, items: { type: string }, description: 匹配来源网段 }
     listIds: { type: array, items: { type: string, format: uuid }, description: 生效名单集合(白单优先) }
-    schedule: { type: object, nullable: true, description: 时段表（cron 展开） }
+    schedule: { $ref: 'blocklist.yaml#/PolicySchedule' }
 
 PolicyGroupCreate:
   type: object
@@ -84,7 +84,7 @@ PolicyGroupCreate:
     viewName: { type: string }
     cidrs: { type: array, items: { type: string } }
     listIds: { type: array, items: { type: string, format: uuid } }
-    schedule: { type: object, nullable: true }
+    schedule: { $ref: 'blocklist.yaml#/PolicySchedule' }
 
 RpzCompileResult:
   type: object
@@ -95,3 +95,74 @@ RpzCompileResult:
     entries: { type: integer, description: 去重后条目数 }
     path: { type: string, description: zonefile 路径 }
     reloadCommand: { type: string, description: 如 unbound-control auth_zone_reload students.rpz }
+
+PolicySchedule:
+  type: object
+  nullable: true
+  description: |
+    策略生效时段（M6-009B2）。空/未设置=全天生效；days 为空=每天；start>end 表示跨零点
+    （如 22:00→06:00）。由控制面每分钟收敛一次，窗口外自动撤销该组的拦截条目。
+  properties:
+    days:
+      type: array
+      items: { type: integer, minimum: 0, maximum: 6 }
+      description: 生效星期（0=周日 … 6=周六）；空=每天
+    start: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$', description: 起始 HH:MM }
+    end: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$', description: 结束 HH:MM }
+
+BlocklistImportRequest:
+  type: object
+  required: [content]
+  properties:
+    content:
+      type: string
+      maxLength: 1048576
+      description: CSV 文本（pattern[,action[,category]]，支持 UTF-8 BOM 与 # 注释）
+    replace:
+      type: boolean
+      default: false
+      description: true=导入前清空该名单现有条目
+
+BlocklistImportResult:
+  type: object
+  required: [created, skipped, total]
+  properties:
+    created: { type: integer, description: 新增/覆盖条目数 }
+    skipped: { type: integer, description: 非法或重复条目数 }
+    total: { type: integer, description: 导入后名单条目总数 }
+    errors:
+      type: array
+      items: { type: string }
+      description: 前 20 条跳过原因（便于定位）
+
+BlocklistVersion:
+  type: object
+  required: [version, entries, createdAt]
+  properties:
+    version: { type: integer }
+    entries: { type: integer, description: 该版本快照条目数 }
+    createdAt: { type: string, format: date-time }
+
+BlocklistVersionList:
+  type: object
+  required: [items]
+  properties:
+    items: { type: array, items: { $ref: 'blocklist.yaml#/BlocklistVersion' } }
+
+BuiltinPack:
+  type: object
+  required: [key, name, entryCount]
+  properties:
+    key: { type: string }
+    name: { type: string }
+    description: { type: string }
+    categories:
+      type: array
+      items: { type: string }
+    entryCount: { type: integer }
+
+BuiltinPackList:
+  type: object
+  required: [items]
+  properties:
+    items: { type: array, items: { $ref: 'blocklist.yaml#/BuiltinPack' } }

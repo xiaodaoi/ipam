@@ -243,3 +243,150 @@ PolicyGroupItem:
             ok:
               summary: 示例
               value: { zone: students.rpz, entries: 1200, path: '/var/lib/ipam/rpz/students.zone', reloadCommand: 'unbound-control auth_zone_reload students.rpz' }
+BlocklistEntryImport:
+  post:
+    operationId: importBlocklistEntries
+    tags: [blocklist]
+    summary: CSV 导入条目（M6-023）
+    description: |
+      正文为 CSV 文本（可选 UTF-8 BOM）：列 `pattern[,action[,category]]`，
+      首行可为表头（pattern/action/category 任一出现即视为表头）。action 缺省 nxdomain。
+      逐行校验：空行/`#` 注释跳过；非法域名与重复 pattern 计入 skipped。
+      replace=true 时先清空该名单现有条目再导入。scope 为 blocklist.write。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: listId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/blocklist.yaml#/BlocklistImportRequest'
+          examples:
+            csv:
+              value:
+                content: "pattern,action,category\n*.doubleclick.net,nxdomain,ads\nbad.example.com,redirect,gambling"
+                replace: false
+    responses:
+      '200':
+        description: 导入结果
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/blocklist.yaml#/BlocklistImportResult'
+      '400':
+        description: CSV 内容为空或格式非法
+
+BlocklistEntryExport:
+  get:
+    operationId: exportBlocklistEntries
+    tags: [blocklist]
+    summary: CSV 导出条目（M6-023）
+    description: 按 pattern 排序导出 `pattern,action,category`（UTF-8 含 BOM，Excel 可直接打开）。scope 为 blocklist.read。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: listId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: CSV 文本
+        content:
+          text/csv:
+            schema: { type: string }
+            examples:
+              ok:
+                value: "pattern,action,category\n*.doubleclick.net,nxdomain,ads\n"
+
+BlocklistVersionsCollection:
+  get:
+    operationId: listBlocklistVersions
+    tags: [blocklist]
+    summary: 名单版本列表（M6-023 回滚基线）
+    description: 返回已保存的版本快照（版本号+条目数+时间，倒序），用于回滚。
+    security: []
+    parameters:
+      - name: listId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: OK
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/blocklist.yaml#/BlocklistVersionList'
+
+BlocklistVersionRollback:
+  post:
+    operationId: rollbackBlocklist
+    tags: [blocklist]
+    summary: 回滚到指定版本（M6-023）
+    description: |
+      以指定版本快照替换当前条目，并把版本号 +1（历史不回退，便于再次回滚）。
+      快照不存在返回 404。scope 为 blocklist.write。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: listId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: version
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    responses:
+      '200':
+        description: 回滚后的名单
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/blocklist.yaml#/Blocklist'
+      '404':
+        description: 版本不存在
+
+BuiltinPacksCollection:
+  get:
+    operationId: listBuiltinPacks
+    tags: [blocklist]
+    summary: 内置分类库目录（M6-023）
+    description: 返回随产品分发的内置域名分类包（广告/追踪/赌博/成人/社交），可一键安装为 builtin 名单。
+    security: []
+    responses:
+      '200':
+        description: OK
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/blocklist.yaml#/BuiltinPackList'
+
+BuiltinPackInstall:
+  post:
+    operationId: installBuiltinPack
+    tags: [blocklist]
+    summary: 安装内置分类库（M6-023）
+    description: |
+      以分类包内容创建一份 kind=builtin 名单（同名重复安装返回 409）。
+      安装后条目立即可加入策略组，版本从 1 开始，后续可经版本快照回滚。scope 为 blocklist.write。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: key
+        in: path
+        required: true
+        schema: { type: string, enum: [ads, trackers, gambling, adult, social] }
+    responses:
+      '201':
+        description: 已安装
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/blocklist.yaml#/Blocklist'
+      '404':
+        description: 分类包不存在
+      '409':
+        description: 同名单已存在

@@ -1544,6 +1544,131 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/dns/blocklists/{listId}/entries/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * CSV 导入条目（M6-023）
+         * @description 正文为 CSV 文本（可选 UTF-8 BOM）：列 `pattern[,action[,category]]`，
+         *     首行可为表头（pattern/action/category 任一出现即视为表头）。action 缺省 nxdomain。
+         *     逐行校验：空行/`#` 注释跳过；非法域名与重复 pattern 计入 skipped。
+         *     replace=true 时先清空该名单现有条目再导入。scope 为 blocklist.write。
+         */
+        post: operations["importBlocklistEntries"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dns/blocklists/{listId}/entries/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * CSV 导出条目（M6-023）
+         * @description 按 pattern 排序导出 `pattern,action,category`（UTF-8 含 BOM，Excel 可直接打开）。scope 为 blocklist.read。
+         */
+        get: operations["exportBlocklistEntries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dns/blocklists/{listId}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 名单版本列表（M6-023 回滚基线）
+         * @description 返回已保存的版本快照（版本号+条目数+时间，倒序），用于回滚。
+         */
+        get: operations["listBlocklistVersions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dns/blocklists/{listId}/versions/{version}/rollback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 回滚到指定版本（M6-023）
+         * @description 以指定版本快照替换当前条目，并把版本号 +1（历史不回退，便于再次回滚）。
+         *     快照不存在返回 404。scope 为 blocklist.write。
+         */
+        post: operations["rollbackBlocklist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dns/blocklists/builtin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 内置分类库目录（M6-023）
+         * @description 返回随产品分发的内置域名分类包（广告/追踪/赌博/成人/社交），可一键安装为 builtin 名单。
+         */
+        get: operations["listBuiltinPacks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dns/blocklists/builtin/{key}/install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 安装内置分类库（M6-023）
+         * @description 以分类包内容创建一份 kind=builtin 名单（同名重复安装返回 409）。
+         *     安装后条目立即可加入策略组，版本从 1 开始，后续可经版本快照回滚。scope 为 blocklist.write。
+         */
+        post: operations["installBuiltinPack"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dns/policy-groups": {
         parameters: {
             query?: never;
@@ -2535,6 +2660,8 @@ export interface components {
             addrs: string[];
             /** @enum {string} */
             protocol: "udp" | "tcp" | "dot";
+            /** @description DoT 上游 TLS SNI/证书名（如 cloudflare-dns.com；protocol=dot 时生效，M6-023） */
+            tlsName?: string;
             weight: number;
             enabled: boolean;
             /** @description 探活状态（prober 维护） */
@@ -2554,6 +2681,8 @@ export interface components {
              * @enum {string}
              */
             protocol: "udp" | "tcp" | "dot";
+            /** @description DoT TLS SNI/证书名（protocol=dot 时生效） */
+            tlsName?: string;
             /** @default 1 */
             weight: number;
             /** @default true */
@@ -2564,6 +2693,8 @@ export interface components {
             addrs?: string[];
             /** @enum {string} */
             protocol?: "udp" | "tcp" | "dot";
+            /** @description DoT TLS SNI/证书名 */
+            tlsName?: string;
             weight?: number;
             enabled?: boolean;
         };
@@ -2610,7 +2741,9 @@ export interface components {
             /** @description FQDN 如 corp.local. */
             name: string;
             /** @enum {string} */
-            kind: "auth" | "local";
+            kind: "auth" | "local" | "secondary";
+            /** @description kind=secondary 的主服务器地址（逗号分隔 ip[:port]，M6-023 AXFR） */
+            primary?: string;
             enabled: boolean;
         };
         DnsZoneCreate: {
@@ -2619,7 +2752,9 @@ export interface components {
              * @default auth
              * @enum {string}
              */
-            kind: "auth" | "local";
+            kind: "auth" | "local" | "secondary";
+            /** @description kind=secondary 的主服务器地址（逗号分隔，M6-023） */
+            primary?: string;
         };
         /** @description 解析记录。 */
         DnsRecord: {
@@ -2627,7 +2762,7 @@ export interface components {
             id: string;
             /** Format: uuid */
             zoneId: string;
-            /** @description 相对名（www）或 FQDN */
+            /** @description 相对名（www）、FQDN，或通配（*.example.com / *，M6-023；仅允许最左标签为 *） */
             name: string;
             /** @enum {string} */
             recType: "A" | "AAAA" | "CNAME" | "PTR" | "TXT" | "SRV" | "MX";
@@ -2743,15 +2878,14 @@ export interface components {
             cidrs: string[];
             /** @description 生效名单集合(白单优先) */
             listIds: string[];
-            /** @description 时段表（cron 展开） */
-            schedule?: Record<string, never> | null;
+            schedule?: components["schemas"]["PolicySchedule"];
         };
         PolicyGroupCreate: {
             name: string;
             viewName: string;
             cidrs: string[];
             listIds: string[];
-            schedule?: Record<string, never> | null;
+            schedule?: components["schemas"]["PolicySchedule"];
         };
         /** @description RPZ 增量编译结果。 */
         RpzCompileResult: {
@@ -2763,6 +2897,57 @@ export interface components {
             path: string;
             /** @description 如 unbound-control auth_zone_reload students.rpz */
             reloadCommand: string;
+        };
+        /**
+         * @description 策略生效时段（M6-009B2）。空/未设置=全天生效；days 为空=每天；start>end 表示跨零点
+         *     （如 22:00→06:00）。由控制面每分钟收敛一次，窗口外自动撤销该组的拦截条目。
+         */
+        PolicySchedule: {
+            /** @description 生效星期（0=周日 … 6=周六）；空=每天 */
+            days?: number[];
+            /** @description 起始 HH:MM */
+            start?: string;
+            /** @description 结束 HH:MM */
+            end?: string;
+        } | null;
+        BlocklistImportRequest: {
+            /** @description CSV 文本（pattern[,action[,category]]，支持 UTF-8 BOM 与 */
+            content: string;
+            /**
+             * @description true=导入前清空该名单现有条目
+             * @default false
+             */
+            replace: boolean;
+        };
+        BlocklistImportResult: {
+            /** @description 新增/覆盖条目数 */
+            created: number;
+            /** @description 非法或重复条目数 */
+            skipped: number;
+            /** @description 导入后名单条目总数 */
+            total: number;
+            /** @description 前 20 条跳过原因（便于定位） */
+            errors?: string[];
+        };
+        BlocklistVersion: {
+            version: number;
+            /** @description 该版本快照条目数 */
+            entries: number;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        BlocklistVersionList: {
+            items: components["schemas"]["BlocklistVersion"][];
+        };
+        BuiltinPack: {
+            key: string;
+            name: string;
+            description?: string;
+            categories?: string[];
+            entryCount: number;
+        };
+        BuiltinPackList: {
+            items: components["schemas"]["BuiltinPack"][];
         };
         /** @description DNS 行为参数（缓存+安全，§13.4 缓存与性能/安全与诊断）。 */
         DnsSettings: {
@@ -2783,6 +2968,15 @@ export interface components {
              * @default false
              */
             tcpOnly: boolean;
+            /**
+             * @description 拦截提示页地址（M6-023）：action=redirect 的封禁条目解析结果指向该 IP，
+             *     由控制面 `/blocked` 页面承载提示文案；留空则 redirect 条目按 NXDOMAIN 处理。
+             */
+            blockPageIP?: string;
+            /** @description 拦截提示页标题（留空使用站点默认） */
+            blockPageTitle?: string;
+            /** @description 拦截提示页正文说明（留空使用默认文案） */
+            blockPageMessage?: string;
         };
         /** @description 每域名 TTL 覆盖（F-R3，DDNS/CDN 敏感域名）。 */
         PerDomainTtl: {
@@ -3777,7 +3971,9 @@ export interface components {
             /** @description 重命名区域（尾点容错） */
             name?: string;
             /** @enum {string} */
-            kind?: "auth" | "local";
+            kind?: "auth" | "local" | "secondary";
+            /** @description kind=secondary 的主服务器地址（逗号分隔） */
+            primary?: string;
             /** @description 启用/停用区域（停用即不再渲染解析） */
             enabled?: boolean;
         };
@@ -6704,6 +6900,169 @@ export interface operations {
             };
             /** @description 条目不存在 */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    importBlocklistEntries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BlocklistImportRequest"];
+            };
+        };
+        responses: {
+            /** @description 导入结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlocklistImportResult"];
+                };
+            };
+            /** @description CSV 内容为空或格式非法 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    exportBlocklistEntries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV 文本 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+        };
+    };
+    listBlocklistVersions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlocklistVersionList"];
+                };
+            };
+        };
+    };
+    rollbackBlocklist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listId: string;
+                version: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 回滚后的名单 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Blocklist"];
+                };
+            };
+            /** @description 版本不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listBuiltinPacks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BuiltinPackList"];
+                };
+            };
+        };
+    };
+    installBuiltinPack: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: "ads" | "trackers" | "gambling" | "adult" | "social";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已安装 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Blocklist"];
+                };
+            };
+            /** @description 分类包不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 同名单已存在 */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

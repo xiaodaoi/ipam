@@ -19,7 +19,8 @@ import (
 type Zone struct {
 	ID      string
 	Name    string
-	Kind    string // auth | local
+	Kind    string // auth | local | secondary（M6-023）
+	Primary string // kind=secondary 主服务器（逗号分隔 ip[:port]）
 	Enabled bool
 }
 
@@ -53,6 +54,34 @@ var (
 	ErrZoneNameDup    = errors.New("ZONE_NAME_DUP")
 	ErrBadRdata       = errors.New("BAD_RDATA")
 )
+
+// ValidateRecordName 校验记录名（M6-023：支持最左标签通配）。
+// 允许：空（区顶点）、相对名、FQDN、`*`、`*.example.com`；禁止中间/多处通配与空标签。
+func ValidateRecordName(name string) error {
+	n := strings.TrimSpace(name)
+	if n == "" || n == "*" {
+		return nil
+	}
+	if strings.Contains(n, "*") {
+		if !strings.HasPrefix(n, "*.") {
+			return fmt.Errorf("%w: 通配仅允许最左标签（如 *.example.com）", ErrBadRdata)
+		}
+		if strings.Count(n, "*") != 1 {
+			return fmt.Errorf("%w: 通配符只能出现一次", ErrBadRdata)
+		}
+		n = n[2:]
+	}
+	n = strings.TrimSuffix(n, ".")
+	if n == "" || len(n) > 253 {
+		return fmt.Errorf("%w: 记录名长度非法", ErrBadRdata)
+	}
+	for _, label := range strings.Split(n, ".") {
+		if label == "" {
+			return fmt.Errorf("%w: 记录名存在空标签", ErrBadRdata)
+		}
+	}
+	return nil
+}
 
 // ValidateRecord 按类型校验 rdata 语法（§13.4 正向/反向记录）。
 func ValidateRecord(recType, rdata string) error {
@@ -168,6 +197,9 @@ func (s *ZoneService) DeleteZone(ctx context.Context, id string) error {
 
 // CreateRecord 校验→落库→全量重渲染/reload。
 func (s *ZoneService) CreateRecord(ctx context.Context, zoneID string, r Record) (Record, error) {
+	if err := ValidateRecordName(r.Name); err != nil {
+		return Record{}, err
+	}
 	if err := ValidateRecord(r.RecType, r.Rdata); err != nil {
 		return Record{}, err
 	}
@@ -182,6 +214,9 @@ func (s *ZoneService) CreateRecord(ctx context.Context, zoneID string, r Record)
 
 // UpdateRecord 更新记录（校验→落库→重渲染）。
 func (s *ZoneService) UpdateRecord(ctx context.Context, r Record) (Record, error) {
+	if err := ValidateRecordName(r.Name); err != nil {
+		return Record{}, err
+	}
 	if err := ValidateRecord(r.RecType, r.Rdata); err != nil {
 		return Record{}, err
 	}
@@ -402,7 +437,7 @@ type PgZoneRepo struct{ pool *pgxpool.Pool }
 func NewPgZoneRepo(pool *pgxpool.Pool) *PgZoneRepo { return &PgZoneRepo{pool: pool} }
 
 func (r *PgZoneRepo) ListZones(ctx context.Context) ([]Zone, error) {
-	rows, err := r.pool.Query(ctx, `SELECT id::text, name, kind, enabled FROM dns_zone ORDER BY created_at`)
+	rows, err := r.pool.Query(ctx, `SELECT id::text, name, kind, coalesce(primary_servers,''), enabled FROM dns_zone ORDER BY created_at`)
 	if err != nil {
 		return nil, err
 	}
@@ -410,7 +445,7 @@ func (r *PgZoneRepo) ListZones(ctx context.Context) ([]Zone, error) {
 	out := []Zone{}
 	for rows.Next() {
 		var z Zone
-		if err := rows.Scan(&z.ID, &z.Name, &z.Kind, &z.Enabled); err == nil {
+		if err := rows.Scan(&z.ID, &z.Name, &z.Kind, &z.Primary, &z.Enabled); err == nil {
 			out = append(out, z)
 		}
 	}
@@ -419,8 +454,8 @@ func (r *PgZoneRepo) ListZones(ctx context.Context) ([]Zone, error) {
 func (r *PgZoneRepo) CreateZone(ctx context.Context, z Zone) (Zone, error) {
 	var id string
 	err := r.pool.QueryRow(ctx,
-		`INSERT INTO dns_zone(name, kind, enabled) VALUES($1,$2,$3) RETURNING id::text`,
-		z.Name, z.Kind, z.Enabled).Scan(&id)
+		`INSERT INTO dns_zone(name, kind, primary_servers, enabled) VALUES($1,$2,$3,$4) RETURNING id::text`,
+		z.Name, z.Kind, z.Primary, z.Enabled).Scan(&id)
 	z.ID = id
 	return z, err
 }
@@ -429,8 +464,8 @@ func (r *PgZoneRepo) DeleteZone(ctx context.Context, id string) error {
 	return err
 }
 func (r *PgZoneRepo) UpdateZone(ctx context.Context, z Zone) error {
-	tag, err := r.pool.Exec(ctx, `UPDATE dns_zone SET name=$1, kind=$2, enabled=$3 WHERE id=$4`,
-		z.Name, z.Kind, z.Enabled, z.ID)
+	tag, err := r.pool.Exec(ctx, `UPDATE dns_zone SET name=$1, kind=$2, primary_servers=$3, enabled=$4 WHERE id=$5`,
+		z.Name, z.Kind, z.Primary, z.Enabled, z.ID)
 	if err != nil {
 		return err
 	}

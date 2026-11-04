@@ -3,7 +3,9 @@ package unbound
 import (
 	"fmt"
 	"net/netip"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // ── 五源合成（§2.3：上游+转发+解析记录+封禁+参数 → 单一 unbound.conf）──
@@ -12,20 +14,33 @@ import (
 // ConfInput 五源合成输入。
 type ConfInput struct {
 	SettingsBlock string            // 已渲染的 server: 参数段（dns.RenderSettingsBlock）
-	DefaultFwd    []string          // 默认上游地址（含端口）
+	DefaultFwd    []ForwardAddr     // 默认上游（含端口；TLSName 非空=DoT）
 	Rules         []ForwardRuleConf // 条件转发规则（enabled）
-	AuthZones     []AuthZoneConf    // 本地区域及其记录
+	AuthZones     []AuthZoneConf    // 本地区域及其记录（含 secondary/AXFR）
 	RpzZones      []RpzZoneConf     // 封禁 RPZ 区（zonefile 路径引用）
+}
+
+// ForwardAddr 转发目标（M6-023：DoT 以 TLSName 表达 SNI）。
+type ForwardAddr struct {
+	Addr    string // ip[:port]
+	TLSName string // 非空 → forward-tls-upstream + addr@853#tlsName
 }
 
 type ForwardRuleConf struct {
 	Domain string
-	Addrs  []string
+	Addrs  []ForwardAddr
 }
 
 type AuthZoneConf struct {
 	Name    string
 	Records []ZoneRecord
+	// Secondary 非空表示 secondary 区（AXFR 从主服务器拉取，M6-023）：
+	// 渲染 auth-zone 的 primary 列表，此时不渲染 local-data（数据由主服务器同步）。
+	Secondary []string
+	// ZonefilePath 非空表示该区改用 auth-zone + zonefile 承载（M6-023）。
+	// 原因：unbound 的 local-data 不支持通配名（*.example.com 实测不展开），
+	// 只有 zonefile 解析器支持 RFC 1034 通配，因此含通配记录的区必须走此路径。
+	ZonefilePath string
 }
 
 type ZoneRecord struct {
@@ -93,6 +108,24 @@ func BuildConf(in ConfInput) string {
 	// local-zone/local-data 属 server 段选项，须置于独立 server 段（unbound 允许多 server 段累积），
 	// 不得放在 forward-zone 等顶层子句之后（会判为顶层非法关键字 syntax error，M3-011）。
 	for _, z := range in.AuthZones {
+		// secondary 区（M6-023）：AXFR 拉取，不声明 local-data。
+		if len(z.Secondary) > 0 {
+			sb.WriteString("auth-zone:\n")
+			fmt.Fprintf(&sb, "  name: %s\n", quoteName(z.Name))
+			for _, p := range z.Secondary {
+				fmt.Fprintf(&sb, "  primary: %s\n", primaryAddr(p))
+			}
+			sb.WriteString("  fallback-enabled: yes\n  for-downstream: yes\n  for-upstream: yes\n")
+			continue
+		}
+		// 含通配记录的区（M6-023）：auth-zone + zonefile 才能展开 *.example.com。
+		if z.ZonefilePath != "" {
+			sb.WriteString("auth-zone:\n")
+			fmt.Fprintf(&sb, "  name: %s\n", quoteName(normalizeZone(z.Name)))
+			fmt.Fprintf(&sb, "  zonefile: %s\n", quoteName(z.ZonefilePath))
+			sb.WriteString("  for-downstream: yes\n")
+			continue
+		}
 		if len(z.Records) == 0 {
 			continue
 		}
@@ -111,10 +144,30 @@ func BuildConf(in ConfInput) string {
 	return sb.String()
 }
 
-func writeForward(sb *strings.Builder, domain string, addrs []string) {
+func writeForward(sb *strings.Builder, domain string, addrs []ForwardAddr) {
 	if len(addrs) == 0 {
 		return
 	}
+	// DoT 优先（M6-023）：同一 forward-zone 内混用 dot/udp 时只取 dot 目标，
+	// 避免「部分请求明文回落」造成的隐私降级（前端已限制，这里兜底）。
+	hasTLS := false
+	for _, a := range addrs {
+		if a.TLSName != "" {
+			hasTLS = true
+			break
+		}
+	}
+	use := make([]ForwardAddr, 0, len(addrs))
+	for _, a := range addrs {
+		if hasTLS && a.TLSName == "" {
+			continue
+		}
+		use = append(use, a)
+	}
+	if len(use) == 0 {
+		return
+	}
+
 	name := domain
 	if name == "" || name == "." {
 		name = "\".\""
@@ -122,14 +175,46 @@ func writeForward(sb *strings.Builder, domain string, addrs []string) {
 		name = quoteName(domain)
 	}
 	fmt.Fprintf(sb, "forward-zone:\n  name: %s\n", name)
-	for _, a := range addrs {
-		// unbound forward-addr 语法为 host@port（冒号格式非法——M3-009 容器实测）
-		if ap, err := netip.ParseAddrPort(a); err == nil {
+	if hasTLS {
+		sb.WriteString("  forward-tls-upstream: yes\n")
+	}
+	for _, a := range use {
+		// unbound forward-addr 语法为 host@port[#tlsname]（冒号格式非法——M3-009 容器实测）
+		if a.TLSName != "" {
+			fmt.Fprintf(sb, "  forward-addr: %s@%s#%s\n", hostOf(a.Addr), portOf(a.Addr, 853), a.TLSName)
+			continue
+		}
+		if ap, err := netip.ParseAddrPort(a.Addr); err == nil {
 			fmt.Fprintf(sb, "  forward-addr: %s@%d\n", ap.Addr(), ap.Port())
 			continue
 		}
-		fmt.Fprintf(sb, "  forward-addr: %s\n", a)
+		fmt.Fprintf(sb, "  forward-addr: %s\n", a.Addr)
 	}
+}
+
+// hostOf 取地址主机部分（无端口时原样返回）。
+func hostOf(a string) string {
+	if ap, err := netip.ParseAddrPort(a); err == nil {
+		return ap.Addr().String()
+	}
+	return a
+}
+
+// portOf 取显式端口，缺省返回 def。
+func portOf(a string, def int) string {
+	if ap, err := netip.ParseAddrPort(a); err == nil {
+		return strconv.Itoa(int(ap.Port()))
+	}
+	return strconv.Itoa(def)
+}
+
+// primaryAddr secondary 区的 primary 语法：ip 或 ip@port（unbound 不接受冒号格式）。
+func primaryAddr(p string) string {
+	p = strings.TrimSpace(p)
+	if ap, err := netip.ParseAddrPort(p); err == nil {
+		return fmt.Sprintf("%s@%d", ap.Addr(), ap.Port())
+	}
+	return p
 }
 
 func quoteName(n string) string {
@@ -141,4 +226,40 @@ func quoteName(n string) string {
 
 func quoteRec(r ZoneRecord) string {
 	return fmt.Sprintf("\"%s %d IN %s %s\"", r.Name, r.TTL, r.Type, r.Data)
+}
+
+// RenderZonefile 生成区文件（M6-023：通配记录只能经 zonefile 生效）。
+// 记录名统一补成 FQDN；SOA/NS 为本地权威区自举的最小集（serial 取当前时间）。
+func RenderZonefile(zone string, records []ZoneRecord) []byte {
+	z := normalizeZone(zone)
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "$ORIGIN %s\n$TTL 300\n", z)
+	ns := "ns." + z
+	fmt.Fprintf(&sb, "@ 300 IN SOA %s hostmaster.%s ( %d 3600 600 86400 300 )\n",
+		ns, z, time.Now().Unix()&0xFFFFFFFF)
+	fmt.Fprintf(&sb, "@ 300 IN NS %s\n", ns)
+	fmt.Fprintf(&sb, "%s 300 IN A 127.0.0.1\n", ns)
+	for _, r := range records {
+		name := strings.TrimSpace(r.Name)
+		if name == "" {
+			name = "@"
+		} else if name != "@" && !strings.HasSuffix(name, ".") {
+			name += "."
+		}
+		ttl := r.TTL
+		if ttl <= 0 {
+			ttl = 300
+		}
+		fmt.Fprintf(&sb, "%s %d IN %s %s\n", name, ttl, r.Type, r.Data)
+	}
+	return []byte(sb.String())
+}
+
+// normalizeZone 区名补尾点（auth-zone/$ORIGIN 均需 FQDN）。
+func normalizeZone(n string) string {
+	n = strings.TrimSpace(n)
+	if n == "" || n == "." || strings.HasSuffix(n, ".") {
+		return n
+	}
+	return n + "."
 }

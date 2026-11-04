@@ -173,6 +173,32 @@ const stats = computed(() => {
         <div class="ipam-form-hint ipam-form-field--wide">
           限速超限的来源 IP 将被丢弃应答（按 resolver 官方 ip-ratelimit 语义）；仅 TCP 响应会对部分老客户端造成解析延迟。
         </div>
+
+        <div class="ipam-form-field ipam-form-field--wide">
+          <span class="ipam-form-field__label">拦截提示页</span>
+          <div class="ipam-form-hint">
+            redirect 类封禁条目将解析到下方 IP，浏览器访问时展示说明页；
+            留空则 redirect 条目按 NXDOMAIN 处理。
+            <a href="/blocked" target="_blank" rel="noreferrer">预览提示页</a>
+          </div>
+        </div>
+        <label class="ipam-form-field">
+          <span class="ipam-form-field__label">提示页 IP</span>
+          <Input v-model:value="settings.blockPageIP" placeholder="如 10.61.40.9" />
+        </label>
+        <label class="ipam-form-field">
+          <span class="ipam-form-field__label">标题</span>
+          <Input v-model:value="settings.blockPageTitle" :maxlength="64" placeholder="访问已被拦截" />
+        </label>
+        <label class="ipam-form-field ipam-form-field--wide">
+          <span class="ipam-form-field__label">正文说明</span>
+          <Input.TextArea
+            v-model:value="settings.blockPageMessage"
+            :rows="2"
+            :maxlength="500"
+            placeholder="该域名根据网络使用策略被禁止访问，请联系网络管理员。"
+          />
+        </label>
         <div class="ipam-form-field--wide flex justify-end">
           <Button type="primary" :loading="saving" @click="save">
             <IconifyIcon icon="lucide:save" class="mr-1" />保存并生效

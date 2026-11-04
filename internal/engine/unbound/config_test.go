@@ -9,8 +9,8 @@ import (
 func TestBuildConf_五源合成(t *testing.T) {
 	in := ConfInput{
 		SettingsBlock: "cache-min-ttl: 0\nserve-expired: yes",
-		DefaultFwd:    []string{"223.5.5.5:53"},
-		Rules:         []ForwardRuleConf{{Domain: "corp.local.", Addrs: []string{"10.0.0.53:53"}}},
+		DefaultFwd:    []ForwardAddr{{Addr: "223.5.5.5:53"}},
+		Rules:         []ForwardRuleConf{{Domain: "corp.local.", Addrs: []ForwardAddr{{Addr: "10.0.0.53:53"}}}},
 		AuthZones: []AuthZoneConf{{
 			Name: "corp.local.",
 			Records: []ZoneRecord{
@@ -53,5 +53,80 @@ func TestCheckConf_缺二进制返回不可用(t *testing.T) {
 	e := ExecController{Bin: "/nonexistent"}
 	if err := e.CheckConf(context.Background(), "/nonexistent.conf", "server:\n"); err == nil {
 		t.Fatal("want ErrUnavailable")
+	}
+}
+
+// M6-023：DoT 上游渲染（forward-tls-upstream + addr@853#tlsName），同区混用只取 dot。
+func TestBuildConf_DoT上游(t *testing.T) {
+	out := BuildConf(ConfInput{
+		DefaultFwd: []ForwardAddr{
+			{Addr: "1.1.1.1:53"},
+			{Addr: "1.0.0.1", TLSName: "cloudflare-dns.com"},
+		},
+	})
+	for _, want := range []string{
+		"forward-tls-upstream: yes",
+		"forward-addr: 1.0.0.1@853#cloudflare-dns.com",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %q in:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "1.1.1.1@53") {
+		t.Fatalf("混用时应只保留 DoT 目标，实际:\n%s", out)
+	}
+}
+
+// M6-023：secondary 区渲染 auth-zone primary（不渲染 local-data）。
+func TestBuildConf_Secondary区(t *testing.T) {
+	out := BuildConf(ConfInput{AuthZones: []AuthZoneConf{{
+		Name:      "slave.example.com.",
+		Secondary: []string{"203.0.113.1", "203.0.113.2:5353"},
+	}}})
+	for _, want := range []string{
+		"auth-zone:\n  name: \"slave.example.com.\"",
+		"  primary: 203.0.113.1",
+		"  primary: 203.0.113.2@5353",
+		"  for-downstream: yes",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %q in:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "local-data") {
+		t.Fatalf("secondary 区不应渲染 local-data:\n%s", out)
+	}
+}
+
+func TestBuildConf_Zonefile区(t *testing.T) {
+	in := ConfInput{AuthZones: []AuthZoneConf{{
+		Name:         "crphbz.com.",
+		ZonefilePath: "/etc/unbound-rendered/zones/crphbz.com.zone",
+		Records:      []ZoneRecord{{Name: "*.wild.crphbz.com.", Type: "A", TTL: 60, Data: "10.99.9.9"}},
+	}}}
+	out := BuildConf(in)
+	if !strings.Contains(out, "auth-zone:") || !strings.Contains(out, "zonefile: \"/etc/unbound-rendered/zones/crphbz.com.zone\"") {
+		t.Fatalf("zonefile 区未渲染 auth-zone:\n%s", out)
+	}
+	if strings.Contains(out, "local-data:") {
+		t.Fatalf("zonefile 区不应再渲染 local-data:\n%s", out)
+	}
+}
+
+func TestRenderZonefile_通配记录(t *testing.T) {
+	body := string(RenderZonefile("crphbz.com", []ZoneRecord{
+		{Name: "*.wild.crphbz.com.", Type: "A", TTL: 60, Data: "10.99.9.9"},
+		{Name: "www.crphbz.com", Type: "A", TTL: 300, Data: "10.61.40.50"},
+	}))
+	for _, want := range []string{
+		"$ORIGIN crphbz.com.",
+		"IN SOA ns.crphbz.com. hostmaster.crphbz.com.",
+		"IN NS ns.crphbz.com.",
+		"*.wild.crphbz.com. 60 IN A 10.99.9.9",
+		"www.crphbz.com. 300 IN A 10.61.40.50",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("zonefile 缺少 %q:\n%s", want, body)
+		}
 	}
 }

@@ -35,13 +35,16 @@ func (h *SettingsHandler) UpdateDnsSettings(c *gin.Context) {
 		return
 	}
 	in := Settings{
-		CacheMinTtl:    body.CacheMinTtl,
-		CacheMaxTtl:    body.CacheMaxTtl,
-		ServeExpired:   body.ServeExpired,
-		RrlEnabled:     body.RrlEnabled,
-		RrlRate:        body.RrlRate,
-		DnssecValidate: body.DnssecValidate,
-		TcpOnly:        deref(body.TcpOnly, false),
+		CacheMinTtl:      body.CacheMinTtl,
+		CacheMaxTtl:      body.CacheMaxTtl,
+		ServeExpired:     body.ServeExpired,
+		RrlEnabled:       body.RrlEnabled,
+		RrlRate:          body.RrlRate,
+		DnssecValidate:   body.DnssecValidate,
+		TcpOnly:          deref(body.TcpOnly, false),
+		BlockPageIP:      derefStr(body.BlockPageIP),
+		BlockPageTitle:   derefStr(body.BlockPageTitle),
+		BlockPageMessage: derefStr(body.BlockPageMessage),
 	}
 	if err := h.svc.Update(c.Request.Context(), in); err != nil {
 		if err == ErrInvalidConf {
@@ -102,12 +105,15 @@ func (h *SettingsHandler) FlushCache(c *gin.Context) {
 func toGenSettings(s Settings) apigen.DnsSettings {
 	tcpOnly := s.TcpOnly
 	return apigen.DnsSettings{
-		CacheMinTtl:    s.CacheMinTtl,
-		CacheMaxTtl:    s.CacheMaxTtl,
-		ServeExpired:   s.ServeExpired,
-		RrlEnabled:     s.RrlEnabled,
-		RrlRate:        s.RrlRate,
-		DnssecValidate: s.DnssecValidate,
-		TcpOnly:        &tcpOnly,
+		CacheMinTtl:      s.CacheMinTtl,
+		CacheMaxTtl:      s.CacheMaxTtl,
+		ServeExpired:     s.ServeExpired,
+		RrlEnabled:       s.RrlEnabled,
+		RrlRate:          s.RrlRate,
+		DnssecValidate:   s.DnssecValidate,
+		TcpOnly:          &tcpOnly,
+		BlockPageIP:      strPtr(s.BlockPageIP),
+		BlockPageTitle:   strPtr(s.BlockPageTitle),
+		BlockPageMessage: strPtr(s.BlockPageMessage),
 	}
 }

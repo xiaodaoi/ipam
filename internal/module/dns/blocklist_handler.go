@@ -139,6 +139,7 @@ func (h *BlocklistHandler) CreatePolicyGroup(c *gin.Context) {
 	}
 	g, err := h.svc.repo.CreatePolicyGroup(c.Request.Context(), PolicyGroup{
 		Name: body.Name, ViewName: body.ViewName, Cidrs: body.Cidrs, ListIDs: ids,
+		Schedule: scheduleFromGen(body.Schedule),
 	})
 	if err != nil {
 		if err == ErrViewNameDup {
@@ -210,7 +211,48 @@ func toGenPolicy(g PolicyGroup) apigen.PolicyGroup {
 		ViewName: g.ViewName,
 		Cidrs:    g.Cidrs,
 		ListIds:  ids,
+		Schedule: scheduleToGen(g.Schedule),
 	}
+}
+
+// scheduleToGen 时段模型 → 契约。
+func scheduleToGen(s *Schedule) *apigen.PolicySchedule {
+	if s == nil {
+		return nil
+	}
+	out := &apigen.PolicySchedule{}
+	if len(s.Days) > 0 {
+		days := append([]int(nil), s.Days...)
+		out.Days = &days
+	}
+	if s.Start != "" {
+		out.Start = &s.Start
+	}
+	if s.End != "" {
+		out.End = &s.End
+	}
+	return out
+}
+
+// scheduleFromGen 契约 → 时段模型（全空视为不限时段）。
+func scheduleFromGen(s *apigen.PolicySchedule) *Schedule {
+	if s == nil {
+		return nil
+	}
+	out := &Schedule{}
+	if s.Days != nil {
+		out.Days = append([]int(nil), (*s.Days)...)
+	}
+	if s.Start != nil {
+		out.Start = *s.Start
+	}
+	if s.End != nil {
+		out.End = *s.End
+	}
+	if len(out.Days) == 0 && out.Start == "" && out.End == "" {
+		return nil
+	}
+	return out
 }
 
 // DeleteBlocklist DELETE /dns/blocklists/{listId}（M2-024）：级联删条目；builtin 拒删。
@@ -255,4 +297,104 @@ func (h *BlocklistHandler) DeleteBlocklistEntry(c *gin.Context, listId rtypes.UU
 	// M2-040：条目删除后移除运行时 local_zone（解除拦截；ReplayAll 只加不减）
 	_ = h.svc.RemoveEntryZone(c.Request.Context(), params.Pattern)
 	c.Status(http.StatusNoContent)
+}
+
+// ImportBlocklistEntries POST /dns/blocklists/{listId}/entries/import（M6-023 CSV 导入）。
+func (h *BlocklistHandler) ImportBlocklistEntries(c *gin.Context, listId rtypes.UUID) {
+	var body apigen.BlocklistImportRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "BAD_REQUEST", err.Error())
+		return
+	}
+	replace := body.Replace != nil && *body.Replace
+	created, skipped, total, err := h.svc.ImportCSV(c.Request.Context(), listId.String(), body.Content, replace)
+	switch {
+	case errors.Is(err, ErrBlocklistNotFound):
+		problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "BLOCKLIST_NOT_FOUND", "名单不存在")
+		return
+	case errors.Is(err, ErrEmptyContent):
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "EMPTY_CONTENT", "CSV 内容为空或无可导入条目")
+		return
+	case err != nil:
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, apigen.BlocklistImportResult{
+		Created: created, Skipped: len(skipped), Total: total, Errors: &skipped,
+	})
+}
+
+// ExportBlocklistEntries GET /dns/blocklists/{listId}/entries/export（M6-023 CSV 导出）。
+func (h *BlocklistHandler) ExportBlocklistEntries(c *gin.Context, listId rtypes.UUID) {
+	list, err := h.svc.repo.ListEntries(c.Request.Context(), listId.String(), "")
+	if err != nil {
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	c.Header("Content-Disposition", `attachment; filename="blocklist-`+listId.String()+`.csv"`)
+	c.Data(http.StatusOK, "text/csv; charset=utf-8", EntriesCSV(list))
+}
+
+// ListBlocklistVersions GET /dns/blocklists/{listId}/versions（M6-023）。
+func (h *BlocklistHandler) ListBlocklistVersions(c *gin.Context, listId rtypes.UUID) {
+	versions, err := h.svc.repo.VersionList(c.Request.Context(), listId.String())
+	if err != nil {
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	items := make([]apigen.BlocklistVersion, 0, len(versions))
+	for _, v := range versions {
+		items = append(items, apigen.BlocklistVersion{
+			Version: v.Version, Entries: v.Entries, CreatedAt: v.CreatedAt,
+		})
+	}
+	c.JSON(http.StatusOK, apigen.BlocklistVersionList{Items: items})
+}
+
+// RollbackBlocklist POST /dns/blocklists/{listId}/versions/{version}/rollback（M6-023）。
+func (h *BlocklistHandler) RollbackBlocklist(c *gin.Context, listId rtypes.UUID, version int) {
+	b, err := h.svc.Rollback(c.Request.Context(), listId.String(), version)
+	switch {
+	case errors.Is(err, ErrVersionNotFound):
+		problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "VERSION_NOT_FOUND", "版本快照不存在")
+		return
+	case errors.Is(err, ErrBlocklistNotFound):
+		problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "BLOCKLIST_NOT_FOUND", "名单不存在")
+		return
+	case err != nil:
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, toGenBlocklist(b))
+}
+
+// ListBuiltinPacks GET /dns/blocklists/builtin（M6-023 内置分类库目录）。
+func (h *BlocklistHandler) ListBuiltinPacks(c *gin.Context) {
+	packs := BuiltinPacks()
+	items := make([]apigen.BuiltinPack, 0, len(packs))
+	for _, p := range packs {
+		desc := p.Description
+		cats := append([]string(nil), p.Categories...)
+		items = append(items, apigen.BuiltinPack{
+			Key: p.Key, Name: p.Name, Description: &desc, Categories: &cats, EntryCount: len(p.Patterns),
+		})
+	}
+	c.JSON(http.StatusOK, apigen.BuiltinPackList{Items: items})
+}
+
+// InstallBuiltinPack POST /dns/blocklists/builtin/{key}/install（M6-023）。
+func (h *BlocklistHandler) InstallBuiltinPack(c *gin.Context, key apigen.InstallBuiltinPackParamsKey) {
+	b, err := h.svc.InstallBuiltinPack(c.Request.Context(), string(key))
+	switch {
+	case errors.Is(err, ErrPackNotFound):
+		problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "BUILTIN_PACK_NOT_FOUND", "内置分类包不存在")
+		return
+	case errors.Is(err, ErrListNameDup):
+		problem.Write(c, http.StatusConflict, "https://ipam.local/problems/name-dup", "LIST_NAME_DUP", "该内置库已安装")
+		return
+	case err != nil:
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	c.JSON(http.StatusCreated, toGenBlocklist(b))
 }

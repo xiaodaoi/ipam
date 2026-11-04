@@ -6,9 +6,9 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useVbenDrawer, useVbenModal } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Button, Card, Input, message, Popconfirm, Select, Table, Tag } from 'ant-design-vue';
+import { Button, Card, Input, message, Modal, Popconfirm, Select, Switch, Table, Tag } from 'ant-design-vue';
 
-import { addBlocklistEntry, compilePolicyGroup, createBlocklist, createPolicyGroup, deleteBlocklist, deleteBlocklistEntry, listBlocklistEntries, listBlocklists, listPolicyGroups, syncBlocklist } from '#/api/ipam';
+import { addBlocklistEntry, compilePolicyGroup, createBlocklist, createPolicyGroup, deleteBlocklist, deleteBlocklistEntry, exportBlocklistCsv, importBlocklistEntries, installBuiltinPack, listBlocklistEntries, listBlocklists, listBlocklistVersions, listBuiltinPacks, listPolicyGroups, rollbackBlocklist, syncBlocklist } from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
 
@@ -26,7 +26,15 @@ const eForm = ref<{ action: 'drop' | 'nxdomain' | 'redirect' | 'tcp_only'; patte
 const cForm = ref<{ kind: 'builtin' | 'custom' | 'feed'; name: string; syncUrl: string }>({ name: '', kind: 'custom', syncUrl: '' });
 const pgRows = ref<PolicyGroupRow[]>([]);
 const pgLoading = ref(false);
-const pgForm = ref<{ cidrs: string; listIds: string[]; name: string; viewName: string }>({ name: '', viewName: 'recursor', cidrs: '', listIds: [] });
+const pgForm = ref<{
+  cidrs: string;
+  listIds: string[];
+  name: string;
+  scheduleDays: number[];
+  scheduleEnd: string;
+  scheduleStart: string;
+  viewName: string;
+}>({ name: '', viewName: 'recursor', cidrs: '', listIds: [], scheduleDays: [], scheduleStart: '', scheduleEnd: '' });
 const pgResult = ref<null | Record<string, unknown>>(null);
 const syncingId = ref('');
 
@@ -98,7 +106,15 @@ async function loadPolicyGroups() {
 }
 const [PgModal, pgModalApi] = useVbenModal({ draggable: true, title: '新建策略分组', confirmText: '创建分组', onConfirm: () => createPg() });
 function openCreatePg() {
-  pgForm.value = { name: '', viewName: 'recursor', cidrs: '', listIds: [] };
+  pgForm.value = {
+    name: '',
+    viewName: 'recursor',
+    cidrs: '',
+    listIds: [],
+    scheduleDays: [],
+    scheduleStart: '',
+    scheduleEnd: '',
+  };
   pgModalApi.open();
 }
 async function createPg() {
@@ -107,14 +123,31 @@ async function createPg() {
     return;
   }
   try {
+    const schedule =
+      pgForm.value.scheduleStart && pgForm.value.scheduleEnd
+        ? {
+            days: pgForm.value.scheduleDays,
+            start: pgForm.value.scheduleStart,
+            end: pgForm.value.scheduleEnd,
+          }
+        : undefined;
     await createPolicyGroup({
       name: pgForm.value.name,
       viewName: pgForm.value.viewName || 'recursor',
       cidrs: pgForm.value.cidrs.split(',').map((s) => s.trim()).filter(Boolean),
       listIds: pgForm.value.listIds,
+      schedule,
     });
     message.success('策略分组已创建');
-    pgForm.value = { name: '', viewName: 'recursor', cidrs: '', listIds: [] };
+    pgForm.value = {
+      name: '',
+      viewName: 'recursor',
+      cidrs: '',
+      listIds: [],
+      scheduleDays: [],
+      scheduleStart: '',
+      scheduleEnd: '',
+    };
     pgModalApi.close();
   } catch (error) {
     message.error(error instanceof Error ? error.message : '创建失败');
@@ -177,6 +210,109 @@ async function removeEntry(listId: string, pattern: string) {
   }
   await loadEntries();
 }
+
+// ── CSV 导入导出 / 版本回滚 / 内置分类库（M6-023）──
+const csvOpen = ref(false);
+const csvContent = ref('');
+const csvReplace = ref(false);
+const csvImporting = ref(false);
+function openCsv() {
+  if (!selId.value) return;
+  csvContent.value = '';
+  csvReplace.value = false;
+  csvOpen.value = true;
+}
+async function submitCsv() {
+  if (!csvContent.value.trim()) {
+    message.warning('请粘贴 CSV 内容');
+    return;
+  }
+  csvImporting.value = true;
+  try {
+    const r = await importBlocklistEntries(selId.value, csvContent.value, csvReplace.value);
+    message.success(`导入完成：新增 ${r.created} 条，跳过 ${r.skipped} 条，共 ${r.total} 条`);
+    if (r.errors?.length) message.warning(r.errors.slice(0, 3).join('；'));
+    csvOpen.value = false;
+    await Promise.all([loadEntries(), load()]);
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '导入失败');
+  } finally {
+    csvImporting.value = false;
+  }
+}
+async function exportCsv(id?: string) {
+  const listId = id || selId.value;
+  if (!listId) return;
+  try {
+    await exportBlocklistCsv(listId);
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '导出失败');
+  }
+}
+
+const versionsOpen = ref(false);
+const versionsLoading = ref(false);
+const versions = ref<{ createdAt: string; entries: number; version: number; }[]>([]);
+async function openVersions(r: Blocklist) {
+  selId.value = r.id;
+  selName.value = r.name;
+  versions.value = [];
+  versionsOpen.value = true;
+  versionsLoading.value = true;
+  try {
+    const data = await listBlocklistVersions(r.id);
+    versions.value = data.items ?? [];
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '版本加载失败');
+  } finally {
+    versionsLoading.value = false;
+  }
+}
+async function doRollback(version: number) {
+  try {
+    await rollbackBlocklist(selId.value, version);
+    message.success(`已回滚到 v${version}（当前版本继续递增）`);
+    versionsOpen.value = false;
+    await Promise.all([load(), loadEntries()]);
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '回滚失败');
+  }
+}
+
+const builtinOpen = ref(false);
+const builtinLoading = ref(false);
+const packs = ref<{ categories?: string[]; description?: string; entryCount: number; key: string; name: string; }[]>([]);
+async function openBuiltin() {
+  builtinLoading.value = true;
+  builtinOpen.value = true;
+  try {
+    const data = await listBuiltinPacks();
+    packs.value = data.items ?? [];
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '内置库加载失败');
+  } finally {
+    builtinLoading.value = false;
+  }
+}
+async function installPack(key: string) {
+  try {
+    const b = await installBuiltinPack(key);
+    message.success(`已安装「${b.name}」（${b.version ? `v${b.version}` : ''}）`);
+    await load();
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '安装失败');
+  }
+}
+
+const WEEK_OPTIONS = [
+  { label: '周日', value: 0 },
+  { label: '周一', value: 1 },
+  { label: '周二', value: 2 },
+  { label: '周三', value: 3 },
+  { label: '周四', value: 4 },
+  { label: '周五', value: 5 },
+  { label: '周六', value: 6 },
+];
 
 const KIND_TEXT: Record<string, string> = { builtin: '内置', custom: '自定义', feed: '订阅' };
 const KIND_COLOR: Record<string, string> = { builtin: 'default', custom: 'blue', feed: 'purple' };
@@ -318,6 +454,9 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         </div>
         <Button size="small" @click="listKeyword = ''; listKind = 'all'">重置</Button>
         <div class="ipam-toolbar__spacer"></div>
+        <Button size="small" @click="openBuiltin">
+          <IconifyIcon icon="lucide:package" class="mr-1" />内置分类库
+        </Button>
         <Button type="primary" size="small" @click="openCreate">
           <IconifyIcon icon="lucide:plus" class="mr-1" />新建名单
         </Button>
@@ -358,6 +497,8 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           <template v-else-if="column.key === 'op'">
             <div class="flex items-center gap-1">
               <Button size="small" @click="openEntries(record as Blocklist)">条目</Button>
+              <Button size="small" @click="exportCsv(record.id)">导出</Button>
+              <Button size="small" @click="openVersions(record as Blocklist)">版本</Button>
               <Button
                 v-if="record.kind === 'feed'"
                 size="small"
@@ -383,7 +524,8 @@ onBeforeUnmount(() => timer && clearInterval(timer));
 
       <div class="ipam-note mt-3">
         <IconifyIcon icon="lucide:info" class="mt-0.5 size-3.5 shrink-0" />
-        <span>内置名单不可删除；订阅源同步失败时保留旧版本，提示页定制属后续批次。</span>
+        <span>内置名单不可删除；订阅源同步前自动保存版本快照，可在「版本」中一键回滚；
+          提示页文案与 IP 在「安全与诊断」页配置。</span>
       </div>
     </Card>
 
@@ -504,8 +646,21 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           <span class="ipam-form-field__label">关联名单</span>
           <Select v-model:value="pgForm.listIds" mode="multiple" placeholder="选择生效的封禁名单" :options="pgListOptions" />
         </label>
+        <label class="ipam-form-field ipam-form-field--wide">
+          <span class="ipam-form-field__label">生效星期（留空=每天）</span>
+          <Select v-model:value="pgForm.scheduleDays" mode="multiple" :options="WEEK_OPTIONS" placeholder="如仅工作日" />
+        </label>
+        <label class="ipam-form-field">
+          <span class="ipam-form-field__label">开始时间</span>
+          <Input v-model:value="pgForm.scheduleStart" placeholder="09:00" />
+        </label>
+        <label class="ipam-form-field">
+          <span class="ipam-form-field__label">结束时间</span>
+          <Input v-model:value="pgForm.scheduleEnd" placeholder="18:00" />
+        </label>
         <div class="ipam-form-hint ipam-form-field--wide">
           view 名在同一 resolver 内唯一；白名单优先于黑名单生效。
+          时段留空=全天生效；开始>结束表示跨零点（如 22:00→06:00），窗口外自动撤销该组拦截。
         </div>
       </div>
     </PgModal>
@@ -543,6 +698,12 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         </div>
         <Button type="primary" size="small" @click="addEntry">
           <IconifyIcon icon="lucide:plus" class="mr-1" />添加条目
+        </Button>
+        <Button size="small" @click="openCsv">
+          <IconifyIcon icon="lucide:upload" class="mr-1" />导入 CSV
+        </Button>
+        <Button size="small" @click="exportCsv()">
+          <IconifyIcon icon="lucide:download" class="mr-1" />导出 CSV
         </Button>
       </div>
 
@@ -605,5 +766,100 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         </template>
       </Table>
     </EntriesDrawer>
+
+    <!-- CSV 导入 -->
+    <Modal
+      v-model:open="csvOpen"
+      title="CSV 导入名单条目"
+      ok-text="开始导入"
+      cancel-text="取消"
+      :confirm-loading="csvImporting"
+      @ok="submitCsv"
+    >
+      <div class="ipam-form-grid">
+        <div class="ipam-form-field ipam-form-field--wide">
+          <span class="ipam-form-field__label">CSV 内容（pattern[,action[,category]]）</span>
+          <Input.TextArea
+            v-model:value="csvContent"
+            :rows="8"
+            placeholder="pattern,action,category&#10;*.doubleclick.net,nxdomain,ads&#10;bad.example.com,redirect,gambling"
+          />
+        </div>
+        <div class="ipam-form-field--wide flex items-center gap-2">
+          <Switch v-model:checked="csvReplace" size="small" />
+          <span class="ipam-hint">导入前清空该名单现有条目（会先保存版本快照，可回滚）</span>
+        </div>
+      </div>
+    </Modal>
+
+    <!-- 版本回滚 -->
+    <Modal v-model:open="versionsOpen" title="版本快照与回滚" :footer="null" width="560px">
+      <Table
+        :data-source="versions"
+        :loading="versionsLoading"
+        :columns="[
+          { title: '版本', dataIndex: 'version', width: 100 },
+          { title: '条目数', dataIndex: 'entries', width: 100 },
+          { title: '时间', dataIndex: 'createdAt', minWidth: 180 },
+          { title: '操作', key: 'op', width: 110 },
+        ]"
+        :locale="{ emptyText: '暂无快照：订阅同步、CSV 导入前会自动保存' }"
+        :pagination="false"
+        row-key="version"
+        size="small"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.dataIndex === 'version'">
+            <span class="ipam-chip ipam-mono" data-tone="blue">v{{ record.version }}</span>
+          </template>
+          <template v-else-if="column.dataIndex === 'createdAt'">
+            <span class="ipam-hint">{{ fmtSync(record.createdAt) }}</span>
+          </template>
+          <template v-else-if="column.key === 'op'">
+            <Popconfirm
+              title="确认回滚到该版本？"
+              description="当前条目将被快照内容替换，版本号继续递增。"
+              ok-text="回滚"
+              cancel-text="取消"
+              @confirm="doRollback(record.version)"
+            >
+              <Button size="small">回滚</Button>
+            </Popconfirm>
+          </template>
+        </template>
+      </Table>
+    </Modal>
+
+    <!-- 内置分类库 -->
+    <Modal v-model:open="builtinOpen" title="内置分类库" :footer="null" width="640px">
+      <Table
+        :data-source="packs"
+        :loading="builtinLoading"
+        :columns="[
+          { title: '分类包', dataIndex: 'name', minWidth: 200 },
+          { title: '条目', dataIndex: 'entryCount', width: 80 },
+          { title: '操作', key: 'op', width: 100 },
+        ]"
+        :pagination="false"
+        row-key="key"
+        size="small"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.dataIndex === 'name'">
+            <div class="ipam-cell-stack">
+              <span class="ipam-cell-title">{{ record.name }}</span>
+              <span class="ipam-cell-meta">{{ record.description }}</span>
+            </div>
+          </template>
+          <template v-else-if="column.key === 'op'">
+            <Button size="small" type="primary" @click="installPack(record.key)">安装</Button>
+          </template>
+        </template>
+      </Table>
+      <div class="ipam-note mt-3">
+        <IconifyIcon icon="lucide:info" class="mt-0.5 size-3.5 shrink-0" />
+        <span>内置库为基线种子（非全量），安装后成为 builtin 名单，可继续增删条目或叠加订阅源。</span>
+      </div>
+    </Modal>
   </div>
 </template>

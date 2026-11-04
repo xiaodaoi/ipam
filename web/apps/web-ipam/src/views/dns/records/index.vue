@@ -193,7 +193,11 @@ function removeRecord(r: DnsRecord) {
 }
 
 // ── 新建/编辑 zone ──
-const zoneForm = reactive<{ kind: 'auth' | 'local'; name: string }>({ name: '', kind: 'auth' });
+const zoneForm = reactive<{ kind: 'auth' | 'local' | 'secondary'; name: string; primary: string }>({
+  name: '',
+  kind: 'auth',
+  primary: '',
+});
 const editingZoneId = ref<string>();
 const [ZoneModal, zoneModalApi] = useVbenModal({
   draggable: true,
@@ -205,6 +209,7 @@ function openCreateZone() {
   editingZoneId.value = undefined;
   zoneForm.name = '';
   zoneForm.kind = 'auth';
+  zoneForm.primary = '';
   zoneModalApi.setState({ title: '新建 DNS 区域', confirmText: '创建区域' });
   zoneModalApi.open();
 }
@@ -212,7 +217,8 @@ function openCreateZone() {
 function openEditZone(z: DnsZone) {
   editingZoneId.value = z.id;
   zoneForm.name = z.name.replace(/\.$/, '');
-  zoneForm.kind = z.kind;
+  zoneForm.kind = z.kind as 'auth' | 'local' | 'secondary';
+  zoneForm.primary = z.primary ?? '';
   zoneModalApi.setState({ title: `编辑区域 · ${z.name}`, confirmText: '保存修改' });
   zoneModalApi.open();
 }
@@ -223,10 +229,18 @@ async function confirmZone() {
   const fqdn = name.endsWith('.') ? name : `${name}.`;
   try {
     if (editingZoneId.value) {
-      await updateDnsZone(editingZoneId.value, { name: fqdn, kind: zoneForm.kind });
+      await updateDnsZone(editingZoneId.value, {
+        name: fqdn,
+        kind: zoneForm.kind,
+        primary: zoneForm.kind === 'secondary' ? zoneForm.primary : '',
+      });
       message.success('区域已更新');
     } else {
-      await createDnsZone({ name: fqdn, kind: zoneForm.kind });
+      await createDnsZone({
+        name: fqdn,
+        kind: zoneForm.kind,
+        primary: zoneForm.kind === 'secondary' ? zoneForm.primary : undefined,
+      });
       message.success('区域已创建');
     }
     zoneModalApi.close();
@@ -639,7 +653,8 @@ function resetRecFilters() {
       <div class="ipam-form-grid">
         <label class="ipam-form-field">
           <span class="ipam-form-field__label">记录名称<em>*</em></span>
-          <Input v-model:value="recForm.name" placeholder="如 www 或 api.corp.local" />
+          <Input v-model:value="recForm.name" placeholder="如 www、api.corp.local 或 *.example.com" />
+          <span class="ipam-hint">通配仅允许最左标签（*.example.com）；* 单独使用表示区顶点泛解析</span>
         </label>
         <label class="ipam-form-field">
           <span class="ipam-form-field__label">类型<em>*</em></span>
@@ -670,7 +685,8 @@ function resetRecFilters() {
       <div class="ipam-form-grid">
         <label class="ipam-form-field">
           <span class="ipam-form-field__label">名称<em>*</em></span>
-          <Input v-model:value="recordEdit.name" placeholder="如 www 或 api.corp.local" />
+          <Input v-model:value="recordEdit.name" placeholder="如 www、api.corp.local 或 *.example.com" />
+          <span class="ipam-hint">通配仅允许最左标签（*.example.com）</span>
         </label>
         <label class="ipam-form-field">
           <span class="ipam-form-field__label">类型</span>
@@ -708,11 +724,23 @@ function resetRecFilters() {
             :options="[
               { value: 'auth', label: 'auth（权威）' },
               { value: 'local', label: 'local（本地）' },
+              { value: 'secondary', label: 'secondary（AXFR 从区）' },
             ]"
           />
         </label>
+        <label
+          v-if="zoneForm.kind === 'secondary'"
+          class="ipam-form-field ipam-form-field--wide"
+        >
+          <span class="ipam-form-field__label">主服务器<em>*</em></span>
+          <Input
+            v-model:value="zoneForm.primary"
+            placeholder="如 10.61.40.53 或 10.61.40.53:5353（多个用逗号分隔）"
+          />
+        </label>
         <div class="ipam-form-hint ipam-form-field--wide">
-          权威区域对外应答；本地区域仅对内网客户端生效。域名保存时自动补尾点。
+          权威区域对外应答；本地区域仅对内网客户端生效；secondary 区从主服务器 AXFR
+          同步（本地区域记录只读，由主服务器维护）。域名保存时自动补尾点。
         </div>
       </div>
     </ZoneModal>

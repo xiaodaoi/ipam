@@ -36,7 +36,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
-export const listLedger = (params: { orgId?: string; subnetId?: string; family?: number; state?: string; cursor?: string; pageSize?: number }) => {
+export const listLedger = (params: { cursor?: string; family?: number; orgId?: string; pageSize?: number; state?: string; subnetId?: string; }) => {
   const qs = new URLSearchParams();
   if (params.orgId) qs.set('orgId', params.orgId);
   if (params.subnetId) qs.set('subnetId', params.subnetId);
@@ -49,7 +49,7 @@ export const listLedger = (params: { orgId?: string; subnetId?: string; family?:
 };
 
 export const listOrgTree = () => req<OrgTreeNode[]>('/orgs');
-export const reorderOrgs = (parentId: string | null, orderedIds: string[]) =>
+export const reorderOrgs = (parentId: null | string, orderedIds: string[]) =>
   req<void>('/orgs/reorder', j({ parentId, orderedIds }));
 
 export const reserveAddress = (subnetId: string, address: string) =>
@@ -173,7 +173,7 @@ export type LogPage = components['schemas']['LogPage'];
 export type AuditEntry = components['schemas']['AuditEntry'];
 export type AuditPage = components['schemas']['AuditPage'];
 
-const qsOf = (o: Record<string, string | number | undefined>) => {
+const qsOf = (o: Record<string, number | string | undefined>) => {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(o)) if (v !== undefined && v !== '') qs.set(k, String(v));
   const s = qs.toString();
@@ -219,7 +219,7 @@ export function openLogTail(
     sip?: string;
     type?: string;
   },
-  handlers: { onRow: (row: any) => void; onOpen?: () => void; onError?: (e: Event) => void },
+  handlers: { onError?: (e: Event) => void; onOpen?: () => void; onRow: (row: any) => void; },
 ): { close: () => void } {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) if (v) qs.set(k, String(v));
@@ -229,7 +229,7 @@ export function openLogTail(
       const token = useAccessStore().accessToken;
       const headers: Record<string, string> = {};
       if (token) headers.Authorization = `Bearer ${token}`;
-      const res = await fetch(`${BASE}/logs/tail${qs.size ? `?${qs}` : ''}`, {
+      const res = await fetch(`${BASE}/logs/tail${qs.size > 0 ? `?${qs}` : ''}`, {
         headers, signal: ctrl.signal,
       });
       if (!res.ok || !res.body) {
@@ -292,14 +292,14 @@ export const listForwardRules = () => req<{ items: ForwardRule[] }>('/forward-ru
 export const createForwardRule = (b: Partial<ForwardRule> & { dryRun?: boolean }) =>
   req<ForwardRule>('/forward-rules', j(b));
 export const updateForwardRule = (id: string, b: {
-  upstreamIds?: string[]; enabled?: boolean; note?: string;
+  enabled?: boolean; note?: string; upstreamIds?: string[];
 }) => req<ForwardRule>(`/forward-rules/${id}`, patch(b));
 export const deleteForwardRule = (id: string) => req<void>(`/forward-rules/${id}`, del);
 
 // zone 与记录
 export const listDnsZones = () => req<{ items: DnsZone[] }>('/dns/zones');
-export const createDnsZone = (b: { name: string; kind: string }) => req<DnsZone>('/dns/zones', j(b));
-export const updateDnsZone = (id: string, b: { name?: string; kind?: string; enabled?: boolean }) =>
+export const createDnsZone = (b: { kind: string; name: string; primary?: string }) => req<DnsZone>('/dns/zones', j(b));
+export const updateDnsZone = (id: string, b: { enabled?: boolean; kind?: string; name?: string; primary?: string; }) =>
   req<DnsZone>(`/dns/zones/${id}`, patch(b));
 export const deleteDnsZone = (id: string) => req<void>(`/dns/zones/${id}`, del);
 export const listDnsRecords = (zoneId: string) =>
@@ -320,7 +320,7 @@ export const importDnsHosts = (zoneId: string, content: string) =>
 export const deleteDnsRecord = (zoneId: string, recordId: string) =>
   req<void>(`/dns/zones/${zoneId}/records/${recordId}`, del);
 export const listLinkedRecords = (zoneId: string) =>
-  req<{ items: { name: string; recType: string; rdata: string; mac: string }[] }>(
+  req<{ items: { mac: string; name: string; rdata: string; recType: string; }[] }>(
     `/dns/zones/${zoneId}/linked`);
 
 // 封禁名单
@@ -335,29 +335,66 @@ export const listPolicyGroups = () => req<{ items: PolicyGroupRow[] }>('/dns/pol
 export const createPolicyGroup = (body: components['schemas']['PolicyGroupCreate']) => req<PolicyGroupRow>('/dns/policy-groups', j(body));
 export const compilePolicyGroup = (id: string) => req<components['schemas']['RpzCompileResult']>(`/dns/policy-groups/${id}/compile`, j({}));
 
+// 名单内容（M6-023）：CSV 导入导出 / 版本回滚 / 内置分类库
+export const importBlocklistEntries = (id: string, content: string, replace = false) =>
+  req<{ created: number; errors?: string[]; skipped: number; total: number; }>(
+    `/dns/blocklists/${id}/entries/import`,
+    { method: 'POST', body: JSON.stringify({ content, replace }) },
+  );
+export const listBlocklistVersions = (id: string) =>
+  req<{ items: { createdAt: string; entries: number; version: number; }[] }>(
+    `/dns/blocklists/${id}/versions`,
+  );
+export const rollbackBlocklist = (id: string, version: number) =>
+  req<Blocklist>(`/dns/blocklists/${id}/versions/${version}/rollback`, j({}));
+
+export type BuiltinPackRow = components['schemas']['BuiltinPack'];
+export const listBuiltinPacks = () => req<{ items: BuiltinPackRow[] }>('/dns/blocklists/builtin');
+export const installBuiltinPack = (key: string) =>
+  req<Blocklist>(`/dns/blocklists/builtin/${key}/install`, j({}));
+
+export async function exportBlocklistCsv(id: string): Promise<void> {
+  const token = useAccessStore().accessToken;
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${BASE}/dns/blocklists/${id}/entries/export`, { headers });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { detail?: string };
+    throw new Error(body.detail || `HTTP ${res.status}`);
+  }
+  const blob = await res.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = res.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1] ?? 'blocklist.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 // ── DHCP 子网与池（M2-002 API 消费）──
 // GET /orgs 返回组织树（与 /orgs/tree 同源；flat 场景前端自行展平）
 export const listOrgs = () => req<OrgTreeNode[]>('/orgs');
 
-export type SubnetOptionIn = { code: number; name?: string; data: string; csvFormat?: boolean; enabled?: boolean };
+export type SubnetOptionIn = { code: number; csvFormat?: boolean; data: string; enabled?: boolean; name?: string; };
 export const createSubnet = (b: {
-  orgId: string; name: string; family: 4 | 6; cidr: string; gateway?: string; dnsServers?: string; validLifetime?: number;
-  pools?: { startAddr: string; endAddr?: string; kind: string; prefixLen?: number; delegatedLen?: number }[];
-  options?: SubnetOptionIn[];
+  cidr: string; dnsServers?: string; family: 4 | 6; gateway?: string; name: string; options?: SubnetOptionIn[]; orgId: string;
+  owner?: string; pools?: { delegatedLen?: number; endAddr?: string; kind: string; prefixLen?: number; startAddr: string; }[]; purpose?: string; site?: string;
+  validLifetime?: number;
+  vlan?: string;
 }) => req<Subnet>('/subnets', j(b));
 export const updateSubnet = (id: string, b: {
-  name?: string; cidr?: string; gateway?: string; dnsServers?: string; validLifetime?: number;
-  pools?: { startAddr: string; endAddr?: string; kind: string; prefixLen?: number; delegatedLen?: number }[];
-  options?: SubnetOptionIn[];
+  cidr?: string; dnsServers?: string; gateway?: string; name?: string; options?: SubnetOptionIn[];
+  owner?: string; pools?: { delegatedLen?: number; endAddr?: string; kind: string; prefixLen?: number; startAddr: string; }[]; purpose?: string; site?: string;
+  validLifetime?: number;
+  vlan?: string;
 }) => req<Subnet>(`/subnets/${id}`, patch(b));
 export const deleteSubnet = (id: string) => req<void>(`/subnets/${id}`, del);
 
 // ── 组织管理（M2-001 API 消费，系统管理★主数据）──
-export const createOrg = (b: { parentId?: string | null; name: string }) =>
+export const createOrg = (b: { name: string; parentId?: null | string; }) =>
   req<OrgTreeNode>('/orgs', j(b));
 export const updateOrg = (
   id: string,
-  b: { parentId?: string | null; name?: string },
+  b: { name?: string; parentId?: null | string; },
 ) => req<OrgTreeNode>(`/orgs/${id}`, patch(b));
 export const deleteOrg = (id: string) => req<void>(`/orgs/${id}`, del);
 
@@ -377,24 +414,24 @@ export const listTtlOverrides = () =>
 export const upsertTtlOverride = (b: { domain: string; ttl: number }) =>
   req<PerDomainTtl>('/dns/settings/ttl-overrides', j(b));
 export const flushCache = (zone?: string) =>
-  req<{ flushed: string; cmd: string }>(`/dns/cache/flush${zone ? `?zone=${zone}` : ''}`, j({}));
+  req<{ cmd: string; flushed: string; }>(`/dns/cache/flush${zone ? `?zone=${zone}` : ''}`, j({}));
 
 // ── 双栈绑定模板（M2-012，§4.3 多池对）──
 export type DualstackTemplate = components['schemas']['DualstackTemplate'];
 export type DualstackMatchScheme =
+  | 'admin'
   | 'auto'
-  | 'option79'
   | 'client-id'
   | 'duid-llt'
   | 'hostname'
-  | 'admin';
+  | 'option79';
 
 export const listDualstackTemplates = () =>
   req<{ items: DualstackTemplate[] }>('/dualstack/templates');
 export const createDualstackTemplate = (b: {
-  name: string; ipv4Cidr: string; ipv6Prefix: string;
-  encoding: string; expr: string; dnsSync?: boolean; graceHours?: number;
-  matchScheme?: DualstackMatchScheme;
+  dnsSync?: boolean; encoding: string; expr: string;
+  graceHours?: number; ipv4Cidr: string; ipv6Prefix: string; matchScheme?: DualstackMatchScheme;
+  name: string;
 }) => req<DualstackTemplate>('/dualstack/templates', j(b));
 export const deleteDualstackTemplate = (id: string) =>
   req<void>(`/dualstack/templates/${id}`, del);
@@ -406,7 +443,7 @@ export type DualstackConflict = components['schemas']['DualstackConflict'];
 
 export const listDualstackIdentities = () =>
   req<{ items: DualstackIdentity[] }>('/dualstack/identities');
-export const createDualstackIdentity = (b: { mac: string; duid: string; note?: string }) =>
+export const createDualstackIdentity = (b: { duid: string; mac: string; note?: string }) =>
   req<DualstackIdentity>('/dualstack/identities', j(b));
 export const deleteDualstackIdentity = (mac: string) =>
   req<void>(`/dualstack/identities/${encodeURIComponent(mac)}`, del);
@@ -444,7 +481,7 @@ export type DhcpLease4Row = components['schemas']['DhcpLease4'];
 export type DhcpLease4Update = components['schemas']['DhcpLease4Update'];
 export type SubnetUtilizationPoint = components['schemas']['SubnetUtilizationPoint'];
 export type DhcpClassRow = components['schemas']['DhcpClass'];
-export type DhcpClassOptionIn = { optionCode: number; name: string; data: string };
+export type DhcpClassOptionIn = { data: string; name: string; optionCode: number; };
 export const listDhcpOptions = () => req<{ items: DhcpOptionRow[] }>('/dhcp/options');
 export const listDhcpLeases6 = () => req<{ items: DhcpLease6Row[] }>('/dhcp/leases6');
 export const listDhcpLeases4 = () => req<{ items: DhcpLease4Row[] }>('/dhcp/leases4');
@@ -460,22 +497,22 @@ export const getSubnetUtilization = (subnetId: string, hours = 24) =>
   req<{ cidr?: string; points: SubnetUtilizationPoint[]; subnetId: string; subnetName?: string }>(
     `/dhcp/utilization/${subnetId}?hours=${hours}`,
   );
-export const createDhcpOption = (b: { optionCode: number; name: string; data: string; enabled?: boolean }) =>
+export const createDhcpOption = (b: { data: string; enabled?: boolean; name: string; optionCode: number; }) =>
   req<DhcpOptionRow>('/dhcp/options', j(b));
-export const updateDhcpOption = (id: string, b: { optionCode?: number; name?: string; data?: string; enabled?: boolean }) =>
+export const updateDhcpOption = (id: string, b: { data?: string; enabled?: boolean; name?: string; optionCode?: number; }) =>
   req<DhcpOptionRow>(`/dhcp/options/${id}`, patch(b));
 export const deleteDhcpOption = (id: string) => req<void>(`/dhcp/options/${id}`, del);
 export const listDhcpClasses = () => req<{ items: DhcpClassRow[] }>('/dhcp/classes');
-export const createDhcpClass = (b: { name: string; test: string; options: DhcpClassOptionIn[]; enabled?: boolean }) =>
+export const createDhcpClass = (b: { enabled?: boolean; name: string; options: DhcpClassOptionIn[]; test: string; }) =>
   req<DhcpClassRow>('/dhcp/classes', j(b));
-export const updateDhcpClass = (id: string, b: { test?: string; options?: DhcpClassOptionIn[]; enabled?: boolean }) =>
+export const updateDhcpClass = (id: string, b: { enabled?: boolean; options?: DhcpClassOptionIn[]; test?: string; }) =>
   req<DhcpClassRow>(`/dhcp/classes/${id}`, patch(b));
 export const deleteDhcpClass = (id: string) => req<void>(`/dhcp/classes/${id}`, del);
 
 // ── 保留与绑定（M2-017，§561 菜单 4/6；bulk CSV 语义事务性）──
 export type ReservationBulkEntryIn = {
-  kind: 'bind' | 'reserve';
   address: string;
+  kind: 'bind' | 'reserve';
   mac?: string;
   reason?: string;
 };
@@ -518,9 +555,9 @@ export type LogStorageStats = components['schemas']['LogStorageStats'];
 
 export const getLogSettings = () => req<LogSettings>('/system/log-settings');
 export const updateLogSettings = (b: {
-  retentionDays?: number;
   archiveKeepMonths?: number;
   autoExport?: boolean;
+  retentionDays?: number;
 }) => req<LogSettings>('/system/log-settings', { method: 'PUT', body: JSON.stringify(b) });
 export const getLogStorageStats = () => req<LogStorageStats>('/system/log-archives/stats');
 export const listLogArchives = () => req<{ items: LogArchive[] }>('/system/log-archives');

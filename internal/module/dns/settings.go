@@ -21,6 +21,10 @@ type Settings struct {
 	RrlRate        int  `json:"rrlRate"`
 	DnssecValidate bool `json:"dnssecValidate"`
 	TcpOnly        bool `json:"tcpOnly,omitempty"`
+	// 拦截提示页（M6-023）：redirect 封禁条目解析到 BlockPageIP，由控制面 /blocked 页面展示。
+	BlockPageIP      string `json:"blockPageIP,omitempty"`
+	BlockPageTitle   string `json:"blockPageTitle,omitempty"`
+	BlockPageMessage string `json:"blockPageMessage,omitempty"`
 }
 
 // TtlOverride 每域名 TTL 覆盖（F-R3）。
