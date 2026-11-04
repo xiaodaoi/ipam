@@ -2202,7 +2202,8 @@ export interface paths {
         /**
          * 创建组织分组节点
          * @description 在指定父节点下创建；parentId 缺省创建根。
-         *     所需 scope：org.write。同父下重名将返回 409 ORG_NAME_DUP。
+         *     名称首尾空白自动去除，长度 1–64 个字符；同父（含根节点）重名大小写不敏感，返回 409 ORG_NAME_DUP。
+         *     所需 scope：org.write。
          */
         post: operations["createOrg"];
         delete?: never;
@@ -2253,6 +2254,7 @@ export interface paths {
         /**
          * 改名与/或移动组织节点
          * @description 移动目标不得为自身或其子孙（409 ORG_CYCLE）；移动将级联更新整棵子树的物化路径。
+         *     改名遵循与创建相同的名称规则（trim、1–64 字符、同父大小写不敏感唯一）：非法 400，重名 409 ORG_NAME_DUP。
          *     所需 scope：org.write。支持 Idempotency-Key。
          */
         patch: operations["updateOrg"];
@@ -2416,11 +2418,12 @@ export interface components {
         OrgCreate: {
             /** @description 父节点 ID；缺省创建根节点 */
             parentId?: string | null;
-            /** @description 同父下唯一名称 */
+            /** @description 同父下唯一名称（大小写不敏感；首尾空白自动去除；根节点同样受唯一约束） */
             name: string;
         };
         /** @description 改名与/或移动；移动目标不得为自身或其子孙（409 ORG_CYCLE）。 */
         OrgUpdate: {
+            /** @description 改名；规则同 OrgCreate.name（trim、同父大小写不敏感唯一） */
             name?: string;
             parentId?: string | null;
         };
@@ -4157,6 +4160,24 @@ export interface components {
             };
             content: {
                 "application/json": components["schemas"]["OrgNode"];
+            };
+        };
+        /** @description 组织名称非法（400）：为空/仅空白或超过 64 个字符 */
+        OrgNameInvalidError: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": unknown;
+            };
+        };
+        /** @description 同父下重名（409，大小写不敏感；根节点同样适用） */
+        OrgNameDupError: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": unknown;
             };
         };
         /** @description 资源不存在（404） */
@@ -8149,15 +8170,8 @@ export interface operations {
         };
         responses: {
             201: components["responses"]["OrgCreated"];
-            /** @description 同父重名 / 父不存在 */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": unknown;
-                };
-            };
+            400: components["responses"]["OrgNameInvalidError"];
+            409: components["responses"]["OrgNameDupError"];
         };
     };
     reorderOrgs: {
@@ -8236,14 +8250,22 @@ export interface operations {
         };
         responses: {
             200: components["responses"]["OrgUpdated"];
+            400: components["responses"]["OrgNameInvalidError"];
             404: components["responses"]["NotFound404"];
-            /** @description 目标父为自身子孙（ORG_CYCLE） */
+            /** @description 目标父为自身子孙（ORG_CYCLE）或改名后同父重名（ORG_NAME_DUP） */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail?: string;
+                        code?: string;
+                        instance?: string;
+                    };
                 };
             };
         };

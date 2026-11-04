@@ -27,8 +27,10 @@ type OrgStore interface {
 }
 
 var (
-	ErrOrgNotFound = errors.New("ORG_NOT_FOUND")
-	ErrOrgNameDup  = errors.New("ORG_NAME_DUP")
+	ErrOrgNotFound    = errors.New("ORG_NOT_FOUND")
+	ErrOrgNameDup     = errors.New("ORG_NAME_DUP")
+	ErrOrgNameMissing = errors.New("ORG_NAME_REQUIRED")
+	ErrOrgNameTooLong = errors.New("ORG_NAME_TOO_LONG")
 	ErrOrgInUse    = errors.New("ORG_IN_USE")
 	ErrOrgCycle    = errors.New("ORG_CYCLE")
 	ErrOrgMove     = errors.New("ORG_MOVE")

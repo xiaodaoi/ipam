@@ -175,6 +175,10 @@ async function confirmName() {
     message.warning($t('shared.orgManage.nameRequired'));
     return;
   }
+  if ([...name].length > 64) {
+    message.warning($t('shared.orgManage.nameTooLong'));
+    return;
+  }
   nameModalApi.close();
   const action = nameAction.value;
   if (!action) return;
@@ -313,6 +317,7 @@ onMounted(() => load(false));
         </span>
         <Input
           v-model:value="nameInput"
+          :maxlength="64"
           :placeholder="$t('shared.orgManage.namePlaceholder')"
           autofocus
           class="flex-1"

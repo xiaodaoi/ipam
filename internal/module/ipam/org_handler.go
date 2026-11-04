@@ -118,6 +118,10 @@ func mapErr(c *gin.Context, err error) {
 		problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "ORG_NOT_FOUND", "组织节点不存在")
 	case ErrOrgNameDup.Error():
 		problem.Write(c, http.StatusConflict, "https://ipam.local/problems/org-name-dup", "ORG_NAME_DUP", "同父下已存在同名分组")
+	case ErrOrgNameMissing.Error():
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/org-name-required", "ORG_NAME_REQUIRED", "组织名称不能为空")
+	case ErrOrgNameTooLong.Error():
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/org-name-too-long", "ORG_NAME_TOO_LONG", "组织名称最长 64 个字符")
 	case ErrOrgCycle.Error():
 		problem.Write(c, http.StatusConflict, "https://ipam.local/problems/org-cycle", "ORG_CYCLE", "移动目标为自身或其子孙")
 	case ErrOrgInUse.Error():

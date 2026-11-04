@@ -58,7 +58,8 @@
     "collapseAll": "收起全部",
     "empty": "暂无组织——点击右上角「+ 根组织」创建第一个节点",
     "nameLabel": "组织名称",
-    "namePlaceholder": "请输入组织名称"
+    "namePlaceholder": "请输入组织名称",
+    "nameTooLong": "组织名称最长 64 个字符"
   },
   "ipMap": {
     "title": "地址矩阵",

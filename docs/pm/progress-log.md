@@ -4,6 +4,15 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-11-04 · 组织名称校验与同父唯一约束一致性（M6-026）
+- **问题**：`POST /orgs` 接受空名称返回 201；PG `UNIQUE (parent_id, name)` 对根节点（`parent_id IS NULL`）完全失效且大小写敏感；唯一冲突冒泡 500 而非 409。
+- **服务层**：`normalizeOrgName`（`TrimFunc`+`unicode.IsSpace`，去半角/全角空白；`utf8.RuneCountInString` 限 1–64）+ `siblingNameTaken`（同父 `EqualFold`，可排除自身），`Create`/`Update` 统一走同一套规则；新增 `ORG_NAME_REQUIRED` / `ORG_NAME_TOO_LONG` 两个 400 错误码。
+- **PG**：`OrgRepo.Create` 经 `mapOrgWriteErr` 把 `23505` 翻译为 `ORG_NAME_DUP`（不再 500）；迁移 `0042_org_name_uniq` 清理无引用空名节点、`btrim` 历史空白，并删旧约束改建表达式唯一索引 `uniq_org_parent_name (COALESCE(parent_id, 0), lower(name))`。
+- **契约**：`paths/orgs.yaml` 补 400、409 改 `$ref`；新增 `OrgNameInvalidError`/`OrgNameDupError` 响应；`OrgCreate.name`/`OrgUpdate.name` 写明规则；`api/gen` 与 `schema.d.ts` 由 `gen-openapi.sh` 再生（二次生成 md5 稳定）。
+- **前端**：组织名称输入框 `maxlength=64` + 超长提示（`shared.orgManage.nameTooLong`）。
+- **验证**：单测 3 个新用例 + `go test ./...` 全绿；真实栈空/空白/全角空格→400、65 字符→400、同名根与大小写兄弟→409、`" 华东区 "`→201 且 trim、PATCH 400/400/409 与 trim 改名 200、SQL 直插命中 `uniq_org_parent_name`；迁移 `applied 0042`；`gen-check` OK；`sync-webui.sh --build` 11 任务、镜像 healthy；E2E 17/17。
+- **文档**：任务卡 M6-026（含实测输出与 DoD）、M6 计划 §12。
+
 ## 2026-11-04 · 前端全量 i18n（M6-025）
 - **覆盖**：`web/apps/web-ipam` 全部业务页面/组件/布局，71 个文件、0 处硬编码中文（注释除外）；新增 8 个 locale 命名空间（`dhcp/dhcpLedger/dns/logs/dashboard/system/shared/core`），2573 条文案，zh/en key 结构对称。
 - **机制**：展示型常量（表格列/状态映射/Tab/选项/统计卡）统一改 `computed`，切换语言即时生效；vxe 表格在语言变化后 `setState` 同步列头与空态；日期数字格式去掉硬编码 `zh-CN`。

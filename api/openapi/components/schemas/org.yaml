@@ -46,7 +46,7 @@ OrgCreate:
       type: string
       minLength: 1
       maxLength: 64
-      description: 同父下唯一名称
+      description: 同父下唯一名称（大小写不敏感；首尾空白自动去除；根节点同样受唯一约束）
 
 OrgUpdate:
   type: object
@@ -56,6 +56,7 @@ OrgUpdate:
       type: string
       minLength: 1
       maxLength: 64
+      description: 改名；规则同 OrgCreate.name（trim、同父大小写不敏感唯一）
     parentId:
       type: [string, 'null']
 

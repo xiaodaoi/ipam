@@ -6,10 +6,12 @@ import (
 	"strings"
 	"sync"
 
+	"net/netip"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"net/netip"
 )
 
 // PgSubnetRepo PG 实现（迁移 0003）。
@@ -292,6 +294,18 @@ func (r *OrgRepo) Create(n OrgNode) error {
 	_, err := r.pool.Exec(context.Background(),
 		`INSERT INTO org_group(id,parent_id,name,path,sort_order) VALUES($1,$2,$3,$4,$5)`,
 		n.ID, nullStr(n.ParentID), n.Name, n.Path, n.SortOrder)
+	return mapOrgWriteErr(err)
+}
+
+// mapOrgWriteErr 把唯一索引冲突映射为业务错误，避免并发/绕过校验时冒泡成 500。
+func mapOrgWriteErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		return ErrOrgNameDup
+	}
 	return err
 }
 

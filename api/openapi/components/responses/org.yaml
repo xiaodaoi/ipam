@@ -102,3 +102,66 @@ NotFound404:
             status: 404
             code: ORG_NOT_FOUND
             instance: "/api/v1/orgs/00000000-0000-0000-0000-000000000000"
+
+OrgNameInvalidError:
+  description: 组织名称非法（400）：为空/仅空白或超过 64 个字符
+  content:
+    application/problem+json:
+      schema:
+        schema:
+          type: object
+          description: RFC 9457 Problem (same shape as root spec components/schemas/Problem)
+          required: [type, title, status]
+          properties:
+            type: { type: string }
+            title: { type: string }
+            status: { type: integer }
+            detail: { type: string }
+            code: { type: string }
+            instance: { type: string }
+      examples:
+        required:
+          summary: 名称为空或仅空白
+          value:
+            type: "https://ipam.local/problems/org-name-required"
+            title: Bad Request
+            status: 400
+            code: ORG_NAME_REQUIRED
+            detail: 组织名称不能为空
+            instance: "/api/v1/orgs"
+        tooLong:
+          summary: 名称超过 64 个字符
+          value:
+            type: "https://ipam.local/problems/org-name-too-long"
+            title: Bad Request
+            status: 400
+            code: ORG_NAME_TOO_LONG
+            detail: 组织名称最长 64 个字符
+            instance: "/api/v1/orgs"
+
+OrgNameDupError:
+  description: 同父下重名（409，大小写不敏感；根节点同样适用）
+  content:
+    application/problem+json:
+      schema:
+        schema:
+          type: object
+          description: RFC 9457 Problem (same shape as root spec components/schemas/Problem)
+          required: [type, title, status]
+          properties:
+            type: { type: string }
+            title: { type: string }
+            status: { type: integer }
+            detail: { type: string }
+            code: { type: string }
+            instance: { type: string }
+      examples:
+        dup:
+          summary: 同父下已存在同名分组
+          value:
+            type: "https://ipam.local/problems/org-name-dup"
+            title: Conflict
+            status: 409
+            code: ORG_NAME_DUP
+            detail: 同父下已存在同名分组
+            instance: "/api/v1/orgs"

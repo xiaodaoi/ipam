@@ -190,3 +190,90 @@ func TestOrgService_Reorder同级排序与树序(t *testing.T) {
 		t.Fatalf("新建应追加末尾: %+v", tree)
 	}
 }
+
+func TestCreate_名称规范化与校验(t *testing.T) {
+	svc := NewOrgService(NewMemOrgStore())
+	ctx := context.Background()
+
+	// 首尾空白（半角/全角/制表）应被去除
+	for _, raw := range []string{" 研发部 ", "\u3000运维部\u3000", "\t安全部\n"} {
+		n, err := svc.Create(ctx, "", raw)
+		if err != nil {
+			t.Fatalf("create %q: %v", raw, err)
+		}
+		if strings.TrimSpace(n.Name) != n.Name || n.Name == "" {
+			t.Fatalf("名称未规范化: %q -> %q", raw, n.Name)
+		}
+	}
+
+	// 空名称 / 纯空白
+	for _, raw := range []string{"", "   ", "\u3000", "\t\n"} {
+		if _, err := svc.Create(ctx, "", raw); err != ErrOrgNameMissing {
+			t.Fatalf("create %q err=%v want ErrOrgNameMissing", raw, err)
+		}
+	}
+
+	// 长度边界：64 字符通过，65 拒绝（按 rune 计）
+	ok64 := strings.Repeat("组", 64)
+	if _, err := svc.Create(ctx, "", ok64); err != nil {
+		t.Fatalf("64 字符应通过: %v", err)
+	}
+	if _, err := svc.Create(ctx, "", strings.Repeat("组", 65)); err != ErrOrgNameTooLong {
+		t.Fatalf("65 字符 err=%v want ErrOrgNameTooLong", err)
+	}
+}
+
+func TestCreate_根节点与兄弟判重大小写不敏感(t *testing.T) {
+	svc := NewOrgService(NewMemOrgStore())
+	ctx := context.Background()
+	root, err := svc.Create(ctx, "", "HQ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 根节点（parent 为空）同名
+	if _, err := svc.Create(ctx, "", "hq"); err != ErrOrgNameDup {
+		t.Fatalf("同名根节点 err=%v want ErrOrgNameDup", err)
+	}
+	// 子节点同名
+	if _, err := svc.Create(ctx, root.ID, "Ops"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Create(ctx, root.ID, "  ops "); err != ErrOrgNameDup {
+		t.Fatalf("同名子节点 err=%v want ErrOrgNameDup", err)
+	}
+	// 不同父可同名
+	other, err := svc.Create(ctx, "", "Branch")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Create(ctx, other.ID, "ops"); err != nil {
+		t.Fatalf("不同父应允许同名: %v", err)
+	}
+}
+
+func TestUpdate_改名校验(t *testing.T) {
+	svc, _ := newTreeSvc(t)
+	ctx := context.Background()
+	var id string
+	for _, n := range svc.store.List() {
+		if n.Name == "研发部" {
+			id = n.ID
+		}
+	}
+	if id == "" {
+		t.Fatal("未找到测试节点")
+	}
+	if _, err := svc.Update(ctx, id, "   ", "", true, false); err != ErrOrgNameMissing {
+		t.Fatalf("空名 err=%v want ErrOrgNameMissing", err)
+	}
+	if _, err := svc.Update(ctx, id, strings.Repeat("x", 65), "", true, false); err != ErrOrgNameTooLong {
+		t.Fatalf("超长 err=%v want ErrOrgNameTooLong", err)
+	}
+	n, err := svc.Update(ctx, id, "  平台组  ", "", true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n.Name != "平台组" {
+		t.Fatalf("改名未规范化: %q", n.Name)
+	}
+}

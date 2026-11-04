@@ -58,7 +58,8 @@
     "collapseAll": "Collapse all",
     "empty": "No organizations — click \"+ Root\" at the top right to create the first node",
     "nameLabel": "Organization name",
-    "namePlaceholder": "Enter organization name"
+    "namePlaceholder": "Enter organization name",
+    "nameTooLong": "Organization name must be at most 64 characters"
   },
   "ipMap": {
     "title": "Address matrix",

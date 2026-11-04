@@ -3,9 +3,40 @@ package ipam
 import (
 	"context"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 )
+
+// orgNameMaxRunes 组织名称长度上限（与 OpenAPI OrgCreate.name 的 maxLength 对齐）。
+const orgNameMaxRunes = 64
+
+// normalizeOrgName 规范化组织名称：去除首尾空白（含全角空格）并校验长度。
+// 空名称与超长名称分别返回 ErrOrgNameMissing / ErrOrgNameTooLong，由 handler 映射为 400。
+func normalizeOrgName(raw string) (string, error) {
+	name := strings.TrimFunc(raw, func(r rune) bool { return unicode.IsSpace(r) })
+	if name == "" {
+		return "", ErrOrgNameMissing
+	}
+	if utf8.RuneCountInString(name) > orgNameMaxRunes {
+		return "", ErrOrgNameTooLong
+	}
+	return name, nil
+}
+
+// siblingNameTaken 判断同一父节点下是否已有同名节点（大小写不敏感，忽略历史首尾空白）。
+func (s *OrgService) siblingNameTaken(parentID, name, exceptID string) bool {
+	for _, n := range s.store.List() {
+		if n.ID == exceptID || n.ParentID != parentID {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(n.Name), name) {
+			return true
+		}
+	}
+	return false
+}
 
 // OrgService 业务规则层：路径维护、环检测、删除保护。
 type OrgService struct {
@@ -16,6 +47,11 @@ func NewOrgService(store OrgStore) *OrgService { return &OrgService{store: store
 
 // Create 创建节点并计算物化路径；parentID 为空创建根。
 func (s *OrgService) Create(_ context.Context, parentID, name string) (OrgNode, error) {
+	normalized, err := normalizeOrgName(name)
+	if err != nil {
+		return OrgNode{}, err
+	}
+	name = normalized
 	id := uuid.NewString()
 	if parentID != "" {
 		if _, ok := s.store.Get(parentID); !ok {
@@ -29,6 +65,9 @@ func (s *OrgService) Create(_ context.Context, parentID, name string) (OrgNode, 
 			return OrgNode{}, ErrOrgNotFound
 		}
 		parentPath = strings.TrimSuffix(p.Path, "/")
+	}
+	if s.siblingNameTaken(parentID, name, "") {
+		return OrgNode{}, ErrOrgNameDup
 	}
 	siblingCount := 0
 	for _, c := range s.store.List() {
@@ -67,7 +106,11 @@ func (s *OrgService) Update(_ context.Context, id, newName, newParentID string, 
 	}
 	name := cur.Name
 	if renameFlag {
-		name = newName
+		normalized, err := normalizeOrgName(newName)
+		if err != nil {
+			return OrgNode{}, err
+		}
+		name = normalized
 	}
 	parent := cur.ParentID
 	if moveFlag {
@@ -77,13 +120,8 @@ func (s *OrgService) Update(_ context.Context, id, newName, newParentID string, 
 	if moveFlag && parent == id {
 		return OrgNode{}, ErrOrgCycle
 	}
-	if renameFlag {
-		for _, n := range s.store.List() {
-			same := n.ID == id
-			if !same && n.ParentID == parent && strings.EqualFold(n.Name, name) {
-				return OrgNode{}, ErrOrgNameDup
-			}
-		}
+	if renameFlag && s.siblingNameTaken(parent, name, id) {
+		return OrgNode{}, ErrOrgNameDup
 	}
 	newParentPath := ""
 	if moveFlag && parent != "" {

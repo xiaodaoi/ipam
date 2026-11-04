@@ -16,7 +16,8 @@ OrgsCollection:
     summary: 创建组织分组节点
     description: |
       在指定父节点下创建；parentId 缺省创建根。
-      所需 scope：org.write。同父下重名将返回 409 ORG_NAME_DUP。
+      名称首尾空白自动去除，长度 1–64 个字符；同父（含根节点）重名大小写不敏感，返回 409 ORG_NAME_DUP。
+      所需 scope：org.write。
     security: [{ bearerAuth: [] }]
     requestBody:
       required: true
@@ -37,22 +38,10 @@ OrgsCollection:
     responses:
       '201':
         $ref: '../components/responses/org.yaml#/OrgCreated'
+      '400':
+        $ref: '../components/responses/org.yaml#/OrgNameInvalidError'
       '409':
-        description: 同父重名 / 父不存在
-        content:
-          application/problem+json:
-            schema:
-              schema:
-                            type: object
-                            description: RFC 9457 Problem (same shape as root spec components/schemas/Problem)
-                            required: [type, title, status]
-                            properties:
-                              type: { type: string }
-                              title: { type: string }
-                              status: { type: integer }
-                              detail: { type: string }
-                              code: { type: string }
-                              instance: { type: string }
+        $ref: '../components/responses/org.yaml#/OrgNameDupError'
 OrgItem:
   patch:
     operationId: updateOrg
@@ -60,6 +49,7 @@ OrgItem:
     summary: 改名与/或移动组织节点
     description: |
       移动目标不得为自身或其子孙（409 ORG_CYCLE）；移动将级联更新整棵子树的物化路径。
+      改名遵循与创建相同的名称规则（trim、1–64 字符、同父大小写不敏感唯一）：非法 400，重名 409 ORG_NAME_DUP。
       所需 scope：org.write。支持 Idempotency-Key。
     security: [{ bearerAuth: [] }]
     parameters:
@@ -73,24 +63,25 @@ OrgItem:
     responses:
       '200':
         $ref: '../components/responses/org.yaml#/OrgUpdated'
+      '400':
+        $ref: '../components/responses/org.yaml#/OrgNameInvalidError'
       '404':
         $ref: '../components/responses/org.yaml#/NotFound404'
       '409':
-        description: 目标父为自身子孙（ORG_CYCLE）
+        description: 目标父为自身子孙（ORG_CYCLE）或改名后同父重名（ORG_NAME_DUP）
         content:
           application/problem+json:
             schema:
-              schema:
-                            type: object
-                            description: RFC 9457 Problem (same shape as root spec components/schemas/Problem)
-                            required: [type, title, status]
-                            properties:
-                              type: { type: string }
-                              title: { type: string }
-                              status: { type: integer }
-                              detail: { type: string }
-                              code: { type: string }
-                              instance: { type: string }
+              type: object
+              description: RFC 9457 Problem (same shape as root spec components/schemas/Problem)
+              required: [type, title, status]
+              properties:
+                type: { type: string }
+                title: { type: string }
+                status: { type: integer }
+                detail: { type: string }
+                code: { type: string }
+                instance: { type: string }
   delete:
     operationId: deleteOrg
     tags: [org]
