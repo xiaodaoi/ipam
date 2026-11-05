@@ -487,5 +487,76 @@
       "copied": "已复制 {n} 行",
       "clipboardDenied": "浏览器未授予剪贴板权限"
     }
+  },
+  "host": {
+    "title": "主机资源",
+    "description": "宿主与控制面的运行情况：实时快照、历史曲线、容量构成与采样明细；支持预设范围与自定义时间查询。",
+    "updatedAt": "更新于 {time}",
+    "uptimeLine": "连续运行 {uptime}",
+    "rangeHint": "每分钟采样，保留 30 天",
+    "kpi": {
+      "cpu": "CPU 使用率",
+      "cpuHint": "{n} 核",
+      "memory": "内存使用率",
+      "memoryHint": "{used} / {total}",
+      "disk": "磁盘使用率",
+      "diskHint": "最满挂载点 {mount}",
+      "load": "1 分钟负载",
+      "loadHint": "5 分钟 {l5} · 15 分钟 {l15}"
+    },
+    "trend": {
+      "title": "运行趋势",
+      "hint": "选择时间范围后点「查询」",
+      "cpu": "CPU 使用率",
+      "memory": "内存使用率",
+      "disk": "磁盘使用率",
+      "load": "1 分钟负载",
+      "diskHint": "最满挂载点：{mount}",
+      "emptyTitle": "暂无历史数据",
+      "emptyDesc": "服务启动后每分钟记录一次，约 1 分钟后可见。"
+    },
+    "peak": {
+      "cpu": "CPU 峰值 {v}",
+      "mem": "内存峰值 {v}",
+      "disk": "磁盘峰值 {v}（{mount}）",
+      "load": "负载峰值 {v}",
+      "since": "历史数据自 {time} 起"
+    },
+    "pie": {
+      "empty": "暂无数据",
+      "diskTitle": "磁盘使用分布",
+      "diskCaption": "已用合计",
+      "memTitle": "内存构成",
+      "memCaption": "已用占比",
+      "memUsed": "已用",
+      "memAvailable": "可用",
+      "poolTitle": "数据库连接池",
+      "poolCaption": "使用中 / 上限",
+      "poolUsed": "使用中",
+      "poolFree": "空闲"
+    },
+    "table": {
+      "title": "采样明细",
+      "count": "共 {n} 条采样",
+      "time": "时间",
+      "cpu": "CPU",
+      "memory": "内存",
+      "disk": "磁盘",
+      "load": "负载",
+      "goroutines": "并发任务",
+      "pool": "数据库连接",
+      "logAge": "日志延迟",
+      "logAgeValue": "{n} 秒",
+      "empty": "暂无采样记录"
+    },
+    "uptime": {
+      "days": "{d} 天 {h} 小时",
+      "hours": "{h} 小时 {m} 分",
+      "minutes": "{m} 分钟"
+    },
+    "messages": {
+      "invalidRange": "结束时间必须晚于开始时间",
+      "queryFail": "历史数据查询失败，请稍后重试"
+    }
   }
 }

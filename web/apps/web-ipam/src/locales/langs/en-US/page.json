@@ -32,7 +32,8 @@
     "audit": "Audit",
     "tail": "Live Tail",
     "storage": "Storage & Archive",
-    "export": "Export & Sampling"
+    "export": "Export & Sampling",
+    "host": "Host resources"
   },
   "dns": {
     "title": "DNS Service",

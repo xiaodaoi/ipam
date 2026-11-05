@@ -36,7 +36,7 @@ docker compose -f observability/compose.observability.yaml --profile observabili
 - 清理：每小时最多 Prune 一次，删除超过保留期的行；失败只记日志，不影响采样与 API；
 - 查询：`/system/metrics/history?from=&to=&step=` 服务端按 `date_bin()` 降采样，**返回点 ≤720、窗口 ≤90 天**（超限 400）；`/system/metrics/summary?hours=` 给峰值与峰值时刻；
 - 采样语义：首个样本无 CPU 差值不落库；`(node, ts)` 唯一 + `ON CONFLICT DO NOTHING`，重启/重复写不会产生重复点；数据库不可用时跳过该样本，不攒内存队列；
-- 页面：系统管理 → 服务与运行 →「历史趋势」（1h/6h/24h/7d/30d）。
+- 页面：日志中心 → 主机资源（曲线/饼图/自定义时间查询/采样明细）；系统管理 → 服务与运行 →「历史趋势」也可看基础曲线。
 
 **排障用法**：页面卡/登录慢先看同一时间轴上的连接池占用与 goroutine 数；日志页无数据先看「日志更新于」是否持续增大（Vector/ClickHouse 积压），再判断是否宿主磁盘/CPU 问题。
 

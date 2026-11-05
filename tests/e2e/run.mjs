@@ -261,6 +261,32 @@ async function main() {
       await waitText(page, '历史趋势');
     });
 
+    await step('日志中心主机资源', async () => {
+      await page.goto(urlFor('/logs-center/host'), {
+        waitUntil: 'domcontentloaded',
+      });
+      await waitText(page, '主机资源');
+      await waitText(page, '运行趋势');
+      await waitText(page, '磁盘使用分布');
+      await waitText(page, '采样明细');
+      // 曲线与饼图：数据未就绪时允许空态，但不能白屏。
+      const hasChart = (await page.locator('.ipam-page svg path').count()) > 0;
+      const hasEmpty = (await page.getByText('暂无历史数据').count()) > 0;
+      assert(hasChart || hasEmpty, '运行趋势既无曲线也无空态');
+      const hasPie = (await page.locator('.ipam-pie svg path').count()) > 0;
+      const hasPieEmpty = (await page.getByText('暂无数据').count()) > 0;
+      assert(hasPie || hasPieEmpty, '饼图既未渲染也无空态');
+      await waitText(page, '查询');
+      const oneHour = page
+        .locator('.ipam-seg button', { hasText: '近 1 小时' })
+        .first();
+      if (await oneHour.count()) {
+        await oneHour.click();
+        await page.waitForTimeout(1000);
+      }
+      await waitText(page, '采样明细');
+    });
+
     await step('目录服务设置', async () => {
       await page.goto(urlFor('/system/directory'), { waitUntil: 'domcontentloaded' });
       await waitText(page, '目录服务');

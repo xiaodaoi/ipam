@@ -72,6 +72,16 @@ const routes: RouteRecordRaw[] = [
           authority: ['system:read'],
         },
       },
+      {
+        name: 'LogHost',
+        path: '/logs-center/host',
+        component: () => import('#/views/logs/host/index.vue'),
+        meta: {
+          icon: 'lucide:server',
+          title: $t('page.logs.host'),
+          authority: ['dash:read'],
+        },
+      },
     ],
   },
 ];

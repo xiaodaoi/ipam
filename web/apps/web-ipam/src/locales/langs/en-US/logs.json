@@ -487,5 +487,76 @@
       "copied": "Copied {n} rows",
       "clipboardDenied": "Clipboard permission denied by the browser"
     }
+  },
+  "host": {
+    "title": "Host resources",
+    "description": "Host and control-plane runtime: live snapshot, history curves, capacity breakdown and samples; query by preset or custom range.",
+    "updatedAt": "Updated {time}",
+    "uptimeLine": "Uptime {uptime}",
+    "rangeHint": "Sampled every minute, kept for 30 days",
+    "kpi": {
+      "cpu": "CPU usage",
+      "cpuHint": "{n} cores",
+      "memory": "Memory usage",
+      "memoryHint": "{used} / {total}",
+      "disk": "Disk usage",
+      "diskHint": "Fullest mount {mount}",
+      "load": "1-minute load",
+      "loadHint": "5 min {l5} · 15 min {l15}"
+    },
+    "trend": {
+      "title": "Trends",
+      "hint": "Choose a range, then search",
+      "cpu": "CPU usage",
+      "memory": "Memory usage",
+      "disk": "Disk usage",
+      "load": "1-minute load",
+      "diskHint": "Fullest mount: {mount}",
+      "emptyTitle": "No history yet",
+      "emptyDesc": "Recorded once a minute after startup; visible in about a minute."
+    },
+    "peak": {
+      "cpu": "CPU peak {v}",
+      "mem": "Memory peak {v}",
+      "disk": "Disk peak {v} ({mount})",
+      "load": "Load peak {v}",
+      "since": "History since {time}"
+    },
+    "pie": {
+      "empty": "No data",
+      "diskTitle": "Disk usage by mount",
+      "diskCaption": "Used total",
+      "memTitle": "Memory composition",
+      "memCaption": "Used share",
+      "memUsed": "Used",
+      "memAvailable": "Available",
+      "poolTitle": "Database connections",
+      "poolCaption": "In use / limit",
+      "poolUsed": "In use",
+      "poolFree": "Idle"
+    },
+    "table": {
+      "title": "Samples",
+      "count": "{n} samples",
+      "time": "Time",
+      "cpu": "CPU",
+      "memory": "Memory",
+      "disk": "Disk",
+      "load": "Load",
+      "goroutines": "Concurrent tasks",
+      "pool": "DB connections",
+      "logAge": "Log delay",
+      "logAgeValue": "{n}s",
+      "empty": "No samples yet"
+    },
+    "uptime": {
+      "days": "{d}d {h}h",
+      "hours": "{h}h {m}m",
+      "minutes": "{m}m"
+    },
+    "messages": {
+      "invalidRange": "End time must be later than start time",
+      "queryFail": "Failed to query history; try again later"
+    }
   }
 }
