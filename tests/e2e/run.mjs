@@ -242,6 +242,25 @@ async function main() {
       await page.locator('.ant-table').first().waitFor({ timeout: 15_000 });
     });
 
+    await step('服务与运行历史趋势', async () => {
+      await page.goto(urlFor('/system/runtime'), { waitUntil: 'domcontentloaded' });
+      await waitText(page, '服务与运行');
+      await waitText(page, '历史趋势');
+      // 采样自启动后每分钟一次：数据未就绪时也必须渲染空态，而不是白屏或报错。
+      const hasChart =
+        (await page.locator('.ipam-page svg path').count()) > 0;
+      const hasEmpty = (await page.getByText('暂无历史数据').count()) > 0;
+      assert(hasChart || hasEmpty, '历史趋势卡片既无图表也无空态');
+      const oneHour = page
+        .locator('.ant-radio-button-wrapper', { hasText: '1 小时' })
+        .first();
+      if (await oneHour.count()) {
+        await oneHour.click();
+        await page.waitForTimeout(800);
+      }
+      await waitText(page, '历史趋势');
+    });
+
     await step('目录服务设置', async () => {
       await page.goto(urlFor('/system/directory'), { waitUntil: 'domcontentloaded' });
       await waitText(page, '目录服务');

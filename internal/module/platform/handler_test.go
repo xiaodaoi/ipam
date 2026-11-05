@@ -23,6 +23,7 @@ import (
 	"github.com/xiaodaoi/ipam/internal/module/logexport"
 	"github.com/xiaodaoi/ipam/internal/module/logmanager"
 	logq "github.com/xiaodaoi/ipam/internal/module/logquery"
+	"github.com/xiaodaoi/ipam/internal/module/systemmetric"
 	"github.com/xiaodaoi/ipam/internal/module/utilization"
 	"github.com/xiaodaoi/ipam/internal/pkg/hostmetrics"
 )
@@ -81,6 +82,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		*logexport.LogExportHandler
 		*backupmodule.APIHandler
 		*stubApplier
+		*systemmetric.MetricHandler
 	}{h,
 		ipam.NewOrgHandler(ipam.NewOrgService(orgStore)),
 		ipam.NewSubnetHandler(ipam.NewSubnetService(subRepo, orgStore, kea, nil)),
@@ -113,6 +115,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 			backupmodule.NewService(backupmodule.NewMemRepo(), backupmodule.NewMemSettings(), nil, nil, "/tmp/backups", nil),
 			backupmodule.NewMemSettings()),
 		&stubApplier{},
+		systemmetric.NewHandler(systemmetric.NewService(systemmetric.NewMemRepo(), systemmetric.Sources{})),
 	}
 	apigen.RegisterHandlersWithOptions(r, full, apigen.GinServerOptions{BaseURL: "/api/v1"})
 	return r
@@ -149,7 +152,18 @@ func TestGetSystemMetrics_OK(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(proc, "mounts"), []byte(""), 0o600)
 
 	h := NewHandler("9.9.9-test")
-	h.SetHostMetrics(hostmetrics.New(proc, "", dir))
+	col := hostmetrics.New(proc, "", dir)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go col.Start(ctx, 10*time.Millisecond)
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if _, ok := col.Snapshot(); ok || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	h.SetHostMetrics(col)
 
 	w := httptest.NewRecorder()
 	newTestRouter(h).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/system/metrics", nil))

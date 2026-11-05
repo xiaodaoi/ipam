@@ -116,6 +116,21 @@ export const getDashboard = (poolTopN?: number) =>
 export type HostMetrics = components['schemas']['HostMetrics'];
 export const getSystemMetrics = () => req<HostMetrics>('/system/metrics');
 
+// ── 主机资源历史（M6-032）──
+export type SystemMetricPoint = components['schemas']['SystemMetricPoint'];
+export type SystemMetricHistory = components['schemas']['SystemMetricHistory'];
+export type SystemMetricSummary = components['schemas']['SystemMetricSummary'];
+export const getSystemMetricsHistory = (params: {
+  from: string;
+  step: number;
+  to: string;
+}) =>
+  req<SystemMetricHistory>(
+    `/system/metrics/history?from=${encodeURIComponent(params.from)}&to=${encodeURIComponent(params.to)}&step=${params.step}`,
+  );
+export const getSystemMetricsSummary = (hours: number) =>
+  req<SystemMetricSummary>(`/system/metrics/summary?hours=${hours}`);
+
 export type SystemInfo = components['schemas']['SystemInfo'];
 export const getSystemInfo = () => req<SystemInfo>('/system/info');
 

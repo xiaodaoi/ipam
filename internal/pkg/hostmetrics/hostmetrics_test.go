@@ -1,9 +1,11 @@
 package hostmetrics
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func write(t *testing.T, path, content string) {
@@ -43,9 +45,9 @@ func TestCollector_ParseAndCPUUsage(t *testing.T) {
 
 	c := New(proc, "", root)
 
-	m1, err := c.Collect()
+	m1, err := c.Sample()
 	if err != nil {
-		t.Fatalf("Collect: %v", err)
+		t.Fatalf("Sample: %v", err)
 	}
 	if m1.CPU.Cores != 2 {
 		t.Fatalf("cores = %d, want 2", m1.CPU.Cores)
@@ -80,9 +82,9 @@ func TestCollector_ParseAndCPUUsage(t *testing.T) {
 
 	// 二次采样：dTotal=100, dIdle=50 → usage 50%
 	write(t, stat, "cpu  150 0 100 850 0 0 0 0 0 0\ncpu0 75 0 50 425 0 0 0 0 0 0\ncpu1 75 0 50 425 0 0 0 0 0 0\n")
-	m2, err := c.Collect()
+	m2, err := c.Sample()
 	if err != nil {
-		t.Fatalf("Collect #2: %v", err)
+		t.Fatalf("Sample #2: %v", err)
 	}
 	if m2.CPU.UsagePct < 49 || m2.CPU.UsagePct > 51 {
 		t.Fatalf("usage = %v, want ≈50", m2.CPU.UsagePct)
@@ -91,7 +93,78 @@ func TestCollector_ParseAndCPUUsage(t *testing.T) {
 
 func TestCollector_MissingProc(t *testing.T) {
 	c := New(filepath.Join(t.TempDir(), "nonexistent"), "", "")
-	if _, err := c.Collect(); err == nil {
+	if _, err := c.Sample(); err == nil {
 		t.Fatal("缺失 /proc/stat 应返回 error")
 	}
+}
+
+func TestCollector_SnapshotSingleWriter(t *testing.T) {
+	dir := t.TempDir()
+	proc := filepath.Join(dir, "proc")
+	if err := os.MkdirAll(proc, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	stat := filepath.Join(proc, "stat")
+	write(t, stat, "cpu  100 0 100 800 0 0 0 0 0 0\n")
+	write(t, filepath.Join(proc, "loadavg"), "0.10 0.10 0.10 1/1 1\n")
+	write(t, filepath.Join(proc, "meminfo"), "MemTotal: 1000 kB\nMemAvailable: 500 kB\n")
+	write(t, filepath.Join(proc, "uptime"), "10.0 5.0\n")
+
+	c := New(proc, "", "")
+
+	// 未采样：缓存为空，且不触发任何磁盘 IO。
+	if _, ok := c.Snapshot(); ok {
+		t.Fatal("未采样时 Snapshot 应返回 ok=false")
+	}
+	if c.Valid() {
+		t.Fatal("未采样时 Valid 应为 false")
+	}
+
+	// 首个样本只有 1 次读数，无法算差值 → Valid 仍为 false。
+	if _, err := c.Sample(); err != nil {
+		t.Fatal(err)
+	}
+	if c.Valid() {
+		t.Fatal("首个样本不应标记 CPU 可信")
+	}
+
+	// 第二个样本形成差值 → Valid 为 true。
+	write(t, stat, "cpu  150 0 100 850 0 0 0 0 0 0\n")
+	if _, err := c.Sample(); err != nil {
+		t.Fatal(err)
+	}
+	if !c.Valid() {
+		t.Fatal("第二个样本后应标记 CPU 可信")
+	}
+
+	// Sample 只计算不写缓存：缓存写入是 Start 的职责（避免多个调用者各自刷新缓存）。
+	if _, ok := c.Snapshot(); ok {
+		t.Fatal("Sample 不应写缓存")
+	}
+}
+
+func TestCollector_StartWritesSnapshot(t *testing.T) {
+	dir := t.TempDir()
+	proc := filepath.Join(dir, "proc")
+	if err := os.MkdirAll(proc, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(proc, "stat"), "cpu  100 0 100 800 0 0 0 0 0 0\n")
+	write(t, filepath.Join(proc, "loadavg"), "0.10 0.10 0.10 1/1 1\n")
+	write(t, filepath.Join(proc, "meminfo"), "MemTotal: 1000 kB\nMemAvailable: 500 kB\n")
+	write(t, filepath.Join(proc, "uptime"), "10.0 5.0\n")
+
+	c := New(proc, "", "")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go c.Start(ctx, 10*time.Millisecond)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, ok := c.Snapshot(); ok {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("Start 后应在超时前写入缓存快照")
 }

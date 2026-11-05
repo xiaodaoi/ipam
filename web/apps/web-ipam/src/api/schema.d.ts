@@ -2305,6 +2305,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/system/metrics/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查询主机资源历史（服务端降采样）
+         * @description 返回落库的主机与控制面指标历史，用于「服务与运行 → 历史趋势」。
+         *     采样口径：控制面每 `IPAM_SYS_METRIC_INTERVAL`（默认 60s）采样一次，
+         *     保留 `IPAM_SYS_METRIC_RETENTION`（默认 30 天）。
+         *     降采样：返回点数不超过 720，`step` 会按需放大；时间跨度上限 90 天，超出返回 400。
+         *     说明：指标数据行不参与备份恢复（只有表结构），避免换机后看到旧机器历史。
+         *     所需权限：dash:read。
+         */
+        get: operations["getSystemMetricsHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/system/metrics/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查询主机资源窗口峰值
+         * @description 返回窗口内 CPU/内存/磁盘/负载的峰值、峰值时刻与均值，用于「近 24 小时峰值」提示。
+         *     `since` 为历史数据最早时刻；样本为空时 peaks 为 0、`samples` 为 0。
+         *     所需权限：dash:read。
+         */
+        get: operations["getSystemMetricsSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2392,6 +2439,133 @@ export interface components {
             availableBytes: number;
             /** @description 使用率（%） */
             usedPct: number;
+        };
+        SystemMetricPoint: {
+            /**
+             * Format: date-time
+             * @description 时间桶起点（UTC，RFC3339）
+             */
+            ts: string;
+            /** @description CPU 使用率（%，桶内均值） */
+            cpuPct?: number;
+            /** @description 逻辑核数 */
+            cores?: number;
+            /** @description 1 分钟平均负载（桶内均值） */
+            load1?: number;
+            /** @description 5 分钟平均负载（桶内均值） */
+            load5?: number;
+            /** @description 15 分钟平均负载（桶内均值） */
+            load15?: number;
+            /**
+             * Format: int64
+             * @description 已用内存（桶内均值）
+             */
+            memUsedBytes?: number;
+            /**
+             * Format: int64
+             * @description 物理内存总量
+             */
+            memTotalBytes?: number;
+            /** @description 内存使用率（%，桶内均值） */
+            memPct?: number;
+            /** @description 宿主开机时长（秒） */
+            uptimeSec?: number;
+            /** @description 根分区使用率（%，桶内均值） */
+            diskRootPct?: number;
+            /** @description 桶内最满挂载点的使用率（%） */
+            diskMaxPct?: number;
+            /** @description 最满挂载点路径（仅管理页可见） */
+            diskWorstMount?: string;
+            /** @description 控制面 goroutine 数（桶内均值） */
+            goroutines?: number;
+            /**
+             * Format: int64
+             * @description Go 堆对象字节（桶内均值）
+             */
+            heapBytes?: number;
+            /** @description 数据库连接池占用（桶内均值） */
+            dbPoolInUse?: number;
+            /** @description 数据库连接池上限 */
+            dbPoolMax?: number;
+            /**
+             * Format: int64
+             * @description 最新日志距今秒数；-1=无数据或不可用
+             */
+            logLatestAgeSec?: number;
+        };
+        SystemMetricHistory: {
+            items: components["schemas"]["SystemMetricPoint"][];
+        };
+        SystemMetricSummary: {
+            /** @description 节点标识，单机固定 local */
+            node: string;
+            /**
+             * Format: date-time
+             * @description 统计窗口起点
+             */
+            from: string;
+            /**
+             * Format: date-time
+             * @description 窗口内最新样本时刻
+             */
+            to: string;
+            /** @description 窗口内样本数；0 表示无数据 */
+            samples: number;
+            /**
+             * Format: date-time
+             * @description 历史数据最早时刻（提示保留范围）
+             */
+            since?: string;
+            /** @description CPU 峰值（%） */
+            cpuMax?: number;
+            /**
+             * Format: date-time
+             * @description CPU 峰值时刻
+             */
+            cpuMaxAt?: string;
+            /** @description 内存峰值（%） */
+            memMax?: number;
+            /**
+             * Format: date-time
+             * @description 内存峰值时刻
+             */
+            memMaxAt?: string;
+            /** @description 磁盘峰值（%） */
+            diskMax?: number;
+            /**
+             * Format: date-time
+             * @description 磁盘峰值时刻
+             */
+            diskMaxAt?: string;
+            /** @description 峰值对应的挂载点 */
+            diskMaxMount?: string;
+            /** @description 1 分钟负载峰值 */
+            load1Max?: number;
+            /**
+             * Format: date-time
+             * @description 负载峰值时刻
+             */
+            load1MaxAt?: string;
+            /** @description CPU 均值（%） */
+            cpuAvg?: number;
+            /** @description 内存均值（%） */
+            memAvg?: number;
+            /** @description 磁盘均值（%） */
+            diskAvg?: number;
+            /** @description goroutine 峰值 */
+            goroutinesMax?: number;
+            /**
+             * Format: int64
+             * @description 堆内存峰值（字节）
+             */
+            heapMaxBytes?: number;
+            /** @description 连接池占用峰值 */
+            dbPoolInUseMax?: number;
+            /**
+             * Format: int64
+             * @description 最新日志距今最大秒数；-1=不可用
+             */
+            logLatestAgeMaxSec?: number;
         };
         /** @description 组织分组节点（多级自定义树，主数据，§13.4）。 */
         OrgNode: {
@@ -8310,6 +8484,59 @@ export interface operations {
                 };
             };
             503: components["responses"]["Problem"];
+        };
+    };
+    getSystemMetricsHistory: {
+        parameters: {
+            query?: {
+                /** @description 起始时间（UTC，含）；缺省为 to-24h */
+                from?: string;
+                /** @description 结束时间（UTC，不含）；缺省为当前时间 */
+                to?: string;
+                /** @description 期望聚合粒度（秒）；点数超限时服务端自动放大 */
+                step?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 历史序列 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemMetricHistory"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
+        };
+    };
+    getSystemMetricsSummary: {
+        parameters: {
+            query?: {
+                /** @description 统计窗口（小时），默认 24 */
+                hours?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 峰值汇总 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemMetricSummary"];
+                };
+            };
+            500: components["responses"]["Problem"];
         };
     };
 }

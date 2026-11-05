@@ -704,13 +704,41 @@
     },
     "host": {
       "title": "宿主资源",
-      "hint": "来自 /system/metrics",
+      "hint": "宿主整机 · 自动刷新",
       "memory": "内存",
       "load1": "1 分钟负载",
       "uptime": "连续运行",
       "cores": "{n} 核",
       "emptyTitle": "宿主资源暂不可达",
       "emptyDesc": "控制面未挂载宿主 /proc 或指标采集未接线。"
+    },
+    "history": {
+      "title": "历史趋势",
+      "hint": "每分钟记录一次 · 保留 30 天",
+      "range": {
+        "1h": "1 小时",
+        "6h": "6 小时",
+        "24h": "24 小时",
+        "7d": "7 天",
+        "30d": "30 天"
+      },
+      "cpu": "CPU 使用率",
+      "memory": "内存使用率",
+      "disk": "磁盘使用率",
+      "load": "1 分钟负载",
+      "diskHint": "最满挂载点：{mount}",
+      "peakCpu": "CPU 峰值 {v}",
+      "peakMem": "内存峰值 {v}",
+      "peakDisk": "磁盘峰值 {v}（{mount}）",
+      "since": "历史数据自 {time} 起",
+      "goroutines": "并发任务",
+      "heap": "应用内存",
+      "dbPool": "数据库连接",
+      "logAge": "日志更新于",
+      "logAgeValue": "{n} 秒前",
+      "logAgeNone": "暂无日志",
+      "empty": "暂无历史数据",
+      "emptyDesc": "服务启动后每分钟记录一次，约 1 分钟后可见。"
     },
     "msg": {
       "portRange": "端口需在 1-65535 之间",

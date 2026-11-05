@@ -8,7 +8,9 @@
 | `/readyz` | PostgreSQL 就绪 | 否 |
 | `/metrics` | Prometheus 指标 | 否（仅内网） |
 | `/system/info` | 版本/就绪 | Bearer |
-| `/system/metrics` | 宿主 CPU/内存/磁盘 | Bearer |
+| `/system/metrics` | 宿主 CPU/内存/磁盘（实时快照） | Bearer |
+| `/system/metrics/history` | 主机/控制面指标历史（降采样） | Bearer |
+| `/system/metrics/summary` | 窗口内峰值与最满挂载点 | Bearer |
 
 监控栈：
 
@@ -19,6 +21,25 @@ docker compose -f observability/compose.observability.yaml --profile observabili
 
 告警规则/通道见 `observability/`。
 
+## 运行诊断指标（M6-032）
+
+控制面每分钟把**宿主指标**（CPU/内存/磁盘/负载）与**控制面自身指标**（goroutine、堆内存、数据库连接池、日志新鲜度）写入同一行，用于事后回答「昨晚 2 点是不是 CPU 打满 / 磁盘是不是被备份写满」。
+
+| 项 | 默认 | 环境变量 |
+|---|---|---|
+| 采样间隔 | `60s` | `IPAM_SYS_METRIC_INTERVAL`（最短 1s，不建议 <30s） |
+| 保留时长 | `720h`（30 天） | `IPAM_SYS_METRIC_RETENTION`（最短 1h） |
+| 宿主内部采样 | `5s` | `IPAM_HOST_SAMPLE_INTERVAL`（CPU 差值窗口，供实时卡片/Prometheus） |
+
+- 存储：PostgreSQL `system_metric`（标量）+ `system_disk_metric`（挂载点明细，随主表级联删除）；`node` 列当前固定 `local`，为双机主备预留；
+- 容量：60s 采样 ≈1,440 行/天，30 天约 4.3 万行 / 10MB（含索引与磁盘明细），无需额外清理任务；
+- 清理：每小时最多 Prune 一次，删除超过保留期的行；失败只记日志，不影响采样与 API；
+- 查询：`/system/metrics/history?from=&to=&step=` 服务端按 `date_bin()` 降采样，**返回点 ≤720、窗口 ≤90 天**（超限 400）；`/system/metrics/summary?hours=` 给峰值与峰值时刻；
+- 采样语义：首个样本无 CPU 差值不落库；`(node, ts)` 唯一 + `ON CONFLICT DO NOTHING`，重启/重复写不会产生重复点；数据库不可用时跳过该样本，不攒内存队列；
+- 页面：系统管理 → 服务与运行 →「历史趋势」（1h/6h/24h/7d/30d）。
+
+**排障用法**：页面卡/登录慢先看同一时间轴上的连接池占用与 goroutine 数；日志页无数据先看「日志更新于」是否持续增大（Vector/ClickHouse 积压），再判断是否宿主磁盘/CPU 问题。
+
 ## 备份
 
 - 页面：系统管理 → 备份与恢复；
@@ -28,13 +49,15 @@ docker compose -f observability/compose.observability.yaml --profile observabili
 - 超时预算（M6-028）：`IPAM_CH_EXPORT_TIMEOUT`（单月日志导出/恢复，默认 `30m`）、`IPAM_BACKUP_TIMEOUT`（单次备份总预算，默认 `2h`）；大日志量部署按实测调大并同步放大；
 - 失败处理：状态置 `failed` 并给出可读原因，半成品目录自动删除；导出文件会校验 Parquet 结束标记，避免把 ClickHouse 流式超时的半截文件记录为成功备份；
 - 增量复用（M6-030）：历史月份行数未变化时硬链接上一份备份的 Parquet，仅重导有新增数据的月份；记录里的 `sizeBytes` 为逻辑大小，实际占用用 `du`/`df` 查看。
+- 运行指标不参与备份（M6-032）：`pg_dump` 使用 `--exclude-table-data=system_metric --exclude-table-data=system_disk_metric`，**保留表结构、排除数据行**；因此恢复后历史趋势为空并从恢复时刻重新采样。这样避免换机器恢复后把「上一台机器」的 CPU/磁盘读数当成本机历史，误导排障。
 
 ## 恢复
 
 1. 维护窗口；
 2. 页面选择“恢复”并确认；
 3. 恢复顺序：PG `pg_restore --clean` → 清空日志表 → 回放 Parquet；
-4. 完成后刷新页面，检查账号/子网/租约。
+4. 完成后刷新页面，检查账号/子网/租约；
+5. 历史运行指标按设计不随备份恢复（表结构保留、数据为空，见「备份」），首次采样约需 1 分钟。
 
 ## 日志外发
 

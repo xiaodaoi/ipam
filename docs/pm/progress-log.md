@@ -4,6 +4,16 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-11-05 · 主机与控制面指标落库 + 运行页历史趋势（M6-032/M6-033）
+- **问题**：主机资源只有即时快照，重启即丢；客户问「昨晚 2 点是不是 CPU 打满 / 磁盘是不是被备份写满」无据可查。另发现采集器被 3 个调用方（页面轮询、`/metrics` 抓取、磁盘水位判断）并发调用，CPU 使用率按「任意两个调用者的间隙」计算，数值本身不可解释。
+- **前置修复**：`hostmetrics.Collector` 改**单写者 + 原子快照**——`Start` 后台协程独占 `Sample`（默认 5s，`IPAM_HOST_SAMPLE_INTERVAL`），新增 `Snapshot()`/`Valid()`；页面、Prometheus、水位判断统一读缓存，首个样本无 CPU 差值不落库。
+- **后端**：迁移 `0043_system_metric`（`system_metric` 标量 + `system_disk_metric` 挂载点明细，`UNIQUE(node,ts)`、`ON DELETE CASCADE`）；新模块 `internal/module/systemmetric`（Repo/MemRepo/PgRepo、60s 采样、整分钟对齐、`ON CONFLICT DO NOTHING`、每小时 Prune、`date_bin` 降采样 ≤720 点/≤90 天、`RuntimeStats`）；`/system/metrics/history` 与 `/summary` 先改 spec 再 `gen-openapi.sh` 再生；`IPAM_SYS_METRIC_INTERVAL`/`IPAM_SYS_METRIC_RETENTION`；备份 `dumpArgs()` 加 `--exclude-table-data`（结构保留、数据排除，避免换机后看到旧机器历史）。
+- **前端**：运行页新增「历史趋势」卡片（1h/6h/24h/7d/30d、CPU/内存/磁盘/负载 4 图、峰值行、控制面 4 项、空态）；zh/en `system.json` 成对新增 `runtime.history.*`。
+- **验证**：`go test ./...` 全绿、golangci-lint 0 issues；真实栈每分钟 1 行、8 样本时磁盘子表 16 行，`cpu/mem/disk/goroutines/heap/db_pool/log_latest_age` 均有值；`summary` 返回峰值与 `since`，`history` 返回 9 点且 `X-Metric-Window-Step: 1m0s`，91 天窗口 400；真实备份 `success`（646,080,980 字节），`pg_restore --list` 有 `TABLE public system_metric` 与 `system_disk_metric` 但**无对应 `TABLE DATA`**；前端 oxfmt/eslint/typecheck/i18n 双门禁/术语门禁全绿，E2E **18/18**（新增「服务与运行历史趋势」），浏览器截图确认图表与数值正常。
+- **文档**：`docs/dev/M6-032-主机指标落库实现说明.md`、`operations.md`「运行诊断指标」、架构文档 §3.6、GA 核对表 Gate 4/9（17→18）、M6 计划 §12（M6-032/M6-033）；任务卡 M6-032/M6-033 移入 `done/`。
+- **边界**：恢复备份后指标历史清空（设计如此）；`node` 固定 `local`，多机采集待 M6-003B；阈值事件化 + 审计时间轴叠加列为二期（M6-034 候选）。
+
+
 ## 2026-11-04 · 前端对外术语去技术化（M6-031）
 - **问题**：默认界面直接显示 `PostgreSQL / ClickHouse / Kea DHCP / Unbound DNS` 等服务健康卡标题，`dhcp.json`/`logs.json` 仍有 `lease_cmds`、`config-set`、`option-data`、`system.parts`、`Vector`、`Parquet` 等实现细节，客户可据此推断技术栈。
 - **策略**：三档处置——A 直接删定语（≈60%，如「已同步至 Kea」→「已同步」）、B 换业务词（≈30%，如「Kea 配置下发」→「DHCP 配置下发」）、C 原样保留（关于页开源组件 + 服务健康卡 tooltip 运维排障）。

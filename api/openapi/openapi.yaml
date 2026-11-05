@@ -303,6 +303,113 @@ paths:
                       - { mount: '/', device: '/dev/mapper/ubuntu--vg-ubuntu--lv', fsType: ext4, totalBytes: 105000000000, usedBytes: 39000000000, availableBytes: 66000000000, usedPct: 37.1 }
         '503':
           $ref: '#/components/responses/Problem'
+  /system/metrics/history:
+    get:
+      operationId: getSystemMetricsHistory
+      tags: [platform]
+      summary: 查询主机资源历史（服务端降采样）
+      description: |
+        返回落库的主机与控制面指标历史，用于「服务与运行 → 历史趋势」。
+        采样口径：控制面每 `IPAM_SYS_METRIC_INTERVAL`（默认 60s）采样一次，
+        保留 `IPAM_SYS_METRIC_RETENTION`（默认 30 天）。
+        降采样：返回点数不超过 720，`step` 会按需放大；时间跨度上限 90 天，超出返回 400。
+        说明：指标数据行不参与备份恢复（只有表结构），避免换机后看到旧机器历史。
+        所需权限：dash:read。
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+          description: 起始时间（UTC，含）；缺省为 to-24h
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+          description: 结束时间（UTC，不含）；缺省为当前时间
+        - name: step
+          in: query
+          schema: { type: integer, minimum: 60, maximum: 86400, default: 60 }
+          description: 期望聚合粒度（秒）；点数超限时服务端自动放大
+      responses:
+        '200':
+          description: 历史序列
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemMetricHistory'
+              examples:
+                ok:
+                  summary: 近 1 小时（1 分钟粒度）
+                  value:
+                    items:
+                      - ts: '2026-11-05T02:00:00Z'
+                        cpuPct: 12.4
+                        cores: 8
+                        load1: 0.42
+                        load5: 0.51
+                        load15: 0.6
+                        memUsedBytes: 8388608000
+                        memTotalBytes: 16777216000
+                        memPct: 50
+                        uptimeSec: 1234567
+                        diskRootPct: 37.1
+                        diskMaxPct: 61.3
+                        diskWorstMount: /data
+                        goroutines: 214
+                        heapBytes: 52428800
+                        dbPoolInUse: 3
+                        dbPoolMax: 16
+                        logLatestAgeSec: 4
+        '400':
+          $ref: '#/components/responses/Problem'
+        '500':
+          $ref: '#/components/responses/Problem'
+  /system/metrics/summary:
+    get:
+      operationId: getSystemMetricsSummary
+      tags: [platform]
+      summary: 查询主机资源窗口峰值
+      description: |
+        返回窗口内 CPU/内存/磁盘/负载的峰值、峰值时刻与均值，用于「近 24 小时峰值」提示。
+        `since` 为历史数据最早时刻；样本为空时 peaks 为 0、`samples` 为 0。
+        所需权限：dash:read。
+      parameters:
+        - name: hours
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 2160, default: 24 }
+          description: 统计窗口（小时），默认 24
+      responses:
+        '200':
+          description: 峰值汇总
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemMetricSummary'
+              examples:
+                ok:
+                  summary: 近 24 小时
+                  value:
+                    node: local
+                    from: '2026-11-04T02:00:00Z'
+                    to: '2026-11-05T02:00:00Z'
+                    samples: 1440
+                    since: '2026-10-06T00:00:00Z'
+                    cpuMax: 92.4
+                    cpuMaxAt: '2026-11-05T03:12:00Z'
+                    memMax: 78.1
+                    memMaxAt: '2026-11-05T01:40:00Z'
+                    diskMax: 94
+                    diskMaxAt: '2026-11-04T22:05:00Z'
+                    diskMaxMount: /data
+                    load1Max: 6.2
+                    load1MaxAt: '2026-11-05T03:10:00Z'
+                    cpuAvg: 21.7
+                    memAvg: 46.2
+                    diskAvg: 61.9
+                    goroutinesMax: 320
+                    heapMaxBytes: 134217728
+                    dbPoolInUseMax: 9
+                    logLatestAgeMaxSec: 187
+        '500':
+          $ref: '#/components/responses/Problem'
 components:
   securitySchemes:
     bearerAuth:
@@ -383,6 +490,61 @@ components:
         usedBytes: { type: integer, format: int64, description: 已用容量 }
         availableBytes: { type: integer, format: int64, description: 可用容量（非 root 可见） }
         usedPct: { type: number, description: 使用率（%） }
+    SystemMetricPoint:
+      type: object
+      required: [ts]
+      properties:
+        ts: { type: string, format: date-time, description: 时间桶起点（UTC，RFC3339） }
+        cpuPct: { type: number, description: CPU 使用率（%，桶内均值） }
+        cores: { type: integer, description: 逻辑核数 }
+        load1: { type: number, description: 1 分钟平均负载（桶内均值） }
+        load5: { type: number, description: 5 分钟平均负载（桶内均值） }
+        load15: { type: number, description: 15 分钟平均负载（桶内均值） }
+        memUsedBytes: { type: integer, format: int64, description: 已用内存（桶内均值） }
+        memTotalBytes: { type: integer, format: int64, description: 物理内存总量 }
+        memPct: { type: number, description: 内存使用率（%，桶内均值） }
+        uptimeSec: { type: number, description: 宿主开机时长（秒） }
+        diskRootPct: { type: number, description: 根分区使用率（%，桶内均值） }
+        diskMaxPct: { type: number, description: 桶内最满挂载点的使用率（%） }
+        diskWorstMount: { type: string, description: 最满挂载点路径（仅管理页可见） }
+        goroutines: { type: integer, description: 控制面 goroutine 数（桶内均值） }
+        heapBytes: { type: integer, format: int64, description: Go 堆对象字节（桶内均值） }
+        dbPoolInUse: { type: integer, description: 数据库连接池占用（桶内均值） }
+        dbPoolMax: { type: integer, description: 数据库连接池上限 }
+        logLatestAgeSec: { type: integer, format: int64, description: 最新日志距今秒数；-1=无数据或不可用 }
+    SystemMetricHistory:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SystemMetricPoint'
+    SystemMetricSummary:
+      type: object
+      required: [node, from, to, samples]
+      properties:
+        node: { type: string, description: 节点标识，单机固定 local }
+        from: { type: string, format: date-time, description: 统计窗口起点 }
+        to: { type: string, format: date-time, description: 窗口内最新样本时刻 }
+        samples: { type: integer, description: 窗口内样本数；0 表示无数据 }
+        since: { type: string, format: date-time, description: 历史数据最早时刻（提示保留范围） }
+        cpuMax: { type: number, description: CPU 峰值（%） }
+        cpuMaxAt: { type: string, format: date-time, description: CPU 峰值时刻 }
+        memMax: { type: number, description: 内存峰值（%） }
+        memMaxAt: { type: string, format: date-time, description: 内存峰值时刻 }
+        diskMax: { type: number, description: 磁盘峰值（%） }
+        diskMaxAt: { type: string, format: date-time, description: 磁盘峰值时刻 }
+        diskMaxMount: { type: string, description: 峰值对应的挂载点 }
+        load1Max: { type: number, description: 1 分钟负载峰值 }
+        load1MaxAt: { type: string, format: date-time, description: 负载峰值时刻 }
+        cpuAvg: { type: number, description: CPU 均值（%） }
+        memAvg: { type: number, description: 内存均值（%） }
+        diskAvg: { type: number, description: 磁盘均值（%） }
+        goroutinesMax: { type: integer, description: goroutine 峰值 }
+        heapMaxBytes: { type: integer, format: int64, description: 堆内存峰值（字节） }
+        dbPoolInUseMax: { type: integer, description: 连接池占用峰值 }
+        logLatestAgeMaxSec: { type: integer, format: int64, description: 最新日志距今最大秒数；-1=不可用 }
     OrgNode:
       $ref: './components/schemas/org.yaml#/OrgNode'
     OrgTreeNode:

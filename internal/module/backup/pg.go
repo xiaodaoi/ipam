@@ -32,12 +32,20 @@ func NewPgCommandRunner(dsn string) (*PgCommandRunner, error) {
 	}, nil
 }
 
-func (p *PgCommandRunner) dump(ctx context.Context, dst string) (string, int64, error) {
-	args := []string{
+func (p *PgCommandRunner) dumpArgs(dst string) []string {
+	return []string{
 		"--format=custom", "--no-owner", "--no-privileges",
+		// 指标数据行不参与备份（M6-032）：只有诊断价值、无业务价值，
+		// 且换机器恢复后会把「上一台机器」的 CPU/磁盘历史带进来误导排障。
+		"--exclude-table-data=system_metric",
+		"--exclude-table-data=system_disk_metric",
 		"--file", dst, "-h", p.host, "-p", strconv.Itoa(int(p.port)),
 		"-U", p.user, "-d", p.db,
 	}
+}
+
+func (p *PgCommandRunner) dump(ctx context.Context, dst string) (string, int64, error) {
+	args := p.dumpArgs(dst)
 	cmd := exec.CommandContext(ctx, "pg_dump", args...)
 	cmd.Env = append(os.Environ(), "PGPASSWORD="+p.password)
 	if out, err := cmd.CombinedOutput(); err != nil {

@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import type { HostMetrics, SystemInfo } from '#/api/ipam';
+import type {
+  HostMetrics,
+  SystemInfo,
+  SystemMetricPoint,
+  SystemMetricSummary,
+} from '#/api/ipam';
 
 import { computed, onMounted, reactive, ref } from 'vue';
 
@@ -11,13 +16,20 @@ import {
   InputNumber,
   message,
   Popconfirm,
+  RadioGroup,
   Tag,
 } from 'ant-design-vue';
 
-import { getSystemInfo, getSystemMetrics } from '#/api/ipam';
+import {
+  getSystemInfo,
+  getSystemMetrics,
+  getSystemMetricsHistory,
+  getSystemMetricsSummary,
+} from '#/api/ipam';
 import { requestClient } from '#/api/request';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
+import TrendChart from '#/components/trend-chart.vue';
 import { $t } from '#/locales';
 
 defineOptions({ name: 'SystemRuntime' });
@@ -60,6 +72,78 @@ function fmtDateTime(v?: string): string {
 
 const uptimeText = computed(() => fmtUptime(metrics.value?.uptimeSec));
 
+// ── 历史趋势（M6-032）──────────────────────────────────────────────
+type RangeKey = '1h' | '6h' | '7d' | '24h' | '30d';
+/** 时间范围 → 查询小时数与期望聚合粒度（秒）；点数由服务端再兜底限制。 */
+const RANGE_CONF: Record<RangeKey, { hours: number; step: number }> = {
+  '1h': { hours: 1, step: 60 },
+  '6h': { hours: 6, step: 60 },
+  '24h': { hours: 24, step: 120 },
+  '7d': { hours: 168, step: 600 },
+  '30d': { hours: 720, step: 1800 },
+};
+const RANGE_KEYS: RangeKey[] = ['1h', '6h', '24h', '7d', '30d'];
+const range = ref<RangeKey>('24h');
+const points = ref<SystemMetricPoint[]>([]);
+const summary = ref<SystemMetricSummary>();
+const historyLoading = ref(false);
+
+const rangeOptions = computed(() =>
+  RANGE_KEYS.map((key) => ({
+    label: $t(`system.runtime.history.range.${key}`),
+    value: key,
+  })),
+);
+const lastPoint = computed(() =>
+  points.value.length > 0 ? points.value.at(-1) : undefined,
+);
+const cpuSeries = computed(() =>
+  points.value.map((p) => ({ ts: p.ts, value: Number(p.cpuPct ?? 0) })),
+);
+const memSeries = computed(() =>
+  points.value.map((p) => ({ ts: p.ts, value: Number(p.memPct ?? 0) })),
+);
+const diskSeries = computed(() =>
+  points.value.map((p) => ({ ts: p.ts, value: Number(p.diskMaxPct ?? 0) })),
+);
+const loadSeries = computed(() =>
+  points.value.map((p) => ({ ts: p.ts, value: Number(p.load1 ?? 0) })),
+);
+
+function fmtPct(v?: number): string {
+  if (v === undefined || v === null || Number.isNaN(v)) return '—';
+  return `${Number(v).toFixed(1)}%`;
+}
+function fmtMB(bytes?: number): string {
+  if (!bytes) return '—';
+  return `${(bytes / 1024 ** 2).toFixed(0)} MB`;
+}
+const logAgeText = computed(() => {
+  const age = lastPoint.value?.logLatestAgeSec;
+  if (age === undefined || age === null || age < 0) {
+    return $t('system.runtime.history.logAgeNone');
+  }
+  return $t('system.runtime.history.logAgeValue', { n: age });
+});
+
+async function loadHistory() {
+  historyLoading.value = true;
+  const conf = RANGE_CONF[range.value];
+  const to = new Date();
+  const from = new Date(to.getTime() - conf.hours * 3_600_000);
+  const [hist, sum] = await Promise.allSettled([
+    getSystemMetricsHistory({
+      from: from.toISOString(),
+      step: conf.step,
+      to: to.toISOString(),
+    }),
+    getSystemMetricsSummary(conf.hours),
+  ]);
+  points.value = hist.status === 'fulfilled' ? (hist.value.items ?? []) : [];
+  summary.value = sum.status === 'fulfilled' ? sum.value : undefined;
+  historyLoading.value = false;
+}
+
 async function load() {
   loading.value = true;
   const [web, sysInfo, hostMetrics] = await Promise.allSettled([
@@ -83,6 +167,7 @@ async function load() {
   metrics.value =
     hostMetrics.status === 'fulfilled' ? hostMetrics.value : undefined;
   loading.value = false;
+  void loadHistory();
 }
 
 async function savePort() {
@@ -363,6 +448,186 @@ onMounted(load);
         </div>
         <div class="ipam-empty__desc">
           {{ $t('system.runtime.host.emptyDesc') }}
+        </div>
+      </div>
+    </Card>
+
+    <Card class="mt-4">
+      <template #title>
+        <span class="ipam-card-title">
+          <IconifyIcon icon="lucide:chart-line" />{{
+            $t('system.runtime.history.title')
+          }}
+        </span>
+      </template>
+      <template #extra>
+        <div class="flex flex-wrap items-center gap-2">
+          <RadioGroup
+            v-model:value="range"
+            :disabled="historyLoading"
+            option-type="button"
+            size="small"
+            :options="rangeOptions"
+            @change="loadHistory"
+          />
+          <span class="ipam-hint">
+            {{ $t('system.runtime.history.hint') }}
+          </span>
+        </div>
+      </template>
+
+      <template v-if="points.length > 0">
+        <div class="mb-3 flex flex-wrap items-center gap-3">
+          <span class="ipam-hint">
+            <IconifyIcon
+              icon="lucide:trending-up"
+              class="mr-1 inline size-3.5"
+            />
+            {{
+              $t('system.runtime.history.peakCpu', {
+                v: fmtPct(summary?.cpuMax),
+              })
+            }}
+            ·
+            {{
+              $t('system.runtime.history.peakMem', {
+                v: fmtPct(summary?.memMax),
+              })
+            }}
+            ·
+            {{
+              $t('system.runtime.history.peakDisk', {
+                mount: summary?.diskMaxMount ?? '—',
+                v: fmtPct(summary?.diskMax),
+              })
+            }}
+          </span>
+          <span v-if="summary?.since" class="ipam-hint">
+            {{
+              $t('system.runtime.history.since', {
+                time: fmtDateTime(summary.since),
+              })
+            }}
+          </span>
+        </div>
+
+        <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <div>
+            <div class="flex items-baseline justify-between">
+              <span class="ipam-figure__label">{{
+                $t('system.runtime.history.cpu')
+              }}</span>
+              <span class="ipam-figure__value">{{
+                fmtPct(lastPoint?.cpuPct)
+              }}</span>
+            </div>
+            <TrendChart
+              :data="cpuSeries"
+              :height="140"
+              :markers="false"
+              tone="blue"
+              unit="%"
+            />
+          </div>
+          <div>
+            <div class="flex items-baseline justify-between">
+              <span class="ipam-figure__label">{{
+                $t('system.runtime.history.memory')
+              }}</span>
+              <span class="ipam-figure__value">{{
+                fmtPct(lastPoint?.memPct)
+              }}</span>
+            </div>
+            <TrendChart
+              :data="memSeries"
+              :height="140"
+              :markers="false"
+              tone="cyan"
+              unit="%"
+            />
+          </div>
+          <div>
+            <div class="flex items-baseline justify-between">
+              <span class="ipam-figure__label">{{
+                $t('system.runtime.history.disk')
+              }}</span>
+              <span class="ipam-figure__value">{{
+                fmtPct(lastPoint?.diskMaxPct)
+              }}</span>
+            </div>
+            <TrendChart
+              :data="diskSeries"
+              :height="140"
+              :markers="false"
+              tone="amber"
+              unit="%"
+            />
+            <span class="ipam-form-hint">
+              {{
+                $t('system.runtime.history.diskHint', {
+                  mount: lastPoint?.diskWorstMount ?? '—',
+                })
+              }}
+            </span>
+          </div>
+          <div>
+            <div class="flex items-baseline justify-between">
+              <span class="ipam-figure__label">{{
+                $t('system.runtime.history.load')
+              }}</span>
+              <span class="ipam-figure__value">{{
+                Number(lastPoint?.load1 ?? 0).toFixed(2)
+              }}</span>
+            </div>
+            <TrendChart
+              :data="loadSeries"
+              :height="140"
+              :markers="false"
+              tone="violet"
+            />
+          </div>
+        </div>
+
+        <div class="ipam-figure-row mt-4">
+          <div class="ipam-figure">
+            <span class="ipam-figure__label">{{
+              $t('system.runtime.history.goroutines')
+            }}</span>
+            <span class="ipam-figure__value">{{
+              lastPoint?.goroutines ?? '—'
+            }}</span>
+          </div>
+          <div class="ipam-figure">
+            <span class="ipam-figure__label">{{
+              $t('system.runtime.history.heap')
+            }}</span>
+            <span class="ipam-figure__value">{{
+              fmtMB(lastPoint?.heapBytes)
+            }}</span>
+          </div>
+          <div class="ipam-figure">
+            <span class="ipam-figure__label">{{
+              $t('system.runtime.history.dbPool')
+            }}</span>
+            <span class="ipam-figure__value">
+              {{ lastPoint?.dbPoolInUse ?? 0 }} /
+              {{ lastPoint?.dbPoolMax ?? 0 }}
+            </span>
+          </div>
+          <div class="ipam-figure">
+            <span class="ipam-figure__label">{{
+              $t('system.runtime.history.logAge')
+            }}</span>
+            <span class="ipam-figure__value">{{ logAgeText }}</span>
+          </div>
+        </div>
+      </template>
+      <div v-else class="ipam-empty ipam-empty--compact">
+        <div class="ipam-empty__title">
+          {{ $t('system.runtime.history.empty') }}
+        </div>
+        <div class="ipam-empty__desc">
+          {{ $t('system.runtime.history.emptyDesc') }}
         </div>
       </div>
     </Card>

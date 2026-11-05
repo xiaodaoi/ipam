@@ -6,12 +6,14 @@
 package hostmetrics
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -54,6 +56,10 @@ type Metrics struct {
 }
 
 // Collector 有状态采集器（CPU 使用率依赖上一次 /proc/stat 采样）。
+//
+// 并发约定（M6-032）：CPU 使用率是两次采样的差值，多个调用者交错采样会互相
+// 偷走采样窗口，算出来的值既不稳定也不可解释。因此采集必须是**单写者**：
+// `Start` 启动的后台协程独占调用 `Sample`，其余调用方一律读 `Snapshot` 缓存。
 type Collector struct {
 	procRoot string
 	sysRoot  string
@@ -62,6 +68,9 @@ type Collector struct {
 	mu        sync.Mutex
 	prevTotal uint64
 	prevIdle  uint64
+
+	snap  atomic.Pointer[Metrics]
+	valid atomic.Bool // 至少完成一次差值采样（首个样本 CPU 恒为 0，不可信）
 }
 
 // New 构造采集器；空串回落宿主直读路径（/proc、/sys、/）。
@@ -78,8 +87,51 @@ func New(procRoot, sysRoot, hostRoot string) *Collector {
 	return &Collector{procRoot: procRoot, sysRoot: sysRoot, hostRoot: hostRoot}
 }
 
-// Collect 采集一次快照。CPU stat 读取失败视为致命（返回 error），其余字段软失败（零值）。
-func (c *Collector) Collect() (Metrics, error) {
+// DefaultInterval 时采集后写入缓存；5s 足够支撑 10s 轮询的页面与 15s 抓取。
+const DefaultInterval = 5 * time.Second
+
+// Start 启动单写者采样循环：先采样一次建立 CPU 差值基线并写缓存，之后按间隔刷新。
+// interval <= 0 时取 DefaultInterval。ctx 取消即退出。
+func (c *Collector) Start(ctx context.Context, interval time.Duration) {
+	if interval <= 0 {
+		interval = DefaultInterval
+	}
+	if m, err := c.Sample(); err == nil {
+		c.store(m)
+	}
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if m, err := c.Sample(); err == nil {
+				c.store(m)
+			}
+		}
+	}
+}
+
+func (c *Collector) store(m Metrics) {
+	c.snap.Store(&m)
+}
+
+// Snapshot 返回缓存中的最近一次快照；尚未采样时 ok=false（不触发磁盘 IO）。
+func (c *Collector) Snapshot() (Metrics, bool) {
+	p := c.snap.Load()
+	if p == nil {
+		return Metrics{}, false
+	}
+	return *p, true
+}
+
+// Valid 是否已具备可信 CPU 使用率（首个样本没有上一次差值，恒为 0）。
+func (c *Collector) Valid() bool { return c.valid.Load() }
+
+// Sample 采集一次快照，仅供 Start 的采样协程（及单测）调用。
+// CPU stat 读取失败视为致命（返回 error），其余字段软失败（零值）。
+func (c *Collector) Sample() (Metrics, error) {
 	m := Metrics{TS: time.Now().UTC()}
 	if err := c.collectCPU(&m); err != nil {
 		return m, err
@@ -134,7 +186,8 @@ func (c *Collector) collectCPU(m *Metrics) error {
 	m.CPU.Cores = cores
 
 	c.mu.Lock()
-	if c.prevTotal != 0 && total > c.prevTotal {
+	hadPrev := c.prevTotal != 0 && total > c.prevTotal
+	if hadPrev {
 		dTotal := total - c.prevTotal
 		dIdle := idle - c.prevIdle
 		if dTotal > 0 {
@@ -146,6 +199,8 @@ func (c *Collector) collectCPU(m *Metrics) error {
 	}
 	c.prevTotal, c.prevIdle = total, idle
 	c.mu.Unlock()
+	// 只有拿到两次采样差值的样本，CPU 使用率才可信。
+	c.valid.Store(hadPrev)
 
 	if lb, lerr := os.ReadFile(filepath.Join(c.procRoot, "loadavg")); lerr == nil {
 		if f := strings.Fields(string(lb)); len(f) >= 3 {

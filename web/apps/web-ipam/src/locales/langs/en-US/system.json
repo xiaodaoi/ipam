@@ -704,13 +704,41 @@
     },
     "host": {
       "title": "Host resources",
-      "hint": "From /system/metrics",
+      "hint": "Whole host · auto refresh",
       "memory": "Memory",
       "load1": "1-minute load",
       "uptime": "Uptime",
       "cores": "{n} cores",
       "emptyTitle": "Host resources unavailable",
       "emptyDesc": "The control plane has not mounted the host /proc or metric collection is not wired up."
+    },
+    "history": {
+      "title": "History",
+      "hint": "Recorded every minute · kept for 30 days",
+      "range": {
+        "1h": "1 hour",
+        "6h": "6 hours",
+        "24h": "24 hours",
+        "7d": "7 days",
+        "30d": "30 days"
+      },
+      "cpu": "CPU usage",
+      "memory": "Memory usage",
+      "disk": "Disk usage",
+      "load": "1-minute load",
+      "diskHint": "Fullest mount: {mount}",
+      "peakCpu": "CPU peak {v}",
+      "peakMem": "Memory peak {v}",
+      "peakDisk": "Disk peak {v} ({mount})",
+      "since": "History since {time}",
+      "goroutines": "Concurrent tasks",
+      "heap": "App memory",
+      "dbPool": "DB connections",
+      "logAge": "Last log",
+      "logAgeValue": "{n}s ago",
+      "logAgeNone": "No logs yet",
+      "empty": "No history yet",
+      "emptyDesc": "Recorded once a minute after startup; visible in about a minute."
     },
     "msg": {
       "portRange": "The port must be between 1 and 65535",

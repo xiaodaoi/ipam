@@ -37,6 +37,7 @@ import (
 	"github.com/xiaodaoi/ipam/internal/module/logmanager"
 	logq "github.com/xiaodaoi/ipam/internal/module/logquery"
 	"github.com/xiaodaoi/ipam/internal/module/platform"
+	"github.com/xiaodaoi/ipam/internal/module/systemmetric"
 	"github.com/xiaodaoi/ipam/internal/module/utilization"
 	"github.com/xiaodaoi/ipam/internal/pkg/hostmetrics"
 	"github.com/xiaodaoi/ipam/internal/pkg/migrator"
@@ -190,6 +191,15 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	hostCol := hostmetrics.New(
 		os.Getenv("IPAM_HOST_PROC"), os.Getenv("IPAM_HOST_SYS"), os.Getenv("IPAM_HOST_ROOT"))
 	h.SetHostMetrics(hostCol)
+	// 单写者采样（M6-032）：CPU 使用率依赖两次采样差值，多调用者会互相偷窗口，
+	// 因此由该协程独占采集并写缓存，HTTP/Prometheus/水位判断统一读 Snapshot。
+	hostSampleInterval := hostmetrics.DefaultInterval
+	if v := os.Getenv("IPAM_HOST_SAMPLE_INTERVAL"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d >= time.Second {
+			hostSampleInterval = d
+		}
+	}
+	go hostCol.Start(rootCtx, hostSampleInterval)
 
 	// 仓储装配：IPAM_DB_DSN 存在则走 PG（生产/compose），否则内存 PoC。
 	var orgStore ipam.OrgStore = ipam.NewMemOrgStore()
@@ -786,9 +796,9 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		if hostCol == nil {
 			return 0, errors.New("宿主资源采集器未初始化")
 		}
-		m, err := hostCol.Collect()
-		if err != nil {
-			return 0, err
+		m, ok := hostCol.Snapshot()
+		if !ok {
+			return 0, errors.New("宿主资源采集尚未就绪")
 		}
 		for _, d := range m.Disks {
 			if d.Mount == "/" {
@@ -822,6 +832,51 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	userH.SetSessions(sessionSvc)
 	sessionH := platform.NewSessionHandler(sessionSvc)
 
+	// 主机与控制面指标采样（M6-032）：默认 60s 一次、保留 30 天。
+	// 数据行不参与备份（pg_dump --exclude-table-data），避免换机恢复后看到旧机器历史。
+	var sysMetricRepo systemmetric.Repo = systemmetric.NewMemRepo()
+	if pool != nil {
+		sysMetricRepo = systemmetric.NewPgRepo(pool)
+	}
+	sysMetricSvc := systemmetric.NewService(sysMetricRepo, systemmetric.Sources{
+		Host: func() (hostmetrics.Metrics, bool) {
+			m, ok := hostCol.Snapshot()
+			if !ok || !hostCol.Valid() {
+				return hostmetrics.Metrics{}, false // 首个样本无 CPU 差值，不落库
+			}
+			return m, true
+		},
+		DBPool: func() (inUse, max int) {
+			if pool == nil {
+				return 0, 0
+			}
+			st := pool.Stat()
+			return int(st.AcquiredConns()), int(st.MaxConns())
+		},
+		LogLatestAge: func(ctx context.Context) (int64, bool) {
+			if chAdmin == nil {
+				return 0, false
+			}
+			st, err := chAdmin.LogStats(ctx)
+			if err != nil {
+				return 0, false
+			}
+			return st.AgeSecs, true
+		},
+	})
+	if v := os.Getenv("IPAM_SYS_METRIC_INTERVAL"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			sysMetricSvc.SetInterval(d)
+		}
+	}
+	if v := os.Getenv("IPAM_SYS_METRIC_RETENTION"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			sysMetricSvc.SetRetention(d)
+		}
+	}
+	go sysMetricSvc.Run(rootCtx, log.Printf)
+	sysMetricH := systemmetric.NewHandler(sysMetricSvc)
+
 	full := struct {
 		*platform.Handler
 		*ipam.OrgHandler
@@ -853,7 +908,8 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		*logexport.LogExportHandler
 		*backupmodule.APIHandler
 		*confApplier
-	}{h, orgH, subH, ledgerH, metaH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, authH, userH, sessionH, ldapH, &dhcpAPI{dhcpH}, leaseH, utilH, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, platform.NewSecuritySettingsHandler(secStore), licenseH, logMgrH, exportH, backupH, applier}
+		*systemmetric.MetricHandler
+	}{h, orgH, subH, ledgerH, metaH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, authH, userH, sessionH, ldapH, &dhcpAPI{dhcpH}, leaseH, utilH, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, platform.NewSecuritySettingsHandler(secStore), licenseH, logMgrH, exportH, backupH, applier, sysMetricH}
 	// Prometheus 指标（M6-005）：放在 RBAC 之前供抓取；中间件只统计其后的 /api/v1 路由。
 	var logStatsFn func(context.Context) (logmanager.LogStats, error)
 	if chAdmin != nil {

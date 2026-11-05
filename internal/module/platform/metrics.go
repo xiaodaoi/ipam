@@ -167,7 +167,7 @@ func (h *MetricsHandler) Serve(c *gin.Context) {
 	}
 
 	if h.src.Host != nil {
-		if m, err := h.src.Host.Collect(); err == nil {
+		if m, ok := h.src.Host.Snapshot(); ok {
 			fmt.Fprintf(&b, "# HELP ipam_host_cpu_usage_percent 宿主 CPU 使用率\n# TYPE ipam_host_cpu_usage_percent gauge\n")
 			fmt.Fprintf(&b, "ipam_host_cpu_usage_percent %.2f\n", m.CPU.UsagePct)
 			fmt.Fprintf(&b, "# HELP ipam_host_cpu_cores 宿主 CPU 核数\n# TYPE ipam_host_cpu_cores gauge\n")

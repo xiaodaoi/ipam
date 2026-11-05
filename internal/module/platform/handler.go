@@ -54,11 +54,11 @@ func (h *Handler) GetSystemMetrics(c *gin.Context) {
 		c.JSON(http.StatusOK, out)
 		return
 	}
-	m, err := h.hostMetrics.Collect()
-	if err != nil {
+	m, ok := h.hostMetrics.Snapshot()
+	if !ok {
 		problem.Write(c, http.StatusServiceUnavailable,
 			"https://ipam.local/problems/host-metrics-unavailable", "HOST_METRICS_UNAVAILABLE",
-			"宿主资源采集不可用："+err.Error())
+			"宿主资源采集尚未就绪")
 		return
 	}
 	out.Ts = m.TS
