@@ -210,6 +210,19 @@ scripts/migrate-ch-logs.sh --yes
 | DHCP 不下发 | Kea 日志；子网/池配置；中继 giaddr/option82 |
 | 日志无数据 | Vector 状态；ClickHouse 写入；`/metrics` 组件 up |
 
+### 上游显示「探活失败」
+
+- 探活从 **control-plane 容器**发起，容器必须有所需地址族的出口：IPv4 走默认桥接网络，IPv6 走 `probe-v6` 网络（M6-036，默认 `fd00:1:2:3::/64`，可用 `IPAM_PROBE_V6_SUBNET` 覆盖）。
+- 检查控制面是否有 IPv6 地址：`docker compose exec control-plane cat /proc/net/if_inet6`，除 `lo` 外应至少有一条；没有则确认宿主启用 IPv6、Docker 支持 `enable_ipv6`。
+- 从控制面验证连通性：
+  ```bash
+  docker compose exec control-plane bash -c \
+    'timeout 3 bash -c "cat < /dev/null > /dev/tcp/2406:440:3c08:101:0:1:0:137/53" && echo OK'
+  ```
+- 从宿主验证上游本身：`dig @<addr> example.com`。宿主与 unbound（hostNetwork）能解析、但控制面显示失败，通常是控制面缺少该地址族出口。
+- 一个上游配置多个地址时**任一可达即在线**，RTT 取最小值；连续失败计数封顶 999。
+- 「探活失败」只是健康展示：**不会删除上游地址，也不改变转发选路**；unbound 仍按所有已启用上游下发。需要真正摘除时请停用该上游或删除转发规则引用。
+
 ## 单机韧性（systemd + 看门狗）
 
 ```bash

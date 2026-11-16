@@ -69,7 +69,11 @@ type UnboundController interface {
 	FlushZone(ctx context.Context, zone string) error
 }
 
-// Prober 上游健康探测器（TCP:53 连接+RTT；3 连败摘除/2 连胜回切）。
+// maxConsecutiveFails 连续失败计数上限（避免界面出现 6 万+ 的无意义数字）。
+const maxConsecutiveFails = 999
+
+// Prober 上游健康探测器（TCP:53 连接+RTT；连续 3 次失败标记异常，一次成功恢复）。
+// 探测结果仅用于界面展示，不参与转发选路——SyncForward/SyncForwardRules 只按 enabled 过滤。
 type Prober struct {
 	mu       sync.Mutex
 	status   map[string]*Health // 按上游 ID
@@ -81,32 +85,62 @@ func NewProber(interval time.Duration, dial func(context.Context, string) (time.
 	return &Prober{status: map[string]*Health{}, interval: interval, dial: dial}
 }
 
+type probeResult struct {
+	id       string
+	disabled bool
+	rtt      time.Duration
+	ok       bool
+}
+
 // ProbeOnce 探测全部上游并更新状态机。
+// 网络探测在锁外完成，避免某个地址 2s 超时阻塞 Status 查询（上游列表接口）。
+// 一个上游配置多个地址时任一可达即视为在线，RTT 取成功地址中的最小值。
 func (p *Prober) ProbeOnce(ctx context.Context, upstreams []Upstream) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	results := make([]probeResult, 0, len(upstreams))
 	for _, u := range upstreams {
 		if !u.Enabled {
-			delete(p.status, u.ID)
+			results = append(results, probeResult{id: u.ID, disabled: true})
 			continue
 		}
-		h, ok := p.status[u.ID]
+		res := probeResult{id: u.ID}
+		for _, addr := range u.Addrs {
+			rtt, err := p.dial(ctx, addr)
+			if err != nil {
+				continue
+			}
+			if !res.ok || rtt < res.rtt {
+				res.rtt = rtt
+			}
+			res.ok = true
+		}
+		results = append(results, res)
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, res := range results {
+		if res.disabled {
+			delete(p.status, res.id)
+			continue
+		}
+		h, ok := p.status[res.id]
 		if !ok {
 			h = &Health{}
-			p.status[u.ID] = h
+			p.status[res.id] = h
 		}
-		addr := u.Addrs[0]
-		rtt, err := p.dial(ctx, addr)
-		if err != nil {
+		if res.ok {
+			h.RTTMs = int(res.rtt / time.Millisecond)
+			h.ConsecutiveFails = 0
+			h.Up = true
+		} else {
 			h.ConsecutiveFails++
 			if h.ConsecutiveFails >= 3 {
 				h.Up = false
 			}
+			if h.ConsecutiveFails > maxConsecutiveFails {
+				h.ConsecutiveFails = maxConsecutiveFails
+			}
 			h.RTTMs = 0
-		} else {
-			h.RTTMs = int(rtt / time.Millisecond)
-			h.ConsecutiveFails = 0
-			h.Up = true
 		}
 		h.LastCheck = time.Now()
 	}

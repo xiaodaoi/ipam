@@ -26,7 +26,7 @@
     "addFailed": "添加失败",
     "actionFailed": "操作失败",
     "deletedToast": "已删除",
-    "removedSuffix": "（已摘除）",
+    "removedSuffix": "（探活失败）",
     "unit": {
       "count": "个",
       "item": "条",
@@ -350,7 +350,7 @@
   "upstream": {
     "header": {
       "title": "上游 DNS 服务器",
-      "desc": "维护递归查询使用的上游服务器与协议，按健康探测结果自动摘除不可用节点。",
+      "desc": "维护递归查询使用的上游服务器与协议，并展示周期探活状态（仅供排障参考，不改变转发选路）。",
       "meta": "{up}/{total} 在线 · {enabled} 已启用"
     },
     "actions": {
@@ -363,7 +363,7 @@
       "upHint": "在线率 {pct}%",
       "upHintOff": "尚未配置上游",
       "abnormal": "异常 / 未探测",
-      "abnormalHint": "已摘除 {down} · 探测中 {unknown}",
+      "abnormalHint": "探活失败 {down} · 探测中 {unknown}",
       "rtt": "平均 RTT",
       "rttHint": "最快 {ms} ms",
       "rttHintOff": "等待首次探测结果"
@@ -375,7 +375,7 @@
     },
     "summary": {
       "up": "在线",
-      "down": "已摘除",
+      "down": "探活失败",
       "unknown": "探测中",
       "rtt": "平均 RTT"
     },
@@ -383,7 +383,7 @@
       "kwPlaceholder": "名称 / 地址",
       "proto": "协议",
       "health": "健康状态",
-      "hint": "摘除中的上游不参与递归选路"
+      "hint": "健康状态仅供排障参考，转发按已启用上游下发"
     },
     "col": {
       "name": "上游（名称 / 地址）",
@@ -400,7 +400,7 @@
     "deleteDesc": "删除后不可恢复。",
     "health": {
       "up": "在线",
-      "down": "已摘除",
+      "down": "探活失败",
       "unknown": "探测中"
     },
     "protoOption": {
@@ -625,8 +625,8 @@
       "enabledHint": "停用 {n} 条不参与选路",
       "enabledHintOff": "尚未配置转发规则",
       "linked": "关联上游",
-      "linkedHint": "在线 {online} · 已摘除 {down}",
-      "linkedHintOff": "按上游健康状态选路",
+      "linkedHint": "在线 {online} · 探活失败 {down}",
+      "linkedHintOff": "按已启用上游下发",
       "defaults": "默认后缀",
       "defaultsHintOn": "根域名「.」承接全部未命中查询",
       "defaultsHintOff": "未配置默认转发，走递归"

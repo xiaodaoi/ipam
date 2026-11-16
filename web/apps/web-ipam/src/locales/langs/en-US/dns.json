@@ -26,7 +26,7 @@
     "addFailed": "Add failed",
     "actionFailed": "Operation failed",
     "deletedToast": "Deleted",
-    "removedSuffix": " (removed)",
+    "removedSuffix": " (probe failed)",
     "unit": {
       "count": "",
       "item": "",
@@ -350,7 +350,7 @@
   "upstream": {
     "header": {
       "title": "Upstream DNS servers",
-      "desc": "Maintain the upstream servers and protocols used for recursion; unhealthy nodes are removed automatically based on health probes.",
+      "desc": "Maintain the upstream servers and protocols used for recursion, and show periodic probe status (diagnostics only; does not change forwarding).",
       "meta": "{up}/{total} online · {enabled} enabled"
     },
     "actions": {
@@ -363,7 +363,7 @@
       "upHint": "Online rate {pct}%",
       "upHintOff": "No upstream configured",
       "abnormal": "Errors / unprobed",
-      "abnormalHint": "Removed {down} · Probing {unknown}",
+      "abnormalHint": "Probe failed {down} · Probing {unknown}",
       "rtt": "Average RTT",
       "rttHint": "Fastest {ms} ms",
       "rttHintOff": "Waiting for the first probe result"
@@ -375,7 +375,7 @@
     },
     "summary": {
       "up": "Online",
-      "down": "Removed",
+      "down": "Probe failed",
       "unknown": "Probing",
       "rtt": "Average RTT"
     },
@@ -383,7 +383,7 @@
       "kwPlaceholder": "Name / address",
       "proto": "Protocol",
       "health": "Health",
-      "hint": "Removed upstreams are excluded from recursion"
+      "hint": "Health is for diagnostics only; forwarding uses all enabled upstreams"
     },
     "col": {
       "name": "Upstream (name / address)",
@@ -400,7 +400,7 @@
     "deleteDesc": "This cannot be undone.",
     "health": {
       "up": "Online",
-      "down": "Removed",
+      "down": "Probe failed",
       "unknown": "Probing"
     },
     "protoOption": {
@@ -625,8 +625,8 @@
       "enabledHint": "{n} disabled rules are excluded from selection",
       "enabledHintOff": "No forwarding rule configured",
       "linked": "Linked upstreams",
-      "linkedHint": "{online} online · {down} removed",
-      "linkedHintOff": "Selection follows upstream health",
+      "linkedHint": "{online} online · {down} probe failed",
+      "linkedHintOff": "Forwarding uses all enabled upstreams",
       "defaults": "Default suffix",
       "defaultsHintOn": "The root domain dot catches all unmatched queries",
       "defaultsHintOff": "No default forward configured, recursion is used"

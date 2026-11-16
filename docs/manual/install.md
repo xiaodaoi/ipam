@@ -5,6 +5,7 @@
 - Ubuntu 22.04+（或同代 Linux），Docker 24+ / Compose v2；
 - 2C4G / 40GB 起；5000 终端建议 4C8G / 200GB SSD；
 - 开放 8443/tcp、53/udp+tcp、67/udp、547/udp；
+- Docker 支持 `enable_ipv6`（控制面用 `probe-v6` 网络探测 IPv6 上游；默认 ULA `fd00:1:2:3::/64`，可用 `IPAM_PROBE_V6_SUBNET` 覆盖）；
 - 宿主 NTP 已同步（`timedatectl`）。
 
 ## 2. 安装

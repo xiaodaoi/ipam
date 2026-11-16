@@ -59,6 +59,11 @@ services:
         condition: service_started
       volume-init:
         condition: service_completed_successfully
+    # 探活 IPv6 上游需要 IPv6 出口；默认桥接网络为纯 IPv4（M6-036）。
+    # 数据面 unbound/kea 使用 hostNetwork，不接入该网络。
+    networks:
+      - default
+      - probe-v6
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -305,6 +310,15 @@ services:
     ports:
       - "127.0.0.1:${KEA_API_PORT:-8000}:8000"
     restart: unless-stopped
+
+networks:
+  # 探活专用 IPv6 网络（M6-036）：control-plane 需要 IPv6 出口才能探测 AAAA 上游；
+  # 默认 `ipam_default` 为纯 IPv4。ULA 子网可用 IPAM_PROBE_V6_SUBNET 覆盖。
+  probe-v6:
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: ${IPAM_PROBE_V6_SUBNET:-fd00:1:2:3::/64}
 
 volumes:
   pg-data:

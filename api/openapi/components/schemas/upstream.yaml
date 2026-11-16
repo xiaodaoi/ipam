@@ -17,7 +17,7 @@ Upstream:
     enabled: { type: boolean }
     health:
       type: object
-      description: 探活状态（prober 维护）
+      description: 探活状态（prober 维护；仅用于展示，不改变转发选路）
       properties:
         up: { type: boolean }
         rttMs: { type: integer }

@@ -1918,7 +1918,7 @@ export interface paths {
         };
         /**
          * 查询上游服务器（含探活状态）
-         * @description 探活状态由 prober 周期维护（3 连败摘除/2 连胜回切）。
+         * @description 探活状态由 prober 周期维护（连续 3 次失败标记异常，一次成功恢复；仅用于展示，不改变转发选路）。
          */
         get: operations["listUpstreams"];
         put?: never;
@@ -2841,7 +2841,7 @@ export interface components {
             tlsName?: string;
             weight: number;
             enabled: boolean;
-            /** @description 探活状态（prober 维护） */
+            /** @description 探活状态（prober 维护；仅用于展示，不改变转发选路） */
             health: {
                 up?: boolean;
                 rttMs?: number;
