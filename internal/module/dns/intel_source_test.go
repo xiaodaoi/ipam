@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -403,5 +405,62 @@ func TestIntelSource_密钥目录不可写给出明确错误(t *testing.T) {
 	secret := "test-key"
 	if _, err := st.intel.UpdateSource(ctx, src.ID, SourceUpdate{Secret: &secret}); !errors.Is(err, ErrSecretDirUnwritable) {
 		t.Fatalf("应返回 ErrSecretDirUnwritable，got=%v", err)
+	}
+}
+
+func TestHTTPSourceFetch_密钥URL占位符与错误脱敏(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v2/files/exports/abc123/hostfile.txt" {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte("0.0.0.0 x.example.com\n"))
+	}))
+	defer srv.Close()
+
+	got, err := HTTPSourceFetch(context.Background(), srv.URL+"/v2/files/exports/{secret}/hostfile.txt", "", "abc123")
+	if err != nil {
+		t.Fatalf("拉取失败: %v", err)
+	}
+	if !strings.Contains(got, "x.example.com") {
+		t.Fatalf("正文不符: %q", got)
+	}
+
+	// 失败时的错误文本不得包含密钥（lastError 会入库并回显）。
+	srv.Close()
+	_, err = HTTPSourceFetch(context.Background(), srv.URL+"/v2/files/exports/{secret}/hostfile.txt", "", "abc123")
+	if err == nil {
+		t.Fatal("预期拉取失败")
+	}
+	if strings.Contains(err.Error(), "abc123") {
+		t.Fatalf("错误信息泄漏密钥: %v", err)
+	}
+}
+
+func TestIntelSource_URL内嵌密钥同样要求先填密钥(t *testing.T) {
+	st := newIntelStack(t)
+	st.intel.SetSecretDir(t.TempDir())
+	ctx := context.Background()
+
+	src, err := st.intel.CreateSource(ctx, IntelSource{
+		Name: "URL 鉴权", URL: "https://feed.example/v2/files/exports/{secret}/hostfile.txt", Layer: "hot",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	enabled := true
+	if _, err := st.intel.UpdateSource(ctx, src.ID, SourceUpdate{Enabled: &enabled, AckLicense: true}); !errors.Is(err, ErrSourceSecretNeeded) {
+		t.Fatalf("URL 内嵌 {secret} 未填密钥应报 ErrSourceSecretNeeded，got=%v", err)
+	}
+	secret := "k-123"
+	st.intel.SetSourceFetcher(func(context.Context, string, string, string) (string, error) {
+		return "0.0.0.0 y.example.com\n", nil
+	})
+	got, err := st.intel.UpdateSource(ctx, src.ID, SourceUpdate{Enabled: &enabled, AckLicense: true, Secret: &secret})
+	if err != nil {
+		t.Fatalf("写入密钥后应可启用: %v", err)
+	}
+	if !got.Enabled || !got.HasSecret || got.Entries != 1 {
+		t.Fatalf("启用结果不符: enabled=%v hasSecret=%v entries=%d", got.Enabled, got.HasSecret, got.Entries)
 	}
 }

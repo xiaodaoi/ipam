@@ -3,6 +3,13 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-11-19 · 修复 abuse.ch 情报源 HTTP 410（M6-039）
+- **现象**：ThreatFox 填好 Auth-Key 后同步失败，`lastError=http 410`。
+- **根因**：abuse.ch 于 2026-10 关闭无鉴权下载，旧 `threatfox.abuse.ch/export/csv/recent/`、`urlhaus.abuse.ch/downloads/hostfile/` 全部 410；新 v2 导出要求 Auth-Key 作为 URL 路径段。
+- **修复**：预设改为 `https://{threatfox,urlhaus}-api.abuse.ch/v2/files/exports/{secret}/hostfile.txt`，`{secret}` 仅拉取时替换（密钥不入库、不回显）；`HTTPSourceFetch` 错误文本抹掉密钥；`validateSource` 把 URL 占位符视为需要密钥；新增迁移 `0046` 仅升级旧预设值；前端按占位符显示密钥输入并提示不要粘贴到 URL；启用后首次同步失败时回读最新状态返回前端。
+- **验证**：真实 key 拉取 200（968994 字节）；临时自定义源产品内解析 29262 条并注入热层，`dig j8.asdlot.org` NXDOMAIN、日志 `[intel.hot.rpz]`；假 key 401 且 `lastError` 无密钥；ThreatFox 预设现 `enabled`、`lastStatus=ok`；`go test ./...`、`golangci-lint` 0 issues。文档：实施说明 §3/§4/§11、任务卡实施记录。
+
+
 ## 2026-11-19 · 修复情报源密钥目录权限（M6-039）
 - **现象**：给 abuse.ch ThreatFox 填 `Auth-Key` 保存时报 `mkdir /run/ipam/intel-secrets: permission denied`。
 - **根因**：控制面以 `uid=10001(ipam)` 运行，`/run/ipam` 共享卷属 root（0755），应用无法创建 `intel-secrets` 子目录；`volume-init` 只初始化了 `ch-exports`/`vector-config`。

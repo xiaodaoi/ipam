@@ -78,16 +78,20 @@ type IntelSource struct {
 var PresetSources = []IntelSource{
 	{
 		Key: "abusech-urlhaus", Name: "abuse.ch URLhaus（恶意载荷分发站点）",
-		Kind: "preset", Layer: "hot", URL: "https://urlhaus.abuse.ch/downloads/hostfile/",
-		Format: "auto", AuthHeader: "Auth-Key",
-		License: "abuse.ch 社区条款（不授权用于商业产品）", LicenseURL: "https://abuse.ch/",
+		Kind: "preset", Layer: "hot",
+		// 2026-10 起 abuse.ch 关闭无鉴权下载：新增 v2 导出，Auth-Key 走 URL 路径。
+		// URL 内保留 {secret} 占位符，拉取时才替换，密钥不入库、不回显。
+		URL:    "https://urlhaus-api.abuse.ch/v2/files/exports/{secret}/hostfile.txt",
+		Format: "auto", AuthHeader: "",
+		License: "abuse.ch 社区条款（不授权用于商业产品）", LicenseURL: "https://auth.abuse.ch/",
 		CommercialOK: false, RequiresAck: true, UpdateInterval: 300, Builtin: true,
 	},
 	{
 		Key: "abusech-threatfox", Name: "abuse.ch ThreatFox（C2 / 载荷投递 IOC）",
-		Kind: "preset", Layer: "hot", URL: "https://threatfox.abuse.ch/export/csv/recent/",
-		Format: "auto", AuthHeader: "Auth-Key",
-		License: "abuse.ch 社区条款（不授权用于商业产品）", LicenseURL: "https://abuse.ch/",
+		Kind: "preset", Layer: "hot",
+		URL:    "https://threatfox-api.abuse.ch/v2/files/exports/{secret}/hostfile.txt",
+		Format: "auto", AuthHeader: "",
+		License: "abuse.ch 社区条款（不授权用于商业产品）", LicenseURL: "https://auth.abuse.ch/",
 		CommercialOK: false, RequiresAck: true, UpdateInterval: 300, Builtin: true,
 	},
 	{
@@ -121,9 +125,14 @@ var sourceHTTPClient = &http.Client{Timeout: 60 * time.Second}
 
 // HTTPSourceFetch 默认拉取器。
 func HTTPSourceFetch(ctx context.Context, rawURL, header, secret string) (string, error) {
+	// 部分上游（abuse.ch v2）要求密钥放在 URL 路径：URL 内用 {secret} 占位，
+	// 仅在此处替换，库内与接口始终只有占位符。
+	if secret != "" {
+		rawURL = strings.ReplaceAll(rawURL, "{secret}", url.PathEscape(secret))
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
-		return "", err
+		return "", scrubSecret(err, secret)
 	}
 	req.Header.Set("User-Agent", "ipam-intel/1.0")
 	if header != "" && secret != "" {
@@ -131,7 +140,8 @@ func HTTPSourceFetch(ctx context.Context, rawURL, header, secret string) (string
 	}
 	resp, err := sourceHTTPClient.Do(req)
 	if err != nil {
-		return "", err
+		// net/http 的错误文本会带完整 URL；必须脱敏后再返回（lastError 会入库/回显）。
+		return "", scrubSecret(err, secret)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
@@ -139,9 +149,25 @@ func HTTPSourceFetch(ctx context.Context, rawURL, header, secret string) (string
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
 	if err != nil {
-		return "", err
+		return "", scrubSecret(err, secret)
 	}
 	return string(body), nil
+}
+
+// scrubSecret 从错误文本中抹掉密钥（含 URL 转义形态），防止密钥经 lastError 外泄。
+func scrubSecret(err error, secret string) error {
+	if err == nil || secret == "" {
+		return err
+	}
+	msg := err.Error()
+	msg = strings.ReplaceAll(msg, secret, "***")
+	msg = strings.ReplaceAll(msg, url.PathEscape(secret), "***")
+	return errors.New(msg)
+}
+
+// urlNeedsSecret URL 中是否使用了 {secret} 占位符（密钥走路径）。
+func urlNeedsSecret(rawURL string) bool {
+	return strings.Contains(rawURL, "{secret}")
 }
 
 // ParseFeedDomains 从 hosts / 域名清单 / URL 清单 / CSV / RPZ 文本中提取域名。
@@ -402,6 +428,11 @@ func (s *IntelService) UpdateSource(ctx context.Context, id string, up SourceUpd
 			return synced, nil
 		} else {
 			log.Printf("[intel] 源 %s 启用后首次同步失败：%v", src.Key, serr)
+			// 回读最新状态（failed + last_error），避免把「从未同步」的错误状态返回给前端。
+			if latest, ok, lerr := s.store.GetSource(ctx, src.ID); lerr == nil && ok {
+				latest.HasSecret = latest.SecretFile != "" && fileExists(latest.SecretFile)
+				return latest, nil
+			}
 		}
 	}
 	return src, nil
@@ -580,7 +611,8 @@ func validateSource(src IntelSource) error {
 	if src.RequiresAck && src.AckedAt == nil {
 		return ErrSourceLicenseAck
 	}
-	if strings.TrimSpace(src.AuthHeader) != "" && (src.SecretFile == "" || !fileExists(src.SecretFile)) {
+	if (strings.TrimSpace(src.AuthHeader) != "" || urlNeedsSecret(src.URL)) &&
+		(src.SecretFile == "" || !fileExists(src.SecretFile)) {
 		return ErrSourceSecretNeeded
 	}
 	return nil

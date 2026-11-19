@@ -30,6 +30,10 @@ import {
 import { $t } from '#/locales';
 
 // 情报源管理（M6-039）：全部默认关闭，启用需确认许可；密钥只写不读。
+// 部分上游（abuse.ch v2）要求密钥放在 URL 路径：URL 内用 {secret} 占位。
+function needsSecret(src: IntelSourceRow): boolean {
+  return !!src.authHeader || (src.url ?? '').includes('{secret}');
+}
 const sources = ref<IntelSourceRow[]>([]);
 const loading = ref(false);
 const syncingId = ref('');
@@ -78,7 +82,7 @@ async function confirmEnable() {
     message.warning($t('dns.blocklist.intel.src.ackRequired'));
     return;
   }
-  const needSecret = !!src.authHeader && !src.hasSecret;
+  const needSecret = needsSecret(src) && !src.hasSecret;
   if (needSecret && !enableSecret.value.trim()) {
     message.warning($t('dns.blocklist.intel.src.secretRequired'));
     return;
@@ -151,7 +155,7 @@ const [EditModal, editModalApi] = useVbenModal({
 });
 function openEdit(src: IntelSourceRow) {
   editBuiltin.value = !!src.builtin;
-  editNeedsAuth.value = !!src.authHeader;
+  editNeedsAuth.value = needsSecret(src);
   editAuthHeader.value = src.authHeader ?? '';
   editForm.value = {
     clearSecret: false,
@@ -506,14 +510,16 @@ defineExpose({ load });
         </Checkbox>
       </label>
       <label
-        v-if="enableTarget?.authHeader"
+        v-if="enableTarget && needsSecret(enableTarget)"
         class="ipam-form-field ipam-form-field--wide"
       >
         <span class="ipam-form-field__label">
           {{
-            $t('dns.blocklist.intel.src.secretLabel', {
-              header: enableTarget.authHeader,
-            })
+            enableTarget.authHeader
+              ? $t('dns.blocklist.intel.src.secretLabel', {
+                  header: enableTarget.authHeader,
+                })
+              : $t('dns.blocklist.intel.src.secretLabelUrl')
           }}
         </span>
         <Input.Password
@@ -572,9 +578,11 @@ defineExpose({ load });
       </label>
       <label v-if="editNeedsAuth" class="ipam-form-field">
         <span class="ipam-form-field__label">{{
-          $t('dns.blocklist.intel.src.secretLabel', {
-            header: editAuthHeader,
-          })
+          editAuthHeader
+            ? $t('dns.blocklist.intel.src.secretLabel', {
+                header: editAuthHeader,
+              })
+            : $t('dns.blocklist.intel.src.secretLabelUrl')
         }}</span>
         <Input.Password
           v-model:value="editForm.secret"
