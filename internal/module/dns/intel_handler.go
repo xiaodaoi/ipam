@@ -200,6 +200,9 @@ func (h *IntelHandler) UpdateIntelSource(c *gin.Context, sourceId rtypes.UUID) {
 	case errors.Is(err, ErrSourceNoURL):
 		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "INTEL_SOURCE_NO_URL", "请先填写有效的拉取 URL")
 		return
+	case errors.Is(err, ErrSecretDirUnwritable):
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "INTEL_SECRET_DIR_UNWRITABLE", err.Error())
+		return
 	case errors.Is(err, ErrSourceEmpty):
 		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "INTEL_SOURCE_EMPTY", "已启用，但首次同步未解析到条目（详见 lastError）")
 		return

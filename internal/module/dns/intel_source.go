@@ -35,6 +35,8 @@ var (
 	ErrSourceSecretNeeded = errors.New("INTEL_SOURCE_SECRET_REQUIRED")
 	ErrSourceEmpty        = errors.New("INTEL_SOURCE_EMPTY")
 	ErrSourceDupKey       = errors.New("INTEL_SOURCE_DUP")
+	// ErrSecretDirUnwritable 密钥目录不可写（容器以非 root 运行时常见）。
+	ErrSecretDirUnwritable = errors.New("INTEL_SECRET_DIR_UNWRITABLE")
 )
 
 // 单层容量上限（方案 §8：热层 ≤10 万、宽层 ≤30 万）。
@@ -590,12 +592,14 @@ func (s *IntelService) writeSecret(id, secret string) (string, error) {
 		dir = filepath.Join(s.dir, "secrets")
 	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", err
+		return "", fmt.Errorf("%w: 无法创建 %s（%v）；请确认该目录对控制面运行用户可写，或用 IPAM_INTEL_SECRET_DIR 指定可写目录",
+			ErrSecretDirUnwritable, dir, err)
 	}
 	path := filepath.Join(dir, "intel-"+sanitizeKey(id))
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, []byte(secret), 0o600); err != nil {
-		return "", err
+		return "", fmt.Errorf("%w: 无法写入 %s（%v）；请确认目录权限或改用 IPAM_INTEL_SECRET_DIR",
+			ErrSecretDirUnwritable, dir, err)
 	}
 	if err := os.Rename(tmp, path); err != nil {
 		return "", err

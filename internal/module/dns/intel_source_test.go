@@ -384,3 +384,24 @@ func mustSources(t *testing.T, svc *IntelService, ctx context.Context) []IntelSo
 }
 
 func boolPtr(b bool) *bool { return &b }
+
+func TestIntelSource_密钥目录不可写给出明确错误(t *testing.T) {
+	st := newIntelStack(t)
+	ctx := context.Background()
+
+	// 用一个普通文件充当「目录的父级」，MkdirAll 必然失败（root 也一样）。
+	blocker := filepath.Join(t.TempDir(), "not-a-dir")
+	if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	st.intel.SetSecretDir(filepath.Join(blocker, "intel-secrets"))
+
+	src, err := st.intel.CreateSource(ctx, IntelSource{Name: "鉴权源", URL: "https://a.example/x.txt", Layer: "hot"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret := "test-key"
+	if _, err := st.intel.UpdateSource(ctx, src.ID, SourceUpdate{Secret: &secret}); !errors.Is(err, ErrSecretDirUnwritable) {
+		t.Fatalf("应返回 ErrSecretDirUnwritable，got=%v", err)
+	}
+}

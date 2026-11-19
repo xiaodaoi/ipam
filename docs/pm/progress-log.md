@@ -3,6 +3,13 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-11-19 · 修复情报源密钥目录权限（M6-039）
+- **现象**：给 abuse.ch ThreatFox 填 `Auth-Key` 保存时报 `mkdir /run/ipam/intel-secrets: permission denied`。
+- **根因**：控制面以 `uid=10001(ipam)` 运行，`/run/ipam` 共享卷属 root（0755），应用无法创建 `intel-secrets` 子目录；`volume-init` 只初始化了 `ch-exports`/`vector-config`。
+- **修复**：`deploy/compose/compose.yaml` 的 `volume-init` 增加 `ipam-run` 挂载，预建 `/run/ipam/intel-secrets` 并 `chown 10001:10001` + `chmod 700`；`writeSecret` 的 `MkdirAll`/`WriteFile` 失败统一包装为 `INTEL_SECRET_DIR_UNWRITABLE`，接口返回可操作提示（可用 `IPAM_INTEL_SECRET_DIR` 覆盖）。
+- **验证**：重建后目录 `drwx------ 10001:10001`；API 写入探针密钥 `hasSecret=true`（0600），`clearSecret` 后文件删除；`go test ./...`、`golangci-lint` 0 issues。文档同步：`docs/dev/M6-039-情报源实施说明.md` §2.2/§11、任务卡实施记录。
+
+
 
 ## 2026-11-19 · 情报源管理与分层编译（M6-039，P1 主体）
 - **背景**：M6-038 已交付 4 个固定 RPZ 区，但热层/宽层始终为空——没有源管理，也就没法把开源情报真正用起来；用户要求「把之前提到的几个开源情报加进去」，并明确全部默认关闭、可启用/禁用/新增/编辑、不引入 GPL。
