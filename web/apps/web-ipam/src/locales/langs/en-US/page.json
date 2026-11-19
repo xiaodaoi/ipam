@@ -28,6 +28,7 @@
   "logs": {
     "title": "Log Center",
     "overview": "Overview",
+    "alerts": "Alerts",
     "search": "Search",
     "audit": "Audit",
     "tail": "Live Tail",

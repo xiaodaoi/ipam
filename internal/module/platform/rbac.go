@@ -53,6 +53,21 @@ func domainOf(fullPath string) string {
 	return ""
 }
 
+// requiredPerm 计算域内所需权限点。写方法默认要求 <域>:write；
+// 报警确认（M6-040）是「查看即确认」，不是配置变更，降级为 <域>:read，
+// 使 operator/auditor/user 也能确认自己看到的报警。
+func requiredPerm(method, fullPath, dom string) string {
+	write := method == http.MethodPost || method == http.MethodPut ||
+		method == http.MethodPatch || method == http.MethodDelete
+	if !write {
+		return dom + ":read"
+	}
+	if strings.HasPrefix(fullPath, "/api/v1/logs/alerts/ack") {
+		return dom + ":read"
+	}
+	return dom + ":write"
+}
+
 func permSet(vs ...string) map[string]bool {
 	m := map[string]bool{}
 	for _, v := range vs {
@@ -157,11 +172,7 @@ func NewRBACMiddleware(users UserStore, bl *TokenBlacklist, permLookup func(ctx 
 
 		// M2-035：域权限拦截（读 → <域>:read；写 → <域>:write）
 		if dom := domainOf(c.FullPath()); dom != "" {
-			need := dom + ":read"
-			if c.Request.Method == http.MethodPost || c.Request.Method == http.MethodPut ||
-				c.Request.Method == http.MethodPatch || c.Request.Method == http.MethodDelete {
-				need = dom + ":write"
-			}
+			need := requiredPerm(c.Request.Method, c.FullPath(), dom)
 			if !hasPerm(claims, need, permLookup, c.Request.Context()) {
 				problem.Write(c, http.StatusForbidden,
 					"https://ipam.local/problems/forbidden", "FORBIDDEN",

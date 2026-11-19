@@ -245,3 +245,39 @@ func TestRBAC_资产域按assets权限拦截(t *testing.T) {
 		t.Fatalf("仅 assets:read 读 /ledger 应 403，got %d", w.Code)
 	}
 }
+
+func Test报警确认对只读角色降级为logsRead(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	store := NewMemUserStore()
+	bl := NewTokenBlacklist()
+	if _, err := store.Create(context.Background(), UserCreateInput{
+		Username: "guest", Password: "x", Roles: []string{"user"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	r := gin.New()
+	r.Use(NewRBACMiddleware(store, bl, nil))
+	r.POST("/api/v1/logs/alerts/ack", func(c *gin.Context) { c.Status(200) })
+	r.POST("/api/v1/logs/alerts/ack-all", func(c *gin.Context) { c.Status(200) })
+	r.POST("/api/v1/logs/alerts", func(c *gin.Context) { c.Status(200) })
+
+	tok := tokenFor("guest", "access", "user")
+	do := func(path string) int {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, path, nil)
+		req.Header.Set("Authorization", "Bearer "+tok)
+		r.ServeHTTP(w, req)
+		return w.Code
+	}
+	// 查看即确认：只读角色可确认报警。
+	if code := do("/api/v1/logs/alerts/ack"); code != 200 {
+		t.Fatalf("ack 应放行只读角色，got %d", code)
+	}
+	if code := do("/api/v1/logs/alerts/ack-all"); code != 200 {
+		t.Fatalf("ack-all 应放行只读角色，got %d", code)
+	}
+	// 其余 logs 写操作仍需 logs:write。
+	if code := do("/api/v1/logs/alerts"); code != 403 {
+		t.Fatalf("非确认写操作应 403，got %d", code)
+	}
+}

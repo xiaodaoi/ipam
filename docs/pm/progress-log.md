@@ -3,6 +3,14 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-11-19 · 应用内报警中心（M6-040）
+- **需求**：日志中心新增「报警日志」——查询哪些客户端地址访问了风险 URL、支持模糊查询与统计；新报警在右上角报警栏显示，查看后自动确认；系统故障也进入同一报警栏。
+- **后端**：迁移 `0047_alert`（`dedup_key` 唯一）；新增 `internal/module/alerts/`（PG+Mem 仓储、Service、采集器、5 个端点）。DNS 风险访问从 ClickHouse `action=blocked` 按「客户端 IP + 域名 + 小时桶」聚合（`BlockedEvents`，上限 5000 组），`count` 用 `GREATEST` 合并避免回扫重复计数；系统故障覆盖数据库/日志存储/DHCP/DNS 掉线（连续 2 次失败）、磁盘 ≥90%、日志外发降级、情报源同步失败、上游探活失败，恢复自动 `resolved`、再次发生重新打开；每日清理 90 天前记录。
+- **契约/权限**：先改 spec（`paths/alerts.yaml` + `components/schemas/alerts.yaml`）再 `gen-openapi.sh`；接口挂 `/logs/alerts*` 复用 logs 域；`requiredPerm` 把确认动作降级为 `logs:read`，其余 logs 写仍要求 `logs:write`。
+- **前端**：日志中心新增「报警日志」页（4 统计卡 + 趋势 + 风险域名/客户端 Top + 关键字模糊搜索 + 来源/级别/状态过滤 + 详情抽屉 + 查看即确认 + 30s 刷新）；右上角报警栏 30s 轮询未确认、红点、点击确认并跳转、单条/全部确认；zh/en 成对，界面无底层产品名。
+- **验证**：真实栈首轮合并 27 组风险访问；`q=qq.com` 命中 9 条；确认幂等（1→0）且 `ackedBy=admin`；`ack-all` 27 条后未确认归零；无效情报源产生 `intel_sync_failed`、删除后自动 `resolved`；真实 IPv6 上游失败产生 `upstream_probe_failed`；插入 100 天前记录并重启，清理 1 条。浏览器冒烟（红点→报警栏→确认跳转→详情已确认→统计/搜索）通过；`go test ./...`、`golangci-lint` 0 issues、前端 typecheck/三门禁/vitest 38、E2E **19/19**。详见 `docs/dev/M6-040-报警中心实施说明.md`。
+
+
 ## 2026-11-19 · 修复 abuse.ch 情报源 HTTP 410（M6-039）
 - **现象**：ThreatFox 填好 Auth-Key 后同步失败，`lastError=http 410`。
 - **根因**：abuse.ch 于 2026-10 关闭无鉴权下载，旧 `threatfox.abuse.ch/export/csv/recent/`、`urlhaus.abuse.ch/downloads/hostfile/` 全部 410；新 v2 导出要求 Auth-Key 作为 URL 路径段。

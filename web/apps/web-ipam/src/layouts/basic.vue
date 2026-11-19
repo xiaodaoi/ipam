@@ -1,7 +1,9 @@
 <script lang="ts" setup>
 import type { NotificationItem } from '@vben/layouts';
 
-import { computed, ref, watch } from 'vue';
+import type { AlertRow } from '#/api/ipam';
+
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { AuthenticationLoginExpiredModal } from '@vben/common-ui';
@@ -15,12 +17,88 @@ import {
 import { preferences, usePreferences } from '@vben/preferences';
 import { useAccessStore, useUserStore } from '@vben/stores';
 
+import { ackAlerts, ackAllAlerts, getAlertUnread } from '#/api/ipam';
 import { $t } from '#/locales';
 import { useAuthStore } from '#/store';
 import LoginForm from '#/views/_core/authentication/login.vue';
 
-// 通知中心接入后端事件前保持空列表，避免展示上游演示数据。
+// 报警栏（M6-040）：轮询未确认报警；点击通知即确认并跳转报警详情。
 const notifications = ref<NotificationItem[]>([]);
+const unreadCount = ref(0);
+let pollTimer: ReturnType<typeof setInterval> | undefined;
+
+function fmtAlertTime(v?: string): string {
+  const t = v ? Date.parse(v) : Number.NaN;
+  return Number.isNaN(t) || t <= 0
+    ? ''
+    : new Date(t).toLocaleString(undefined, { hour12: false });
+}
+
+function alertText(key: string, fallback: string): string {
+  const text = $t(key);
+  return text === key ? fallback : text;
+}
+
+function alertTitle(a: AlertRow): string {
+  if (a.source === 'dns' && a.domain) {
+    return $t('logs.alerts.notify.riskTitle', { domain: a.domain });
+  }
+  return alertText(`logs.alerts.kinds.${a.kind}`, a.title);
+}
+
+function alertMessage(a: AlertRow): string {
+  if (a.source === 'dns') {
+    return $t('logs.alerts.notify.riskMessage', {
+      ip: a.clientIp || '—',
+      n: a.count,
+    });
+  }
+  const component = a.component
+    ? alertText(`logs.alerts.components.${a.component}`, a.component)
+    : '—';
+  return $t('logs.alerts.notify.systemMessage', { component, n: a.count });
+}
+
+function toNotification(a: AlertRow): NotificationItem {
+  return {
+    id: a.id,
+    avatar: '/avatar.svg',
+    date: fmtAlertTime(a.lastSeen),
+    isRead: false,
+    title: alertTitle(a),
+    message: alertMessage(a),
+    link: '/logs-center/alerts',
+    query: { alertId: a.id },
+    severity: a.severity,
+  };
+}
+
+async function loadNotifications(): Promise<void> {
+  try {
+    const res = await getAlertUnread(8);
+    unreadCount.value = res.count ?? 0;
+    notifications.value = (res.items ?? []).map((a) => toNotification(a));
+  } catch {
+    // 未登录/网络抖动：静默失败，下个周期再试（不阻塞布局）。
+  }
+}
+
+async function ackById(id: number | string): Promise<void> {
+  const key = String(id);
+  try {
+    await ackAlerts([key]);
+  } catch {
+    // 确认失败仍移除本地项，避免重复打扰；下个轮询会以服务端为准。
+  }
+  notifications.value = notifications.value.filter((n) => n.id !== id);
+  unreadCount.value = Math.max(0, unreadCount.value - 1);
+}
+
+onMounted(() => {
+  void loadNotifications();
+  pollTimer = setInterval(() => void loadNotifications(), 30_000);
+});
+onBeforeUnmount(() => pollTimer && clearInterval(pollTimer));
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -28,8 +106,9 @@ const authStore = useAuthStore();
 const accessStore = useAccessStore();
 const { destroyWatermark, updateWatermark } = useWatermark();
 const { isDark } = usePreferences();
-const showDot = computed(() =>
-  notifications.value.some((item) => !item.isRead),
+const showDot = computed(
+  () =>
+    unreadCount.value > 0 || notifications.value.some((item) => !item.isRead),
 );
 
 const menus = computed(() => [
@@ -51,14 +130,14 @@ async function handleLogout() {
 }
 
 function handleNoticeClear() {
+  // 报警栏以服务端未确认集合为准：清除即全部确认，避免下个轮询又出现。
   notifications.value = [];
+  unreadCount.value = 0;
+  void ackAllAlerts().catch(() => undefined);
 }
 
 function markRead(id: number | string) {
-  const item = notifications.value.find((item) => item.id === id);
-  if (item) {
-    item.isRead = true;
-  }
+  void ackById(id);
 }
 
 function remove(id: number | string) {
@@ -66,13 +145,18 @@ function remove(id: number | string) {
 }
 
 function handleMakeAll() {
-  notifications.value.forEach((item) => (item.isRead = true));
+  notifications.value = [];
+  unreadCount.value = 0;
+  void ackAllAlerts().catch(() => undefined);
 }
 
-const viewAll = () => {};
+const viewAll = () => {
+  void router.push({ path: '/logs-center/alerts' });
+};
 
 const handleClick = (item: NotificationItem) => {
-  // 如果通知项有链接，点击时跳转
+  // 查看即确认：先确认，再跳转到报警详情。
+  void ackById(item.id);
   if (item.link) {
     navigateTo(item.link, item.query, item.state);
   }

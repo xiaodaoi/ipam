@@ -28,6 +28,7 @@
   "logs": {
     "title": "日志中心",
     "overview": "日志概览",
+    "alerts": "报警日志",
     "search": "查询检索",
     "audit": "操作审计",
     "tail": "实时流",

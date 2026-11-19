@@ -558,5 +558,127 @@
       "invalidRange": "End time must be later than start time",
       "queryFail": "Failed to query history; try again later"
     }
+  },
+  "alerts": {
+    "title": "Alerts",
+    "eyebrow": "Alert Center",
+    "description": "Review blocked risky-domain visits and system fault alerts. Opening an alert confirms it automatically, and the bell shows the unread count.",
+    "kpi": {
+      "total": "Total alerts",
+      "open": "Unconfirmed",
+      "critical": "Critical",
+      "domains": "Risky domains",
+      "totalHint": "All alerts in the window",
+      "openHint": "Confirmed automatically when viewed",
+      "criticalHint": "Handle these first",
+      "domainsHint": "Distinct domains by hit count"
+    },
+    "filters": {
+      "title": "Filters and fuzzy search",
+      "keyword": "Fuzzy search",
+      "keywordPlaceholder": "Domain / client address / title / component",
+      "source": "Source",
+      "kind": "Type",
+      "severity": "Severity",
+      "status": "Status",
+      "all": "All",
+      "active": "{n} filters active",
+      "reset": "Reset"
+    },
+    "source": {
+      "dns": "Risky domain visit",
+      "system": "System fault"
+    },
+    "severity": {
+      "critical": "Critical",
+      "warning": "Warning",
+      "info": "Info"
+    },
+    "status": {
+      "open": "Unconfirmed",
+      "acked": "Confirmed",
+      "resolved": "Resolved"
+    },
+    "kinds": {
+      "risk_url": "Risky domain visit",
+      "db_down": "Database failure",
+      "logstore_down": "Log storage failure",
+      "dhcp_down": "DHCP service failure",
+      "dns_down": "DNS service failure",
+      "disk_pressure": "Low disk space",
+      "log_export_degraded": "Log export degraded",
+      "intel_sync_failed": "Threat feed sync failed",
+      "upstream_probe_failed": "Upstream probe failed"
+    },
+    "components": {
+      "database": "Database",
+      "logstore": "Log storage",
+      "dhcp": "DHCP service",
+      "dns": "DNS service",
+      "host": "Host",
+      "log-export": "Log export",
+      "intel": "Threat feed",
+      "upstream": "Upstream DNS"
+    },
+    "row": {
+      "dnsSubtitle": "Client {ip} visited {domain}",
+      "systemSubtitle": "{component}",
+      "count": "{n} times"
+    },
+    "table": {
+      "title": "Alert records",
+      "alert": "Alert",
+      "source": "Source",
+      "client": "Client address",
+      "domain": "Risky domain",
+      "severity": "Severity",
+      "status": "Status",
+      "count": "Count",
+      "lastSeen": "Last seen",
+      "ackedBy": "Confirmed by",
+      "empty": "No alerts match the current filters",
+      "detail": "Details"
+    },
+    "detail": {
+      "title": "Alert details",
+      "firstSeen": "First seen",
+      "lastSeen": "Last seen",
+      "client": "Client address",
+      "domain": "Risky domain",
+      "component": "Component",
+      "count": "Total count",
+      "ackedAt": "Confirmed at",
+      "ackedBy": "Confirmed by",
+      "resolvedAt": "Resolved at",
+      "detail": "Raw detail",
+      "ack": "Confirm this alert",
+      "close": "Close"
+    },
+    "actions": {
+      "ackAll": "Confirm all",
+      "refresh": "Refresh",
+      "viewAll": "View all",
+      "ackPage": "Confirm this page"
+    },
+    "messages": {
+      "acked": "Confirmed {n} alerts",
+      "ackFail": "Failed to confirm",
+      "loadFail": "Failed to load alerts",
+      "noUnread": "No unconfirmed alerts",
+      "confirmAckAll": "All unconfirmed alerts will be marked as confirmed. Continue?"
+    },
+    "trend": {
+      "title": "Alert trend",
+      "domains": "Top risky domains",
+      "clients": "Top client addresses",
+      "unit": "alerts"
+    },
+    "notify": {
+      "riskTitle": "Risky domain visit: {domain}",
+      "riskMessage": "Client {ip} was blocked {n} times",
+      "systemTitle": "{kind}",
+      "systemMessage": "{component} is unhealthy ({n} times). Click for details.",
+      "viewAll": "View all alerts"
+    }
   }
 }

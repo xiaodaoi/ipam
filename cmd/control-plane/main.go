@@ -26,6 +26,7 @@ import (
 	"github.com/xiaodaoi/ipam/cmd/control-plane/webui"
 	keaengine "github.com/xiaodaoi/ipam/internal/engine/kea"
 	unboundengine "github.com/xiaodaoi/ipam/internal/engine/unbound"
+	"github.com/xiaodaoi/ipam/internal/module/alerts"
 	backupmodule "github.com/xiaodaoi/ipam/internal/module/backup"
 	"github.com/xiaodaoi/ipam/internal/module/coherence"
 	"github.com/xiaodaoi/ipam/internal/module/dashboard"
@@ -45,6 +46,9 @@ import (
 
 // logsAPI 组合用命名包装（logquery.Handler 经此提升方法）。
 type logsAPI struct{ *logq.Handler }
+
+// alertAPI 同上（规避 alerts.Handler 与 platform.Handler 嵌入名冲突）。
+type alertAPI struct{ *alerts.Handler }
 
 // dashAPI 同上（规避 dashboard.Handler 与 platform.Handler 嵌入名冲突）。
 type dashAPI struct{ *dashboard.Handler }
@@ -434,6 +438,7 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	// 日志检索（M4-002，FR-E-04）：配置 IPAM_CH_ADDR 走 ClickHouse，否则内存 PoC；
 	// 组织展开：PG 子树（org_group.path）或内存节点遍历。
 	var logStore logq.Store = logq.NewMemStore()
+	var chStore *logq.ChStore
 	var chCfg logq.ChConfig
 	if chAddr := os.Getenv("IPAM_CH_ADDR"); chAddr != "" {
 		chDB := os.Getenv("IPAM_CH_DB")
@@ -448,6 +453,7 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		if err != nil {
 			log.Fatalf("ch store: %v", err)
 		}
+		chStore = st
 		logStore = st
 	}
 	var logExpander logq.OrgExpander = ipam.NewMemOrgExpander(orgStore, subRepo, assetRepo)
@@ -461,6 +467,18 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		auditRepo = logq.NewPgAuditStore(pool)
 	}
 	auditH := logq.NewAuditHandler(auditRepo)
+
+	// 应用内报警中心（M6-040）：PG 持久化聚合结果；无 PG 时内存实现（开发/单测）。
+	var alertRepo alerts.Repo = alerts.NewMemRepo()
+	if pool != nil {
+		alertRepo = alerts.NewPgRepo(pool)
+	}
+	alertSvc := alerts.NewService(alertRepo)
+	alertH := alerts.NewHandler(alertSvc)
+	alertH.SetActorProvider(func(c *gin.Context) string {
+		_, sub, _ := platform.JWTActorFromHeader(c.GetHeader("Authorization"))
+		return sub
+	})
 
 	// 仪表盘聚合（M4-004，F-01）：日志口径走 logquery.Store，子网/联动绑定按 PG/Mem 装配；
 	// 健康灯仅对已配置探测目标的组件点亮（PoC 模式全 unknown）。
@@ -903,6 +921,103 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	go sysMetricSvc.Run(rootCtx, log.Printf)
 	sysMetricH := systemmetric.NewHandler(sysMetricSvc)
 
+	// 报警采集（M6-040）：DNS 风险访问约 60s 回扫 + 系统故障探针；每日清理 90 天前记录。
+	alertChecks := alerts.SystemChecks{
+		Postgres: func(ctx context.Context) error {
+			if pool == nil {
+				return nil
+			}
+			return pool.Ping(ctx)
+		},
+		ClickHouse: func(ctx context.Context) error {
+			if chStore == nil {
+				return nil
+			}
+			pctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+			defer cancel()
+			return chStore.Ping(pctx)
+		},
+		Kea: func(ctx context.Context) error {
+			if keaCmd == nil {
+				return nil
+			}
+			_, err := keaCmd.Command(ctx, "version-get", "dhcp4", nil)
+			return err
+		},
+		Unbound: func(ctx context.Context) error {
+			d := net.Dialer{Timeout: 800 * time.Millisecond}
+			conn, err := d.DialContext(ctx, "unix", "/run/ipam/unbound-ctl.sock")
+			if err != nil {
+				return err
+			}
+			_ = conn.Close()
+			return nil
+		},
+		Disks: func() []alerts.DiskUsage {
+			if hostCol == nil {
+				return nil
+			}
+			m, ok := hostCol.Snapshot()
+			if !ok {
+				return nil
+			}
+			out := make([]alerts.DiskUsage, 0, len(m.Disks))
+			for _, d := range m.Disks {
+				out = append(out, alerts.DiskUsage{
+					Mount: d.Mount, UsedPct: d.UsedPct,
+					TotalBytes: d.TotalBytes, UsedBytes: d.UsedBytes,
+				})
+			}
+			return out
+		},
+		LogExportDegraded: func() bool { return exportSvc.Status().Degraded },
+		IntelSources: func(ctx context.Context) []alerts.SourceIssue {
+			if intelSvc == nil {
+				return nil
+			}
+			list, err := intelSvc.Sources(ctx)
+			if err != nil {
+				return nil
+			}
+			out := make([]alerts.SourceIssue, 0, 2)
+			for _, s := range list {
+				if s.Enabled && s.LastStatus == "failed" {
+					out = append(out, alerts.SourceIssue{Key: s.Key, Name: s.Name, Err: s.LastError})
+				}
+			}
+			return out
+		},
+		Upstreams: func(ctx context.Context) []alerts.UpstreamIssue {
+			if dnsSvc == nil {
+				return nil
+			}
+			list, health, err := dnsSvc.List(ctx)
+			if err != nil {
+				return nil
+			}
+			out := make([]alerts.UpstreamIssue, 0, 2)
+			for i, u := range list {
+				if !u.Enabled || i >= len(health) {
+					continue
+				}
+				h := health[i]
+				if h.Up || h.ConsecutiveFails < 3 {
+					continue
+				}
+				out = append(out, alerts.UpstreamIssue{
+					ID: u.ID, Name: u.Name, Addrs: strings.Join(u.Addrs, ","),
+					Fails: h.ConsecutiveFails,
+				})
+			}
+			return out
+		},
+	}
+	alertCol := alerts.NewCollector(alertSvc, alertChecks)
+	if chStore != nil {
+		alertCol.SetDNSSource(chStore)
+	}
+	go alertCol.Run(rootCtx)
+
 	full := struct {
 		*platform.Handler
 		*ipam.OrgHandler
@@ -912,6 +1027,7 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		*ipam.AssetHandler
 		*logsAPI
 		*logq.AuditHandler
+		*alertAPI
 		*dashAPI
 		*dsAPI
 		*platform.AuthHandler
@@ -936,7 +1052,7 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		*backupmodule.APIHandler
 		*confApplier
 		*systemmetric.MetricHandler
-	}{h, orgH, subH, ledgerH, metaH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, authH, userH, sessionH, ldapH, &dhcpAPI{dhcpH}, leaseH, utilH, dnsH, fwdH, zoneH, blH, intelH, settingsH, rolesH, webuiH, platform.NewSecuritySettingsHandler(secStore), licenseH, logMgrH, exportH, backupH, applier, sysMetricH}
+	}{h, orgH, subH, ledgerH, metaH, assetH, &logs, auditH, &alertAPI{alertH}, &dashAPI{dashH}, &dsAPI{dsH}, authH, userH, sessionH, ldapH, &dhcpAPI{dhcpH}, leaseH, utilH, dnsH, fwdH, zoneH, blH, intelH, settingsH, rolesH, webuiH, platform.NewSecuritySettingsHandler(secStore), licenseH, logMgrH, exportH, backupH, applier, sysMetricH}
 	// Prometheus 指标（M6-005）：放在 RBAC 之前供抓取；中间件只统计其后的 /api/v1 路由。
 	var logStatsFn func(context.Context) (logmanager.LogStats, error)
 	if chAdmin != nil {

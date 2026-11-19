@@ -162,6 +162,16 @@ paths:
     $ref: './paths/logs.yaml#/LogsTop'
   /logs/qps:
     $ref: './paths/logs.yaml#/LogsQps'
+  /logs/alerts:
+    $ref: './paths/alerts.yaml#/AlertsCollection'
+  /logs/alerts/stats:
+    $ref: './paths/alerts.yaml#/AlertsStats'
+  /logs/alerts/unread:
+    $ref: './paths/alerts.yaml#/AlertsUnread'
+  /logs/alerts/ack:
+    $ref: './paths/alerts.yaml#/AlertsAck'
+  /logs/alerts/ack-all:
+    $ref: './paths/alerts.yaml#/AlertsAckAll'
   /audits:
     $ref: './paths/audit.yaml#/AuditsCollection'
   /audits/verify:
@@ -736,6 +746,22 @@ components:
         instance:
           type: string
           description: 出错请求的路径
+    Alert:
+      $ref: './components/schemas/alerts.yaml#/Alert'
+    AlertList:
+      $ref: './components/schemas/alerts.yaml#/AlertList'
+    AlertAggregate:
+      $ref: './components/schemas/alerts.yaml#/AlertAggregate'
+    AlertTrendPoint:
+      $ref: './components/schemas/alerts.yaml#/AlertTrendPoint'
+    AlertStats:
+      $ref: './components/schemas/alerts.yaml#/AlertStats'
+    AlertUnread:
+      $ref: './components/schemas/alerts.yaml#/AlertUnread'
+    AlertAckRequest:
+      $ref: './components/schemas/alerts.yaml#/AlertAckRequest'
+    AlertAckResult:
+      $ref: './components/schemas/alerts.yaml#/AlertAckResult'
   parameters:
     OrgId:
       $ref: './parameters/org.yaml#/OrgId'

@@ -1292,6 +1292,113 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/logs/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查询报警记录（模糊搜索 + 类型/级别/状态过滤）
+         * @description 报警来源有两类：`dns`（客户端访问被拦截的风险域名，按客户端 IP + 域名 + 小时窗口聚合）
+         *     与 `system`（数据库/日志存储/DHCP/DNS 掉线、磁盘水位、日志外发降级、情报源同步失败、上游探活失败）。
+         *     `q` 为不区分大小写子串，命中标题/摘要/域名/客户端地址/组件名。
+         *     `from`/`to` 按末次发生时间（lastSeen）过滤，缺省最近 7 天。
+         *     排序：未确认优先，其后按 lastSeen 倒序。scope 为 logs:read。
+         */
+        get: operations["listAlerts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/logs/alerts/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 报警统计（状态/级别/类型 + Top 域名/客户端 + 趋势）
+         * @description 与列表相同的过滤条件（不含分页）。`topDomains`/`topClients` 仅统计 DNS 风险访问，
+         *     `trend` 按时间窗自动选择桶大小（≤2 天：小时；≤31 天：天；更长：天）。scope 为 logs:read。
+         */
+        get: operations["getAlertStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/logs/alerts/unread": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 未确认报警（右上角报警栏）
+         * @description 返回未确认报警总数与最近 N 条（按 lastSeen 倒序）。前端轮询该端点刷新徽标。
+         *     scope 为 logs:read。
+         */
+        get: operations["getAlertUnread"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/logs/alerts/ack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 确认报警（单条或批量，幂等）
+         * @description 查看即确认：点击通知或报警详情时调用。已确认/已恢复的条目不重复计数。
+         *     确认记录 `ackedBy`（当前登录用户）与时间。scope 为 logs:read（确认不是配置变更）。
+         */
+        post: operations["ackAlerts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/logs/alerts/ack-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 确认全部未确认报警
+         * @description 把所有 `open` 报警置为 `acked`（记录当前用户）。scope 为 logs:read。
+         */
+        post: operations["ackAllAlerts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/audits": {
         parameters: {
             query?: never;
@@ -3633,6 +3740,108 @@ export interface components {
             code?: string;
             /** @description 出错请求的路径 */
             instance?: string;
+        };
+        /** @description 一条报警记录（DNS 风险访问按 客户端 IP + 域名 + 小时窗口聚合）。 */
+        Alert: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * @description dns=风险域名访问；system=系统故障
+             * @enum {string}
+             */
+            source: "dns" | "system";
+            /** @description risk_url | db_down | logstore_down | dhcp_down | dns_down | disk_pressure | log_export_degraded | intel_sync_failed | upstream_probe_failed */
+            kind: string;
+            /** @enum {string} */
+            severity: "critical" | "warning" | "info";
+            /**
+             * @description open=未确认；acked=已确认；resolved=故障已恢复
+             * @enum {string}
+             */
+            status: "open" | "acked" | "resolved";
+            title: string;
+            /** @description 面向用户的中文/英文摘要（不暴露底层产品名） */
+            message: string;
+            /** @description 访问风险域名的客户端地址（DNS 来源） */
+            clientIp?: string;
+            /** @description 客户端 MAC（可关联时填充） */
+            clientMac?: string;
+            /** @description 被拦截的风险域名（DNS 来源） */
+            domain?: string;
+            /** @description 系统故障组件中性名（database/logstore/dhcp/dns/host...） */
+            component?: string;
+            /** @description 窗口内事件数或连续故障次数 */
+            count: number;
+            /** @description 原始详情（可折叠展示） */
+            detail?: string;
+            /** Format: date-time */
+            firstSeen: string;
+            /** Format: date-time */
+            lastSeen: string;
+            /** Format: date-time */
+            ackedAt?: string | null;
+            ackedBy?: string;
+            /** Format: date-time */
+            resolvedAt?: string | null;
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        AlertList: {
+            items: components["schemas"]["Alert"][];
+            /** @description 满足过滤的总条数 */
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        AlertAggregate: {
+            /** @description 域名或客户端地址 */
+            key: string;
+            count: number;
+        };
+        AlertTrendPoint: {
+            /**
+             * Format: date-time
+             * @description 分桶起点（UTC）
+             */
+            ts: string;
+            count: number;
+        };
+        AlertStats: {
+            total: number;
+            /** @description 未确认 */
+            open: number;
+            /** @description 已确认 */
+            acked: number;
+            /** @description 已恢复 */
+            resolved: number;
+            /** @description 按级别计数（critical/warning/info） */
+            bySeverity: {
+                [key: string]: number;
+            };
+            /** @description 按类型计数 */
+            byKind: {
+                [key: string]: number;
+            };
+            /** @description 风险域名 TopN（按命中次数） */
+            topDomains: components["schemas"]["AlertAggregate"][];
+            /** @description 访问风险域名的客户端地址 TopN */
+            topClients: components["schemas"]["AlertAggregate"][];
+            /** @description 报警条数时间趋势（按窗口自动选择桶大小） */
+            trend: components["schemas"]["AlertTrendPoint"][];
+        };
+        AlertUnread: {
+            /** @description 未确认报警总数（徽标） */
+            count: number;
+            /** @description 最近未确认报警 */
+            items: components["schemas"]["Alert"][];
+        };
+        AlertAckRequest: {
+            /** @description 要确认的报警 ID（单条或批量） */
+            alertIds: string[];
+        };
+        AlertAckResult: {
+            /** @description 本次实际确认的条数（幂等：已确认的不重复计数） */
+            acked: number;
         };
         DualstackTemplate: {
             /** Format: uuid */
@@ -6888,6 +7097,158 @@ export interface operations {
             };
             400: components["responses"]["LogBadRequest"];
             503: components["responses"]["LogDown"];
+        };
+    };
+    listAlerts: {
+        parameters: {
+            query?: {
+                /** @description 时间窗起点（按 lastSeen；缺省=7 天前） */
+                from?: string;
+                /** @description 时间窗终点（缺省=当前时间） */
+                to?: string;
+                /** @description 关键字模糊搜索：标题/摘要/域名/客户端地址/组件 */
+                q?: string;
+                source?: "dns" | "system";
+                /** @description 报警类型（risk_url / db_down / disk_pressure ...） */
+                kind?: string;
+                severity?: "critical" | "warning" | "info";
+                status?: "open" | "acked" | "resolved";
+                page?: number;
+                pageSize?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 报警页 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertList"];
+                };
+            };
+            /** @description 参数非法 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            503: components["responses"]["LogDown"];
+        };
+    };
+    getAlertStats: {
+        parameters: {
+            query?: {
+                /** @description 时间窗起点（缺省=7 天前） */
+                from?: string;
+                to?: string;
+                q?: string;
+                source?: "dns" | "system";
+                kind?: string;
+                severity?: "critical" | "warning" | "info";
+                status?: "open" | "acked" | "resolved";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 统计结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertStats"];
+                };
+            };
+            /** @description 参数非法 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getAlertUnread: {
+        parameters: {
+            query?: {
+                /** @description 返回的最近未确认条数 */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 未确认报警 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertUnread"];
+                };
+            };
+        };
+    };
+    ackAlerts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlertAckRequest"];
+            };
+        };
+        responses: {
+            /** @description 确认结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertAckResult"];
+                };
+            };
+            /** @description 参数非法 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ackAllAlerts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 确认结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertAckResult"];
+                };
+            };
         };
     };
     listOperationAudits: {

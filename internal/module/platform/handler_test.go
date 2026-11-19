@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	apigen "github.com/xiaodaoi/ipam/api/gen/go"
+	"github.com/xiaodaoi/ipam/internal/module/alerts"
 	backupmodule "github.com/xiaodaoi/ipam/internal/module/backup"
 	"github.com/xiaodaoi/ipam/internal/module/dashboard"
 	dhcpmodule "github.com/xiaodaoi/ipam/internal/module/dhcp"
@@ -38,6 +39,9 @@ type dsAPI struct{ *dualstack.Handler }
 // dhcpAPI DHCP 选项与类匹配 handler 包装（platform 包内测试辅助，与 main 同构）。
 type dhcpAPI struct{ *dhcpmodule.Handler }
 
+// alertAPI 报警 handler 包装（与 main 同构）。
+type alertAPI struct{ *alerts.Handler }
+
 func newTestRouter(h *Handler) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -60,6 +64,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		*ipam.AssetHandler
 		*logsAPI
 		*logq.AuditHandler
+		*alertAPI
 		*dashAPI
 		*dsAPI
 		*AuthHandler
@@ -92,6 +97,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		ipam.NewAssetHandler(ipam.NewAssetService(ipam.NewMemAssetRepo(), orgStore)),
 		&logsAPI{logq.NewHandler(logq.NewService(logq.NewMemStore(), nil))},
 		logq.NewAuditHandler(logq.NewMemAuditStore()),
+		&alertAPI{alerts.NewHandler(alerts.NewService(alerts.NewMemRepo()))},
 		&dashAPI{dashboard.NewHandler(dashboard.NewService(logq.NewMemStore(), nil, nil, dashboard.Lights{}))},
 		&dsAPI{dualstack.NewHandler(dualstack.NewMemStore())},
 		NewAuthHandler(NewMemUserStore(), NewTokenBlacklist(), nil),

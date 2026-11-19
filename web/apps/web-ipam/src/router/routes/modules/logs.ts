@@ -23,6 +23,16 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        name: 'LogAlerts',
+        path: '/logs-center/alerts',
+        component: () => import('#/views/logs/alerts/index.vue'),
+        meta: {
+          icon: 'lucide:bell-ring',
+          title: $t('page.logs.alerts'),
+          authority: ['logs:read'],
+        },
+      },
+      {
         name: 'LogSearch',
         path: '/logs-center/search',
         component: () => import('#/views/logs/search/index.vue'),

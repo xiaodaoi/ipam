@@ -558,5 +558,127 @@
       "invalidRange": "结束时间必须晚于开始时间",
       "queryFail": "历史数据查询失败，请稍后重试"
     }
+  },
+  "alerts": {
+    "title": "报警日志",
+    "eyebrow": "Alert Center",
+    "description": "查看客户端访问风险域名的拦截记录与系统故障报警；点击报警即自动确认，右上角报警栏同步显示未确认数量。",
+    "kpi": {
+      "total": "报警总数",
+      "open": "未确认",
+      "critical": "严重报警",
+      "domains": "风险域名",
+      "totalHint": "统计窗口内全部报警",
+      "openHint": "点击查看后自动确认",
+      "criticalHint": "需优先处理",
+      "domainsHint": "按命中次数去重"
+    },
+    "filters": {
+      "title": "筛选与模糊搜索",
+      "keyword": "模糊搜索",
+      "keywordPlaceholder": "域名 / 客户端地址 / 标题 / 组件",
+      "source": "来源",
+      "kind": "类型",
+      "severity": "级别",
+      "status": "状态",
+      "all": "全部",
+      "active": "{n} 个条件生效",
+      "reset": "重置"
+    },
+    "source": {
+      "dns": "风险域名访问",
+      "system": "系统故障"
+    },
+    "severity": {
+      "critical": "严重",
+      "warning": "警告",
+      "info": "提示"
+    },
+    "status": {
+      "open": "未确认",
+      "acked": "已确认",
+      "resolved": "已恢复"
+    },
+    "kinds": {
+      "risk_url": "风险域名访问",
+      "db_down": "数据库异常",
+      "logstore_down": "日志存储异常",
+      "dhcp_down": "DHCP 服务异常",
+      "dns_down": "DNS 服务异常",
+      "disk_pressure": "磁盘空间不足",
+      "log_export_degraded": "日志外发降级",
+      "intel_sync_failed": "情报源同步失败",
+      "upstream_probe_failed": "上游探活失败"
+    },
+    "components": {
+      "database": "数据库",
+      "logstore": "日志存储",
+      "dhcp": "DHCP 服务",
+      "dns": "DNS 服务",
+      "host": "主机",
+      "log-export": "日志外发",
+      "intel": "情报源",
+      "upstream": "上游 DNS"
+    },
+    "row": {
+      "dnsSubtitle": "客户端 {ip} 访问 {domain}",
+      "systemSubtitle": "{component}",
+      "count": "{n} 次"
+    },
+    "table": {
+      "title": "报警记录",
+      "alert": "报警",
+      "source": "来源",
+      "client": "客户端地址",
+      "domain": "风险域名",
+      "severity": "级别",
+      "status": "状态",
+      "count": "次数",
+      "lastSeen": "最近发生",
+      "ackedBy": "确认人",
+      "empty": "当前条件下没有报警",
+      "detail": "详情"
+    },
+    "detail": {
+      "title": "报警详情",
+      "firstSeen": "首次发生",
+      "lastSeen": "最近发生",
+      "client": "客户端地址",
+      "domain": "风险域名",
+      "component": "组件",
+      "count": "累计次数",
+      "ackedAt": "确认时间",
+      "ackedBy": "确认人",
+      "resolvedAt": "恢复时间",
+      "detail": "原始详情",
+      "ack": "确认此报警",
+      "close": "关闭"
+    },
+    "actions": {
+      "ackAll": "全部确认",
+      "refresh": "刷新",
+      "viewAll": "查看全部",
+      "ackPage": "确认本页"
+    },
+    "messages": {
+      "acked": "已确认 {n} 条报警",
+      "ackFail": "确认失败",
+      "loadFail": "加载报警失败",
+      "noUnread": "没有未确认报警",
+      "confirmAckAll": "将把所有未确认报警标记为已确认，确定继续？"
+    },
+    "trend": {
+      "title": "报警趋势",
+      "domains": "风险域名 Top",
+      "clients": "客户端地址 Top",
+      "unit": "条"
+    },
+    "notify": {
+      "riskTitle": "风险域名访问：{domain}",
+      "riskMessage": "客户端 {ip} 访问被拦截域名 {n} 次",
+      "systemTitle": "{kind}",
+      "systemMessage": "组件 {component} 出现异常（{n} 次），点击查看详情",
+      "viewAll": "查看全部报警"
+    }
   }
 }

@@ -1,0 +1,215 @@
+# 报警中心端点（M6-040）
+# 全部挂在 /logs 下复用 logs 权限域；确认动作在 RBAC 中降级为 logs:read。
+
+AlertsCollection:
+  get:
+    operationId: listAlerts
+    tags: [logs]
+    summary: 查询报警记录（模糊搜索 + 类型/级别/状态过滤）
+    description: |
+      报警来源有两类：`dns`（客户端访问被拦截的风险域名，按客户端 IP + 域名 + 小时窗口聚合）
+      与 `system`（数据库/日志存储/DHCP/DNS 掉线、磁盘水位、日志外发降级、情报源同步失败、上游探活失败）。
+      `q` 为不区分大小写子串，命中标题/摘要/域名/客户端地址/组件名。
+      `from`/`to` 按末次发生时间（lastSeen）过滤，缺省最近 7 天。
+      排序：未确认优先，其后按 lastSeen 倒序。scope 为 logs:read。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: from
+        in: query
+        schema: { type: string, format: date-time }
+        description: 时间窗起点（按 lastSeen；缺省=7 天前）
+      - name: to
+        in: query
+        schema: { type: string, format: date-time }
+        description: 时间窗终点（缺省=当前时间）
+      - name: q
+        in: query
+        schema: { type: string }
+        description: 关键字模糊搜索：标题/摘要/域名/客户端地址/组件
+      - name: source
+        in: query
+        schema: { type: string, enum: [dns, system] }
+      - name: kind
+        in: query
+        schema: { type: string }
+        description: 报警类型（risk_url / db_down / disk_pressure ...）
+      - name: severity
+        in: query
+        schema: { type: string, enum: [critical, warning, info] }
+      - name: status
+        in: query
+        schema: { type: string, enum: [open, acked, resolved] }
+      - name: page
+        in: query
+        schema: { type: integer, minimum: 1, default: 1 }
+      - name: pageSize
+        in: query
+        schema: { type: integer, minimum: 1, maximum: 200, default: 20 }
+    responses:
+      '200':
+        description: 报警页
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/alerts.yaml#/AlertList'
+            examples:
+              ok:
+                summary: 风险域名访问 + 系统故障
+                value:
+                  items:
+                    - id: '11111111-2222-3333-4444-555555555555'
+                      source: dns
+                      kind: risk_url
+                      severity: warning
+                      status: open
+                      title: 风险域名访问：j8.asdlot.org
+                      message: 客户端 10.61.172.10 在最近 1 小时内访问被拦截域名 12 次
+                      clientIp: 10.61.172.10
+                      domain: j8.asdlot.org
+                      count: 12
+                      firstSeen: '2026-11-19T09:12:00Z'
+                      lastSeen: '2026-11-19T09:58:00Z'
+                    - id: '66666666-7777-8888-9999-000000000000'
+                      source: system
+                      kind: db_down
+                      severity: critical
+                      status: acked
+                      title: 数据库连接异常
+                      message: 数据库健康探针连续失败，业务读写可能受影响
+                      component: database
+                      count: 3
+                      firstSeen: '2026-11-19T09:40:00Z'
+                      lastSeen: '2026-11-19T09:58:00Z'
+                      ackedAt: '2026-11-19T09:50:00Z'
+                      ackedBy: admin
+                  total: 2
+                  page: 1
+                  pageSize: 20
+      '400':
+        description: 参数非法
+      '503':
+        $ref: '../components/responses/logs.yaml#/LogDown'
+
+AlertsStats:
+  get:
+    operationId: getAlertStats
+    tags: [logs]
+    summary: 报警统计（状态/级别/类型 + Top 域名/客户端 + 趋势）
+    description: |
+      与列表相同的过滤条件（不含分页）。`topDomains`/`topClients` 仅统计 DNS 风险访问，
+      `trend` 按时间窗自动选择桶大小（≤2 天：小时；≤31 天：天；更长：天）。scope 为 logs:read。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: from
+        in: query
+        schema: { type: string, format: date-time }
+        description: 时间窗起点（缺省=7 天前）
+      - name: to
+        in: query
+        schema: { type: string, format: date-time }
+      - name: q
+        in: query
+        schema: { type: string }
+      - name: source
+        in: query
+        schema: { type: string, enum: [dns, system] }
+      - name: kind
+        in: query
+        schema: { type: string }
+      - name: severity
+        in: query
+        schema: { type: string, enum: [critical, warning, info] }
+      - name: status
+        in: query
+        schema: { type: string, enum: [open, acked, resolved] }
+    responses:
+      '200':
+        description: 统计结果
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/alerts.yaml#/AlertStats'
+            examples:
+              ok:
+                value:
+                  total: 42
+                  open: 5
+                  acked: 30
+                  resolved: 7
+                  bySeverity: { critical: 2, warning: 38, info: 2 }
+                  byKind: { risk_url: 36, db_down: 2, disk_pressure: 1, intel_sync_failed: 3 }
+                  topDomains:
+                    - { key: j8.asdlot.org, count: 120 }
+                    - { key: g.gp108.org, count: 34 }
+                  topClients:
+                    - { key: 10.61.172.10, count: 98 }
+                  trend:
+                    - { ts: '2026-11-19T08:00:00Z', count: 12 }
+                    - { ts: '2026-11-19T09:00:00Z', count: 30 }
+      '400':
+        description: 参数非法
+
+AlertsUnread:
+  get:
+    operationId: getAlertUnread
+    tags: [logs]
+    summary: 未确认报警（右上角报警栏）
+    description: |
+      返回未确认报警总数与最近 N 条（按 lastSeen 倒序）。前端轮询该端点刷新徽标。
+      scope 为 logs:read。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: limit
+        in: query
+        schema: { type: integer, minimum: 1, maximum: 50, default: 8 }
+        description: 返回的最近未确认条数
+    responses:
+      '200':
+        description: 未确认报警
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/alerts.yaml#/AlertUnread'
+
+AlertsAck:
+  post:
+    operationId: ackAlerts
+    tags: [logs]
+    summary: 确认报警（单条或批量，幂等）
+    description: |
+      查看即确认：点击通知或报警详情时调用。已确认/已恢复的条目不重复计数。
+      确认记录 `ackedBy`（当前登录用户）与时间。scope 为 logs:read（确认不是配置变更）。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/alerts.yaml#/AlertAckRequest'
+          examples:
+            single:
+              value: { alertIds: ['11111111-2222-3333-4444-555555555555'] }
+    responses:
+      '200':
+        description: 确认结果
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/alerts.yaml#/AlertAckResult'
+      '400':
+        description: 参数非法
+
+AlertsAckAll:
+  post:
+    operationId: ackAllAlerts
+    tags: [logs]
+    summary: 确认全部未确认报警
+    description: 把所有 `open` 报警置为 `acked`（记录当前用户）。scope 为 logs:read。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: 确认结果
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/alerts.yaml#/AlertAckResult'

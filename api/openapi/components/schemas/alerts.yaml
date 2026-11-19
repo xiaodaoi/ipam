@@ -1,0 +1,115 @@
+# 报警中心契约（M6-040）
+# 来源：DNS 风险域名访问（ClickHouse action=blocked 聚合）+ 系统故障探针。
+# 确认语义：全局确认（单机产品），未确认数量驱动右上角徽标。
+
+Alert:
+  type: object
+  description: 一条报警记录（DNS 风险访问按 客户端 IP + 域名 + 小时窗口聚合）。
+  required: [id, source, kind, severity, status, title, message, count, firstSeen, lastSeen]
+  properties:
+    id: { type: string, format: uuid }
+    source:
+      type: string
+      enum: [dns, system]
+      description: dns=风险域名访问；system=系统故障
+    kind:
+      type: string
+      description: >-
+        risk_url | db_down | logstore_down | dhcp_down | dns_down |
+        disk_pressure | log_export_degraded | intel_sync_failed | upstream_probe_failed
+    severity:
+      type: string
+      enum: [critical, warning, info]
+    status:
+      type: string
+      enum: [open, acked, resolved]
+      description: open=未确认；acked=已确认；resolved=故障已恢复
+    title: { type: string }
+    message: { type: string, description: 面向用户的中文/英文摘要（不暴露底层产品名） }
+    clientIp: { type: string, description: 访问风险域名的客户端地址（DNS 来源） }
+    clientMac: { type: string, description: 客户端 MAC（可关联时填充） }
+    domain: { type: string, description: 被拦截的风险域名（DNS 来源） }
+    component: { type: string, description: 系统故障组件中性名（database/logstore/dhcp/dns/host...） }
+    count: { type: integer, description: 窗口内事件数或连续故障次数 }
+    detail: { type: string, description: 原始详情（可折叠展示） }
+    firstSeen: { type: string, format: date-time }
+    lastSeen: { type: string, format: date-time }
+    ackedAt: { type: string, format: date-time, nullable: true }
+    ackedBy: { type: string }
+    resolvedAt: { type: string, format: date-time, nullable: true }
+    createdAt: { type: string, format: date-time }
+
+AlertList:
+  type: object
+  required: [items, total, page, pageSize]
+  properties:
+    items: { type: array, items: { $ref: 'alerts.yaml#/Alert' } }
+    total: { type: integer, description: 满足过滤的总条数 }
+    page: { type: integer }
+    pageSize: { type: integer }
+
+AlertAggregate:
+  type: object
+  required: [key, count]
+  properties:
+    key: { type: string, description: 域名或客户端地址 }
+    count: { type: integer }
+
+AlertTrendPoint:
+  type: object
+  required: [ts, count]
+  properties:
+    ts: { type: string, format: date-time, description: 分桶起点（UTC） }
+    count: { type: integer }
+
+AlertStats:
+  type: object
+  required: [total, open, acked, resolved, bySeverity, byKind, topDomains, topClients, trend]
+  properties:
+    total: { type: integer }
+    open: { type: integer, description: 未确认 }
+    acked: { type: integer, description: 已确认 }
+    resolved: { type: integer, description: 已恢复 }
+    bySeverity:
+      type: object
+      additionalProperties: { type: integer }
+      description: 按级别计数（critical/warning/info）
+    byKind:
+      type: object
+      additionalProperties: { type: integer }
+      description: 按类型计数
+    topDomains:
+      type: array
+      items: { $ref: 'alerts.yaml#/AlertAggregate' }
+      description: 风险域名 TopN（按命中次数）
+    topClients:
+      type: array
+      items: { $ref: 'alerts.yaml#/AlertAggregate' }
+      description: 访问风险域名的客户端地址 TopN
+    trend:
+      type: array
+      items: { $ref: 'alerts.yaml#/AlertTrendPoint' }
+      description: 报警条数时间趋势（按窗口自动选择桶大小）
+
+AlertUnread:
+  type: object
+  required: [count, items]
+  properties:
+    count: { type: integer, description: 未确认报警总数（徽标） }
+    items: { type: array, items: { $ref: 'alerts.yaml#/Alert' }, description: 最近未确认报警 }
+
+AlertAckRequest:
+  type: object
+  required: [alertIds]
+  properties:
+    alertIds:
+      type: array
+      minItems: 1
+      items: { type: string, format: uuid }
+      description: 要确认的报警 ID（单条或批量）
+
+AlertAckResult:
+  type: object
+  required: [acked]
+  properties:
+    acked: { type: integer, description: 本次实际确认的条数（幂等：已确认的不重复计数） }

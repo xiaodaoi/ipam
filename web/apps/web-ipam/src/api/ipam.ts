@@ -244,6 +244,37 @@ export const listLogTop = (q: LogQuery & { by?: string; limit?: number }) =>
 export const getLogQps = (q: LogQuery & { intervalSec?: number }) =>
   req<QpsSeries>(`/logs/qps${qsOf(q as never)}`);
 
+// ── 报警中心（M6-040）──
+export type AlertRow = components['schemas']['Alert'];
+export type AlertPage = components['schemas']['AlertList'];
+export type AlertStats = components['schemas']['AlertStats'];
+export type AlertUnread = components['schemas']['AlertUnread'];
+export type AlertAckResult = components['schemas']['AlertAckResult'];
+export interface AlertQuery {
+  from?: string;
+  to?: string;
+  q?: string;
+  source?: string;
+  kind?: string;
+  severity?: string;
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}
+export const listAlerts = (q: AlertQuery) =>
+  req<AlertPage>(`/logs/alerts${qsOf(q as never)}`);
+export const getAlertStats = (q: AlertQuery) =>
+  req<AlertStats>(`/logs/alerts/stats${qsOf(q as never)}`);
+export const getAlertUnread = (limit = 8) =>
+  req<AlertUnread>(`/logs/alerts/unread?limit=${limit}`);
+export const ackAlerts = (alertIds: string[]) =>
+  req<AlertAckResult>('/logs/alerts/ack', {
+    method: 'POST',
+    body: JSON.stringify({ alertIds }),
+  });
+export const ackAllAlerts = () =>
+  req<AlertAckResult>('/logs/alerts/ack-all', { method: 'POST' });
+
 export interface AuditQuery {
   action?: string;
   actorType?: string;
