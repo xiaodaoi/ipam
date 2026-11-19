@@ -1,5 +1,11 @@
 <script setup lang="ts">
-import type { Blocklist, BlocklistEntryRow, PolicyGroupRow } from '#/api/ipam';
+import type {
+  Blocklist,
+  BlocklistEntryRow,
+  IntelWhitelistRow,
+  IntelZoneRow,
+  PolicyGroupRow,
+} from '#/api/ipam';
 
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
@@ -23,9 +29,11 @@ import {
   addBlocklistEntry,
   compilePolicyGroup,
   createBlocklist,
+  createIntelWhitelist,
   createPolicyGroup,
   deleteBlocklist,
   deleteBlocklistEntry,
+  deleteIntelWhitelist,
   exportBlocklistCsv,
   importBlocklistEntries,
   installBuiltinPack,
@@ -33,7 +41,10 @@ import {
   listBlocklists,
   listBlocklistVersions,
   listBuiltinPacks,
+  listIntelWhitelist,
+  listIntelZones,
   listPolicyGroups,
+  reloadIntelZones,
   rollbackBlocklist,
   syncBlocklist,
 } from '#/api/ipam';
@@ -440,6 +451,189 @@ async function installPack(key: string) {
   }
 }
 
+// ── RPZ 运行态与白名单豁免（M6-038）──
+// 4 个区顺序即优先级：白名单 → 热层 → 宽层 → 自定义；运行期不增删区。
+const zoneRows = ref<IntelZoneRow[]>([]);
+const zoneLoading = ref(false);
+const reloading = ref(false);
+const wlRows = ref<IntelWhitelistRow[]>([]);
+const wlLoading = ref(false);
+const wlKeyword = ref('');
+const wlForm = ref<{
+  kind: 'qname' | 'suffix';
+  reason: string;
+  value: string;
+}>({ kind: 'suffix', value: '', reason: '' });
+
+async function loadIntel() {
+  zoneLoading.value = true;
+  wlLoading.value = true;
+  try {
+    const [zones, whitelist] = await Promise.all([
+      listIntelZones(),
+      listIntelWhitelist(),
+    ]);
+    zoneRows.value = zones.items ?? [];
+    wlRows.value = whitelist.items ?? [];
+  } catch (error) {
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dns.blocklist.intel.zones.empty'),
+    );
+  } finally {
+    zoneLoading.value = false;
+    wlLoading.value = false;
+  }
+}
+async function reloadZones() {
+  reloading.value = true;
+  try {
+    const res = await reloadIntelZones();
+    const n = res.reloaded?.length ?? 0;
+    if (n > 0) {
+      message.success($t('dns.blocklist.intel.zones.reloadOk', { n }));
+    } else {
+      message.info($t('dns.blocklist.intel.zones.reloadNoop'));
+    }
+    await loadIntel();
+  } catch (error) {
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dns.blocklist.intel.zones.statusFailed'),
+    );
+  } finally {
+    reloading.value = false;
+  }
+}
+
+const [WlModal, wlModalApi] = useVbenModal({
+  draggable: true,
+  title: $t('dns.blocklist.intel.wl.modalTitle'),
+  confirmText: $t('dns.blocklist.intel.wl.confirm'),
+  onConfirm: () => createWl(),
+});
+function openCreateWl() {
+  wlForm.value = { kind: 'suffix', value: '', reason: '' };
+  wlModalApi.open();
+}
+async function createWl() {
+  const value = wlForm.value.value.trim();
+  const reason = wlForm.value.reason.trim();
+  if (!value) {
+    message.warning($t('dns.blocklist.intel.wl.msgValueRequired'));
+    return;
+  }
+  if (!reason) {
+    message.warning($t('dns.blocklist.intel.wl.msgReasonRequired'));
+    return;
+  }
+  try {
+    await createIntelWhitelist({
+      kind: wlForm.value.kind,
+      value,
+      reason,
+    });
+    message.success($t('dns.blocklist.intel.wl.msgAdded'));
+    wlModalApi.close();
+    await loadIntel();
+  } catch (error) {
+    message.error(
+      error instanceof Error ? error.message : $t('dns.common.createFailed'),
+    );
+  }
+}
+async function removeWl(id: string) {
+  try {
+    await deleteIntelWhitelist(id);
+    message.success($t('dns.blocklist.intel.wl.msgDeleted'));
+  } catch (error) {
+    message.error(
+      error instanceof Error ? error.message : $t('dns.common.deleteFailed'),
+    );
+  }
+  await loadIntel();
+}
+
+const filteredWhitelist = computed(() => {
+  const kw = wlKeyword.value.trim().toLowerCase();
+  if (!kw) return wlRows.value;
+  return wlRows.value.filter((r) =>
+    `${r.value} ${r.reason}`.toLowerCase().includes(kw),
+  );
+});
+const ZONE_STATUS_TEXT = computed<Record<string, string>>(() => ({
+  empty: $t('dns.blocklist.intel.zones.statusEmpty'),
+  failed: $t('dns.blocklist.intel.zones.statusFailed'),
+  loaded: $t('dns.blocklist.intel.zones.statusLoaded'),
+  stale: $t('dns.blocklist.intel.zones.statusStale'),
+}));
+const ZONE_STATUS_COLOR: Record<string, string> = {
+  empty: 'default',
+  failed: 'red',
+  loaded: 'green',
+  stale: 'orange',
+};
+const WL_KIND_TEXT = computed<Record<string, string>>(() => ({
+  qname: $t('dns.blocklist.intel.wl.kindQname'),
+  suffix: $t('dns.blocklist.intel.wl.kindSuffix'),
+}));
+const zoneColumns = computed(() => [
+  {
+    title: $t('dns.blocklist.intel.zones.colZone'),
+    dataIndex: 'zone',
+    minWidth: 220,
+  },
+  {
+    title: $t('dns.blocklist.intel.zones.colEntries'),
+    dataIndex: 'entries',
+    width: 110,
+  },
+  {
+    title: $t('dns.blocklist.intel.zones.colSerial'),
+    dataIndex: 'serial',
+    width: 140,
+  },
+  {
+    title: $t('dns.blocklist.intel.zones.colLoaded'),
+    dataIndex: 'loadedSerial',
+    width: 140,
+  },
+  {
+    title: $t('dns.blocklist.intel.zones.colStatus'),
+    key: 'status',
+    width: 110,
+  },
+]);
+const wlColumns = computed(() => [
+  {
+    title: $t('dns.blocklist.intel.wl.colValue'),
+    dataIndex: 'value',
+    minWidth: 240,
+  },
+  {
+    title: $t('dns.blocklist.intel.wl.colKind'),
+    dataIndex: 'kind',
+    width: 150,
+  },
+  {
+    title: $t('dns.blocklist.intel.wl.colReason'),
+    dataIndex: 'reason',
+    minWidth: 200,
+  },
+  {
+    title: $t('dns.blocklist.intel.wl.colCreated'),
+    dataIndex: 'createdAt',
+    minWidth: 180,
+  },
+  { title: $t('dns.common.actions'), key: 'op', width: 90 },
+]);
+
+function fmtSerial(v?: number) {
+  return v && v > 0 ? String(v) : '—';
+}
+
 const WEEK_OPTIONS = computed(() => [
   { label: $t('dns.blocklist.week.sun'), value: 0 },
   { label: $t('dns.blocklist.week.mon'), value: 1 },
@@ -593,6 +787,7 @@ const packColumns = computed(() => [
 onMounted(() => {
   void loadPolicyGroups();
   void load();
+  void loadIntel();
   timer = setInterval(load, 30_000);
 });
 onBeforeUnmount(() => timer && clearInterval(timer));
@@ -622,6 +817,7 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           @click="
             load();
             loadPolicyGroups();
+            loadIntel();
           "
         >
           <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-3.5" />{{
@@ -930,6 +1126,198 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         }}</pre>
       </div>
     </Card>
+
+    <Card>
+      <template #title>
+        <span class="ipam-card-title">
+          <IconifyIcon icon="lucide:layers" />
+          {{ $t('dns.blocklist.intel.zones.title') }}
+          <em class="ipam-card-sub">{{
+            $t('dns.blocklist.intel.zones.sub', { n: zoneRows.length })
+          }}</em>
+        </span>
+      </template>
+      <template #extra>
+        <span class="ipam-hint">{{
+          $t('dns.blocklist.intel.zones.hint')
+        }}</span>
+      </template>
+
+      <div class="ipam-toolbar mb-3">
+        <div class="ipam-toolbar__spacer"></div>
+        <Button size="small" :loading="reloading" @click="reloadZones">
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1" />{{
+            $t('dns.blocklist.intel.zones.reload')
+          }}
+        </Button>
+      </div>
+
+      <Table
+        :data-source="zoneRows"
+        :loading="zoneLoading"
+        :columns="zoneColumns"
+        :locale="{ emptyText: $t('dns.blocklist.intel.zones.empty') }"
+        :pagination="false"
+        row-key="zone"
+        size="small"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.dataIndex === 'zone'">
+            <span class="ipam-mono">{{ record.zone }}</span>
+          </template>
+          <template v-else-if="column.dataIndex === 'entries'">
+            <span class="ipam-chip" data-tone="blue">{{
+              $t('dns.common.count', { n: record.entries })
+            }}</span>
+          </template>
+          <template
+            v-else-if="
+              column.dataIndex === 'serial' ||
+              column.dataIndex === 'loadedSerial'
+            "
+          >
+            <span class="ipam-mono ipam-cell-meta">{{
+              fmtSerial(record[column.dataIndex])
+            }}</span>
+          </template>
+          <template v-else-if="column.key === 'status'">
+            <Tag
+              class="m-0"
+              :color="ZONE_STATUS_COLOR[record.status] ?? 'default'"
+            >
+              {{ ZONE_STATUS_TEXT[record.status] ?? record.status }}
+            </Tag>
+          </template>
+        </template>
+      </Table>
+    </Card>
+
+    <Card>
+      <template #title>
+        <span class="ipam-card-title">
+          <IconifyIcon icon="lucide:shield-check" />
+          {{ $t('dns.blocklist.intel.wl.title') }}
+          <em class="ipam-card-sub">{{
+            $t('dns.blocklist.intel.wl.sub', {
+              filtered: filteredWhitelist.length,
+              total: wlRows.length,
+            })
+          }}</em>
+        </span>
+      </template>
+      <template #extra>
+        <span class="ipam-hint">{{ $t('dns.blocklist.intel.wl.hint') }}</span>
+      </template>
+
+      <div class="ipam-toolbar mb-3">
+        <div class="ipam-field">
+          <span class="ipam-field__label">{{ $t('dns.common.keyword') }}</span>
+          <Input
+            v-model:value="wlKeyword"
+            allow-clear
+            :placeholder="$t('dns.blocklist.intel.wl.kwPlaceholder')"
+            style="width: 240px"
+          />
+        </div>
+        <div class="ipam-toolbar__spacer"></div>
+        <Button size="small" @click="loadIntel">
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1" />{{
+            $t('dns.common.refresh')
+          }}
+        </Button>
+        <Button type="primary" size="small" @click="openCreateWl">
+          <IconifyIcon icon="lucide:plus" class="mr-1" />{{
+            $t('dns.blocklist.intel.wl.add')
+          }}
+        </Button>
+      </div>
+
+      <Table
+        :data-source="filteredWhitelist"
+        :loading="wlLoading"
+        :columns="wlColumns"
+        :locale="{
+          emptyText: wlKeyword
+            ? $t('dns.blocklist.intel.wl.emptyFiltered')
+            : $t('dns.blocklist.intel.wl.empty'),
+        }"
+        :pagination="{ pageSize: 10, showTotal }"
+        row-key="id"
+        size="small"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.dataIndex === 'value'">
+            <span class="ipam-cell-title ipam-mono">{{ record.value }}</span>
+          </template>
+          <template v-else-if="column.dataIndex === 'kind'">
+            <Tag class="m-0" color="blue">
+              {{ WL_KIND_TEXT[record.kind] ?? record.kind }}
+            </Tag>
+          </template>
+          <template v-else-if="column.dataIndex === 'createdAt'">
+            <span class="ipam-cell-meta">{{ fmtSync(record.createdAt) }}</span>
+          </template>
+          <template v-else-if="column.key === 'op'">
+            <Popconfirm
+              :title="$t('dns.blocklist.intel.wl.deleteTitle')"
+              :description="$t('dns.blocklist.intel.wl.deleteDesc')"
+              :ok-text="$t('dns.common.delete')"
+              :cancel-text="$t('dns.common.cancel')"
+              @confirm="removeWl(record.id)"
+            >
+              <Button size="small" danger>
+                {{ $t('dns.common.delete') }}
+              </Button>
+            </Popconfirm>
+          </template>
+        </template>
+      </Table>
+    </Card>
+
+    <!-- 新增白名单（RPZ passthru） -->
+    <WlModal class="w-[560px]">
+      <div class="ipam-form-grid">
+        <label class="ipam-form-field">
+          <span class="ipam-form-field__label"
+            >{{ $t('dns.blocklist.intel.wl.valueLabel') }}<em>*</em></span
+          >
+          <Input
+            v-model:value="wlForm.value"
+            :placeholder="$t('dns.blocklist.intel.wl.valuePlaceholder')"
+          />
+        </label>
+        <label class="ipam-form-field">
+          <span class="ipam-form-field__label">{{
+            $t('dns.blocklist.intel.wl.kindLabel')
+          }}</span>
+          <Select
+            v-model:value="wlForm.kind"
+            :options="[
+              {
+                value: 'qname',
+                label: $t('dns.blocklist.intel.wl.kindQname'),
+              },
+              {
+                value: 'suffix',
+                label: $t('dns.blocklist.intel.wl.kindSuffix'),
+              },
+            ]"
+          />
+        </label>
+        <label class="ipam-form-field ipam-form-field--wide">
+          <span class="ipam-form-field__label"
+            >{{ $t('dns.blocklist.intel.wl.reasonLabel') }}<em>*</em></span
+          >
+          <Input
+            v-model:value="wlForm.reason"
+            :placeholder="$t('dns.blocklist.intel.wl.reasonPlaceholder')"
+          />
+        </label>
+        <div class="ipam-form-hint ipam-form-field--wide">
+          {{ $t('dns.blocklist.intel.wl.modalHint') }}
+        </div>
+      </div>
+    </WlModal>
 
     <!-- 新建名单 -->
     <CreateModal class="w-[640px]">

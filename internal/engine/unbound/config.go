@@ -136,9 +136,14 @@ func BuildConf(in ConfInput) string {
 		}
 	}
 
-	// 封禁 RPZ 区（zonefile 引用）
+	// 封禁 RPZ 区（zonefile 引用）。
+	// rpz-log: yes 输出命中日志（`rpz: applied [zone] qname ...`），
+	// 由 vector parse_rpz 转成 action=blocked 入 ClickHouse（M6-038）。
 	for _, rz := range in.RpzZones {
-		fmt.Fprintf(&sb, "rpz:\n  name: %s\n  zonefile: %s\n", quoteName(rz.Name), rz.ZonefilePath)
+		// rpz-log-name 必须显式给：否则命中日志不带区名，vector 无法判断
+		// 是哪一层（白名单/热层/宽层/自定义）放的。
+		fmt.Fprintf(&sb, "rpz:\n  name: %s\n  zonefile: %s\n  rpz-log: yes\n  rpz-log-name: %s\n",
+			quoteName(rz.Name), rz.ZonefilePath, quoteName(rz.Name))
 	}
 
 	return sb.String()

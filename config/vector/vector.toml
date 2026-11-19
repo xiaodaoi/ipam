@@ -115,12 +115,43 @@ source = '''
   .timestamp = from_unix_timestamp!(to_int!(parsed.ts), unit: "seconds")
 '''
 
+# ── Unbound RPZ 命中日志（M6-038）──
+# 需在 rpz: 子句中开启 rpz-log: yes；样例：
+#   [1794998097] unbound[1296:0] info: rpz: applied [spamhaus-dbl] wikipedia.org. rpz-nxdomain 127.0.0.1@53113 wikipedia.org. A IN
+# 落库 action=blocked，仪表盘「今日拦截量」与日志中心 action 过滤据此可用。
+[transforms.parse_rpz]
+type = "remap"
+inputs = ["unbound_log"]
+source = '''
+  m, merr = parse_regex(.message, r'\[(?P<ts>\d+)\] unbound\[\d+:\d+\] info: rpz: applied \[(?P<zone>[^\]]+)\] (?P<qname>\S+) (?P<paction>rpz-\S+) (?P<cip>[^\s@]+)@(?P<cport>\d+)')
+  if merr != null {
+    abort
+  }
+  qn, qerr = replace(m.qname, r'\.$', "")
+  if qerr != null {
+    abort
+  }
+  .event = "blocked"
+  .rcode = ""
+  .answer_ip = null
+  .timestamp = from_unix_timestamp!(to_int!(m.ts), unit: "seconds")
+  .severity = "INFO"
+  .client_mac = ""
+  .address = ""
+  .sip = m.cip
+  .domain = qn
+  .qtype = ""
+  .rtype = "dns"
+  .block_zone = m.zone
+  .block_action = m.paction
+'''
+
 # ── 归一化统一 schema（logs 宽表字段，§3 ClickHouse）──
 # 空地址必须落 null（列 Nullable(IPv6)，'' 无法解析会整批失败）；
 # ts 用毫秒字符串保游标精度。
 [transforms.normalize]
 type = "remap"
-inputs = ["parse_kea", "parse_unbound", "parse_dns_log"]
+inputs = ["parse_kea", "parse_unbound", "parse_dns_log", "parse_rpz"]
 source = '''
   if .rtype != "dhcp" && .rtype != "dns" {
     abort

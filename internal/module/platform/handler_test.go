@@ -73,6 +73,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		*dnsmodule.ForwardHandler
 		*dnsmodule.ZoneHandler
 		*dnsmodule.BlocklistHandler
+		*dnsmodule.IntelHandler
 		*dnsmodule.SettingsHandler
 		*RolesHandler
 		*WebuiHandler
@@ -104,6 +105,7 @@ func newTestRouter(h *Handler) *gin.Engine {
 		dnsmodule.NewForwardHandler(dnsmodule.NewForwardService(dnsmodule.NewMemForwardRuleRepo(), dnsmodule.NewMemUpstreamRepo(), fakeUnbound{})),
 		dnsmodule.NewZoneHandler(dnsmodule.NewZoneService(dnsmodule.NewMemZoneRepo(), fakeUnbound{}), nil),
 		dnsmodule.NewBlocklistHandler(dnsmodule.NewBlocklistService(dnsmodule.NewMemBlocklistRepo(), nil, fakeUnbound{}, "/tmp/rpz")),
+		dnsmodule.NewIntelHandler(dnsmodule.NewIntelService("/tmp/rpz", fakeUnbound{}, dnsmodule.NewMemBlocklistRepo(), dnsmodule.NewMemIntelRepo())),
 		dnsmodule.NewSettingsHandler(dnsmodule.NewSettingsService(dnsmodule.NewMemSettingsRepo(), fakeUnbound{}, "/tmp/unbound.conf", nil), dnsmodule.NewMemSettingsRepo()),
 		NewRolesHandler(NewMemRoleStore()),
 		NewWebuiHandler(NewMemWebuiRepo()),
@@ -241,3 +243,7 @@ func (f fakeUnbound) LocalData(context.Context, string) error         { return n
 func (f fakeUnbound) LocalDataRemove(context.Context, string) error   { return nil }
 func (f fakeUnbound) Reload(context.Context) error                    { return nil }
 func (f fakeUnbound) FlushZone(context.Context, string) error         { return nil }
+
+func (f fakeUnbound) AuthZoneSerials(context.Context) (map[string]uint32, error) {
+	return map[string]uint32{}, nil
+}

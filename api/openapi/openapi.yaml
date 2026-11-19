@@ -200,6 +200,14 @@ paths:
     $ref: './paths/blocklist.yaml#/PolicyGroupsCollection'
   /dns/policy-groups/{groupId}/compile:
     $ref: './paths/blocklist.yaml#/PolicyGroupItem'
+  /dns/intel/whitelist:
+    $ref: './paths/intel.yaml#/IntelWhitelistCollection'
+  /dns/intel/whitelist/{whitelistId}:
+    $ref: './paths/intel.yaml#/IntelWhitelistItem'
+  /dns/intel/zones:
+    $ref: './paths/intel.yaml#/IntelZonesCollection'
+  /dns/intel/zones/reload:
+    $ref: './paths/intel.yaml#/IntelZoneReload'
   /dns/zones:
     $ref: './paths/dnszone.yaml#/DnsZonesCollection'
   /dns/zones/{zoneId}/records:

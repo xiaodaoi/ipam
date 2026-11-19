@@ -569,9 +569,14 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	if pool != nil {
 		settingsRepo = dnsmodule.NewPgSettingsRepo(pool)
 	}
-	blSvc := dnsmodule.NewBlocklistService(blRepo, nil, unboundCtl, "/var/lib/ipam/rpz")
-	// M6-023：redirect 封禁指向提示页 IP（settings.cache.blockPageIP）。
-	blSvc.SetBlockPageResolver(func(ctx context.Context) string {
+	blSvc := dnsmodule.NewBlocklistService(blRepo, nil, unboundCtl, "/etc/unbound-rendered/zones/rpz")
+	// M6-038：RPZ 编译/下发（白名单 + 自定义封禁；4 个固定区）。
+	var intelStore dnsmodule.IntelRepo = dnsmodule.NewMemIntelRepo()
+	if pool != nil {
+		intelStore = dnsmodule.NewPgIntelRepo(pool)
+	}
+	intelSvc := dnsmodule.NewIntelService("/etc/unbound-rendered/zones/rpz", unboundCtl, blRepo, intelStore)
+	blockPageFn := func(ctx context.Context) string {
 		raw, ok, err := settingsRepo.Get(ctx, "cache")
 		if err != nil || !ok {
 			return ""
@@ -581,7 +586,15 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 			return ""
 		}
 		return strings.TrimSpace(s.BlockPageIP)
-	})
+	}
+	intelSvc.SetBlockPageResolver(blockPageFn)
+	blSvc.SetIntelService(intelSvc)
+	// 先落空区文件：conf 渲染的 rpz: 子句必须有 zonefile，否则 unbound 区加载失败。
+	if err := intelSvc.EnsureFiles(rootCtx); err != nil {
+		log.Printf("[intel] ensure zonefiles: %v", err)
+	}
+	// M6-023：redirect 封禁指向提示页 IP（settings.cache.blockPageIP）。
+	blSvc.SetBlockPageResolver(blockPageFn)
 	// M2-033：启动重放封禁 local_zone（unbound 重启后运行时态恢复）
 	go func() {
 		if err := blSvc.ReplayAll(rootCtx); err != nil {
@@ -591,6 +604,7 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	// M6-023：策略时段调度（每分钟收敛，窗口切换自动生效/撤销）。
 	dnsmodule.StartScheduleScheduler(rootCtx, blSvc, time.Minute)
 	blH := dnsmodule.NewBlocklistHandler(blSvc)
+	intelH := dnsmodule.NewIntelHandler(intelSvc)
 	applier := &confApplier{
 		pool: pool, upRepo: upRepo, frRepo: frRepo, zoneRepo: zoneRepo,
 		blRepo: blRepo, settings: settingsRepo, ctl: unboundCtl,
@@ -899,6 +913,7 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		*dnsmodule.ForwardHandler
 		*dnsmodule.ZoneHandler
 		*dnsmodule.BlocklistHandler
+		*dnsmodule.IntelHandler
 		*dnsmodule.SettingsHandler
 		*platform.RolesHandler
 		*platform.WebuiHandler
@@ -909,7 +924,7 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		*backupmodule.APIHandler
 		*confApplier
 		*systemmetric.MetricHandler
-	}{h, orgH, subH, ledgerH, metaH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, authH, userH, sessionH, ldapH, &dhcpAPI{dhcpH}, leaseH, utilH, dnsH, fwdH, zoneH, blH, settingsH, rolesH, webuiH, platform.NewSecuritySettingsHandler(secStore), licenseH, logMgrH, exportH, backupH, applier, sysMetricH}
+	}{h, orgH, subH, ledgerH, metaH, assetH, &logs, auditH, &dashAPI{dashH}, &dsAPI{dsH}, authH, userH, sessionH, ldapH, &dhcpAPI{dhcpH}, leaseH, utilH, dnsH, fwdH, zoneH, blH, intelH, settingsH, rolesH, webuiH, platform.NewSecuritySettingsHandler(secStore), licenseH, logMgrH, exportH, backupH, applier, sysMetricH}
 	// Prometheus 指标（M6-005）：放在 RBAC 之前供抓取；中间件只统计其后的 /api/v1 路由。
 	var logStatsFn func(context.Context) (logmanager.LogStats, error)
 	if chAdmin != nil {

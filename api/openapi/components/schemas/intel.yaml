@@ -1,0 +1,61 @@
+IntelWhitelist:
+  type: object
+  description: 拦截白名单（RPZ passthru，M6-038）。
+  required: [id, kind, value, reason, enabled]
+  properties:
+    id: { type: string, format: uuid }
+    kind: { type: string, enum: [qname, suffix], description: qname=仅该名；suffix=该域及子域 }
+    value: { type: string, description: 域名（不含通配前缀） }
+    reason: { type: string, description: 豁免原因（必填，审计用） }
+    category: { type: string, nullable: true }
+    source: { type: string, description: 'manual | builtin | feed_exclude | auto_fp' }
+    expiresAt: { type: string, format: date-time, nullable: true, description: 到期后自动失效 }
+    enabled: { type: boolean }
+    createdBy: { type: string }
+    createdAt: { type: string, format: date-time }
+
+IntelWhitelistCreate:
+  type: object
+  required: [value, reason]
+  properties:
+    kind: { type: string, enum: [qname, suffix], default: qname }
+    value: { type: string }
+    reason: { type: string }
+    category: { type: string, nullable: true }
+    expiresAt: { type: string, format: date-time, nullable: true }
+
+IntelWhitelistList:
+  type: object
+  required: [items]
+  properties:
+    items: { type: array, items: { $ref: 'intel.yaml#/IntelWhitelist' } }
+    total: { type: integer }
+
+IntelZone:
+  type: object
+  description: RPZ 区运行态快照。
+  required: [zone, entries, serial, status]
+  properties:
+    zone: { type: string }
+    entries: { type: integer, description: 去重后的域名条目数 }
+    serial: { type: integer, description: 编译写入的 SOA serial }
+    loadedSerial: { type: integer, description: list_auth_zones 观测到的运行态 serial }
+    sha256: { type: string }
+    path: { type: string }
+    status: { type: string, enum: [empty, loaded, stale, failed] }
+    updatedAt: { type: string, format: date-time }
+
+IntelZoneList:
+  type: object
+  required: [items]
+  properties:
+    items: { type: array, items: { $ref: 'intel.yaml#/IntelZone' } }
+    total: { type: integer }
+
+IntelCompileResult:
+  type: object
+  required: [zones, entries]
+  properties:
+    zones: { type: array, items: { $ref: 'intel.yaml#/IntelZone' } }
+    entries: { type: integer, description: 自定义封禁条目数 }
+    reloaded: { type: array, items: { type: string }, description: 本次实际热载的区名 }

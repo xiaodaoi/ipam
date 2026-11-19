@@ -176,26 +176,26 @@ func HTTPSync(ctx context.Context, url string) (string, error) {
 
 // BlocklistService 名单/分组/编译业务。
 type BlocklistService struct {
-	repo      BlocklistRepo
-	fetch     FeedFetcher
-	ctl       UnboundController
-	rpzDir    string
+	repo   BlocklistRepo
+	fetch  FeedFetcher
+	ctl    UnboundController
+	rpzDir string
+	// intel RPZ 编译/下发（M6-038：封禁运行态由 RPZ zone 承载，不再逐条 local_zone）。
+	intel     *IntelService
 	blockPage func(context.Context) string // redirect 提示页 IP 来源（M6-023）
 
-	// 运行时收敛状态（M6-023 时段）：记录已下发的 local_zone/local_data，
-	// 窗口切换时据此撤销不再生效的条目（unbound 运行时态无法枚举，需自行记账）。
-	mu      sync.Mutex
-	applied map[string]bool // "zone:<name>" / "data:<name>"
-	now     func() time.Time
+	now func() time.Time
 }
 
 func NewBlocklistService(repo BlocklistRepo, fetch FeedFetcher, ctl UnboundController, rpzDir string) *BlocklistService {
 	if fetch == nil {
 		fetch = HTTPSync
 	}
-	return &BlocklistService{repo: repo, fetch: fetch, ctl: ctl, rpzDir: rpzDir,
-		applied: map[string]bool{}, now: time.Now}
+	return &BlocklistService{repo: repo, fetch: fetch, ctl: ctl, rpzDir: rpzDir, now: time.Now}
 }
+
+// SetIntelService 注入 RPZ 编译服务（M6-038）。未注入时封禁条目不会下发。
+func (s *BlocklistService) SetIntelService(svc *IntelService) { s.intel = svc }
 
 // SyncFeed 拉取→逐行解析→去重入库→版本+1；失败保留旧版（FEED_DOWN）。
 func (s *BlocklistService) SyncFeed(ctx context.Context, listID string) (added int, total int, err error) {
@@ -247,7 +247,8 @@ func (s *BlocklistService) SetBlockPageResolver(fn func(context.Context) string)
 	s.blockPage = fn
 }
 
-// Compile 增量编译指定策略组的 RPZ zone（去重→zonefile→auth_zone_reload）。
+// Compile 编译指定策略组的 RPZ 条目（M6-038：全部组共用 intel.custom.rpz，
+// 组只决定「哪些条目进入编译集」，不再为每组生成独立区）。
 func (s *BlocklistService) Compile(ctx context.Context, groupID string) (zone string, n int, path string, cmd string, err error) {
 	groups, _ := s.repo.ListPolicyGroups(ctx)
 	var g *PolicyGroup
@@ -259,8 +260,7 @@ func (s *BlocklistService) Compile(ctx context.Context, groupID string) (zone st
 	if g == nil {
 		return "", 0, "", "", ErrPolicyNotFound
 	}
-	zone = g.ViewName + ".rpz"
-	// 时段策略（M6-023）：窗口外不生效，由调度器在窗口切换时收敛。
+	zone = ZoneCustom
 	if !g.Schedule.Active(s.now()) {
 		return zone, 0, "schedule inactive", "", nil
 	}
@@ -268,56 +268,33 @@ func (s *BlocklistService) Compile(ctx context.Context, groupID string) (zone st
 	if err != nil {
 		return "", 0, "", "", err
 	}
-	// M2-033：local_zone static 拦截（unbound 标准能力；RPZ auth-zone 路线在容器
-	// unbound 1.26 编译下不可用——auth-zone 内 rpz: yes 实测 unknown keyword）。
-	// pattern 映射：精确 → static <pattern>（仅该名）；*.d → static d（域及子域，语义略宽——记录于卡）。
-	blockIP := ""
-	if s.blockPage != nil {
-		blockIP = s.blockPage(ctx)
-	}
-	cmds := make([]string, 0, len(entries))
+	n = 0
 	for _, e := range entries {
-		raw := strings.TrimSpace(e.Pattern)
-		name := strings.TrimSuffix(strings.TrimPrefix(raw, "*."), ".")
-		if name == "" {
-			continue
-		}
-		zt := "static"
-		if e.Action == "redirect" && blockIP != "" && strings.HasPrefix(raw, "*.") {
-			zt = "redirect"
-		}
-		if err := s.ensureZone(ctx, name, zt); err != nil {
-			return zone, len(cmds), "local-zone (runtime)", cmd, err
-		}
-		cmds = append(cmds, "unbound-control local_zone "+name+" "+zt)
-		// redirect：解析到提示页 IP（M6-023）。通配条目用 redirect 区，
-		// 该区下所有名字（含子域）都答此 IP；local-data 只写区顶点。
-		if e.Action == "redirect" && blockIP != "" {
-			data := name + " 300 IN A " + blockIP
-			if !s.isApplied("data:" + name) {
-				if err := s.ctl.LocalData(ctx, data); err != nil {
-					return zone, len(cmds), "local-data (runtime)", cmd, err
-				}
-				s.markApplied("data:" + name)
-			}
-			cmds = append(cmds, "unbound-control local_data "+data)
+		if e.TriggerType == "" || e.TriggerType == "qname" {
+			n++
 		}
 	}
-	cmd = strings.Join(cmds, "; ")
-	return zone, len(cmds), "local-zone (runtime)", cmd, nil
+	if s.intel == nil {
+		return zone, n, "intel not configured", "", nil
+	}
+	if _, err := s.intel.Compile(ctx); err != nil {
+		return zone, 0, "", "", err
+	}
+	return zone, n, s.intel.ZonePath(zone), "unbound-control auth_zone_reload " + zone, nil
 }
 
-// RemoveEntryZone 移除单条封禁的运行时 local_zone（M2-040：删除条目后解除拦截）。
-func (s *BlocklistService) RemoveEntryZone(ctx context.Context, pattern string) error {
-	name := strings.TrimPrefix(pattern, "*.")
-	name = strings.TrimSuffix(name, ".")
-	if name == "" {
+// RemoveEntryZone 条目删除后的运行时收敛（M6-038）。
+// 编译是声明式的：删除后重编译即移除，不再需要逐条 local_zone_remove
+// （旧实现只删 unbound 侧而不清内存记账，导致「删后重加」不再下发）。
+func (s *BlocklistService) RemoveEntryZone(ctx context.Context, _ string) error {
+	if s.intel == nil {
 		return nil
 	}
-	return s.ctl.LocalZoneRemove(ctx, name)
+	_, err := s.intel.Compile(ctx)
+	return err
 }
 
-// ReplayAll 启动重放全部策略组的封禁 local_zone（M2-033：unbound 重启后运行时态恢复）。
+// ReplayAll 启动重放：编译全部 RPZ 区（unbound 重启后运行态恢复 + 实际态校正）。
 func (s *BlocklistService) ReplayAll(ctx context.Context) error {
 	_, err := s.Reconcile(ctx)
 	return err
@@ -418,165 +395,19 @@ func (s *BlocklistService) Rollback(ctx context.Context, listID string, version 
 	return b, nil
 }
 
-// Reconcile 按时段收敛全部策略组：下发生效条目、撤销窗口外/已删除条目（M6-023）。
-// 返回值=当前生效的条目数。由启动重放、条目变更与每分钟调度器共同调用。
+// Reconcile 按时段收敛：编译 4 个 RPZ 区并热载变化项（M6-038）。
+// 返回值=当前生效的自定义封禁条目数。由启动重放、条目变更与每分钟调度器共同调用。
+// 不再使用内存 applied 记账：每次以 list_auth_zones 实际态校正，修复
+// 「删条目后重加 / unbound 重启后不再下发」的缺陷（M6-037）。
 func (s *BlocklistService) Reconcile(ctx context.Context) (int, error) {
-	groups, err := s.repo.ListPolicyGroups(ctx)
+	if s.intel == nil {
+		return 0, nil
+	}
+	res, err := s.intel.Compile(ctx)
 	if err != nil {
 		return 0, err
 	}
-	blockIP := ""
-	if s.blockPage != nil {
-		blockIP = s.blockPage(ctx)
-	}
-	now := s.now()
-	// name → local-zone 类型（static|redirect）。
-	// redirect 用于通配 redirect 条目：unbound 的 local-data 不展开 *.name，
-	// 只有 redirect 区能把该域下所有名字都答成提示页 IP（M6-023 实测修正）。
-	desiredZones := map[string]string{}
-	desiredData := map[string]string{}
-	for _, g := range groups {
-		if !g.Schedule.Active(now) {
-			continue
-		}
-		entries, err := s.repo.EntriesForLists(ctx, g.ListIDs)
-		if err != nil {
-			return 0, err
-		}
-		for _, e := range entries {
-			raw := strings.TrimSpace(e.Pattern)
-			name := strings.TrimSuffix(strings.TrimPrefix(raw, "*."), ".")
-			if name == "" {
-				continue
-			}
-			zt := "static"
-			if e.Action == "redirect" && blockIP != "" {
-				desiredData[name] = blockIP
-				if strings.HasPrefix(raw, "*.") {
-					zt = "redirect"
-				}
-			}
-			// redirect 优先：同一名字既有通配 redirect 又有 NXDOMAIN 条目时给提示页。
-			if cur, ok := desiredZones[name]; !ok || (cur != "redirect" && zt == "redirect") {
-				desiredZones[name] = zt
-			}
-		}
-	}
-
-	// 撤销：先移除不再需要的 local_data，再移除 zone（顺序无关，但避免残留应答）。
-	for key := range s.snapshot() {
-		if strings.HasPrefix(key, "data:") {
-			name := strings.TrimPrefix(key, "data:")
-			if _, ok := desiredData[name]; !ok {
-				if err := s.ctl.LocalDataRemove(ctx, name); err != nil {
-					return 0, err
-				}
-				s.markRemoved(key)
-			}
-		}
-	}
-	for key := range s.snapshot() {
-		if !strings.HasPrefix(key, "zone:") {
-			continue
-		}
-		name, zt := parseZoneKey(key)
-		if want, ok := desiredZones[name]; !ok || want != zt {
-			if err := s.ctl.LocalZoneRemove(ctx, name); err != nil {
-				return 0, err
-			}
-			s.markRemoved(key)
-		}
-	}
-
-	// 下发：按名称排序保证行为确定（排障时可复现）。
-	zoneNames := make([]string, 0, len(desiredZones))
-	for name := range desiredZones {
-		zoneNames = append(zoneNames, name)
-	}
-	sort.Strings(zoneNames)
-	for _, name := range zoneNames {
-		if err := s.ensureZone(ctx, name, desiredZones[name]); err != nil {
-			return 0, err
-		}
-	}
-	dataNames := make([]string, 0, len(desiredData))
-	for name := range desiredData {
-		dataNames = append(dataNames, name)
-	}
-	sort.Strings(dataNames)
-	for _, name := range dataNames {
-		if s.isApplied("data:" + name) {
-			continue
-		}
-		data := name + " 300 IN A " + desiredData[name]
-		if err := s.ctl.LocalData(ctx, data); err != nil {
-			return 0, err
-		}
-		s.markApplied("data:" + name)
-	}
-	return len(desiredZones), nil
-}
-
-// parseZoneKey 拆解 applied 键 zone:<name>:<type>。
-func parseZoneKey(key string) (name, zt string) {
-	rest := strings.TrimPrefix(key, "zone:")
-	if i := strings.LastIndex(rest, ":"); i > 0 {
-		return rest[:i], rest[i+1:]
-	}
-	return rest, "static"
-}
-
-// ensureZone 保证 zone 以期望类型存在；类型变化时先删后加（unbound 不允许同区双类型）。
-func (s *BlocklistService) ensureZone(ctx context.Context, name, zt string) error {
-	want := "zone:" + name + ":" + zt
-	if s.isApplied(want) {
-		return nil
-	}
-	for key := range s.snapshot() {
-		if !strings.HasPrefix(key, "zone:"+name+":") {
-			continue
-		}
-		if err := s.ctl.LocalZoneRemove(ctx, name); err != nil {
-			return err
-		}
-		s.markRemoved(key)
-	}
-	if err := s.ctl.LocalZone(ctx, name, zt); err != nil {
-		return err
-	}
-	s.markApplied(want)
-	return nil
-}
-
-func (s *BlocklistService) markApplied(key string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.applied == nil {
-		s.applied = map[string]bool{}
-	}
-	s.applied[key] = true
-}
-
-func (s *BlocklistService) markRemoved(key string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.applied, key)
-}
-
-func (s *BlocklistService) isApplied(key string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.applied[key]
-}
-
-func (s *BlocklistService) snapshot() map[string]bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	out := make(map[string]bool, len(s.applied))
-	for k := range s.applied {
-		out[k] = true
-	}
-	return out
+	return res.Entries, nil
 }
 
 // StartScheduleScheduler 每分钟收敛一次时段策略（M6-023）。

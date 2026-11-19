@@ -1,0 +1,107 @@
+IntelWhitelistCollection:
+  get:
+    operationId: listIntelWhitelist
+    tags: [blocklist]
+    summary: 查询拦截白名单
+    description: |
+      白名单以 RPZ passthru 下发到 `wl.whitelist.rpz`，该区排在所有封禁区之前，
+      因此优先于任何封禁条目（M6-038）。kind=qname 仅豁免该名，kind=suffix 豁免该域及全部子域。
+    security: []
+    responses:
+      '200':
+        description: OK
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/intel.yaml#/IntelWhitelistList'
+          examples:
+            ok:
+              summary: 示例
+              value:
+                items:
+                  - id: '11111111-2222-3333-4444-555555555555'
+                    kind: suffix
+                    value: microsoftonline.com
+                    reason: 登录域误报
+                    enabled: true
+                    createdAt: '2026-11-19T10:00:00Z'
+                total: 1
+  post:
+    operationId: createIntelWhitelist
+    tags: [blocklist]
+    summary: 新增拦截白名单（立即生效）
+    description: 保存后立即重编译白名单区并热载，同时清除该名负缓存（无需等待缓存过期）。scope 为 dns:write。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/intel.yaml#/IntelWhitelistCreate'
+          examples:
+            suffix:
+              value: { kind: suffix, value: microsoftonline.com, reason: 登录域误报, category: 办公 }
+    responses:
+      '201':
+        description: 已创建
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/intel.yaml#/IntelWhitelist'
+      '400':
+        description: 值或原因非法
+      '409':
+        description: 同 kind+value 已存在
+
+IntelWhitelistItem:
+  delete:
+    operationId: deleteIntelWhitelist
+    tags: [blocklist]
+    summary: 删除拦截白名单（恢复拦截）
+    description: 删除后立即重编译并清除该名缓存。scope 为 dns:write。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: whitelistId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204':
+        description: 已删除
+      '404':
+        description: 条目不存在
+
+IntelZonesCollection:
+  get:
+    operationId: listIntelZones
+    tags: [blocklist]
+    summary: 查询 RPZ 运行态
+    description: |
+      返回固定 4 个区的编译产物状态（顺序即优先级）：`wl.whitelist.rpz`、`intel.hot.rpz`、
+      `intel.broad.rpz`、`intel.custom.rpz`。serial 为编译写入的 SOA serial，
+      loadedSerial 为 `list_auth_zones` 观测值；两者不一致或 status=failed 表示下发异常。
+    security: []
+    responses:
+      '200':
+        description: OK
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/intel.yaml#/IntelZoneList'
+
+IntelZoneReload:
+  post:
+    operationId: reloadIntelZones
+    tags: [blocklist]
+    summary: 重新编译并热载全部 RPZ 区
+    description: |
+      声明式重编译：内容未变化的区不会重复下发；单区失败自动回滚且不影响其他区。
+      返回本次编译结果（含每个区的条目数/serial/状态）。scope 为 dns:write。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: OK
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/intel.yaml#/IntelCompileResult'

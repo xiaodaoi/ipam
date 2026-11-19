@@ -464,6 +464,23 @@ export const listBlocklistVersions = (id: string) =>
 export const rollbackBlocklist = (id: string, version: number) =>
   req<Blocklist>(`/dns/blocklists/${id}/versions/${version}/rollback`, j({}));
 
+// RPZ 运行态与白名单豁免（M6-038）
+export type IntelWhitelistRow = components['schemas']['IntelWhitelist'];
+export type IntelWhitelistCreateRow =
+  components['schemas']['IntelWhitelistCreate'];
+export type IntelZoneRow = components['schemas']['IntelZone'];
+export type IntelCompileResultRow = components['schemas']['IntelCompileResult'];
+export const listIntelWhitelist = () =>
+  req<{ items: IntelWhitelistRow[]; total?: number }>('/dns/intel/whitelist');
+export const createIntelWhitelist = (body: IntelWhitelistCreateRow) =>
+  req<IntelWhitelistRow>('/dns/intel/whitelist', j(body));
+export const deleteIntelWhitelist = (id: string) =>
+  req<undefined>(`/dns/intel/whitelist/${id}`, del);
+export const listIntelZones = () =>
+  req<{ items: IntelZoneRow[]; total?: number }>('/dns/intel/zones');
+export const reloadIntelZones = () =>
+  req<IntelCompileResultRow>('/dns/intel/zones/reload', j({}));
+
 export type BuiltinPackRow = components['schemas']['BuiltinPack'];
 export const listBuiltinPacks = () =>
   req<{ items: BuiltinPackRow[] }>('/dns/blocklists/builtin');

@@ -139,21 +139,15 @@ func (a *confApplier) apply(ctx context.Context) (unboundengine.ConfInput, error
 		in.AuthZones = append(in.AuthZones, az)
 	}
 
-	groups, err := a.blRepo.ListPolicyGroups(ctx)
-	if err != nil {
-		return in, err
-	}
-	for _, g := range groups {
-		zf := "/var/lib/ipam/rpz/" + g.ViewName + ".zone"
-		// zonefile 未编译（组无条目或尚未 Replay）时跳过——缺文件会使 checkconf 整体失败（M3-011）
+	// M6-038：固定 4 个 RPZ 区，顺序即优先级（白名单第一）。运行期禁止增删子句；
+	// 启停通过「写空 zone + auth_zone_reload」实现，避免整机 reload 与缓存抖动。
+	for _, name := range dnsmodule.RPZZoneOrder {
+		zf := "/etc/unbound-rendered/zones/rpz/" + name + ".zone"
 		if _, err := os.Stat(zf); err != nil {
-			log.Printf("[conf-apply] rpz zonefile %s 不存在，跳过该 RPZ 组", zf)
+			log.Printf("[conf-apply] rpz zonefile %s 不存在，跳过（应由 EnsureFiles 创建）", zf)
 			continue
 		}
-		in.RpzZones = append(in.RpzZones, unboundengine.RpzZoneConf{
-			Name:         g.ViewName + ".rpz",
-			ZonefilePath: zf,
-		})
+		in.RpzZones = append(in.RpzZones, unboundengine.RpzZoneConf{Name: name, ZonefilePath: zf})
 	}
 
 	confText := unboundengine.BuildConf(in)

@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/xiaodaoi/ipam/internal/module/dns"
@@ -85,7 +86,7 @@ func (e ExecController) CheckConf(_ context.Context, confPath, renderedBlock str
 		return err
 	}
 	defer func() { _ = os.Remove(tmp.Name()) }()
-	if _, err := tmp.WriteString("server:\n# candidate\n" + renderedBlock); err != nil {
+	if _, err := tmp.WriteString(candidateConfText(renderedBlock)); err != nil {
 		_ = tmp.Close()
 		return err
 	}
@@ -97,6 +98,20 @@ func (e ExecController) CheckConf(_ context.Context, confPath, renderedBlock str
 		return fmt.Errorf("checkconf: %v: %s", err, out)
 	}
 	return nil
+}
+
+// candidateConfText 组装校验用文本。
+//
+// M6-038：RPZ 区要求 module-config 含 respip，否则 checkconf 报
+// "RPZ requires the respip module" 使整次 apply 被拒。主 conf 的
+// "python respip iterator" 不宜在此复用——校验容器不带 python 运行时，
+// 且 python 模块与候选块无关；只补 respip 即可覆盖 RPZ 语义校验。
+func candidateConfText(renderedBlock string) string {
+	head := "server:\n# candidate\n"
+	if strings.Contains(renderedBlock, "rpz:") {
+		head = "server:\n  module-config: \"respip iterator\"\n# candidate\n"
+	}
+	return head + renderedBlock
 }
 
 // Reload 全量 reload。

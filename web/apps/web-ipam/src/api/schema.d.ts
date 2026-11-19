@@ -1714,6 +1714,94 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/dns/intel/whitelist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查询拦截白名单
+         * @description 白名单以 RPZ passthru 下发到 `wl.whitelist.rpz`，该区排在所有封禁区之前，
+         *     因此优先于任何封禁条目（M6-038）。kind=qname 仅豁免该名，kind=suffix 豁免该域及全部子域。
+         */
+        get: operations["listIntelWhitelist"];
+        put?: never;
+        /**
+         * 新增拦截白名单（立即生效）
+         * @description 保存后立即重编译白名单区并热载，同时清除该名负缓存（无需等待缓存过期）。scope 为 dns:write。
+         */
+        post: operations["createIntelWhitelist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dns/intel/whitelist/{whitelistId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * 删除拦截白名单（恢复拦截）
+         * @description 删除后立即重编译并清除该名缓存。scope 为 dns:write。
+         */
+        delete: operations["deleteIntelWhitelist"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dns/intel/zones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查询 RPZ 运行态
+         * @description 返回固定 4 个区的编译产物状态（顺序即优先级）：`wl.whitelist.rpz`、`intel.hot.rpz`、
+         *     `intel.broad.rpz`、`intel.custom.rpz`。serial 为编译写入的 SOA serial，
+         *     loadedSerial 为 `list_auth_zones` 观测值；两者不一致或 status=failed 表示下发异常。
+         */
+        get: operations["listIntelZones"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dns/intel/zones/reload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 重新编译并热载全部 RPZ 区
+         * @description 声明式重编译：内容未变化的区不会重复下发；单区失败自动回滚且不影响其他区。
+         *     返回本次编译结果（含每个区的条目数/serial/状态）。scope 为 dns:write。
+         */
+        post: operations["reloadIntelZones"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dns/zones": {
         parameters: {
             query?: never;
@@ -4124,6 +4212,75 @@ export interface components {
             /** @description 首个校验失败的审计 ID（valid=true 时为空） */
             brokenId?: number;
             message?: string;
+        };
+        /** @description 拦截白名单（RPZ passthru，M6-038）。 */
+        IntelWhitelist: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * @description qname=仅该名；suffix=该域及子域
+             * @enum {string}
+             */
+            kind: "qname" | "suffix";
+            /** @description 域名（不含通配前缀） */
+            value: string;
+            /** @description 豁免原因（必填，审计用） */
+            reason: string;
+            category?: string | null;
+            /** @description manual | builtin | feed_exclude | auto_fp */
+            source?: string;
+            /**
+             * Format: date-time
+             * @description 到期后自动失效
+             */
+            expiresAt?: string | null;
+            enabled: boolean;
+            createdBy?: string;
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        IntelWhitelistList: {
+            items: components["schemas"]["IntelWhitelist"][];
+            total?: number;
+        };
+        IntelWhitelistCreate: {
+            /**
+             * @default qname
+             * @enum {string}
+             */
+            kind: "qname" | "suffix";
+            value: string;
+            reason: string;
+            category?: string | null;
+            /** Format: date-time */
+            expiresAt?: string | null;
+        };
+        /** @description RPZ 区运行态快照。 */
+        IntelZone: {
+            zone: string;
+            /** @description 去重后的域名条目数 */
+            entries: number;
+            /** @description 编译写入的 SOA serial */
+            serial: number;
+            /** @description list_auth_zones 观测到的运行态 serial */
+            loadedSerial?: number;
+            sha256?: string;
+            path?: string;
+            /** @enum {string} */
+            status: "empty" | "loaded" | "stale" | "failed";
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        IntelZoneList: {
+            items: components["schemas"]["IntelZone"][];
+            total?: number;
+        };
+        IntelCompileResult: {
+            zones: components["schemas"]["IntelZone"][];
+            /** @description 自定义封禁条目数 */
+            entries: number;
+            /** @description 本次实际热载的区名 */
+            reloaded?: string[];
         };
         DnsRecordUpdate: {
             name?: string;
@@ -7330,6 +7487,132 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RpzCompileResult"];
                     examples: unknown;
+                };
+            };
+        };
+    };
+    listIntelWhitelist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntelWhitelistList"];
+                    examples: unknown;
+                };
+            };
+        };
+    };
+    createIntelWhitelist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IntelWhitelistCreate"];
+            };
+        };
+        responses: {
+            /** @description 已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntelWhitelist"];
+                };
+            };
+            /** @description 值或原因非法 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 同 kind+value 已存在 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteIntelWhitelist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                whitelistId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已删除 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 条目不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listIntelZones: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntelZoneList"];
+                };
+            };
+        };
+    };
+    reloadIntelZones: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntelCompileResult"];
                 };
             };
         };

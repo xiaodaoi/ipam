@@ -53,6 +53,8 @@ type UnboundController interface {
 	SyncForwardRules(ctx context.Context, rules []ForwardRule, upstreams []Upstream) error
 	// AuthZoneReload 单区刷新（auth_zone_reload <zone>）。
 	AuthZoneReload(ctx context.Context, zoneID string) error
+	// AuthZoneSerials 查询运行态 auth-zone/RPZ 区 serial（M6-038 实际态校正）。
+	AuthZoneSerials(ctx context.Context) (map[string]uint32, error)
 	// LocalZone 运行时本地域（M2-033 黑名单：local_zone static <name> → NXDOMAIN 拦截）。
 	LocalZone(ctx context.Context, name, zoneType string) error
 	// LocalZoneRemove 移除本地域。
@@ -183,8 +185,6 @@ type Service struct {
 func NewService(repo UpstreamRepo, prober *Prober, ctl UnboundController) *Service {
 	return &Service{repo: repo, prober: prober, ctl: ctl}
 }
-
-
 
 // Create 落库→重新下发 forward-zone。
 func (s *Service) Create(ctx context.Context, u Upstream) (Upstream, error) {

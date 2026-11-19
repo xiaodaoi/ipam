@@ -4,6 +4,16 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-11-19 · RPZ 化封禁 + 白名单豁免（M6-038，P0）
+- **背景**：封禁一直走 `unbound-control local_zone`，白名单无法生效（实测 `local-zone` 优先于 RPZ passthru），且运行期只记在控制面内存，删后重加/unbound 重启即失效；拦截也没有 `action=blocked`，仪表盘「今日拦截量」恒为 0。
+- **后端**：新包 `internal/pkg/rpz`（渲染/解析/owner diff）；`dns/intel.go` 4 区全量编译 + 内容指纹 + 原子写 + 单区 `auth_zone_reload` + `list_auth_zones` serial 校验 + 失败回滚 + 按需 flush（>200 条跳过，依赖 `cache-max-ttl=300`）；`blocklist.go` 全部委托 RPZ；迁移 `0044_intel`；`AuthZoneSerials` 等控制命令。
+- **契约/前端**：`/dns/intel/whitelist`（GET/POST/DELETE）与 `/dns/intel/zones`（GET、`/reload`）先改 spec 再 `gen-openapi.sh`；封禁管控页新增「RPZ 运行态」（4 区、编译号/运行态编译号、状态、重编译热载）与「拦截白名单」（过滤、新增、删除即恢复拦截），zh/en 成对。
+- **部署**：`unbound.conf` 启用 `num-threads: 4`、`module-config: "python respip iterator"`；4 个 `rpz:` 子句由控制面渲染（`rpz-log` + `rpz-log-name`）；`vector.toml` 新增 `parse_rpz` 落 `action=blocked`。
+- **踩坑（已固化到代码注释与实现说明）**：① RPZ owner 必须写相对区名，绝对名（尾点）会被当区外数据丢弃 → zone 正常但策略不生效；② 不配 `rpz-log-name` 日志里没有区名；③ `checkconf` 只校验候选块会报「RPZ requires the respip module」，复用主 conf 又因镜像无 python 运行时失败 → 只补 `respip iterator`；④ serial 取 `now` 会让每分钟调度整区重载 → 改用不含 serial 的内容指纹。
+- **验证**：`go test ./...`、`golangci-lint` 0 issues；真实栈 4 区 `serial==loadedSerial`，`dig www.crphb.com/.com.cn/.org` 全 NXDOMAIN，白名单 `suffix crphb.com` 立即恢复解析、删除立即恢复拦截；unbound 重启后自动恢复；连续两周期 serial 不变；ClickHouse `action='blocked'`>0、`dns.blockedToday`=4；前端 typecheck/oxfmt/三门禁通过、E2E **19/19**、浏览器冒烟通过。前端单测 345 通过，2 个既有用例受宿主机 `TZ=UTC` 影响（与本次无关）。
+- **遗留**：源 CRUD/预设/调度/质量闸门/revision/离线导入/蓝绿 → `backlog/M6-039`；外部源端到端验证受本机外网限制，需客户环境或离线包；路径级 URL 阻断不在 DNS 范围。
+
+
 ## 2026-11-16 · 上游 IPv6 探活修复（M6-036）
 - **现象**：上游管理页所有 IPv6 条目显示「已摘除 0 ms 连续失败 63473」，用户怀疑 IPv6 地址被删除。
 - **根因**：数据库两条 IPv6 上游地址完好且未挂任何转发规则；探活从 control-plane 容器发起，该容器在纯 IPv4 默认桥接网络（`/proc/net/if_inet6` 仅 `lo`），访问 IPv6 立即 `Network is unreachable`。宿主/unbound（hostNetwork）实测 `2406:...:136`、`2406:...:137`、`2400:3200::1` 的 UDP/TCP 53 均 NOERROR，三者实际健康。失败计数无上限（15s×11 天=63473）；`SyncForward`/`SyncForwardRules` 只按 `enabled` 过滤，**从不按健康摘除**，所以「已摘除」只是标签。

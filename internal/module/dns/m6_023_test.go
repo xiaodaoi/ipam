@@ -2,6 +2,7 @@ package dns
 
 import (
 	"context"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -37,81 +38,87 @@ func TestScheduleActive(t *testing.T) {
 }
 
 func TestCompile_ScheduleInactiveSkipsApply(t *testing.T) {
-	repo := NewMemBlocklistRepo()
-	fc := &fakeCtl{}
-	svc := NewBlocklistService(repo, nil, fc, "/tmp/rpz")
-	bl, _ := repo.Create(context.Background(), Blocklist{Name: "l", Kind: "custom"})
-	_, _ = repo.UpsertEntries(context.Background(), []Entry{
+	// M6-038：窗口外的组不参与编译——区文件里不得出现其条目，且不触发热载。
+	st := newIntelStack(t)
+	bl, _ := st.repo.Create(context.Background(), Blocklist{Name: "l", Kind: "custom"})
+	_, _ = st.repo.UpsertEntries(context.Background(), []Entry{
 		{ListID: bl.ID, TriggerType: "qname", Pattern: "bad.example", Action: "nxdomain"},
 	})
-	g, _ := repo.CreatePolicyGroup(context.Background(), PolicyGroup{
+	g, _ := st.repo.CreatePolicyGroup(context.Background(), PolicyGroup{
 		Name: "g", ViewName: "v", Cidrs: []string{"10.0.0.0/8"}, ListIDs: []string{bl.ID},
 		Schedule: &Schedule{Days: []int{0}, Start: "00:00", End: "01:00"},
 	})
-	svc.now = func() time.Time { return time.Date(2026, 11, 4, 12, 0, 0, 0, time.Local) } // 周三
-	zone, n, path, _, err := svc.Compile(context.Background(), g.ID)
+	st.svc.now = func() time.Time { return time.Date(2026, 11, 4, 12, 0, 0, 0, time.Local) } // 周三
+	st.intel.now = st.svc.now
+	zone, n, path, _, err := st.svc.Compile(context.Background(), g.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if zone != "v.rpz" || n != 0 || path != "schedule inactive" {
+	if zone != ZoneCustom || n != 0 || path != "schedule inactive" {
 		t.Fatalf("zone=%s n=%d path=%s", zone, n, path)
 	}
-	if fc.localZones != 0 {
-		t.Fatalf("窗口外不应下发，实际 %d", fc.localZones)
+	if st.ctl.zoneReloads != 0 {
+		t.Fatalf("窗口外不应热载，实际 %d", st.ctl.zoneReloads)
+	}
+	if _, err := os.Stat(st.intel.ZonePath(ZoneCustom)); err == nil {
+		t.Fatalf("窗口外不应产生编译产物")
 	}
 }
 
 func TestReconcile_RemovesZonesOutsideWindow(t *testing.T) {
-	repo := NewMemBlocklistRepo()
-	fc := &fakeCtl{}
-	svc := NewBlocklistService(repo, nil, fc, "/tmp/rpz")
-	bl, _ := repo.Create(context.Background(), Blocklist{Name: "l", Kind: "custom"})
-	_, _ = repo.UpsertEntries(context.Background(), []Entry{
+	// M6-038：窗口切换=重编译写空区 + 热载（不再逐条 local_zone_remove）。
+	st := newIntelStack(t)
+	bl, _ := st.repo.Create(context.Background(), Blocklist{Name: "l", Kind: "custom"})
+	_, _ = st.repo.UpsertEntries(context.Background(), []Entry{
 		{ListID: bl.ID, TriggerType: "qname", Pattern: "bad.example", Action: "nxdomain"},
 	})
 	now := time.Date(2026, 11, 4, 10, 0, 0, 0, time.Local)
-	svc.now = func() time.Time { return now }
-	_, _ = repo.CreatePolicyGroup(context.Background(), PolicyGroup{
+	st.svc.now = func() time.Time { return now }
+	st.intel.now = st.svc.now
+	_, _ = st.repo.CreatePolicyGroup(context.Background(), PolicyGroup{
 		Name: "g", ViewName: "v", Cidrs: []string{"10.0.0.0/8"}, ListIDs: []string{bl.ID},
 		Schedule: &Schedule{Start: "09:00", End: "11:00"},
 	})
 
-	if n, err := svc.Reconcile(context.Background()); err != nil || n != 1 {
+	if n, err := st.svc.Reconcile(context.Background()); err != nil || n != 1 {
 		t.Fatalf("窗口内 n=%d err=%v", n, err)
 	}
+	if !strings.Contains(st.zone(t, ZoneCustom), "bad.example CNAME .") {
+		t.Fatalf("窗口内未写入区:\n%s", st.zone(t, ZoneCustom))
+	}
+	reloaded := st.ctl.zoneReloads
+
 	// 进入窗口外：再次收敛应撤销。
 	now = now.Add(3 * time.Hour)
-	if n, err := svc.Reconcile(context.Background()); err != nil || n != 0 {
+	if n, err := st.svc.Reconcile(context.Background()); err != nil || n != 0 {
 		t.Fatalf("窗口外 n=%d err=%v", n, err)
 	}
-	if len(fc.removedZones) != 1 || fc.removedZones[0] != "bad.example" {
-		t.Fatalf("removedZones=%v", fc.removedZones)
+	if strings.Contains(st.zone(t, ZoneCustom), "bad.example") {
+		t.Fatalf("窗口外应撤销条目:\n%s", st.zone(t, ZoneCustom))
+	}
+	if st.ctl.zoneReloads <= reloaded {
+		t.Fatalf("窗口切换应触发热载：before=%d after=%d", reloaded, st.ctl.zoneReloads)
 	}
 }
 
 func TestReconcile_RedirectUsesBlockPageIP(t *testing.T) {
-	repo := NewMemBlocklistRepo()
-	fc := &fakeCtl{}
-	svc := NewBlocklistService(repo, nil, fc, "/tmp/rpz")
-	svc.SetBlockPageResolver(func(context.Context) string { return "10.61.40.9" })
-	bl, _ := repo.Create(context.Background(), Blocklist{Name: "l", Kind: "custom"})
-	_, _ = repo.UpsertEntries(context.Background(), []Entry{
+	// M6-038：redirect → RPZ Local Data（A 记录），通配条目同时输出域与 *.域。
+	st := newIntelStack(t)
+	st.intel.SetBlockPageResolver(func(context.Context) string { return "10.61.40.9" })
+	bl, _ := st.repo.Create(context.Background(), Blocklist{Name: "l", Kind: "custom"})
+	_, _ = st.repo.UpsertEntries(context.Background(), []Entry{
 		{ListID: bl.ID, TriggerType: "qname", Pattern: "*.gamble.example", Action: "redirect"},
 	})
-	_, _ = repo.CreatePolicyGroup(context.Background(), PolicyGroup{
+	_, _ = st.repo.CreatePolicyGroup(context.Background(), PolicyGroup{
 		Name: "g", ViewName: "v", Cidrs: []string{"10.0.0.0/8"}, ListIDs: []string{bl.ID},
 	})
-	if _, err := svc.Reconcile(context.Background()); err != nil {
+	if _, err := st.svc.Reconcile(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	// unbound local-data 不展开 *.name：通配 redirect 必须用 redirect 区，子域自动命中。
-	if fc.zoneTypes["gamble.example"] != "redirect" {
-		t.Fatalf("zoneType=%q", fc.zoneTypes["gamble.example"])
-	}
-	joined := strings.Join(fc.localData, "\n")
-	if !strings.Contains(joined, "gamble.example 300 IN A 10.61.40.9") ||
-		strings.Contains(joined, "*.gamble.example") {
-		t.Fatalf("localData=%v", fc.localData)
+	custom := st.zone(t, ZoneCustom)
+	if !strings.Contains(custom, "gamble.example A 10.61.40.9") ||
+		!strings.Contains(custom, "*.gamble.example A 10.61.40.9") {
+		t.Fatalf("redirect 未按 RPZ Local Data 下发:\n%s", custom)
 	}
 }
 
@@ -210,36 +217,36 @@ func TestValidateRecordName(t *testing.T) {
 }
 
 func TestReconcile_ZoneTypeSwitch(t *testing.T) {
-	repo := NewMemBlocklistRepo()
-	fc := &fakeCtl{}
-	svc := NewBlocklistService(repo, nil, fc, "/tmp/rpz")
-	svc.SetBlockPageResolver(func(context.Context) string { return "10.61.40.9" })
-	bl, _ := repo.Create(context.Background(), Blocklist{Name: "l", Kind: "custom"})
-	_, _ = repo.UpsertEntries(context.Background(), []Entry{
+	// M6-038：动作切换即重编译整个区，旧动作不得残留。
+	st := newIntelStack(t)
+	st.intel.SetBlockPageResolver(func(context.Context) string { return "10.61.40.9" })
+	bl, _ := st.repo.Create(context.Background(), Blocklist{Name: "l", Kind: "custom"})
+	_, _ = st.repo.UpsertEntries(context.Background(), []Entry{
 		{ListID: bl.ID, TriggerType: "qname", Pattern: "*.switch.example", Action: "redirect"},
 	})
-	_, _ = repo.CreatePolicyGroup(context.Background(), PolicyGroup{
+	_, _ = st.repo.CreatePolicyGroup(context.Background(), PolicyGroup{
 		Name: "g", ViewName: "v", Cidrs: []string{"10.0.0.0/8"}, ListIDs: []string{bl.ID},
 	})
-	if _, err := svc.Reconcile(context.Background()); err != nil {
+	if _, err := st.svc.Reconcile(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if fc.zoneTypes["switch.example"] != "redirect" {
-		t.Fatalf("首轮应为 redirect: %v", fc.zoneTypes)
+	if !strings.Contains(st.zone(t, ZoneCustom), "*.switch.example A 10.61.40.9") {
+		t.Fatalf("首轮应为 redirect:\n%s", st.zone(t, ZoneCustom))
 	}
 
-	// 条目改为 NXDOMAIN：同一区必须从 redirect 切成 static（先删后加）。
-	_, _ = repo.ClearEntries(context.Background(), bl.ID)
-	_, _ = repo.UpsertEntries(context.Background(), []Entry{
+	// 条目改为 NXDOMAIN：区内必须只剩 CNAME .（旧 A 记录不得残留）。
+	_, _ = st.repo.ClearEntries(context.Background(), bl.ID)
+	_, _ = st.repo.UpsertEntries(context.Background(), []Entry{
 		{ListID: bl.ID, TriggerType: "qname", Pattern: "switch.example", Action: "nxdomain"},
 	})
-	if _, err := svc.Reconcile(context.Background()); err != nil {
+	if _, err := st.svc.Reconcile(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if fc.zoneTypes["switch.example"] != "static" {
-		t.Fatalf("切换后应为 static: %v", fc.zoneTypes)
+	custom := st.zone(t, ZoneCustom)
+	if !strings.Contains(custom, "switch.example CNAME .") {
+		t.Fatalf("切换后应为 NXDOMAIN:\n%s", custom)
 	}
-	if len(fc.removedZones) == 0 {
-		t.Fatal("类型切换应先移除旧区")
+	if strings.Contains(custom, "10.61.40.9") {
+		t.Fatalf("旧 redirect 记录残留:\n%s", custom)
 	}
 }

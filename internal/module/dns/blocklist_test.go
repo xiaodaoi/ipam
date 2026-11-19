@@ -77,26 +77,28 @@ func TestSyncFeed_成功去重与版本递增(t *testing.T) {
 	}
 }
 
-func TestCompile_增量编译返回zone信息(t *testing.T) {
-	repo := NewMemBlocklistRepo()
-	fc := &fakeCtl{}
-	svc := NewBlocklistService(repo, nil, fc, "/tmp/rpz")
-	bl, _ := repo.Create(context.Background(), Blocklist{Name: "学生名单", Kind: "custom"})
-	_, _ = repo.UpsertEntries(context.Background(), []Entry{
+func TestCompile_编译到自定义RPZ区(t *testing.T) {
+	// M6-038：策略组不再各自成区，全部条目编译进 intel.custom.rpz。
+	st := newIntelStack(t)
+	bl, _ := st.repo.Create(context.Background(), Blocklist{Name: "学生名单", Kind: "custom"})
+	_, _ = st.repo.UpsertEntries(context.Background(), []Entry{
 		{ListID: bl.ID, TriggerType: "qname", Pattern: "bad.edu", Action: "nxdomain"},
 	})
-	g, _ := repo.CreatePolicyGroup(context.Background(), PolicyGroup{
+	g, _ := st.repo.CreatePolicyGroup(context.Background(), PolicyGroup{
 		Name: "学生", ViewName: "students", Cidrs: []string{"10.61.128.0/17"}, ListIDs: []string{bl.ID},
 	})
-	zone, n, path, cmd, err := svc.Compile(context.Background(), g.ID)
-	if err != nil || zone != "students.rpz" || n != 1 || path != "local-zone (runtime)" {
+	zone, n, path, cmd, err := st.svc.Compile(context.Background(), g.ID)
+	if err != nil || zone != ZoneCustom || n != 1 || path != st.intel.ZonePath(ZoneCustom) {
 		t.Fatalf("zone=%s n=%d path=%s err=%v", zone, n, path, err)
 	}
-	if !strings.Contains(cmd, "local_zone bad.edu static") {
-		t.Fatalf("local_zone cmd: %s", cmd)
+	if !strings.Contains(cmd, "auth_zone_reload "+ZoneCustom) {
+		t.Fatalf("reload cmd: %s", cmd)
 	}
-	if fc.localZones == 0 {
-		t.Fatal("local_zone not triggered")
+	if !strings.Contains(st.zone(t, ZoneCustom), "bad.edu CNAME .") {
+		t.Fatalf("条目未写入区:\n%s", st.zone(t, ZoneCustom))
+	}
+	if st.ctl.zoneReloads == 0 {
+		t.Fatal("应触发热载")
 	}
 }
 

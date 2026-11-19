@@ -3,6 +3,11 @@ package dns
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -116,6 +121,13 @@ type fakeCtl struct {
 	localData                                           []string
 	removedZones                                        []string
 	zoneTypes                                           map[string]string
+	flushes                                             []string
+	serials                                             map[string]uint32
+	// M6-038：模拟真实 unbound——热载后按 zonefile 实际内容回报 serial；
+	// failReloadZone 指定某区热载失败（回滚路径测试）。
+	zoneDir            string
+	failReloadZone     string
+	serialMismatchZone string
 }
 
 func (f *fakeCtl) SyncForward(context.Context, []Upstream) error {
@@ -126,9 +138,47 @@ func (f *fakeCtl) SyncForwardRules(context.Context, []ForwardRule, []Upstream) e
 	f.ruleSyncs++
 	return nil
 }
-func (f *fakeCtl) AuthZoneReload(context.Context, string) error {
+func (f *fakeCtl) AuthZoneReload(_ context.Context, zone string) error {
+	if f.failReloadZone != "" && f.failReloadZone == zone {
+		return fmt.Errorf("fake reload %s failed", zone)
+	}
 	f.zoneReloads++
+	if f.zoneDir == "" {
+		return nil
+	}
+	b, err := os.ReadFile(filepath.Join(f.zoneDir, zone+".zone"))
+	if err != nil {
+		return nil
+	}
+	if serial, ok := parseSOASerial(string(b)); ok {
+		if f.serials == nil {
+			f.serials = map[string]uint32{}
+		}
+		f.serials[zone] = serial
+	}
+	if f.serialMismatchZone == zone {
+		f.serials[zone] = 999999 // 模拟运行态与编译产物不一致
+	}
 	return nil
+}
+
+// parseSOASerial 从 zonefile 文本提取 SOA serial（测试辅助）。
+func parseSOASerial(text string) (uint32, bool) {
+	for _, line := range strings.Split(text, "\n") {
+		if !strings.Contains(line, " SOA ") {
+			continue
+		}
+		fields := strings.Fields(line)
+		// 形如：@ SOA localhost. hostmaster.localhost. 1794998065 3600 600 86400 300
+		for i := 0; i+1 < len(fields); i++ {
+			if strings.HasSuffix(fields[i], "hostmaster.localhost.") {
+				if n, err := strconv.ParseUint(fields[i+1], 10, 32); err == nil {
+					return uint32(n), true
+				}
+			}
+		}
+	}
+	return 0, false
 }
 func (f *fakeCtl) LocalZone(_ context.Context, name, zt string) error {
 	f.localZones++
@@ -152,4 +202,17 @@ func (f *fakeCtl) Reload(context.Context) error {
 	f.reloads++
 	return nil
 }
-func (f *fakeCtl) FlushZone(context.Context, string) error { return nil }
+func (f *fakeCtl) FlushZone(_ context.Context, name string) error {
+	f.flushes = append(f.flushes, name)
+	return nil
+}
+func (f *fakeCtl) AuthZoneSerials(context.Context) (map[string]uint32, error) {
+	if f.serials == nil {
+		return map[string]uint32{}, nil
+	}
+	out := make(map[string]uint32, len(f.serials))
+	for k, v := range f.serials {
+		out[k] = v
+	}
+	return out, nil
+}
