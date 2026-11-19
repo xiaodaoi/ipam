@@ -1802,6 +1802,79 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/dns/intel/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查询情报源
+         * @description 返回预设与自定义情报源。**全部默认关闭**：启用需确认许可（`ackLicense`），
+         *     需要鉴权的源还需先写入密钥（`secret`，落文件不入库，仅回传 `hasSecret`）。
+         *     预设仅在首次安装时创建，之后 URL/开关由用户维护，上游改接口无需升级。
+         */
+        get: operations["listIntelSources"];
+        put?: never;
+        /**
+         * 新增自定义情报源（默认关闭）
+         * @description 保存后为关闭状态；启用需 PATCH `enabled=true` 且 `ackLicense=true`。scope 为 dns:write。
+         */
+        post: operations["createIntelSource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dns/intel/sources/{sourceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * 删除自定义情报源
+         * @description 预设不可删除，只能停用。scope 为 dns:write。
+         */
+        delete: operations["deleteIntelSource"];
+        options?: never;
+        head?: never;
+        /**
+         * 编辑 / 启停情报源
+         * @description 可改 URL、层、刷新间隔、鉴权头与密钥；启用（`enabled=true`）必须同时
+         *     `ackLicense=true`。启用后立即尝试同步一次，失败不阻止启用但会在 `lastError` 展示。
+         *     scope 为 dns:write。
+         */
+        patch: operations["updateIntelSource"];
+        trace?: never;
+    };
+    "/dns/intel/sources/{sourceId}/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 立即同步情报源
+         * @description 拉取 → 解析 → 落缓存 → 重编译对应层。失败保留上一版数据（fail-safe），
+         *     并把错误写入 `lastError`。scope 为 dns:write。
+         */
+        post: operations["syncIntelSource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dns/zones": {
         parameters: {
             query?: never;
@@ -4281,6 +4354,81 @@ export interface components {
             entries: number;
             /** @description 本次实际热载的区名 */
             reloaded?: string[];
+        };
+        /** @description 情报源（M6-039）。默认关闭，启用需确认许可。 */
+        IntelSource: {
+            /** Format: uuid */
+            id: string;
+            /** @description 预设键或 custom:<uuid> */
+            key: string;
+            name: string;
+            /** @enum {string} */
+            kind: "preset" | "custom";
+            /**
+             * @description hot ≤10 万 / broad ≤30 万
+             * @enum {string}
+             */
+            layer: "hot" | "broad";
+            url?: string;
+            /** @description 解析格式（当前统一 auto 识别） */
+            format?: string;
+            /** @description 鉴权头名，如 Auth-Key；为空表示匿名拉取 */
+            authHeader?: string;
+            /** @description 是否已写入密钥（内容不回传） */
+            hasSecret?: boolean;
+            license?: string;
+            licenseUrl?: string;
+            /** @description 许可是否允许商用 */
+            commercialOk?: boolean;
+            requiresAck?: boolean;
+            /** Format: date-time */
+            acknowledgedAt?: string | null;
+            /** @description 刷新间隔（秒） */
+            updateInterval: number;
+            enabled: boolean;
+            /** @description 最近一次成功同步的条目数 */
+            entries?: number;
+            /** Format: date-time */
+            lastSyncAt?: string | null;
+            /** @enum {string} */
+            lastStatus?: "never" | "ok" | "failed";
+            lastError?: string;
+            /** @description 预设不可删除 */
+            builtin?: boolean;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        IntelSourceList: {
+            items: components["schemas"]["IntelSource"][];
+            total?: number;
+        };
+        IntelSourceCreate: {
+            name: string;
+            url: string;
+            /**
+             * @default hot
+             * @enum {string}
+             */
+            layer: "hot" | "broad";
+            /** @description 秒；默认 21600 */
+            updateInterval?: number;
+            license?: string | null;
+        };
+        IntelSourceUpdate: {
+            name?: string;
+            url?: string;
+            /** @enum {string} */
+            layer?: "hot" | "broad";
+            authHeader?: string | null;
+            /** @description 明文密钥，写入 0600 文件后丢弃，不入库 */
+            secret?: string | null;
+            clearSecret?: boolean;
+            updateInterval?: number;
+            enabled?: boolean;
+            /** @description 启用时必须为 true（确认许可与商用限制） */
+            ackLicense?: boolean;
         };
         DnsRecordUpdate: {
             name?: string;
@@ -7614,6 +7762,167 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["IntelCompileResult"];
                 };
+            };
+        };
+    };
+    listIntelSources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntelSourceList"];
+                };
+            };
+        };
+    };
+    createIntelSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IntelSourceCreate"];
+            };
+        };
+        responses: {
+            /** @description 已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntelSource"];
+                };
+            };
+            /** @description 名称或 URL 非法 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteIntelSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sourceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已删除 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 预设不可删除 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 源不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateIntelSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sourceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IntelSourceUpdate"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntelSource"];
+                };
+            };
+            /** @description 未确认许可 / 缺少密钥 / URL 为空 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 源不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    syncIntelSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sourceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntelSource"];
+                };
+            };
+            /** @description 源未启用或拉取失败 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 源不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

@@ -4,6 +4,13 @@
 
 <!-- 新条目插入到本行下方 -->
 
+## 2026-11-19 · 情报源管理与分层编译（M6-039，P1 主体）
+- **背景**：M6-038 已交付 4 个固定 RPZ 区，但热层/宽层始终为空——没有源管理，也就没法把开源情报真正用起来；用户要求「把之前提到的几个开源情报加进去」，并明确全部默认关闭、可启用/禁用/新增/编辑、不引入 GPL。
+- **后端**：迁移 `0045_intel_source`（只存元数据，IOC 落 `<rpz dir>/sources/<key>.domains`）；`intel_source.go` 提供 5 个预设（abuse.ch URLhaus/ThreatFox、Spamhaus DBL、StevenBlack、OpenPhish，全部默认关闭；不内置 HaGeZi/OISD/Phishing Army）、`auto` 解析器（hosts/域名清单/URL/CSV/RPZ）、HTTPS 拉取、CRUD、到期同步调度、失败保留上一版、分层容量截断；密钥写 0600 文件、库内只存路径、接口只回 `hasSecret`；`intel.go` 编译时把启用源注入 hot/broad 并剔除白名单；`intel_handler.go` 5 个端点与错误码映射；`main.go` 装配 `EnsurePresets` + `StartIntelScheduler` + `SetSecretDir`。
+- **契约/前端**：先改 spec（`paths/intel.yaml` + `components/schemas/intel.yaml` + `openapi.yaml`）再 `gen-openapi.sh`；封禁管控页新增「情报源」卡（默认关闭徽标、许可/商用提示、启用需勾选确认、密钥只写不回显、立即同步、编辑 URL/层/间隔、删除仅自定义），并在运行态卡加「查看拦截记录」按钮（跳 `/logs-center/search?action=blocked`）；zh/en 成对。
+- **验证**：`go test ./internal/...`、`golangci-lint` 0 issues；新增 10 个单测覆盖解析/去重/预设默认关闭/许可与密钥门禁/失败保留旧版/空结果保留旧版/分层与白名单剔除/容量截断/删除清理/密钥 0600；前端 typecheck/oxfmt/oxlint/三门禁/vitest 38 通过。真实栈：5 个预设默认关闭；自定义源自建→启用→同步 5 条→`dig` 全 NXDOMAIN；白名单 `suffix baidu.com` 立即恢复解析且热层 5→4、4 区 serial 对齐；ClickHouse `action='blocked'` 可查到 `[intel.hot.rpz]`；清理后热层归零、解析恢复；E2E **19/19**，情报源卡冒烟通过。
+- **遗留**：质量闸门/revision/离线导入/蓝绿/view-tag 未做（P2）；拉取耗时与失败未入审计/指标；真实上游端到端受本机外网限制，需客户环境或离线包。详见 `docs/dev/M6-039-情报源实施说明.md` 与 `doing/M6-039`。
+
 ## 2026-11-19 · RPZ 化封禁 + 白名单豁免（M6-038，P0）
 - **背景**：封禁一直走 `unbound-control local_zone`，白名单无法生效（实测 `local-zone` 优先于 RPZ passthru），且运行期只记在控制面内存，删后重加/unbound 重启即失效；拦截也没有 `action=blocked`，仪表盘「今日拦截量」恒为 0。
 - **后端**：新包 `internal/pkg/rpz`（渲染/解析/owner diff）；`dns/intel.go` 4 区全量编译 + 内容指纹 + 原子写 + 单区 `auth_zone_reload` + `list_auth_zones` serial 校验 + 失败回滚 + 按需 flush（>200 条跳过，依赖 `cache-max-ttl=300`）；`blocklist.go` 全部委托 RPZ；迁移 `0044_intel`；`AuthZoneSerials` 等控制命令。

@@ -59,3 +59,62 @@ IntelCompileResult:
     zones: { type: array, items: { $ref: 'intel.yaml#/IntelZone' } }
     entries: { type: integer, description: 自定义封禁条目数 }
     reloaded: { type: array, items: { type: string }, description: 本次实际热载的区名 }
+
+IntelSource:
+  type: object
+  description: 情报源（M6-039）。默认关闭，启用需确认许可。
+  required: [id, key, name, kind, layer, enabled, updateInterval]
+  properties:
+    id: { type: string, format: uuid }
+    key: { type: string, description: 预设键或 custom:<uuid> }
+    name: { type: string }
+    kind: { type: string, enum: [preset, custom] }
+    layer: { type: string, enum: [hot, broad], description: hot ≤10 万 / broad ≤30 万 }
+    url: { type: string }
+    format: { type: string, description: 解析格式（当前统一 auto 识别） }
+    authHeader: { type: string, description: 鉴权头名，如 Auth-Key；为空表示匿名拉取 }
+    hasSecret: { type: boolean, description: 是否已写入密钥（内容不回传） }
+    license: { type: string }
+    licenseUrl: { type: string }
+    commercialOk: { type: boolean, description: 许可是否允许商用 }
+    requiresAck: { type: boolean }
+    acknowledgedAt: { type: string, format: date-time, nullable: true }
+    updateInterval: { type: integer, description: 刷新间隔（秒） }
+    enabled: { type: boolean }
+    entries: { type: integer, description: 最近一次成功同步的条目数 }
+    lastSyncAt: { type: string, format: date-time, nullable: true }
+    lastStatus: { type: string, enum: [never, ok, failed] }
+    lastError: { type: string }
+    builtin: { type: boolean, description: 预设不可删除 }
+    createdAt: { type: string, format: date-time }
+    updatedAt: { type: string, format: date-time }
+
+IntelSourceList:
+  type: object
+  required: [items]
+  properties:
+    items: { type: array, items: { $ref: 'intel.yaml#/IntelSource' } }
+    total: { type: integer }
+
+IntelSourceCreate:
+  type: object
+  required: [name, url]
+  properties:
+    name: { type: string }
+    url: { type: string }
+    layer: { type: string, enum: [hot, broad], default: hot }
+    updateInterval: { type: integer, description: 秒；默认 21600 }
+    license: { type: string, nullable: true }
+
+IntelSourceUpdate:
+  type: object
+  properties:
+    name: { type: string }
+    url: { type: string }
+    layer: { type: string, enum: [hot, broad] }
+    authHeader: { type: string, nullable: true }
+    secret: { type: string, nullable: true, description: 明文密钥，写入 0600 文件后丢弃，不入库 }
+    clearSecret: { type: boolean }
+    updateInterval: { type: integer }
+    enabled: { type: boolean }
+    ackLicense: { type: boolean, description: 启用时必须为 true（确认许可与商用限制） }

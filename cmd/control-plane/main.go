@@ -576,6 +576,12 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		intelStore = dnsmodule.NewPgIntelRepo(pool)
 	}
 	intelSvc := dnsmodule.NewIntelService("/etc/unbound-rendered/zones/rpz", unboundCtl, blRepo, intelStore)
+	// M6-039：情报源密钥落文件不入库（默认 /run/ipam/intel-secrets，0600）。
+	intelSecretDir := strings.TrimSpace(os.Getenv("IPAM_INTEL_SECRET_DIR"))
+	if intelSecretDir == "" {
+		intelSecretDir = "/run/ipam/intel-secrets"
+	}
+	intelSvc.SetSecretDir(intelSecretDir)
 	blockPageFn := func(ctx context.Context) string {
 		raw, ok, err := settingsRepo.Get(ctx, "cache")
 		if err != nil || !ok {
@@ -593,6 +599,12 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	if err := intelSvc.EnsureFiles(rootCtx); err != nil {
 		log.Printf("[intel] ensure zonefiles: %v", err)
 	}
+	// M6-039：预设源仅首次落库（全部默认关闭，不覆盖用户维护的 URL/开关）。
+	if err := intelSvc.EnsurePresets(rootCtx); err != nil {
+		log.Printf("[intel] ensure presets: %v", err)
+	}
+	// M6-039：到期源同步调度（无启用源时为空转）。
+	dnsmodule.StartIntelScheduler(rootCtx, intelSvc, time.Minute)
 	// M6-023：redirect 封禁指向提示页 IP（settings.cache.blockPageIP）。
 	blSvc.SetBlockPageResolver(blockPageFn)
 	// M2-033：启动重放封禁 local_zone（unbound 重启后运行时态恢复）

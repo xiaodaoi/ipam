@@ -105,3 +105,127 @@ IntelZoneReload:
           application/json:
             schema:
               $ref: '../components/schemas/intel.yaml#/IntelCompileResult'
+
+IntelSourceCollection:
+  get:
+    operationId: listIntelSources
+    tags: [blocklist]
+    summary: 查询情报源
+    description: |
+      返回预设与自定义情报源。**全部默认关闭**：启用需确认许可（`ackLicense`），
+      需要鉴权的源还需先写入密钥（`secret`，落文件不入库，仅回传 `hasSecret`）。
+      预设仅在首次安装时创建，之后 URL/开关由用户维护，上游改接口无需升级。
+    security: []
+    responses:
+      '200':
+        description: OK
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/intel.yaml#/IntelSourceList'
+  post:
+    operationId: createIntelSource
+    tags: [blocklist]
+    summary: 新增自定义情报源（默认关闭）
+    description: 保存后为关闭状态；启用需 PATCH `enabled=true` 且 `ackLicense=true`。scope 为 dns:write。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/intel.yaml#/IntelSourceCreate'
+          examples:
+            custom:
+              value: { name: 内部黑名单, url: "https://intranet.example/domains.txt", layer: hot, updateInterval: 3600 }
+    responses:
+      '201':
+        description: 已创建
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/intel.yaml#/IntelSource'
+      '400':
+        description: 名称或 URL 非法
+
+IntelSourceItem:
+  patch:
+    operationId: updateIntelSource
+    tags: [blocklist]
+    summary: 编辑 / 启停情报源
+    description: |
+      可改 URL、层、刷新间隔、鉴权头与密钥；启用（`enabled=true`）必须同时
+      `ackLicense=true`。启用后立即尝试同步一次，失败不阻止启用但会在 `lastError` 展示。
+      scope 为 dns:write。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: sourceId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/intel.yaml#/IntelSourceUpdate'
+          examples:
+            enable:
+              value: { enabled: true, ackLicense: true }
+            rotateSecret:
+              value: { secret: "<auth-key>", enabled: true, ackLicense: true }
+    responses:
+      '200':
+        description: OK
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/intel.yaml#/IntelSource'
+      '400':
+        description: 未确认许可 / 缺少密钥 / URL 为空
+      '404':
+        description: 源不存在
+  delete:
+    operationId: deleteIntelSource
+    tags: [blocklist]
+    summary: 删除自定义情报源
+    description: 预设不可删除，只能停用。scope 为 dns:write。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: sourceId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204':
+        description: 已删除
+      '400':
+        description: 预设不可删除
+      '404':
+        description: 源不存在
+
+IntelSourceSync:
+  post:
+    operationId: syncIntelSource
+    tags: [blocklist]
+    summary: 立即同步情报源
+    description: |
+      拉取 → 解析 → 落缓存 → 重编译对应层。失败保留上一版数据（fail-safe），
+      并把错误写入 `lastError`。scope 为 dns:write。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: sourceId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: OK
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/intel.yaml#/IntelSource'
+      '400':
+        description: 源未启用或拉取失败
+      '404':
+        description: 源不存在

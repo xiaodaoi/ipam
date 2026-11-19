@@ -44,6 +44,8 @@ type IntelService struct {
 	repo      BlocklistRepo
 	store     IntelRepo
 	blockPage func(context.Context) string
+	fetch     SourceFetcher // 情报源拉取（M6-039）
+	secretDir string        // 情报源密钥目录（不入库）
 
 	mu  sync.Mutex
 	now func() time.Time
@@ -51,7 +53,8 @@ type IntelService struct {
 
 // NewIntelService 创建编译服务；dir 为 zonefile 目录（容器内 /etc/unbound-rendered/zones/rpz）。
 func NewIntelService(dir string, ctl UnboundController, repo BlocklistRepo, store IntelRepo) *IntelService {
-	return &IntelService{dir: dir, ctl: ctl, repo: repo, store: store, now: time.Now}
+	return &IntelService{dir: dir, ctl: ctl, repo: repo, store: store, now: time.Now,
+		fetch: HTTPSourceFetch, secretDir: "/run/ipam/intel-secrets"}
 }
 
 // SetBlockPageResolver 注入提示页 IP 来源（redirect 动作用）。
@@ -117,6 +120,14 @@ func (s *IntelService) compileLocked(ctx context.Context) (IntelCompileResult, e
 		}
 		records[ZoneWhitelist] = append(records[ZoneWhitelist], rec)
 		wlSet[name] = true
+	}
+
+	// 情报源（M6-039）：hot/broad 两层由启用源填充；白名单优先剔除。
+	if sources, serr := s.store.ListSources(ctx); serr == nil {
+		records[ZoneHot] = append(records[ZoneHot], s.feedRecordsForLayer(sources, "hot", wlSet)...)
+		records[ZoneBroad] = append(records[ZoneBroad], s.feedRecordsForLayer(sources, "broad", wlSet)...)
+	} else {
+		log.Printf("[intel] 读取情报源失败（按空层处理）: %v", serr)
 	}
 
 	blockIP := ""

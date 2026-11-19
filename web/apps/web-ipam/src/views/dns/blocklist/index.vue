@@ -52,6 +52,8 @@ import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
 import { $t } from '#/locales';
 
+import IntelSourcesCard from './intel-sources-card.vue';
+
 const showTotal = (t: number) => $t('dns.common.total', { n: t });
 
 const rows = ref<Blocklist[]>([]);
@@ -1145,6 +1147,15 @@ onBeforeUnmount(() => timer && clearInterval(timer));
 
       <div class="ipam-toolbar mb-3">
         <div class="ipam-toolbar__spacer"></div>
+        <RouterLink
+          :to="{ path: '/logs-center/search', query: { action: 'blocked' } }"
+        >
+          <Button size="small">
+            <IconifyIcon icon="lucide:list-filter" class="mr-1" />{{
+              $t('dns.blocklist.intel.zones.viewBlocked')
+            }}
+          </Button>
+        </RouterLink>
         <Button size="small" :loading="reloading" @click="reloadZones">
           <IconifyIcon icon="lucide:refresh-cw" class="mr-1" />{{
             $t('dns.blocklist.intel.zones.reload')
@@ -1191,6 +1202,8 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         </template>
       </Table>
     </Card>
+
+    <IntelSourcesCard />
 
     <Card>
       <template #title>

@@ -481,6 +481,21 @@ export const listIntelZones = () =>
 export const reloadIntelZones = () =>
   req<IntelCompileResultRow>('/dns/intel/zones/reload', j({}));
 
+// 情报源管理（M6-039）：全部默认关闭，启用需确认许可
+export type IntelSourceRow = components['schemas']['IntelSource'];
+export type IntelSourceCreateRow = components['schemas']['IntelSourceCreate'];
+export type IntelSourceUpdateRow = components['schemas']['IntelSourceUpdate'];
+export const listIntelSources = () =>
+  req<{ items: IntelSourceRow[]; total?: number }>('/dns/intel/sources');
+export const createIntelSource = (body: IntelSourceCreateRow) =>
+  req<IntelSourceRow>('/dns/intel/sources', j(body));
+export const updateIntelSource = (id: string, body: IntelSourceUpdateRow) =>
+  req<IntelSourceRow>(`/dns/intel/sources/${id}`, patch(body));
+export const deleteIntelSource = (id: string) =>
+  req<undefined>(`/dns/intel/sources/${id}`, del);
+export const syncIntelSource = (id: string) =>
+  req<IntelSourceRow>(`/dns/intel/sources/${id}/sync`, j({}));
+
 export type BuiltinPackRow = components['schemas']['BuiltinPack'];
 export const listBuiltinPacks = () =>
   req<{ items: BuiltinPackRow[] }>('/dns/blocklists/builtin');

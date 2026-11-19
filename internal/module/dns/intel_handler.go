@@ -112,6 +112,169 @@ func (h *IntelHandler) ReloadIntelZones(c *gin.Context) {
 	c.JSON(http.StatusOK, apigen.IntelCompileResult{Zones: items, Entries: res.Entries, Reloaded: &reloaded})
 }
 
+// ── 情报源（M6-039）──
+
+// ListIntelSources GET /dns/intel/sources
+func (h *IntelHandler) ListIntelSources(c *gin.Context) {
+	list, err := h.svc.Sources(c.Request.Context())
+	if err != nil {
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	items := make([]apigen.IntelSource, 0, len(list))
+	for _, s := range list {
+		items = append(items, toGenSource(s))
+	}
+	total := len(items)
+	c.JSON(http.StatusOK, apigen.IntelSourceList{Items: items, Total: &total})
+}
+
+// CreateIntelSource POST /dns/intel/sources（保存为关闭状态）
+func (h *IntelHandler) CreateIntelSource(c *gin.Context) {
+	var body apigen.IntelSourceCreate
+	if err := c.ShouldBindJSON(&body); err != nil {
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "BAD_REQUEST", err.Error())
+		return
+	}
+	layer := "hot"
+	if body.Layer != nil {
+		layer = string(*body.Layer)
+	}
+	src := IntelSource{
+		Name:           body.Name,
+		URL:            body.Url,
+		Layer:          layer,
+		License:        derefStr(body.License),
+		UpdateInterval: 21600,
+	}
+	if body.UpdateInterval != nil {
+		src.UpdateInterval = *body.UpdateInterval
+	}
+	saved, err := h.svc.CreateSource(c.Request.Context(), src)
+	switch {
+	case errors.Is(err, ErrSourceNoURL):
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "INTEL_SOURCE_INVALID", "名称必填，URL 需以 http(s):// 开头")
+		return
+	case errors.Is(err, ErrSourceDupKey):
+		problem.Write(c, http.StatusConflict, "https://ipam.local/problems/conflict", "INTEL_SOURCE_DUP", "同名情报源已存在")
+		return
+	case err != nil:
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	c.JSON(http.StatusCreated, toGenSource(saved))
+}
+
+// UpdateIntelSource PATCH /dns/intel/sources/{sourceId}
+func (h *IntelHandler) UpdateIntelSource(c *gin.Context, sourceId rtypes.UUID) {
+	var body apigen.IntelSourceUpdate
+	if err := c.ShouldBindJSON(&body); err != nil {
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "BAD_REQUEST", err.Error())
+		return
+	}
+	up := SourceUpdate{
+		Name:           body.Name,
+		URL:            body.Url,
+		AuthHeader:     body.AuthHeader,
+		Secret:         body.Secret,
+		UpdateInterval: body.UpdateInterval,
+		Enabled:        body.Enabled,
+		AckLicense:     body.AckLicense != nil && *body.AckLicense,
+		ClearSecret:    body.ClearSecret != nil && *body.ClearSecret,
+	}
+	if body.Layer != nil {
+		l := string(*body.Layer)
+		up.Layer = &l
+	}
+	saved, err := h.svc.UpdateSource(c.Request.Context(), sourceId.String(), up)
+	switch {
+	case errors.Is(err, ErrSourceNotFound):
+		problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "INTEL_SOURCE_NOT_FOUND", "情报源不存在")
+		return
+	case errors.Is(err, ErrSourceLicenseAck):
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "INTEL_SOURCE_LICENSE_UNCONFIRMED", "启用前必须确认许可条款（含商用限制）")
+		return
+	case errors.Is(err, ErrSourceSecretNeeded):
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "INTEL_SOURCE_SECRET_REQUIRED", "该源需要鉴权密钥，请先填写密钥")
+		return
+	case errors.Is(err, ErrSourceNoURL):
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "INTEL_SOURCE_NO_URL", "请先填写有效的拉取 URL")
+		return
+	case errors.Is(err, ErrSourceEmpty):
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "INTEL_SOURCE_EMPTY", "已启用，但首次同步未解析到条目（详见 lastError）")
+		return
+	case err != nil:
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, toGenSource(saved))
+}
+
+// DeleteIntelSource DELETE /dns/intel/sources/{sourceId}（仅自定义源）
+func (h *IntelHandler) DeleteIntelSource(c *gin.Context, sourceId rtypes.UUID) {
+	err := h.svc.DeleteSource(c.Request.Context(), sourceId.String())
+	switch {
+	case errors.Is(err, ErrSourceNotFound):
+		problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "INTEL_SOURCE_NOT_FOUND", "情报源不存在")
+		return
+	case errors.Is(err, ErrSourceBuiltin):
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "INTEL_SOURCE_BUILTIN", "预设源不可删除，可停用")
+		return
+	case err != nil:
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// SyncIntelSource POST /dns/intel/sources/{sourceId}/sync（失败保留上一版）
+func (h *IntelHandler) SyncIntelSource(c *gin.Context, sourceId rtypes.UUID) {
+	src, err := h.svc.SyncSource(c.Request.Context(), sourceId.String())
+	switch {
+	case errors.Is(err, ErrSourceNotFound):
+		problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "INTEL_SOURCE_NOT_FOUND", "情报源不存在")
+		return
+	case err != nil:
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "INTEL_SOURCE_SYNC_FAILED", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, toGenSource(src))
+}
+
+func toGenSource(s IntelSource) apigen.IntelSource {
+	out := apigen.IntelSource{
+		Id:             *uuidPtr(s.ID),
+		Key:            s.Key,
+		Name:           s.Name,
+		Kind:           apigen.IntelSourceKind(s.Kind),
+		Layer:          apigen.IntelSourceLayer(s.Layer),
+		Enabled:        s.Enabled,
+		UpdateInterval: s.UpdateInterval,
+	}
+	out.Url = strPtr(s.URL)
+	out.Format = strPtr(s.Format)
+	out.AuthHeader = strPtr(s.AuthHeader)
+	out.HasSecret = &s.HasSecret
+	out.License = strPtr(s.License)
+	out.LicenseUrl = strPtr(s.LicenseURL)
+	out.CommercialOk = &s.CommercialOK
+	out.RequiresAck = &s.RequiresAck
+	out.AcknowledgedAt = s.AckedAt
+	out.Entries = &s.Entries
+	out.LastSyncAt = s.LastSyncAt
+	status := apigen.IntelSourceLastStatus(s.LastStatus)
+	out.LastStatus = &status
+	out.LastError = strPtr(s.LastError)
+	out.Builtin = &s.Builtin
+	if !s.CreatedAt.IsZero() {
+		out.CreatedAt = &s.CreatedAt
+	}
+	if !s.UpdatedAt.IsZero() {
+		out.UpdatedAt = &s.UpdatedAt
+	}
+	return out
+}
+
 func toGenWhitelist(w IntelWhitelist) apigen.IntelWhitelist {
 	out := apigen.IntelWhitelist{
 		Id:      *uuidPtr(w.ID),

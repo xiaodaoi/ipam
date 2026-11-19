@@ -208,6 +208,12 @@ paths:
     $ref: './paths/intel.yaml#/IntelZonesCollection'
   /dns/intel/zones/reload:
     $ref: './paths/intel.yaml#/IntelZoneReload'
+  /dns/intel/sources:
+    $ref: './paths/intel.yaml#/IntelSourceCollection'
+  /dns/intel/sources/{sourceId}:
+    $ref: './paths/intel.yaml#/IntelSourceItem'
+  /dns/intel/sources/{sourceId}/sync:
+    $ref: './paths/intel.yaml#/IntelSourceSync'
   /dns/zones:
     $ref: './paths/dnszone.yaml#/DnsZonesCollection'
   /dns/zones/{zoneId}/records:
