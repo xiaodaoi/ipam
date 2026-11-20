@@ -157,6 +157,10 @@ func (c *Collector) CollectDNS(ctx context.Context) (int, error) {
 		if g.ClientIP == "" || g.Domain == "" || g.Count <= 0 {
 			continue
 		}
+		// 通配规则名（*.corp.example）不是真实查询域名，不能进入报警（M6-040 防御）。
+		if strings.Contains(g.Domain, "*") {
+			continue
+		}
 		bucket := g.Bucket.UTC()
 		if bucket.IsZero() {
 			bucket = g.LastSeen.UTC().Truncate(time.Hour)

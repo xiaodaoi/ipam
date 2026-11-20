@@ -293,3 +293,45 @@ func Test列表过滤与模糊搜索(t *testing.T) {
 		t.Fatalf("非法时间窗应报 ErrBadWindow，got %v", err)
 	}
 }
+
+// 白名单 passthru 曾被误记为 blocked 并写入通配规则名（*.corp.example），
+// 采集器必须跳过这类记录，避免「已加白仍在拦截」的假报警。
+func TestDNS通配规则名不生成报警(t *testing.T) {
+	ctx := context.Background()
+	svc, _ := newTestService()
+	src := &fakeDNS{groups: []logquery.BlockedGroup{
+		{
+			Bucket:    time.Date(2026, 11, 19, 10, 0, 0, 0, time.UTC),
+			ClientIP:  "2406:440:3c16:4006:10:60:226:24",
+			Domain:    "*.corp.example",
+			Count:     12,
+			FirstSeen: time.Date(2026, 11, 19, 10, 5, 0, 0, time.UTC),
+			LastSeen:  time.Date(2026, 11, 19, 10, 20, 0, 0, time.UTC),
+		},
+		{
+			Bucket:    time.Date(2026, 11, 19, 10, 0, 0, 0, time.UTC),
+			ClientIP:  "2406:440:3c16:4006:10:60:226:24",
+			Domain:    "real.bad.example",
+			Count:     2,
+			FirstSeen: time.Date(2026, 11, 19, 10, 6, 0, 0, time.UTC),
+			LastSeen:  time.Date(2026, 11, 19, 10, 21, 0, 0, time.UTC),
+		},
+	}}
+	col := newTestCollector(svc, SystemChecks{})
+	col.SetDNSSource(src)
+
+	n, err := col.CollectDNS(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("应只采集 1 条真实域名报警，got %d", n)
+	}
+	page, err := svc.List(ctx, Filter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Total != 1 || page.Items[0].Domain != "real.bad.example" {
+		t.Fatalf("通配规则名不应入库: %+v", page.Items)
+	}
+}

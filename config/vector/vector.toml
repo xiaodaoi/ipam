@@ -118,16 +118,36 @@ source = '''
 # ── Unbound RPZ 命中日志（M6-038）──
 # 需在 rpz: 子句中开启 rpz-log: yes；样例：
 #   [1794998097] unbound[1296:0] info: rpz: applied [spamhaus-dbl] wikipedia.org. rpz-nxdomain 127.0.0.1@53113 wikipedia.org. A IN
+#   [1795157700] unbound[1:3] info: rpz: applied [wl.whitelist.rpz] *.corp.example. rpz-passthru 10.0.0.5@53113 a.corp.example. A IN
 # 落库 action=blocked，仪表盘「今日拦截量」与日志中心 action 过滤据此可用。
+#
+# 注意（M6-040 修复）：白名单命中会以 rpz-passthru 出现在同一条日志里，
+# 表示「放行继续解析」而不是拦截。早期实现只按 "rpz: applied" 判断，把白名单
+# 放行也记成了 blocked，并且把命中的通配规则（如 *.corp.example）当成查询域名，
+# 导致报警中心出现「已加白仍在拦截」的假报警。这里必须：
+#   1) 跳过 rpz-passthru；
+#   2) 优先取 client@port 之后的真实查询名，而不是前面的规则名。
 [transforms.parse_rpz]
 type = "remap"
 inputs = ["unbound_log"]
 source = '''
-  m, merr = parse_regex(.message, r'\[(?P<ts>\d+)\] unbound\[\d+:\d+\] info: rpz: applied \[(?P<zone>[^\]]+)\] (?P<qname>\S+) (?P<paction>rpz-\S+) (?P<cip>[^\s@]+)@(?P<cport>\d+)')
+  m, merr = parse_regex(.message, r'\[(?P<ts>\d+)\] unbound\[\d+:\d+\] info: rpz: applied \[(?P<zone>[^\]]+)\] (?P<rule>\S+) (?P<paction>rpz-\S+) (?P<cip>[^\s@]+)@(?P<cport>\d+)')
   if merr != null {
     abort
   }
-  qn, qerr = replace(m.qname, r'\.$', "")
+  # 白名单放行（rpz-passthru）不是拦截，直接丢弃。
+  if m.paction == "rpz-passthru" {
+    abort
+  }
+  # 真实查询名在 client@port 之后；老版本 unbound 无该尾段时退回规则名。
+  qname = m.rule
+  qtype = ""
+  t, terr = parse_regex(.message, r'@\d+ (?P<qname>\S+) (?P<qtype>\S+) IN$')
+  if terr == null {
+    qname = t.qname
+    qtype = t.qtype
+  }
+  qn, qerr = replace(qname, r'\.$', "")
   if qerr != null {
     abort
   }
@@ -140,7 +160,7 @@ source = '''
   .address = ""
   .sip = m.cip
   .domain = qn
-  .qtype = ""
+  .qtype = qtype
   .rtype = "dns"
   .block_zone = m.zone
   .block_action = m.paction
