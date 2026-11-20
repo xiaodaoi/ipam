@@ -8,6 +8,7 @@ import { useRouter } from 'vue-router';
 
 import { AuthenticationLoginExpiredModal } from '@vben/common-ui';
 import { useWatermark } from '@vben/hooks';
+import { CircleCheckBig, CircleX, IconifyIcon } from '@vben/icons';
 import {
   BasicLayout,
   LockScreen,
@@ -48,18 +49,10 @@ function alertTitle(a: AlertRow): string {
 
 function alertMessage(a: AlertRow): string {
   if (a.source === 'dns') {
-    const msg = $t('logs.alerts.notify.riskMessage', {
+    return $t('logs.alerts.notify.riskMessage', {
       ip: a.clientIp || '—',
       n: a.count,
     });
-    const source = (a.intelSourceName ?? '')
-      .split(',')
-      .map((x) => x.trim())
-      .filter(Boolean)
-      .join(' / ');
-    return source
-      ? `${msg} · ${$t('logs.alerts.notify.riskSource', { source })}`
-      : msg;
   }
   const component = a.component
     ? alertText(`logs.alerts.components.${a.component}`, a.component)
@@ -67,7 +60,33 @@ function alertMessage(a: AlertRow): string {
   return $t('logs.alerts.notify.systemMessage', { component, n: a.count });
 }
 
+function noticeIcon(a: Record<string, any>): string {
+  if (a.source === 'dns') return 'lucide:shield-ban';
+  return a.severity === 'critical'
+    ? 'lucide:octagon-alert'
+    : 'lucide:triangle-alert';
+}
+
+function noticeIconClass(severity?: string): string {
+  switch (severity) {
+    case 'critical': {
+      return 'bg-red-500/10 text-red-500';
+    }
+    case 'warning': {
+      return 'bg-amber-500/10 text-amber-500';
+    }
+    default: {
+      return 'bg-blue-500/10 text-blue-500';
+    }
+  }
+}
+
 function toNotification(a: AlertRow): NotificationItem {
+  const sourceName = (a.intelSourceName ?? '')
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .join(' / ');
   return {
     id: a.id,
     avatar: '/avatar.svg',
@@ -78,6 +97,8 @@ function toNotification(a: AlertRow): NotificationItem {
     link: '/logs-center/alerts',
     query: { alertId: a.id },
     severity: a.severity,
+    source: a.source,
+    sourceName,
   };
 }
 
@@ -250,7 +271,64 @@ watch(
         @make-all="handleMakeAll"
         @on-click="handleClick"
         @view-all="viewAll"
-      />
+      >
+        <template #content="{ item }">
+          <span
+            v-if="!item.isRead"
+            class="absolute top-2 right-2 size-2 rounded-sm bg-primary"
+          ></span>
+          <span
+            class="relative flex size-9 shrink-0 items-center justify-center rounded-full"
+            :class="noticeIconClass(item.severity)"
+          >
+            <IconifyIcon :icon="noticeIcon(item)" class="size-4" />
+          </span>
+          <div class="min-w-0 flex-1 pr-9">
+            <p class="line-clamp-2 font-semibold" :title="item.title">
+              {{ item.title }}
+            </p>
+            <p class="mt-1 line-clamp-2 text-xs text-muted-foreground">
+              {{ item.message }}
+            </p>
+            <p
+              v-if="item.sourceName"
+              class="mt-1 flex items-center gap-1 text-xs text-muted-foreground"
+            >
+              <IconifyIcon icon="lucide:radar" class="size-3 shrink-0" />
+              <span class="truncate">
+                {{
+                  $t('logs.alerts.notify.riskSource', {
+                    source: item.sourceName,
+                  })
+                }}
+              </span>
+            </p>
+            <p class="mt-1 text-[11px] text-muted-foreground/70">
+              {{ item.date }}
+            </p>
+          </div>
+          <div class="absolute top-1/2 right-2 flex -translate-y-1/2">
+            <button
+              v-if="!item.isRead"
+              type="button"
+              class="notice-action"
+              :title="$t('common.confirm')"
+              @click.stop="item.id && markRead(item.id)"
+            >
+              <CircleCheckBig class="size-4" />
+            </button>
+            <button
+              v-else
+              type="button"
+              class="notice-action notice-action--danger"
+              :title="$t('common.delete')"
+              @click.stop="item.id && remove(item.id)"
+            >
+              <CircleX class="size-4" />
+            </button>
+          </div>
+        </template>
+      </Notification>
     </template>
     <template #extra>
       <AuthenticationLoginExpiredModal
@@ -265,3 +343,30 @@ watch(
     </template>
   </BasicLayout>
 </template>
+
+<style scoped>
+.notice-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.notice-action:hover {
+  color: hsl(var(--foreground));
+  background: hsl(var(--accent));
+}
+
+.notice-action--danger:hover {
+  color: hsl(var(--destructive));
+}
+</style>

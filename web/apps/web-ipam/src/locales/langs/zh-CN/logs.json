@@ -679,7 +679,12 @@
       "domains": "风险域名 Top",
       "clients": "客户端地址 Top",
       "unit": "条",
-      "sources": "情报来源 Top"
+      "sources": "情报来源 Top",
+      "domainsHint": "按命中次数排序",
+      "clientsHint": "按访问次数排序",
+      "sourcesHint": "按报警数排序",
+      "hits": "次命中",
+      "empty": "暂无数据"
     },
     "notify": {
       "riskTitle": "风险域名访问：{domain}",

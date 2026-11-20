@@ -361,7 +361,7 @@ const topSources = computed(() =>
   Object.entries(stats.value?.byIntelSource ?? {})
     .map(([key, count]) => ({ key, count }))
     .toSorted((a, b) => b.count - a.count)
-    .slice(0, 10),
+    .slice(0, 5),
 );
 const topSourceMax = computed(() =>
   Math.max(1, ...topSources.value.map((d) => d.count)),
@@ -572,8 +572,8 @@ onBeforeUnmount(() => timer && clearInterval(timer));
       </div>
     </Card>
 
-    <div class="grid gap-4 lg:grid-cols-2">
-      <Card>
+    <div class="grid items-start gap-4 lg:grid-cols-3">
+      <Card class="lg:col-span-2">
         <template #title>
           <span class="ipam-card-title">
             <IconifyIcon icon="lucide:trending-up" />
@@ -589,25 +589,45 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         />
         <div v-else class="ipam-empty">{{ $t('logs.common.noTrend') }}</div>
       </Card>
+
       <Card>
         <template #title>
           <span class="ipam-card-title">
-            <IconifyIcon icon="lucide:shield-ban" />
-            {{ $t('logs.alerts.trend.domains') }}
+            <IconifyIcon icon="lucide:radar" />
+            {{ $t('logs.alerts.trend.sources') }}
           </span>
         </template>
-        <div v-if="topDomains.length > 0" class="ipam-top-list">
-          <div v-for="d in topDomains" :key="d.key" class="ipam-top-row">
-            <span class="ipam-mono truncate">{{ d.key }}</span>
-            <span class="ipam-hint">{{ fmtInt(d.count) }}</span>
-            <div class="ipam-top-bar">
-              <span
-                :style="{ width: `${(d.count / topDomainMax) * 100}%` }"
-              ></span>
+        <template #extra>
+          <span class="ipam-hint">{{
+            $t('logs.alerts.trend.sourcesHint')
+          }}</span>
+        </template>
+        <div v-if="topSources.length > 0" class="alert-rank-list">
+          <div
+            v-for="(i, idx) in topSources"
+            :key="i.key"
+            class="alert-rank-row"
+          >
+            <span class="alert-rank-no" :data-rank="idx + 1">
+              {{ idx + 1 }}
+            </span>
+            <div class="alert-rank-main">
+              <div class="alert-rank-head">
+                <span class="alert-rank-label" :title="i.key">{{ i.key }}</span>
+                <span class="alert-rank-count">{{ fmtInt(i.count) }}</span>
+              </div>
+              <div class="alert-rank-track">
+                <span
+                  :style="{ width: `${(i.count / topSourceMax) * 100}%` }"
+                ></span>
+              </div>
             </div>
           </div>
         </div>
-        <div v-else class="ipam-empty">—</div>
+        <div v-else class="alert-rank-empty">
+          <IconifyIcon icon="lucide:radar" />
+          <span>{{ $t('logs.alerts.trend.empty') }}</span>
+        </div>
       </Card>
     </div>
 
@@ -703,43 +723,87 @@ onBeforeUnmount(() => timer && clearInterval(timer));
       <Card>
         <template #title>
           <span class="ipam-card-title">
-            <IconifyIcon icon="lucide:users" />
-            {{ $t('logs.alerts.trend.clients') }}
+            <IconifyIcon icon="lucide:shield-ban" />
+            {{ $t('logs.alerts.trend.domains') }}
           </span>
         </template>
-        <div v-if="topClients.length > 0" class="ipam-top-list">
-          <div v-for="c in topClients" :key="c.key" class="ipam-top-row">
-            <span class="ipam-mono truncate">{{ c.key }}</span>
-            <span class="ipam-hint">{{ fmtInt(c.count) }}</span>
-            <div class="ipam-top-bar">
-              <span
-                :style="{ width: `${(c.count / topClientMax) * 100}%` }"
-              ></span>
+        <template #extra>
+          <span class="ipam-hint">{{
+            $t('logs.alerts.trend.domainsHint')
+          }}</span>
+        </template>
+        <div v-if="topDomains.length > 0" class="alert-rank-list">
+          <div
+            v-for="(d, idx) in topDomains"
+            :key="d.key"
+            class="alert-rank-row"
+          >
+            <span class="alert-rank-no" :data-rank="idx + 1">
+              {{ idx + 1 }}
+            </span>
+            <div class="alert-rank-main">
+              <div class="alert-rank-head">
+                <span class="alert-rank-label" :title="d.key">{{ d.key }}</span>
+                <span class="alert-rank-count">
+                  {{ fmtInt(d.count) }}
+                  <small>{{ $t('logs.alerts.trend.hits') }}</small>
+                </span>
+              </div>
+              <div class="alert-rank-track">
+                <span
+                  :style="{ width: `${(d.count / topDomainMax) * 100}%` }"
+                ></span>
+              </div>
             </div>
           </div>
         </div>
-        <div v-else class="ipam-empty">—</div>
+        <div v-else class="alert-rank-empty">
+          <IconifyIcon icon="lucide:shield-ban" />
+          <span>{{ $t('logs.alerts.trend.empty') }}</span>
+        </div>
       </Card>
 
       <Card>
         <template #title>
           <span class="ipam-card-title">
-            <IconifyIcon icon="lucide:radar" />
-            {{ $t('logs.alerts.trend.sources') }}
+            <IconifyIcon icon="lucide:users" />
+            {{ $t('logs.alerts.trend.clients') }}
           </span>
         </template>
-        <div v-if="topSources.length > 0" class="ipam-top-list">
-          <div v-for="i in topSources" :key="i.key" class="ipam-top-row">
-            <span class="truncate">{{ i.key }}</span>
-            <span class="ipam-hint">{{ fmtInt(i.count) }}</span>
-            <div class="ipam-top-bar">
-              <span
-                :style="{ width: `${(i.count / topSourceMax) * 100}%` }"
-              ></span>
+        <template #extra>
+          <span class="ipam-hint">{{
+            $t('logs.alerts.trend.clientsHint')
+          }}</span>
+        </template>
+        <div v-if="topClients.length > 0" class="alert-rank-list">
+          <div
+            v-for="(c, idx) in topClients"
+            :key="c.key"
+            class="alert-rank-row"
+          >
+            <span class="alert-rank-no" :data-rank="idx + 1">
+              {{ idx + 1 }}
+            </span>
+            <div class="alert-rank-main">
+              <div class="alert-rank-head">
+                <span class="alert-rank-label" :title="c.key">{{ c.key }}</span>
+                <span class="alert-rank-count">
+                  {{ fmtInt(c.count) }}
+                  <small>{{ $t('logs.alerts.trend.hits') }}</small>
+                </span>
+              </div>
+              <div class="alert-rank-track">
+                <span
+                  :style="{ width: `${(c.count / topClientMax) * 100}%` }"
+                ></span>
+              </div>
             </div>
           </div>
         </div>
-        <div v-else class="ipam-empty">—</div>
+        <div v-else class="alert-rank-empty">
+          <IconifyIcon icon="lucide:users" />
+          <span>{{ $t('logs.alerts.trend.empty') }}</span>
+        </div>
       </Card>
     </div>
 
@@ -871,3 +935,131 @@ onBeforeUnmount(() => timer && clearInterval(timer));
     </DetailDrawer>
   </div>
 </template>
+
+<style scoped>
+.alert-rank-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.alert-rank-row {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 7px 6px;
+  border-radius: 8px;
+  transition: background-color 0.15s ease;
+}
+
+.alert-rank-row:hover {
+  background: hsl(var(--accent));
+}
+
+.alert-rank-no {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted));
+  border-radius: 6px;
+}
+
+.alert-rank-row:nth-child(1) .alert-rank-no {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.alert-rank-row:nth-child(2) .alert-rank-no {
+  color: #475569;
+  background: #e2e8f0;
+}
+
+.alert-rank-row:nth-child(3) .alert-rank-no {
+  color: #9a3412;
+  background: #ffedd5;
+}
+
+.alert-rank-main {
+  min-width: 0;
+}
+
+.alert-rank-head {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.alert-rank-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    monospace;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: hsl(var(--foreground));
+  white-space: nowrap;
+}
+
+.alert-rank-count {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground));
+  white-space: nowrap;
+}
+
+.alert-rank-count small {
+  margin-left: 3px;
+  font-size: 10px;
+  font-weight: 400;
+  color: hsl(var(--muted-foreground));
+}
+
+.alert-rank-track {
+  height: 4px;
+  margin-top: 5px;
+  overflow: hidden;
+  background: hsl(var(--muted));
+  border-radius: 9999px;
+}
+
+.alert-rank-track > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    hsl(var(--primary)),
+    hsl(var(--primary) / 55%)
+  );
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
+.alert-rank-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+}
+
+.alert-rank-empty svg {
+  width: 22px;
+  height: 22px;
+  opacity: 0.35;
+}
+</style>

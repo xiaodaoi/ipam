@@ -679,7 +679,12 @@
       "domains": "Top risky domains",
       "clients": "Top client addresses",
       "unit": "alerts",
-      "sources": "Top threat sources"
+      "sources": "Top threat sources",
+      "domainsHint": "Ranked by hits",
+      "clientsHint": "Ranked by visits",
+      "sourcesHint": "Ranked by alerts",
+      "hits": "hits",
+      "empty": "No data"
     },
     "notify": {
       "riskTitle": "Risky domain visit: {domain}",
