@@ -46,28 +46,34 @@ func (e ExecController) run(args ...string) error {
 	return nil
 }
 
-// SyncForward 收敛 forward-zone "." 为第一个 enabled 上游（默认转发语义）。
+// SyncForward 收敛 forward-zone "." 为默认公网出口池（M6-041）：
+// 所有 enabled 且 is_default 的上游地址全部下发，实现多地址冗余；
+// 未标记任何默认时回退第一条 enabled（兼容旧数据）。
 // 默认 "." 只承载公网回落，不得混入内网 DNS——否则禁用某内网域的规则后，
 // 该域仍经 "." 回落到其它内网 DNS 继续解析，禁用失效（M3-011 现场）。
-// 第一个 enabled 上游即部署时的公网上游；如需多公网上游冗余，后续加"公共/默认"标记。
 func (e ExecController) SyncForward(_ context.Context, upstreams []dns.Upstream) error {
-	var def *dns.Upstream
-	for i := range upstreams {
-		if upstreams[i].Enabled {
-			def = &upstreams[i]
-			break
-		}
-	}
-	if def == nil {
+	defs := dns.DefaultForwardUpstreams(upstreams)
+	if len(defs) == 0 {
 		return nil
 	}
 	args := []string{"forward_add", "."}
-	for _, a := range def.Addrs {
-		host, port, err := net.SplitHostPort(NormalizeAddr(a))
-		if err != nil {
-			return err
+	seen := map[string]bool{}
+	for _, u := range defs {
+		for _, a := range u.Addrs {
+			host, port, err := net.SplitHostPort(NormalizeAddr(a))
+			if err != nil {
+				return err
+			}
+			target := fmt.Sprintf("%s@%s", host, port)
+			if seen[target] {
+				continue
+			}
+			seen[target] = true
+			args = append(args, target)
 		}
-		args = append(args, fmt.Sprintf("%s@%s", host, port))
+	}
+	if len(args) == 2 {
+		return nil
 	}
 	return e.run(args...)
 }
@@ -142,7 +148,8 @@ func (e ExecController) SyncForwardRules(_ context.Context, rules []dns.ForwardR
 		byID[u.ID] = u
 	}
 	for _, r := range rules {
-		if !r.Enabled {
+		if !r.Enabled || r.Domain == "." {
+			// "." 由默认公网出口池统一管理（M6-041），规则不再覆盖默认转发。
 			continue
 		}
 		args := []string{"forward_add", r.Domain}

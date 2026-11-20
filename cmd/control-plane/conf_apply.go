@@ -55,14 +55,19 @@ func (a *confApplier) apply(ctx context.Context) (unboundengine.ConfInput, error
 	if err != nil {
 		return in, err
 	}
-	for _, u := range ups {
-		if !u.Enabled {
-			continue
-		}
+	// 默认转发 "."：所有 enabled 且 is_default 的公网出口共同承载；无默认标记时
+	// 回退第一条 enabled（兼容旧部署）。内网 DNS 不得标记默认（写入时已校验），
+	// 保证 "." 始终只承载公网回落（M3-011 / M6-041）。
+	seenDefault := map[string]bool{}
+	for _, u := range dnsmodule.DefaultForwardUpstreams(ups) {
 		for _, addr := range u.Addrs {
+			key := unboundengine.NormalizeAddr(addr)
+			if seenDefault[key] {
+				continue
+			}
+			seenDefault[key] = true
 			in.DefaultFwd = append(in.DefaultFwd, forwardAddr(u, addr))
 		}
-		break // 默认转发取第一个 enabled 上游（公网回落，不含内网 DNS，M3-011）
 	}
 
 	rules, err := a.frRepo.List(ctx)
@@ -74,7 +79,8 @@ func (a *confApplier) apply(ctx context.Context) (unboundengine.ConfInput, error
 		upByID[u.ID] = u
 	}
 	for _, r := range rules {
-		if !r.Enabled {
+		if !r.Enabled || r.Domain == "." {
+			// "." 由默认公网出口池统一渲染（M6-041），避免重复 forward-zone 触发 checkconf 拒绝。
 			continue
 		}
 		rc := unboundengine.ForwardRuleConf{Domain: r.Domain}

@@ -2,6 +2,8 @@ package unbound
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -66,5 +68,42 @@ func TestCandidateConfText_无RPZ不变(t *testing.T) {
 	}
 	if !strings.HasSuffix(got, block) || !strings.HasPrefix(got, "server:") {
 		t.Fatalf("候选块应原样保留:\n%s", got)
+	}
+}
+
+// M6-041：默认池包含所有 enabled+is_default 上游，地址去重后一次 forward_add。
+func TestExecController_SyncForward默认池多地址(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "args.txt")
+	bin := filepath.Join(dir, "fake-unbound-control")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$FAKE_OUT\"\n"
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("FAKE_OUT", out)
+
+	c := ExecController{Bin: bin}
+	ups := []dns.Upstream{
+		{ID: "u1", Addrs: []string{"8.8.8.8"}, Enabled: true}, // 非默认，忽略
+		{ID: "u2", Addrs: []string{"223.5.5.5", "114.114.114.114:53"}, Enabled: true, IsDefault: true},
+		{ID: "u3", Addrs: []string{"223.5.5.5:53", "119.29.29.29"}, Enabled: true, IsDefault: true},
+		{ID: "u4", Addrs: []string{"1.1.1.1"}, Enabled: false, IsDefault: true}, // 停用，忽略
+	}
+	if err := c.SyncForward(context.Background(), ups); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Split(strings.TrimSpace(string(b)), "\n")
+	want := []string{"forward_add", ".", "223.5.5.5@53", "114.114.114.114@53", "119.29.29.29@53"}
+	if len(got) != len(want) {
+		t.Fatalf("args=%v want=%v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("[%d] got=%q want=%q (all=%v)", i, got[i], want[i], got)
+		}
 	}
 }

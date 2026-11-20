@@ -37,8 +37,9 @@ func TestBuildForwardCommands(t *testing.T) {
 		{Domain: "disabled.x", UpstreamIDs: []string{"u2"}, Enabled: false},
 	}
 	cmds := buildForwardCommands(rules, ups)
-	if len(cmds) != 2 {
-		t.Fatalf("want 2 commands, got %d: %v", len(cmds), cmds)
+	// "." 由默认公网出口池统一管理（M6-041），规则不再下发 "."。
+	if len(cmds) != 1 {
+		t.Fatalf("want 1 command (default rule skipped), got %d: %v", len(cmds), cmds)
 	}
 	if cmds[0] != "forward_add corp.local. 10.0.0.53" {
 		t.Fatalf("corp cmd: %s", cmds[0])

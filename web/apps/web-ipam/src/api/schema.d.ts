@@ -2187,13 +2187,13 @@ export interface paths {
         };
         /**
          * 查询上游服务器（含探活状态）
-         * @description 探活状态由 prober 周期维护（连续 3 次失败标记异常，一次成功恢复；仅用于展示，不改变转发选路）。
+         * @description 探活状态由 prober 周期维护（连续 3 次失败标记异常，一次成功恢复；仅用于展示，不改变转发选路）。`isDefault` 为 true 的上游共同构成默认公网出口池。
          */
         get: operations["listUpstreams"];
         put?: never;
         /**
          * 创建上游（触发 forward-zone 下发）
-         * @description 落库后经 unbound 通道生效（forward_add）。scope 为 dns.write。
+         * @description 落库后经 unbound 通道生效（forward_add）。isDefault=true 时地址必须为公网地址。scope 为 dns.write。
          */
         post: operations["createUpstream"];
         delete?: never;
@@ -3108,7 +3108,10 @@ export interface components {
             protocol: "udp" | "tcp" | "dot";
             /** @description DoT 上游 TLS SNI/证书名（如 cloudflare-dns.com；protocol=dot 时生效，M6-023） */
             tlsName?: string;
+            /** @description 预留字段，当前不参与 unbound 选路（unbound 按 infra-cache RTT 自行选择地址） */
             weight: number;
+            /** @description 默认公网出口；所有 enabled 且 isDefault 的上游地址会一起下发到 forward-zone "."。仅允许公网地址，内网 DNS 不得标记 */
+            isDefault: boolean;
             enabled: boolean;
             /** @description 探活状态（prober 维护；仅用于展示，不改变转发选路） */
             health: {
@@ -3129,8 +3132,16 @@ export interface components {
             protocol: "udp" | "tcp" | "dot";
             /** @description DoT TLS SNI/证书名（protocol=dot 时生效） */
             tlsName?: string;
-            /** @default 1 */
+            /**
+             * @description 预留字段，当前不参与 unbound 选路
+             * @default 1
+             */
             weight: number;
+            /**
+             * @description 默认公网出口；标记后参与 forward-zone "."。地址必须全部为公网地址
+             * @default false
+             */
+            isDefault: boolean;
             /** @default true */
             enabled: boolean;
         };
@@ -3141,7 +3152,10 @@ export interface components {
             protocol?: "udp" | "tcp" | "dot";
             /** @description DoT TLS SNI/证书名 */
             tlsName?: string;
+            /** @description 预留字段，当前不参与 unbound 选路 */
             weight?: number;
+            /** @description 默认公网出口；地址必须全部为公网地址 */
+            isDefault?: boolean;
             enabled?: boolean;
         };
         UpstreamList: {

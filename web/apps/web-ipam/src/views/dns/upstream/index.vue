@@ -40,6 +40,7 @@ const loading = ref(false);
 const form = ref<{
   addr: string;
   enabled: boolean;
+  isDefault: boolean;
   name: string;
   protocol: Proto;
   tlsName: string;
@@ -50,6 +51,7 @@ const form = ref<{
   protocol: 'udp',
   tlsName: '',
   weight: 1,
+  isDefault: false,
   enabled: true,
 });
 let timer: ReturnType<typeof setInterval> | undefined;
@@ -84,6 +86,7 @@ async function add() {
         protocol: form.value.protocol,
         tlsName: form.value.tlsName,
         weight: form.value.weight,
+        isDefault: form.value.isDefault,
         enabled: form.value.enabled,
       });
       message.success($t('dns.upstream.msg.updated'));
@@ -94,6 +97,7 @@ async function add() {
         protocol: form.value.protocol,
         tlsName: form.value.tlsName,
         weight: form.value.weight,
+        isDefault: form.value.isDefault,
         enabled: form.value.enabled,
       });
       message.success($t('dns.upstream.msg.added'));
@@ -105,6 +109,7 @@ async function add() {
       protocol: 'udp',
       tlsName: '',
       weight: 1,
+      isDefault: false,
       enabled: true,
     };
     formModalApi.close();
@@ -128,6 +133,7 @@ function edit(r: Upstream) {
     protocol: (r.protocol as Proto) ?? 'udp',
     tlsName: r.tlsName ?? '',
     weight: r.weight ?? 1,
+    isDefault: r.isDefault ?? false,
     enabled: r.enabled ?? true,
   };
 }
@@ -146,6 +152,7 @@ function openAdd() {
     protocol: 'udp',
     tlsName: '',
     weight: 1,
+    isDefault: false,
     enabled: true,
   };
   formModalApi.setState({
@@ -482,7 +489,12 @@ const columns = computed(() => [
         <template #bodyCell="{ column, record }">
           <template v-if="column.dataIndex === 'name'">
             <div class="ipam-cell-stack">
-              <span class="ipam-cell-title">{{ record.name }}</span>
+              <span class="ipam-cell-title">
+                {{ record.name }}
+                <Tag v-if="record.isDefault" class="ml-1" color="green">
+                  {{ $t('dns.upstream.defaultTag') }}
+                </Tag>
+              </span>
               <span class="ipam-cell-meta ipam-mono">{{
                 (record.addrs ?? []).join(' · ') || '—'
               }}</span>
@@ -624,7 +636,23 @@ const columns = computed(() => [
             :max="100"
             style="width: 100%"
           />
+          <span class="ipam-hint">{{
+            $t('dns.upstream.form.weightHint')
+          }}</span>
         </label>
+        <div class="ipam-form-field">
+          <span class="ipam-form-field__label">{{
+            $t('dns.upstream.form.defaultLabel')
+          }}</span>
+          <div class="flex h-8 items-center gap-2">
+            <Switch v-model:checked="form.isDefault" size="small" />
+            <span class="ipam-hint">{{
+              form.isDefault
+                ? $t('dns.upstream.form.defaultHintOn')
+                : $t('dns.upstream.form.defaultHintOff')
+            }}</span>
+          </div>
+        </div>
         <div class="ipam-form-field">
           <span class="ipam-form-field__label">{{
             $t('dns.upstream.form.enabledLabel')

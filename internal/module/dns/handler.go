@@ -2,6 +2,7 @@ package dns
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -51,15 +52,20 @@ func (h *DnsHandler) CreateUpstream(c *gin.Context) {
 		protocol = string(*body.Protocol)
 	}
 	u := Upstream{
-		Name:     body.Name,
-		Addrs:    body.Addrs,
-		Protocol: protocol,
-		TLSName:  derefStr(body.TlsName),
-		Weight:   deref(body.Weight, 1),
-		Enabled:  deref(body.Enabled, true),
+		Name:      body.Name,
+		Addrs:     body.Addrs,
+		Protocol:  protocol,
+		TLSName:   derefStr(body.TlsName),
+		Weight:    deref(body.Weight, 1),
+		IsDefault: deref(body.IsDefault, false),
+		Enabled:   deref(body.Enabled, true),
 	}
 	saved, err := h.svc.Create(c.Request.Context(), u)
 	if err != nil {
+		if errors.Is(err, ErrDefaultUpstreamNotPublic) {
+			problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "DEFAULT_UPSTREAM_NOT_PUBLIC", err.Error())
+			return
+		}
 		if saved.ID == "" {
 			// PG 写入也失败了，真 503
 			problem.Write(c, http.StatusServiceUnavailable, "https://ipam.local/problems/unbound-down", "UNBOUND_DOWN", "上游保存失败且 unbound 下发失败")
@@ -100,14 +106,23 @@ func (h *DnsHandler) UpdateUpstream(c *gin.Context, upstreamId rtypes.UUID) {
 	if body.Weight != nil {
 		cur.Weight = *body.Weight
 	}
+	if body.IsDefault != nil {
+		cur.IsDefault = *body.IsDefault
+	}
 	if body.Enabled != nil {
 		cur.Enabled = *body.Enabled
 	}
-	if err := h.svc.repo.Update(c.Request.Context(), cur); err != nil {
-		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
-		return
+	if err := h.svc.Update(c.Request.Context(), cur); err != nil {
+		if errors.Is(err, ErrDefaultUpstreamNotPublic) {
+			problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "DEFAULT_UPSTREAM_NOT_PUBLIC", err.Error())
+			return
+		}
+		if !errors.Is(err, ErrUnboundDown) {
+			problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+			return
+		}
+		// 已落库但下发失败：保持既有 soft-fail 语义（返回 200，客户端可再触发重下发）
 	}
-	_ = h.svc.resync(c.Request.Context())
 	c.JSON(http.StatusOK, toGenUpstream(cur, h.svc.prober.Status(cur.ID)))
 }
 
@@ -150,13 +165,14 @@ func toGenUpstream(u Upstream, h Health) apigen.Upstream {
 	fails := h.ConsecutiveFails
 	last := h.LastCheck
 	upstream := apigen.Upstream{
-		Id:       rtypes.UUID(guuid.MustParse(u.ID)),
-		Name:     u.Name,
-		Addrs:    u.Addrs,
-		Protocol: protocol,
-		TlsName:  strPtr(u.TLSName),
-		Weight:   u.Weight,
-		Enabled:  u.Enabled,
+		Id:        rtypes.UUID(guuid.MustParse(u.ID)),
+		Name:      u.Name,
+		Addrs:     u.Addrs,
+		Protocol:  protocol,
+		TlsName:   strPtr(u.TLSName),
+		Weight:    u.Weight,
+		IsDefault: u.IsDefault,
+		Enabled:   u.Enabled,
 		Health: struct {
 			ConsecutiveFails *int       `json:"consecutiveFails,omitempty"`
 			LastCheck        *time.Time `json:"lastCheck,omitempty"`

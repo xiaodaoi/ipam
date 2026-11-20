@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"net/netip"
 	"sync"
 
 	"github.com/jackc/pgx/v5"
@@ -14,13 +16,14 @@ import (
 
 // Upstream 上游服务器（PG upstream 表行投影）。
 type Upstream struct {
-	ID       string
-	Name     string
-	Addrs    []string
-	Protocol string
-	TLSName  string // DoT SNI/证书名（protocol=dot，M6-023）
-	Weight   int
-	Enabled  bool
+	ID        string
+	Name      string
+	Addrs     []string
+	Protocol  string
+	TLSName   string // DoT SNI/证书名（protocol=dot，M6-023）
+	Weight    int
+	IsDefault bool // 默认公网出口：多个 enabled+IsDefault 共同下发 forward-zone "."（M6-041）
+	Enabled   bool
 }
 
 // Health 探活状态（prober 维护，F-R4）。
@@ -43,7 +46,87 @@ type UpstreamRepo interface {
 var (
 	ErrUpstreamNotFound = errors.New("UPSTREAM_NOT_FOUND")
 	ErrUnboundDown      = errors.New("UNBOUND_DOWN")
+	// ErrDefaultUpstreamNotPublic 默认公网出口只能使用公网地址（M6-041）：
+	// "." 必须保持为公网回落，内网 DNS 只能通过条件转发规则参与。
+	ErrDefaultUpstreamNotPublic = errors.New("DEFAULT_UPSTREAM_NOT_PUBLIC")
 )
+
+// DefaultForwardUpstreams 返回参与 forward-zone "." 的上游集合（M6-041）：
+// 所有 enabled 且 is_default 的上游；若没有任何默认标记，则回退到第一条 enabled
+// （兼容 0050 之前创建的部署，行为与旧版一致）。
+func DefaultForwardUpstreams(list []Upstream) []Upstream {
+	picked := make([]Upstream, 0, len(list))
+	for _, u := range list {
+		if u.Enabled && u.IsDefault {
+			picked = append(picked, u)
+		}
+	}
+	if len(picked) > 0 {
+		return picked
+	}
+	for _, u := range list {
+		if u.Enabled {
+			return []Upstream{u}
+		}
+	}
+	return nil
+}
+
+// ValidateDefaultUpstream 校验默认公网出口：所有地址必须是公网 IP。
+// 允许 IPv4/IPv6，拒绝 RFC1918、环回、链路本地、ULA、CGNAT 等私网/保留地址。
+func ValidateDefaultUpstream(u Upstream) error {
+	if !u.IsDefault {
+		return nil
+	}
+	for _, raw := range u.Addrs {
+		host := hostOnly(raw)
+		ip, err := netip.ParseAddr(host)
+		if err != nil {
+			return fmt.Errorf("%w: 地址 %q 不是合法 IP", ErrDefaultUpstreamNotPublic, raw)
+		}
+		if !isPublicIP(ip) {
+			return fmt.Errorf("%w: 地址 %q 属于内网/保留地址", ErrDefaultUpstreamNotPublic, raw)
+		}
+	}
+	return nil
+}
+
+// hostOnly 从 ip[:port] / [v6][:port] 中取主机部分。
+func hostOnly(addr string) string {
+	if host, _, err := net.SplitHostPort(addr); err == nil {
+		return host
+	}
+	return addr
+}
+
+// reservedPrefixes 非公网地址段（除 netip 已覆盖的 RFC1918/ULA/环回/链路本地）。
+var reservedPrefixes = []netip.Prefix{
+	netip.MustParsePrefix("100.64.0.0/10"), // CGNAT
+	netip.MustParsePrefix("192.0.0.0/24"),  // IETF 协议保留
+	netip.MustParsePrefix("198.18.0.0/15"), // 基准测试
+	netip.MustParsePrefix("240.0.0.0/4"),   // 保留（含广播）
+	netip.MustParsePrefix("2001:db8::/32"), // 文档示例
+	netip.MustParsePrefix("64:ff9b::/96"),  // NAT64 内嵌 IPv4，视作非公网直连
+	netip.MustParsePrefix("2002::/16"),     // 6to4（可承载内网 IPv4）
+}
+
+// isPublicIP 判断地址能否作为公网递归出口。
+func isPublicIP(ip netip.Addr) bool {
+	if ip.Is4In6() {
+		ip = ip.Unmap()
+	}
+	if !ip.IsValid() || ip.IsUnspecified() || ip.IsLoopback() ||
+		ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
+		ip.IsMulticast() || ip.IsInterfaceLocalMulticast() {
+		return false
+	}
+	for _, p := range reservedPrefixes {
+		if p.Contains(ip) {
+			return false
+		}
+	}
+	return true
+}
 
 // UnboundController 下发通道抽象（engine/unbound 实现；测试用 fake）。
 type UnboundController interface {
@@ -188,6 +271,9 @@ func NewService(repo UpstreamRepo, prober *Prober, ctl UnboundController) *Servi
 
 // Create 落库→重新下发 forward-zone。
 func (s *Service) Create(ctx context.Context, u Upstream) (Upstream, error) {
+	if err := ValidateDefaultUpstream(u); err != nil {
+		return Upstream{}, err
+	}
 	saved, err := s.repo.Create(ctx, u)
 	if err != nil {
 		return Upstream{}, err
@@ -196,6 +282,17 @@ func (s *Service) Create(ctx context.Context, u Upstream) (Upstream, error) {
 		return saved, err // 已落库但下发失败：返回错误提示，状态可查询
 	}
 	return saved, nil
+}
+
+// Update 更新上游（校验默认出口地址后落库并重新下发）。
+func (s *Service) Update(ctx context.Context, u Upstream) error {
+	if err := ValidateDefaultUpstream(u); err != nil {
+		return err
+	}
+	if err := s.repo.Update(ctx, u); err != nil {
+		return err
+	}
+	return s.resync(ctx)
 }
 
 func (s *Service) resync(ctx context.Context) error {
@@ -330,7 +427,7 @@ type PgUpstreamRepo struct{ pool *pgxpool.Pool }
 
 func NewPgUpstreamRepo(pool *pgxpool.Pool) *PgUpstreamRepo { return &PgUpstreamRepo{pool: pool} }
 
-const upCols = `id::text, name, addrs, protocol, coalesce(tls_name,''), weight, enabled`
+const upCols = `id::text, name, addrs, protocol, coalesce(tls_name,''), weight, is_default, enabled`
 
 func (r *PgUpstreamRepo) List(ctx context.Context) ([]Upstream, error) {
 	rows, err := r.pool.Query(ctx, `SELECT `+upCols+` FROM upstream ORDER BY created_at`)
@@ -341,7 +438,7 @@ func (r *PgUpstreamRepo) List(ctx context.Context) ([]Upstream, error) {
 	out := []Upstream{}
 	for rows.Next() {
 		var u Upstream
-		if err := rows.Scan(&u.ID, &u.Name, &u.Addrs, &u.Protocol, &u.TLSName, &u.Weight, &u.Enabled); err == nil {
+		if err := rows.Scan(&u.ID, &u.Name, &u.Addrs, &u.Protocol, &u.TLSName, &u.Weight, &u.IsDefault, &u.Enabled); err == nil {
 			out = append(out, u)
 		}
 	}
@@ -351,7 +448,7 @@ func (r *PgUpstreamRepo) List(ctx context.Context) ([]Upstream, error) {
 func (r *PgUpstreamRepo) Get(ctx context.Context, id string) (Upstream, bool, error) {
 	var u Upstream
 	err := r.pool.QueryRow(ctx, `SELECT `+upCols+` FROM upstream WHERE id=$1`, id).
-		Scan(&u.ID, &u.Name, &u.Addrs, &u.Protocol, &u.TLSName, &u.Weight, &u.Enabled)
+		Scan(&u.ID, &u.Name, &u.Addrs, &u.Protocol, &u.TLSName, &u.Weight, &u.IsDefault, &u.Enabled)
 	if err == pgx.ErrNoRows {
 		return Upstream{}, false, nil
 	}
@@ -364,16 +461,16 @@ func (r *PgUpstreamRepo) Get(ctx context.Context, id string) (Upstream, bool, er
 func (r *PgUpstreamRepo) Create(ctx context.Context, u Upstream) (Upstream, error) {
 	var id string
 	err := r.pool.QueryRow(ctx,
-		`INSERT INTO upstream(name, addrs, protocol, tls_name, weight, enabled) VALUES($1,$2,$3,$4,$5,$6) RETURNING id::text`,
-		u.Name, u.Addrs, u.Protocol, u.TLSName, u.Weight, u.Enabled).Scan(&id)
+		`INSERT INTO upstream(name, addrs, protocol, tls_name, weight, is_default, enabled) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id::text`,
+		u.Name, u.Addrs, u.Protocol, u.TLSName, u.Weight, u.IsDefault, u.Enabled).Scan(&id)
 	u.ID = id
 	return u, err
 }
 
 func (r *PgUpstreamRepo) Update(ctx context.Context, u Upstream) error {
 	_, err := r.pool.Exec(ctx,
-		`UPDATE upstream SET name=$2, addrs=$3, protocol=$4, tls_name=$5, weight=$6, enabled=$7 WHERE id=$1`,
-		u.ID, u.Name, u.Addrs, u.Protocol, u.TLSName, u.Weight, u.Enabled)
+		`UPDATE upstream SET name=$2, addrs=$3, protocol=$4, tls_name=$5, weight=$6, is_default=$7, enabled=$8 WHERE id=$1`,
+		u.ID, u.Name, u.Addrs, u.Protocol, u.TLSName, u.Weight, u.IsDefault, u.Enabled)
 	return err
 }
 

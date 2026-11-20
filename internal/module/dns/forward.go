@@ -151,7 +151,8 @@ func buildForwardCommands(rules []ForwardRule, ups []Upstream) []string {
 	}
 	cmds := []string{}
 	for _, r := range rules {
-		if !r.Enabled {
+		if !r.Enabled || r.Domain == "." {
+			// "." 由默认公网出口池统一管理（M6-041）。
 			continue
 		}
 		args := []string{"forward_add", r.Domain}

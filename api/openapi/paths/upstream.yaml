@@ -3,7 +3,7 @@ UpstreamsCollection:
     operationId: listUpstreams
     tags: [dns]
     summary: 查询上游服务器（含探活状态）
-    description: 探活状态由 prober 周期维护（连续 3 次失败标记异常，一次成功恢复；仅用于展示，不改变转发选路）。
+    description: 探活状态由 prober 周期维护（连续 3 次失败标记异常，一次成功恢复；仅用于展示，不改变转发选路）。`isDefault` 为 true 的上游共同构成默认公网出口池。
     security: []
     responses:
       '200':
@@ -15,12 +15,12 @@ UpstreamsCollection:
           examples:
             ok:
               summary: 示例
-              value: { items: [{ id: '99999999-9999-9999-9999-999999999999', name: 阿里, addrs: ['223.5.5.5'], protocol: udp, weight: 2, enabled: true, health: { up: true, rttMs: 8 } }], total: 1 }
+              value: { items: [{ id: '99999999-9999-9999-9999-999999999999', name: 阿里, addrs: ['223.5.5.5'], protocol: udp, weight: 2, isDefault: true, enabled: true, health: { up: true, rttMs: 8 } }], total: 1 }
   post:
     operationId: createUpstream
     tags: [dns]
     summary: 创建上游（触发 forward-zone 下发）
-    description: 落库后经 unbound 通道生效（forward_add）。scope 为 dns.write。
+    description: 落库后经 unbound 通道生效（forward_add）。isDefault=true 时地址必须为公网地址。scope 为 dns.write。
     security: [{ bearerAuth: [] }]
     requestBody:
       required: true
@@ -30,7 +30,7 @@ UpstreamsCollection:
             $ref: '../components/schemas/upstream.yaml#/UpstreamCreate'
             examples:
                 ali:
-                  value: { name: 阿里, addrs: ["223.5.5.5"], protocol: udp, weight: 2 }
+                  value: { name: 阿里, addrs: ["223.5.5.5"], protocol: udp, weight: 2, isDefault: true }
     responses:
       '201':
         description: OK
@@ -41,7 +41,7 @@ UpstreamsCollection:
           examples:
             ok:
               summary: 示例
-              value: { id: '99999999-9999-9999-9999-999999999999', name: 阿里, addrs: ['223.5.5.5'], protocol: udp, weight: 2, enabled: true }
+              value: { id: '99999999-9999-9999-9999-999999999999', name: 阿里, addrs: ['223.5.5.5'], protocol: udp, weight: 2, isDefault: true, enabled: true }
 UpstreamItem:
   patch:
     operationId: updateUpstream
@@ -70,7 +70,7 @@ UpstreamItem:
           examples:
             ok:
               summary: 示例
-              value: { id: '99999999-9999-9999-9999-999999999999', name: 阿里, addrs: ['223.5.5.5', '1.1.1.1'], protocol: udp, weight: 3, enabled: true }
+              value: { id: '99999999-9999-9999-9999-999999999999', name: 阿里, addrs: ['223.5.5.5', '1.1.1.1'], protocol: udp, weight: 3, isDefault: true, enabled: true }
   delete:
     operationId: deleteUpstream
     tags: [dns]

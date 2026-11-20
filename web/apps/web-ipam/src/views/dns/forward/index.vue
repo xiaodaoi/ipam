@@ -34,7 +34,7 @@ const rows = ref<ForwardRule[]>([]);
 const upstreams = ref<Upstream[]>([]);
 const loading = ref(false);
 const editingId = ref<string>();
-const form = ref({ domain: '', upstreamId: '', note: '' });
+const form = ref({ domain: '', upstreamIds: [] as string[], note: '' });
 
 async function load() {
   loading.value = true;
@@ -50,7 +50,7 @@ function upstreamName(id: string): string {
   return upstreams.value.find((u) => u.id === id)?.name ?? id.slice(0, 8);
 }
 async function add() {
-  if (!form.value.domain || !form.value.upstreamId) {
+  if (!form.value.domain || form.value.upstreamIds.length === 0) {
     message.warning($t('dns.forward.msg.warnRequired'));
     return;
   }
@@ -60,21 +60,21 @@ async function add() {
   try {
     if (editingId.value) {
       await updateForwardRule(editingId.value, {
-        upstreamIds: [form.value.upstreamId],
+        upstreamIds: form.value.upstreamIds,
         note: form.value.note,
       });
       message.success($t('dns.forward.msg.updated'));
     } else {
       await createForwardRule({
         domain,
-        upstreamIds: [form.value.upstreamId],
+        upstreamIds: form.value.upstreamIds,
         enabled: true,
         note: form.value.note,
       });
       message.success($t('dns.forward.msg.created'));
     }
     editingId.value = undefined;
-    form.value = { domain: '', upstreamId: '', note: '' };
+    form.value = { domain: '', upstreamIds: [], note: '' };
     formModalApi.close();
   } catch (error) {
     message.error(
@@ -91,7 +91,7 @@ const [FormModal, formModalApi] = useVbenModal({
 });
 function openAdd() {
   editingId.value = undefined;
-  form.value = { domain: '', upstreamId: '', note: '' };
+  form.value = { domain: '', upstreamIds: [], note: '' };
   formModalApi.setState({
     title: $t('dns.forward.msg.addTitle'),
     confirmText: $t('dns.forward.msg.createConfirm'),
@@ -107,7 +107,7 @@ function edit(r: ForwardRule) {
   formModalApi.open();
   form.value = {
     domain: r.domain,
-    upstreamId: (r.upstreamIds ?? [])[0] ?? '',
+    upstreamIds: [...(r.upstreamIds ?? [])],
     note: r.note ?? '',
   };
 }
@@ -415,11 +415,15 @@ const columns = computed(() => [
             >{{ $t('dns.forward.form.upstreamLabel') }}<em>*</em></span
           >
           <Select
-            v-model:value="form.upstreamId"
+            v-model:value="form.upstreamIds"
+            mode="multiple"
             :placeholder="$t('dns.forward.form.upstreamPlaceholder')"
             show-search
             :options="upstreamOptions"
           />
+          <span class="ipam-hint">{{
+            $t('dns.forward.form.upstreamHint')
+          }}</span>
         </label>
         <label class="ipam-form-field ipam-form-field--wide">
           <span class="ipam-form-field__label">{{

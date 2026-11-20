@@ -457,7 +457,7 @@
   "upstream": {
     "header": {
       "title": "Upstream DNS servers",
-      "desc": "Maintain the upstream servers and protocols used for recursion, and show periodic probe status (diagnostics only; does not change forwarding).",
+      "desc": "Maintain the upstream servers and protocols used for recursion; upstreams marked as default public egress jointly carry unmatched public queries and provide multi-address redundancy.",
       "meta": "{up}/{total} online · {enabled} enabled"
     },
     "actions": {
@@ -490,18 +490,19 @@
       "kwPlaceholder": "Name / address",
       "proto": "Protocol",
       "health": "Health",
-      "hint": "Health is for diagnostics only; forwarding uses all enabled upstreams"
+      "hint": "Health is for diagnostics only; default resolution uses all default public egress upstreams"
     },
     "col": {
       "name": "Upstream (name / address)",
-      "proto": "Protocol / weight",
+      "proto": "Protocol / default",
       "health": "Health",
       "lastCheck": "Last probe",
       "enabled": "Enabled"
     },
     "emptyFiltered": "No matching upstream server",
     "empty": "No upstream server yet. Click Add upstream in the top right to create one",
-    "weight": "Weight {n}",
+    "defaultTag": "Default public egress",
+    "weight": "Weight {n} (reserved)",
     "fails": "{n} consecutive failures",
     "deleteTitle": "Delete this upstream?",
     "deleteDesc": "This cannot be undone.",
@@ -536,11 +537,15 @@
       "tlsHint": "Upstream hostname used for certificate validation; leave empty to connect by address (some upstreams reject this)",
       "addrLabel": "Address",
       "addrPlaceholder": "Multiple values allowed, comma separated, e.g. 223.5.5.5:53,223.6.6.6:53",
-      "weightLabel": "Weight",
+      "weightLabel": "Weight (reserved)",
+      "weightHint": "Reserved field; does not affect selection",
+      "defaultLabel": "Default public egress",
+      "defaultHintOn": "Included in the default forward zone dot",
+      "defaultHintOff": "Only used by conditional forwarding rules",
       "enabledLabel": "Enabled",
-      "enabledHintOn": "Included in recursion",
+      "enabledHintOn": "Enabled; available to rules and the default pool",
       "enabledHintOff": "Kept but excluded from selection",
-      "hintWeight": "Higher weight means a higher chance of being selected; DoT renders as ",
+      "hintWeight": "Weight is reserved and does not affect selection; unbound picks addresses by RTT. DoT renders as ",
       "hintTail": ", default port 853. When DoT and plaintext upstreams are mixed, only the DoT target is used (to avoid plaintext fallback)."
     }
   },
@@ -779,6 +784,7 @@
       "upstreamPlaceholder": "Select an upstream DNS",
       "noteLabel": "Note",
       "notePlaceholder": "Optional, describe the purpose of this suffix",
+      "upstreamHint": "Multiple selections are allowed; all addresses of the selected upstreams go into the same forward zone and unbound picks one by RTT.",
       "hint": "A trailing dot is appended to build the FQDN; the rule is delivered to the resolver immediately after saving."
     }
   }

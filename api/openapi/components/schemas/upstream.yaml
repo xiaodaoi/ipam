@@ -1,7 +1,7 @@
 Upstream:
   type: object
   description: DNS 上游服务器（FR-B-01；探活状态灯数据源 F-R4）。
-  required: [id, name, addrs, protocol, weight, enabled, health]
+  required: [id, name, addrs, protocol, weight, isDefault, enabled, health]
   properties:
     id: { type: string, format: uuid }
     name: { type: string, maxLength: 64 }
@@ -13,7 +13,13 @@ Upstream:
     tlsName:
       type: string
       description: DoT 上游 TLS SNI/证书名（如 cloudflare-dns.com；protocol=dot 时生效，M6-023）
-    weight: { type: integer, minimum: 0 }
+    weight:
+      type: integer
+      minimum: 0
+      description: 预留字段，当前不参与 unbound 选路（unbound 按 infra-cache RTT 自行选择地址）
+    isDefault:
+      type: boolean
+      description: 默认公网出口；所有 enabled 且 isDefault 的上游地址会一起下发到 forward-zone "."。仅允许公网地址，内网 DNS 不得标记
     enabled: { type: boolean }
     health:
       type: object
@@ -35,7 +41,15 @@ UpstreamCreate:
       minItems: 1
     protocol: { type: string, enum: [udp, tcp, dot], default: udp }
     tlsName: { type: string, description: DoT TLS SNI/证书名（protocol=dot 时生效） }
-    weight: { type: integer, minimum: 0, default: 1 }
+    weight:
+      type: integer
+      minimum: 0
+      default: 1
+      description: 预留字段，当前不参与 unbound 选路
+    isDefault:
+      type: boolean
+      default: false
+      description: 默认公网出口；标记后参与 forward-zone "."。地址必须全部为公网地址
     enabled: { type: boolean, default: true }
 
 UpstreamUpdate:
@@ -45,7 +59,13 @@ UpstreamUpdate:
     addrs: { type: array, items: { type: string }, minItems: 1 }
     protocol: { type: string, enum: [udp, tcp, dot] }
     tlsName: { type: string, description: DoT TLS SNI/证书名 }
-    weight: { type: integer, minimum: 0 }
+    weight:
+      type: integer
+      minimum: 0
+      description: 预留字段，当前不参与 unbound 选路
+    isDefault:
+      type: boolean
+      description: 默认公网出口；地址必须全部为公网地址
     enabled: { type: boolean }
 
 UpstreamList:

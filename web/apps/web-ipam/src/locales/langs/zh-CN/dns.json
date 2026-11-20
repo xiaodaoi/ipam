@@ -457,7 +457,7 @@
   "upstream": {
     "header": {
       "title": "上游 DNS 服务器",
-      "desc": "维护递归查询使用的上游服务器与协议，并展示周期探活状态（仅供排障参考，不改变转发选路）。",
+      "desc": "维护递归查询使用的上游服务器与协议；标记为「默认公网出口」的上游共同承载未命中规则的公网查询，并提供多地址冗余。",
       "meta": "{up}/{total} 在线 · {enabled} 已启用"
     },
     "actions": {
@@ -490,18 +490,19 @@
       "kwPlaceholder": "名称 / 地址",
       "proto": "协议",
       "health": "健康状态",
-      "hint": "健康状态仅供排障参考，转发按已启用上游下发"
+      "hint": "健康状态仅供排障参考；默认解析使用全部「默认公网出口」"
     },
     "col": {
       "name": "上游（名称 / 地址）",
-      "proto": "协议 / 权重",
+      "proto": "协议 / 默认",
       "health": "健康",
       "lastCheck": "最近探测",
       "enabled": "启用"
     },
     "emptyFiltered": "没有匹配的上游服务器",
     "empty": "暂无上游服务器，点击右上角「添加上游」创建",
-    "weight": "权重 {n}",
+    "defaultTag": "默认公网出口",
+    "weight": "权重 {n}（预留）",
     "fails": "连续失败 {n}",
     "deleteTitle": "确认删除该上游？",
     "deleteDesc": "删除后不可恢复。",
@@ -536,11 +537,15 @@
       "tlsHint": "用于证书校验的上游主机名；留空则按地址直连（部分上游会拒绝）",
       "addrLabel": "地址",
       "addrPlaceholder": "可填多个，逗号分隔，如 223.5.5.5:53,223.6.6.6:53",
-      "weightLabel": "权重",
+      "weightLabel": "权重（预留）",
+      "weightHint": "预留字段，不影响选路",
+      "defaultLabel": "默认公网出口",
+      "defaultHintOn": "参与默认转发「.」",
+      "defaultHintOff": "仅用于条件转发规则",
       "enabledLabel": "启用",
-      "enabledHintOn": "参与递归选路",
+      "enabledHintOn": "已启用，可参与规则或默认池下发",
       "enabledHintOff": "配置保留但不参与选路",
-      "hintWeight": "权重越高被选中的概率越大；DoT 渲染为 ",
+      "hintWeight": "权重为预留字段，当前不参与选路；unbound 按上游 RTT 自动选择地址。DoT 渲染为 ",
       "hintTail": "，端口缺省 853。 DoT 与明文上游混用时只取 DoT 目标（避免明文回落）。"
     }
   },
@@ -779,6 +784,7 @@
       "upstreamPlaceholder": "选择上游 DNS",
       "noteLabel": "备注",
       "notePlaceholder": "可选，说明该后缀的业务用途",
+      "upstreamHint": "可多选；所选上游的全部地址会写入同一转发区，由 unbound 按 RTT 自动选路。",
       "hint": "未填写尾点时会自动补全为 FQDN；规则保存后即时下发到 resolver。"
     }
   }
