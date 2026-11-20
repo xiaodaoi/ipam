@@ -15,6 +15,12 @@ type DNSSource interface {
 	BlockedEvents(ctx context.Context, since time.Time) ([]logquery.BlockedGroup, error)
 }
 
+// DomainAttributor 把被拦截域名归属到外部情报源（支持后缀匹配）。
+// keys/names 为逗号分隔的稳定 key 与显示名；未命中返回空串。
+type DomainAttributor interface {
+	AttributeDomain(ctx context.Context, domain string) (keys, names string)
+}
+
 // DiskUsage 磁盘水位快照。
 type DiskUsage struct {
 	Mount      string
@@ -54,6 +60,7 @@ type SystemChecks struct {
 type Collector struct {
 	svc    *Service
 	dns    DNSSource
+	attr   DomainAttributor
 	checks SystemChecks
 	logf   func(format string, args ...any)
 	now    func() time.Time
@@ -77,6 +84,9 @@ func NewCollector(svc *Service, checks SystemChecks) *Collector {
 
 // SetDNSSource 接入 ClickHouse 风险访问聚合。
 func (c *Collector) SetDNSSource(src DNSSource) { c.dns = src }
+
+// SetAttributor 接入情报来源归属（源 key/显示名）。
+func (c *Collector) SetAttributor(a DomainAttributor) { c.attr = a }
 
 // SetLogger 注入日志函数（单测静默）。
 func (c *Collector) SetLogger(f func(format string, args ...any)) {
@@ -151,19 +161,26 @@ func (c *Collector) CollectDNS(ctx context.Context) (int, error) {
 		if bucket.IsZero() {
 			bucket = g.LastSeen.UTC().Truncate(time.Hour)
 		}
+		domain := strings.ToLower(g.Domain)
+		intelKey, intelName := "", ""
+		if c.attr != nil {
+			intelKey, intelName = c.attr.AttributeDomain(ctx, domain)
+		}
 		ev := Event{
-			DedupKey:  fmt.Sprintf("dns|%s|%s|%s", g.ClientIP, strings.ToLower(g.Domain), bucket.Format("2006010215")),
-			Source:    SourceDNS,
-			Kind:      KindRiskURL,
-			Severity:  SeverityWarning,
-			Title:     fmt.Sprintf("风险域名访问：%s", g.Domain),
-			Message:   fmt.Sprintf("客户端 %s 在 %s 这一小时内访问被拦截域名 %d 次", g.ClientIP, bucket.Format("2006-01-02 15:00"), g.Count),
-			ClientIP:  g.ClientIP,
-			Domain:    strings.ToLower(g.Domain),
-			Count:     g.Count,
-			Detail:    g.Category,
-			FirstSeen: g.FirstSeen.UTC(),
-			LastSeen:  g.LastSeen.UTC(),
+			DedupKey:        fmt.Sprintf("dns|%s|%s|%s", g.ClientIP, strings.ToLower(g.Domain), bucket.Format("2006010215")),
+			Source:          SourceDNS,
+			Kind:            KindRiskURL,
+			Severity:        SeverityWarning,
+			Title:           fmt.Sprintf("风险域名访问：%s", g.Domain),
+			Message:         fmt.Sprintf("客户端 %s 在 %s 这一小时内访问被拦截域名 %d 次", g.ClientIP, bucket.Format("2006-01-02 15:00"), g.Count),
+			ClientIP:        g.ClientIP,
+			Domain:          domain,
+			IntelSource:     intelKey,
+			IntelSourceName: intelName,
+			Count:           g.Count,
+			Detail:          g.Category,
+			FirstSeen:       g.FirstSeen.UTC(),
+			LastSeen:        g.LastSeen.UTC(),
 		}
 		if _, err := c.svc.Report(ctx, ev); err != nil {
 			if firstErr == nil {

@@ -3,6 +3,14 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-11-20 · 报警情报来源归属与模糊查询（M6-040 增强）
+- **需求**：报警日志要显示命中的外部情报来源（哪个源拦下的域名），并支持按来源模糊查询与统计。
+- **后端**：迁移 `0048_alert_intel_source` 新增 `intel_source`（key）与 `intel_source_name`（显示名，历史留痕）；`dns/intel_attrib.go` 懒构建「域名 → 源」索引，按后缀由长到短匹配（精确优先、多源合并），源新增/编辑/启停/同步/删除后自动失效；采集器经 `DomainAttributor` 注入，DNS 事件写入来源；列表 `intelSource` 过滤、`q` 扩展到来源字段、统计新增 `byIntelSource`（PG/Mem 双实现）。
+- **契约**：先改 `paths/alerts.yaml` 与 `components/schemas/alerts.yaml`，再 `gen-openapi.sh`；生成 `Alert.intelSource/intelSourceName`、`AlertStats.byIntelSource`、列表/统计 `intelSource` 参数。
+- **前端**：报警表格新增「情报来源」列（多源标签）+ 详情字段 + 来源筛选下拉（来自 `byIntelSource`、可输入搜索）+ 「情报来源 Top」统计卡；右上角报警栏风险消息附带来源名；自定义封禁/内置规则/无归属按 category 展示中性文案；zh/en 成对，界面无底层产品名。
+- **验证**：真实栈 511 组风险访问全部归属 `StevenBlack/hosts（综合聚合）`；`intelSource=stevenblack` 与 `intelSource=StevenBlack` 均命中 511 条，`byIntelSource` 统计正确；单测覆盖后缀匹配/多源合并/变更失效/过滤/统计；`go test ./...`、`golangci-lint` 0 issues、前端 typecheck/三门禁/vitest 38、E2E **19/19**。
+- **遗留**：归属基于域名后缀近似，无法反推 unbound 最终命中的精确记录；源已删除的历史报警仍保留显示名（预期行为）。
+
 ## 2026-11-19 · 应用内报警中心（M6-040）
 - **需求**：日志中心新增「报警日志」——查询哪些客户端地址访问了风险 URL、支持模糊查询与统计；新报警在右上角报警栏显示，查看后自动确认；系统故障也进入同一报警栏。
 - **后端**：迁移 `0047_alert`（`dedup_key` 唯一）；新增 `internal/module/alerts/`（PG+Mem 仓储、Service、采集器、5 个端点）。DNS 风险访问从 ClickHouse `action=blocked` 按「客户端 IP + 域名 + 小时桶」聚合（`BlockedEvents`，上限 5000 组），`count` 用 `GREATEST` 合并避免回扫重复计数；系统故障覆盖数据库/日志存储/DHCP/DNS 掉线（连续 2 次失败）、磁盘 ≥90%、日志外发降级、情报源同步失败、上游探活失败，恢复自动 `resolved`、再次发生重新打开；每日清理 90 天前记录。

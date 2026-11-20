@@ -34,7 +34,7 @@ func (h *Handler) SetActorProvider(f func(*gin.Context) string) {
 	}
 }
 
-func filterOf(from, to *time.Time, q, source, kind, severity, status *string, page, pageSize *int) Filter {
+func filterOf(from, to *time.Time, q, source, kind, severity, status, intelSource *string, page, pageSize *int) Filter {
 	f := Filter{}
 	if from != nil {
 		f.From = *from
@@ -56,6 +56,9 @@ func filterOf(from, to *time.Time, q, source, kind, severity, status *string, pa
 	}
 	if status != nil {
 		f.Status = string(*status)
+	}
+	if intelSource != nil {
+		f.IntelSource = *intelSource
 	}
 	if page != nil {
 		f.Page = *page
@@ -82,7 +85,7 @@ func (h *Handler) ListAlerts(c *gin.Context, p apigen.ListAlertsParams) {
 		st = &v
 	}
 	page, err := h.svc.List(c.Request.Context(), filterOf(
-		p.From, p.To, p.Q, src, p.Kind, sev, st, p.Page, p.PageSize))
+		p.From, p.To, p.Q, src, p.Kind, sev, st, p.IntelSource, p.Page, p.PageSize))
 	if err != nil {
 		writeErr(c, err)
 		return
@@ -112,7 +115,7 @@ func (h *Handler) GetAlertStats(c *gin.Context, p apigen.GetAlertStatsParams) {
 		st = &v
 	}
 	stats, err := h.svc.Stats(c.Request.Context(), filterOf(
-		p.From, p.To, p.Q, src, p.Kind, sev, st, nil, nil))
+		p.From, p.To, p.Q, src, p.Kind, sev, st, p.IntelSource, nil, nil))
 	if err != nil {
 		writeErr(c, err)
 		return
@@ -120,9 +123,10 @@ func (h *Handler) GetAlertStats(c *gin.Context, p apigen.GetAlertStatsParams) {
 	out := apigen.AlertStats{
 		Total: stats.Total, Open: stats.Open, Acked: stats.Acked, Resolved: stats.Resolved,
 		BySeverity: stats.BySeverity, ByKind: stats.ByKind,
-		TopDomains: make([]apigen.AlertAggregate, 0, len(stats.TopDomains)),
-		TopClients: make([]apigen.AlertAggregate, 0, len(stats.TopClients)),
-		Trend:      make([]apigen.AlertTrendPoint, 0, len(stats.Trend)),
+		ByIntelSource: stats.ByIntelSource,
+		TopDomains:    make([]apigen.AlertAggregate, 0, len(stats.TopDomains)),
+		TopClients:    make([]apigen.AlertAggregate, 0, len(stats.TopClients)),
+		Trend:         make([]apigen.AlertTrendPoint, 0, len(stats.Trend)),
 	}
 	for _, a := range stats.TopDomains {
 		out.TopDomains = append(out.TopDomains, apigen.AlertAggregate{Key: a.Key, Count: a.Count})
@@ -222,6 +226,8 @@ func toGenAlert(a Alert) apigen.Alert {
 	setStr(&out.ClientMac, a.ClientMAC)
 	setStr(&out.Domain, a.Domain)
 	setStr(&out.Component, a.Component)
+	setStr(&out.IntelSource, a.IntelSource)
+	setStr(&out.IntelSourceName, a.IntelSourceName)
 	setStr(&out.Detail, a.Detail)
 	setStr(&out.AckedBy, a.AckedBy)
 	if a.AckedAt != nil {

@@ -1016,6 +1016,9 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	if chStore != nil {
 		alertCol.SetDNSSource(chStore)
 	}
+	if intelSvc != nil {
+		alertCol.SetAttributor(intelSvc)
+	}
 	go alertCol.Run(rootCtx)
 
 	full := struct {

@@ -45,6 +45,7 @@ const filters = reactive({
   source: undefined as string | undefined,
   severity: undefined as string | undefined,
   status: undefined as string | undefined,
+  intelSource: undefined as string | undefined,
 });
 const page = ref(1);
 const pageSize = ref(20);
@@ -53,6 +54,8 @@ const total = ref(0);
 const loading = ref(false);
 const stats = ref<AlertStats>();
 const lastUpdated = ref('');
+// 来源下拉候选：无来源过滤时按统计结果刷新，过滤中保持不变（避免下拉只剩当前项）。
+const intelSourceOptions = ref<{ label: string; value: string }[]>([]);
 
 const SEVERITY_COLOR: Record<string, string> = {
   critical: 'red',
@@ -104,6 +107,28 @@ function severityCount(v?: string): number {
   return stats.value?.bySeverity?.[v ?? ''] ?? 0;
 }
 
+const INTEL_SEPARATOR = ',';
+function splitIntelSource(v?: null | string): string[] {
+  return (v ?? '')
+    .split(INTEL_SEPARATOR)
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+function intelSourceNames(a: AlertRow | Record<string, any>): string[] {
+  return splitIntelSource(a.intelSourceName);
+}
+// 自定义封禁/内置规则/源已删除时没有归属：按 category 展示中性文案，避免空白。
+function intelSourceFallback(a: AlertRow | Record<string, any>): string {
+  if (a.kind !== 'risk_url') return '—';
+  const category = String(a.detail ?? '');
+  if (category.includes('intel.custom'))
+    return $t('logs.alerts.row.manualBlock');
+  if (category.includes('intel.hot') || category.includes('intel.broad')) {
+    return $t('logs.alerts.row.builtinIntel');
+  }
+  return $t('logs.alerts.row.unknownSource');
+}
+
 function windowRange(): { from: string; to: string } {
   const p = PRESETS.find((x) => x.key === preset.value) ?? PRESETS[2];
   return {
@@ -119,6 +144,7 @@ function queryParams() {
     source: filters.source,
     severity: filters.severity,
     status: filters.status,
+    intelSource: filters.intelSource,
   };
 }
 
@@ -133,6 +159,11 @@ async function load() {
     rows.value = p.items ?? [];
     total.value = p.total ?? rows.value.length;
     stats.value = s;
+    if (!filters.intelSource) {
+      intelSourceOptions.value = Object.entries(s.byIntelSource ?? {})
+        .toSorted((a, b) => b[1] - a[1])
+        .map(([name]) => ({ label: name, value: name }));
+    }
     lastUpdated.value = new Date().toLocaleTimeString(undefined, {
       hour12: false,
     });
@@ -157,6 +188,7 @@ function reset() {
   filters.source = undefined;
   filters.severity = undefined;
   filters.status = undefined;
+  filters.intelSource = undefined;
   preset.value = '24h';
   page.value = 1;
   void load();
@@ -283,6 +315,12 @@ const columns = computed(() => [
     width: 130,
   },
   {
+    dataIndex: 'intelSourceName',
+    key: 'intelSource',
+    title: $t('logs.alerts.table.intelSource'),
+    width: 220,
+  },
+  {
     dataIndex: 'clientIp',
     key: 'clientIp',
     title: $t('logs.alerts.table.client'),
@@ -319,6 +357,15 @@ const topDomainMax = computed(() =>
 const topClientMax = computed(() =>
   Math.max(1, ...topClients.value.map((d) => d.count)),
 );
+const topSources = computed(() =>
+  Object.entries(stats.value?.byIntelSource ?? {})
+    .map(([key, count]) => ({ key, count }))
+    .toSorted((a, b) => b.count - a.count)
+    .slice(0, 10),
+);
+const topSourceMax = computed(() =>
+  Math.max(1, ...topSources.value.map((d) => d.count)),
+);
 
 function activeFilterCount(): number {
   return [
@@ -326,6 +373,7 @@ function activeFilterCount(): number {
     filters.source,
     filters.severity,
     filters.status,
+    filters.intelSource,
   ].filter(Boolean).length;
 }
 
@@ -478,6 +526,19 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         </label>
         <label class="ipam-filter-field">
           <span class="ipam-filter-field__label">{{
+            $t('logs.alerts.filters.intelSource')
+          }}</span>
+          <Select
+            v-model:value="filters.intelSource"
+            allow-clear
+            show-search
+            :placeholder="$t('logs.alerts.filters.allSources')"
+            :options="intelSourceOptions"
+            @change="query"
+          />
+        </label>
+        <label class="ipam-filter-field">
+          <span class="ipam-filter-field__label">{{
             $t('logs.alerts.filters.severity')
           }}</span>
           <Select
@@ -593,6 +654,28 @@ onBeforeUnmount(() => timer && clearInterval(timer));
               {{ $t(`logs.alerts.source.${record.source}`) }}
             </Tag>
           </template>
+          <template v-else-if="column.key === 'intelSource'">
+            <div
+              v-if="intelSourceNames(record).length > 0"
+              class="flex flex-wrap gap-1"
+            >
+              <Tag
+                v-for="name in intelSourceNames(record)"
+                :key="name"
+                :color="
+                  record.intelSource?.startsWith('custom:')
+                    ? 'default'
+                    : 'purple'
+                "
+                class="m-0"
+              >
+                {{ name }}
+              </Tag>
+            </div>
+            <span v-else class="ipam-hint">{{
+              intelSourceFallback(record)
+            }}</span>
+          </template>
           <template v-else-if="column.key === 'clientIp'">
             <span class="ipam-mono">{{ record.clientIp || '—' }}</span>
           </template>
@@ -616,26 +699,49 @@ onBeforeUnmount(() => timer && clearInterval(timer));
       </Table>
     </Card>
 
-    <Card>
-      <template #title>
-        <span class="ipam-card-title">
-          <IconifyIcon icon="lucide:users" />
-          {{ $t('logs.alerts.trend.clients') }}
-        </span>
-      </template>
-      <div v-if="topClients.length > 0" class="ipam-top-list">
-        <div v-for="c in topClients" :key="c.key" class="ipam-top-row">
-          <span class="ipam-mono truncate">{{ c.key }}</span>
-          <span class="ipam-hint">{{ fmtInt(c.count) }}</span>
-          <div class="ipam-top-bar">
-            <span
-              :style="{ width: `${(c.count / topClientMax) * 100}%` }"
-            ></span>
+    <div class="grid gap-4 lg:grid-cols-2">
+      <Card>
+        <template #title>
+          <span class="ipam-card-title">
+            <IconifyIcon icon="lucide:users" />
+            {{ $t('logs.alerts.trend.clients') }}
+          </span>
+        </template>
+        <div v-if="topClients.length > 0" class="ipam-top-list">
+          <div v-for="c in topClients" :key="c.key" class="ipam-top-row">
+            <span class="ipam-mono truncate">{{ c.key }}</span>
+            <span class="ipam-hint">{{ fmtInt(c.count) }}</span>
+            <div class="ipam-top-bar">
+              <span
+                :style="{ width: `${(c.count / topClientMax) * 100}%` }"
+              ></span>
+            </div>
           </div>
         </div>
-      </div>
-      <div v-else class="ipam-empty">—</div>
-    </Card>
+        <div v-else class="ipam-empty">—</div>
+      </Card>
+
+      <Card>
+        <template #title>
+          <span class="ipam-card-title">
+            <IconifyIcon icon="lucide:radar" />
+            {{ $t('logs.alerts.trend.sources') }}
+          </span>
+        </template>
+        <div v-if="topSources.length > 0" class="ipam-top-list">
+          <div v-for="i in topSources" :key="i.key" class="ipam-top-row">
+            <span class="truncate">{{ i.key }}</span>
+            <span class="ipam-hint">{{ fmtInt(i.count) }}</span>
+            <div class="ipam-top-bar">
+              <span
+                :style="{ width: `${(i.count / topSourceMax) * 100}%` }"
+              ></span>
+            </div>
+          </div>
+        </div>
+        <div v-else class="ipam-empty">—</div>
+      </Card>
+    </div>
 
     <DetailDrawer>
       <template v-if="detail">
@@ -692,6 +798,24 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             </div>
             <div class="ipam-detail-item__value ipam-mono">
               {{ detail.domain || '—' }}
+            </div>
+          </div>
+          <div class="ipam-detail-item ipam-detail-item--wide">
+            <div class="ipam-detail-item__label">
+              {{ $t('logs.alerts.detail.intelSource') }}
+            </div>
+            <div class="ipam-detail-item__value">
+              <template v-if="intelSourceNames(detail).length > 0">
+                <Tag
+                  v-for="name in intelSourceNames(detail)"
+                  :key="name"
+                  color="purple"
+                  class="m-0 mr-1"
+                >
+                  {{ name }}
+                </Tag>
+              </template>
+              <span v-else>{{ intelSourceFallback(detail) }}</span>
             </div>
           </div>
           <div class="ipam-detail-item">

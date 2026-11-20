@@ -48,10 +48,18 @@ function alertTitle(a: AlertRow): string {
 
 function alertMessage(a: AlertRow): string {
   if (a.source === 'dns') {
-    return $t('logs.alerts.notify.riskMessage', {
+    const msg = $t('logs.alerts.notify.riskMessage', {
       ip: a.clientIp || '—',
       n: a.count,
     });
+    const source = (a.intelSourceName ?? '')
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean)
+      .join(' / ');
+    return source
+      ? `${msg} · ${$t('logs.alerts.notify.riskSource', { source })}`
+      : msg;
   }
   const component = a.component
     ? alertText(`logs.alerts.components.${a.component}`, a.component)

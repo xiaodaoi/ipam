@@ -14,8 +14,8 @@ import (
 )
 
 const alertColumns = `id, dedup_key, source, kind, severity, status, title, message,
-  client_ip, client_mac, domain, component, count, detail, first_seen, last_seen,
-  acked_at, acked_by, resolved_at, created_at`
+  client_ip, client_mac, domain, component, intel_source, intel_source_name,
+  count, detail, first_seen, last_seen, acked_at, acked_by, resolved_at, created_at`
 
 // PgRepo PostgreSQL 实现（迁移 0047）。
 type PgRepo struct{ pool *pgxpool.Pool }
@@ -28,6 +28,33 @@ func likePattern(q string) string {
 	q = strings.ReplaceAll(q, `%`, `\%`)
 	q = strings.ReplaceAll(q, `_`, `\_`)
 	return "%" + q + "%"
+}
+
+// splitIntelSources 把逗号分隔的来源 key/name 拆开并对齐；
+// 显示名缺失时回退 key（历史/异常数据可读）。返回去重后的显示名列表。
+func splitIntelSources(keys, names string) []string {
+	ks := strings.Split(keys, ",")
+	ns := strings.Split(names, ",")
+	out := make([]string, 0, len(ks))
+	seen := make(map[string]struct{}, len(ks))
+	for i := range ks {
+		name := ""
+		if i < len(ns) {
+			name = strings.TrimSpace(ns[i])
+		}
+		if name == "" {
+			name = strings.TrimSpace(ks[i])
+		}
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		out = append(out, name)
+	}
+	return out
 }
 
 func buildWhere(f Filter) (string, []any) {
@@ -44,12 +71,18 @@ func buildWhere(f Filter) (string, []any) {
 	add("kind = $%d", f.Kind)
 	add("severity = $%d", f.Severity)
 	add("status = $%d", f.Status)
+	if f.IntelSource != "" {
+		args = append(args, likePattern(f.IntelSource))
+		n := len(args)
+		conds = append(conds, fmt.Sprintf(
+			`(intel_source ILIKE $%d ESCAPE '\' OR intel_source_name ILIKE $%d ESCAPE '\')`, n, n))
+	}
 	if f.Q != "" {
 		args = append(args, likePattern(f.Q))
 		n := len(args)
 		conds = append(conds, fmt.Sprintf(
-			`(title ILIKE $%d ESCAPE '\' OR message ILIKE $%d ESCAPE '\' OR domain ILIKE $%d ESCAPE '\' OR client_ip ILIKE $%d ESCAPE '\' OR client_mac ILIKE $%d ESCAPE '\' OR component ILIKE $%d ESCAPE '\')`,
-			n, n, n, n, n, n))
+			`(title ILIKE $%d ESCAPE '\' OR message ILIKE $%d ESCAPE '\' OR domain ILIKE $%d ESCAPE '\' OR client_ip ILIKE $%d ESCAPE '\' OR client_mac ILIKE $%d ESCAPE '\' OR component ILIKE $%d ESCAPE '\' OR intel_source ILIKE $%d ESCAPE '\' OR intel_source_name ILIKE $%d ESCAPE '\')`,
+			n, n, n, n, n, n, n, n))
 	}
 	return strings.Join(conds, " AND "), args
 }
@@ -66,6 +99,7 @@ func scanAlert(sc rowScanner) (Alert, error) {
 	)
 	err := sc.Scan(&a.ID, &a.DedupKey, &a.Source, &a.Kind, &a.Severity, &a.Status,
 		&a.Title, &a.Message, &a.ClientIP, &a.ClientMAC, &a.Domain, &a.Component,
+		&a.IntelSource, &a.IntelSourceName,
 		&count, &a.Detail, &a.FirstSeen, &a.LastSeen, &ackedAt, &a.AckedBy,
 		&resolvedAt, &a.CreatedAt)
 	if err != nil {
@@ -107,7 +141,8 @@ func (r *PgRepo) List(ctx context.Context, f Filter) ([]Alert, int, error) {
 // Stats 统计聚合。
 func (r *PgRepo) Stats(ctx context.Context, f Filter) (Stats, error) {
 	where, args := buildWhere(f)
-	st := Stats{BySeverity: map[string]int{}, ByKind: map[string]int{}}
+	st := Stats{BySeverity: map[string]int{}, ByKind: map[string]int{},
+		ByIntelSource: map[string]int{}}
 
 	rows, err := r.pool.Query(ctx,
 		"SELECT status, severity, kind, count(*) FROM alert WHERE "+where+" GROUP BY 1,2,3", args...)
@@ -161,6 +196,28 @@ func (r *PgRepo) Stats(ctx context.Context, f Filter) (Stats, error) {
 		return st, err
 	}
 	if st.TopClients, err = top("client_ip"); err != nil {
+		return st, err
+	}
+
+	srs, err := r.pool.Query(ctx,
+		"SELECT intel_source, intel_source_name, count(*) FROM alert WHERE "+where+
+			" AND intel_source <> '' GROUP BY 1,2", args...)
+	if err != nil {
+		return st, err
+	}
+	for srs.Next() {
+		var keys, names string
+		var n int64
+		if err := srs.Scan(&keys, &names, &n); err != nil {
+			srs.Close()
+			return st, err
+		}
+		for _, name := range splitIntelSources(keys, names) {
+			st.ByIntelSource[name] += int(n)
+		}
+	}
+	srs.Close()
+	if err := srs.Err(); err != nil {
 		return st, err
 	}
 
@@ -238,13 +295,15 @@ func (r *PgRepo) AckAll(ctx context.Context, actor string, at time.Time) (int, e
 // Upsert 按 dedup_key 合并：同小时窗口累加，重复扫描不回退计数。
 func (r *PgRepo) Upsert(ctx context.Context, ev Event) (Alert, error) {
 	q := `INSERT INTO alert(dedup_key, source, kind, severity, status, title, message,
-		client_ip, client_mac, domain, component, count, detail, first_seen, last_seen)
-		VALUES($1,$2,$3,$4,'open',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+		client_ip, client_mac, domain, component, intel_source, intel_source_name,
+		count, detail, first_seen, last_seen)
+		VALUES($1,$2,$3,$4,'open',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
 		ON CONFLICT (dedup_key) DO UPDATE SET
 		  source=EXCLUDED.source, kind=EXCLUDED.kind, severity=EXCLUDED.severity,
 		  title=EXCLUDED.title, message=EXCLUDED.message,
 		  client_ip=EXCLUDED.client_ip, client_mac=EXCLUDED.client_mac,
 		  domain=EXCLUDED.domain, component=EXCLUDED.component,
+		  intel_source=EXCLUDED.intel_source, intel_source_name=EXCLUDED.intel_source_name,
 		  count=CASE WHEN alert.status='resolved' THEN EXCLUDED.count
 		             ELSE GREATEST(alert.count, EXCLUDED.count) END,
 		  detail=EXCLUDED.detail,
@@ -258,7 +317,8 @@ func (r *PgRepo) Upsert(ctx context.Context, ev Event) (Alert, error) {
 		RETURNING ` + alertColumns
 	return scanAlert(r.pool.QueryRow(ctx, q,
 		ev.DedupKey, ev.Source, ev.Kind, ev.Severity, ev.Title, ev.Message,
-		ev.ClientIP, ev.ClientMAC, ev.Domain, ev.Component, ev.Count, ev.Detail,
+		ev.ClientIP, ev.ClientMAC, ev.Domain, ev.Component,
+		ev.IntelSource, ev.IntelSourceName, ev.Count, ev.Detail,
 		ev.FirstSeen, ev.LastSeen))
 }
 
@@ -342,7 +402,8 @@ func (r *MemRepo) Stats(_ context.Context, f Filter) (Stats, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	all := r.snapshot(f)
-	st := Stats{BySeverity: map[string]int{}, ByKind: map[string]int{}, Bucket: f.Bucket}
+	st := Stats{BySeverity: map[string]int{}, ByKind: map[string]int{},
+		ByIntelSource: map[string]int{}, Bucket: f.Bucket}
 	doms := map[string]int{}
 	clients := map[string]int{}
 	bucket := map[string]int{}
@@ -364,6 +425,9 @@ func (r *MemRepo) Stats(_ context.Context, f Filter) (Stats, error) {
 		}
 		if a.ClientIP != "" {
 			clients[a.ClientIP] += a.Count
+		}
+		for _, name := range splitIntelSources(a.IntelSource, a.IntelSourceName) {
+			st.ByIntelSource[name]++
 		}
 		key := a.LastSeen.UTC().Format("2006-01-02T15")
 		if f.Bucket != "hour" {
@@ -488,6 +552,7 @@ func (r *MemRepo) Upsert(_ context.Context, ev Event) (Alert, error) {
 	a.Source, a.Kind, a.Severity = ev.Source, ev.Kind, ev.Severity
 	a.Title, a.Message, a.Detail = ev.Title, ev.Message, ev.Detail
 	a.ClientIP, a.ClientMAC, a.Domain, a.Component = ev.ClientIP, ev.ClientMAC, ev.Domain, ev.Component
+	a.IntelSource, a.IntelSourceName = ev.IntelSource, ev.IntelSourceName
 	if ok && !reopened {
 		a.Count = maxInt(a.Count, ev.Count)
 		if ev.FirstSeen.Before(a.FirstSeen) {

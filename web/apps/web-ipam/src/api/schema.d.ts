@@ -1303,7 +1303,8 @@ export interface paths {
          * 查询报警记录（模糊搜索 + 类型/级别/状态过滤）
          * @description 报警来源有两类：`dns`（客户端访问被拦截的风险域名，按客户端 IP + 域名 + 小时窗口聚合）
          *     与 `system`（数据库/日志存储/DHCP/DNS 掉线、磁盘水位、日志外发降级、情报源同步失败、上游探活失败）。
-         *     `q` 为不区分大小写子串，命中标题/摘要/域名/客户端地址/组件名。
+         *     `q` 为不区分大小写子串，命中标题/摘要/域名/客户端地址/组件名/情报来源。
+         *     `intelSource` 按情报来源 key 或显示名子串过滤（仅 DNS 风险访问）。
          *     `from`/`to` 按末次发生时间（lastSeen）过滤，缺省最近 7 天。
          *     排序：未确认优先，其后按 lastSeen 倒序。scope 为 logs:read。
          */
@@ -1325,7 +1326,7 @@ export interface paths {
         };
         /**
          * 报警统计（状态/级别/类型 + Top 域名/客户端 + 趋势）
-         * @description 与列表相同的过滤条件（不含分页）。`topDomains`/`topClients` 仅统计 DNS 风险访问，
+         * @description 与列表相同的过滤条件（不含分页）。`topDomains`/`topClients`/`byIntelSource` 仅统计 DNS 风险访问，
          *     `trend` 按时间窗自动选择桶大小（≤2 天：小时；≤31 天：天；更长：天）。scope 为 logs:read。
          */
         get: operations["getAlertStats"];
@@ -3768,6 +3769,10 @@ export interface components {
             clientMac?: string;
             /** @description 被拦截的风险域名（DNS 来源） */
             domain?: string;
+            /** @description 命中的外部情报源 key（多个用逗号分隔；自定义封禁/内置规则为空） */
+            intelSource?: string;
+            /** @description 命中的外部情报源显示名（多个用逗号分隔；历史留痕，源改名/删除后仍可读） */
+            intelSourceName?: string;
             /** @description 系统故障组件中性名（database/logstore/dhcp/dns/host...） */
             component?: string;
             /** @description 窗口内事件数或连续故障次数 */
@@ -3820,6 +3825,10 @@ export interface components {
             };
             /** @description 按类型计数 */
             byKind: {
+                [key: string]: number;
+            };
+            /** @description 按情报来源显示名计数（仅 DNS 风险访问；未知来源不计入） */
+            byIntelSource: {
                 [key: string]: number;
             };
             /** @description 风险域名 TopN（按命中次数） */
@@ -7113,6 +7122,8 @@ export interface operations {
                 kind?: string;
                 severity?: "critical" | "warning" | "info";
                 status?: "open" | "acked" | "resolved";
+                /** @description 情报来源过滤（key 或显示名子串，如 threatfox） */
+                intelSource?: string;
                 page?: number;
                 pageSize?: number;
             };
@@ -7152,6 +7163,8 @@ export interface operations {
                 kind?: string;
                 severity?: "critical" | "warning" | "info";
                 status?: "open" | "acked" | "resolved";
+                /** @description 情报来源过滤（key 或显示名子串） */
+                intelSource?: string;
             };
             header?: never;
             path?: never;

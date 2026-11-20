@@ -421,6 +421,7 @@ func (s *IntelService) UpdateSource(ctx context.Context, id string, up SourceUpd
 	if err := s.store.UpdateSource(ctx, src); err != nil {
 		return IntelSource{}, err
 	}
+	s.invalidateAttribution()
 	src.HasSecret = src.SecretFile != "" && fileExists(src.SecretFile)
 	if enabling {
 		// 启用即尝试同步一次：失败不回滚启用状态，但会记录 last_error 供 UI 展示。
@@ -457,6 +458,7 @@ func (s *IntelService) DeleteSource(ctx context.Context, id string) error {
 	if err := s.store.DeleteSource(ctx, id); err != nil {
 		return err
 	}
+	s.invalidateAttribution()
 	_, _ = s.Compile(ctx)
 	return nil
 }
@@ -507,6 +509,7 @@ func (s *IntelService) SyncSource(ctx context.Context, id string) (IntelSource, 
 	if err := s.store.UpdateSourceSync(ctx, src.ID, src.Entries, now, "ok", ""); err != nil {
 		return src, err
 	}
+	s.invalidateAttribution()
 	if _, cerr := s.Compile(ctx); cerr != nil {
 		log.Printf("[intel] 源 %s 同步后编译失败：%v", src.Key, cerr)
 	}

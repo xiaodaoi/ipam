@@ -576,14 +576,16 @@
     "filters": {
       "title": "Filters and fuzzy search",
       "keyword": "Fuzzy search",
-      "keywordPlaceholder": "Domain / client address / title / component",
+      "keywordPlaceholder": "Domain / client / threat source / title / component",
       "source": "Source",
       "kind": "Type",
       "severity": "Severity",
       "status": "Status",
       "all": "All",
       "active": "{n} filters active",
-      "reset": "Reset"
+      "reset": "Reset",
+      "intelSource": "Threat source",
+      "allSources": "All sources"
     },
     "source": {
       "dns": "Risky domain visit",
@@ -623,7 +625,10 @@
     "row": {
       "dnsSubtitle": "Client {ip} visited {domain}",
       "systemSubtitle": "{component}",
-      "count": "{n} times"
+      "count": "{n} times",
+      "manualBlock": "Custom block rule",
+      "builtinIntel": "Built-in intel rule",
+      "unknownSource": "Unattributed source"
     },
     "table": {
       "title": "Alert records",
@@ -637,7 +642,8 @@
       "lastSeen": "Last seen",
       "ackedBy": "Confirmed by",
       "empty": "No alerts match the current filters",
-      "detail": "Details"
+      "detail": "Details",
+      "intelSource": "Threat source"
     },
     "detail": {
       "title": "Alert details",
@@ -652,7 +658,8 @@
       "resolvedAt": "Resolved at",
       "detail": "Raw detail",
       "ack": "Confirm this alert",
-      "close": "Close"
+      "close": "Close",
+      "intelSource": "Threat source"
     },
     "actions": {
       "ackAll": "Confirm all",
@@ -671,14 +678,16 @@
       "title": "Alert trend",
       "domains": "Top risky domains",
       "clients": "Top client addresses",
-      "unit": "alerts"
+      "unit": "alerts",
+      "sources": "Top threat sources"
     },
     "notify": {
       "riskTitle": "Risky domain visit: {domain}",
       "riskMessage": "Client {ip} was blocked {n} times",
       "systemTitle": "{kind}",
       "systemMessage": "{component} is unhealthy ({n} times). Click for details.",
-      "viewAll": "View all alerts"
+      "viewAll": "View all alerts",
+      "riskSource": "Source: {source}"
     }
   }
 }

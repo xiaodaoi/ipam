@@ -258,6 +258,7 @@ export interface AlertQuery {
   kind?: string;
   severity?: string;
   status?: string;
+  intelSource?: string;
   page?: number;
   pageSize?: number;
 }

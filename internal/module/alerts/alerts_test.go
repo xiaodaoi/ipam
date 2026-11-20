@@ -38,6 +38,19 @@ func (f *fakeDNS) BlockedEvents(context.Context, time.Time) ([]logquery.BlockedG
 	return f.groups, nil
 }
 
+type fakeAttr struct {
+	keys  string
+	names string
+	calls int
+	last  string
+}
+
+func (f *fakeAttr) AttributeDomain(_ context.Context, domain string) (string, string) {
+	f.calls++
+	f.last = domain
+	return f.keys, f.names
+}
+
 func TestDNS风险访问按小时聚合且重复扫描不重复计数(t *testing.T) {
 	ctx := context.Background()
 	svc, _ := newTestService()
@@ -50,8 +63,10 @@ func TestDNS风险访问按小时聚合且重复扫描不重复计数(t *testing
 		FirstSeen: time.Date(2026, 11, 19, 10, 5, 0, 0, time.UTC),
 		LastSeen:  time.Date(2026, 11, 19, 10, 20, 0, 0, time.UTC),
 	}}}
+	attr := &fakeAttr{keys: "abusech-threatfox", names: "abuse.ch ThreatFox（C2 / 载荷投递 IOC）"}
 	col := newTestCollector(svc, SystemChecks{})
 	col.SetDNSSource(src)
+	col.SetAttributor(attr)
 
 	if n, err := col.CollectDNS(ctx); err != nil || n != 1 {
 		t.Fatalf("首次采集 n=%d err=%v", n, err)
@@ -78,6 +93,24 @@ func TestDNS风险访问按小时聚合且重复扫描不重复计数(t *testing
 	}
 	if !strings.Contains(a.DedupKey, "2026111910") {
 		t.Fatalf("小时桶键不符: %s", a.DedupKey)
+	}
+	if attr.calls == 0 || attr.last != "j8.asdlot.org" {
+		t.Fatalf("归属应收到规范化域名，calls=%d last=%q", attr.calls, attr.last)
+	}
+	if a.IntelSource != "abusech-threatfox" || !strings.Contains(a.IntelSourceName, "ThreatFox") {
+		t.Fatalf("来源字段未写入: %+v", a)
+	}
+	if page, _ := svc.List(ctx, Filter{IntelSource: "threatfox"}); page.Total != 1 {
+		t.Fatalf("按来源 key 模糊过滤应命中，got %d", page.Total)
+	}
+	if page, _ := svc.List(ctx, Filter{IntelSource: "载荷投递"}); page.Total != 1 {
+		t.Fatalf("按来源显示名模糊过滤应命中，got %d", page.Total)
+	}
+	if page, _ := svc.List(ctx, Filter{Q: "threatfox"}); page.Total != 1 {
+		t.Fatalf("通用模糊搜索应覆盖来源字段，got %d", page.Total)
+	}
+	if page, _ := svc.List(ctx, Filter{IntelSource: "spamhaus"}); page.Total != 0 {
+		t.Fatalf("不匹配来源不应命中，got %d", page.Total)
 	}
 
 	unread, err := svc.Unread(ctx, 8)
@@ -107,6 +140,9 @@ func TestDNS风险访问按小时聚合且重复扫描不重复计数(t *testing
 	}
 	if len(st.TopClients) != 1 || st.TopClients[0].Key != "10.61.172.10" {
 		t.Fatalf("Top 客户端不符: %+v", st.TopClients)
+	}
+	if st.ByIntelSource["abuse.ch ThreatFox（C2 / 载荷投递 IOC）"] != 1 {
+		t.Fatalf("来源统计不符: %+v", st.ByIntelSource)
 	}
 }
 

@@ -65,40 +65,43 @@ var (
 
 // Alert 一条报警记录。
 type Alert struct {
-	ID         string
-	DedupKey   string
-	Source     string
-	Kind       string
-	Severity   string
-	Status     string
-	Title      string
-	Message    string
-	ClientIP   string
-	ClientMAC  string
-	Domain     string
-	Component  string
-	Count      int
-	Detail     string
-	FirstSeen  time.Time
-	LastSeen   time.Time
-	AckedAt    *time.Time
-	AckedBy    string
-	ResolvedAt *time.Time
-	CreatedAt  time.Time
+	ID              string
+	DedupKey        string
+	Source          string
+	Kind            string
+	Severity        string
+	Status          string
+	Title           string
+	Message         string
+	ClientIP        string
+	ClientMAC       string
+	Domain          string
+	Component       string
+	IntelSource     string
+	IntelSourceName string
+	Count           int
+	Detail          string
+	FirstSeen       time.Time
+	LastSeen        time.Time
+	AckedAt         *time.Time
+	AckedBy         string
+	ResolvedAt      *time.Time
+	CreatedAt       time.Time
 }
 
 // Filter 列表/统计过滤条件（时间按 last_seen）。
 type Filter struct {
-	From     time.Time
-	To       time.Time
-	Q        string
-	Source   string
-	Kind     string
-	Severity string
-	Status   string
-	Page     int
-	PageSize int
-	Bucket   string // 趋势桶：hour | day（Service 按窗口自动选择）
+	From        time.Time
+	To          time.Time
+	Q           string
+	Source      string
+	Kind        string
+	Severity    string
+	Status      string
+	IntelSource string // 情报来源（key 或显示名子串）
+	Page        int
+	PageSize    int
+	Bucket      string // 趋势桶：hour | day（Service 按窗口自动选择）
 }
 
 // Page 列表结果。
@@ -123,16 +126,17 @@ type TrendPoint struct {
 
 // Stats 报警统计。
 type Stats struct {
-	Total      int
-	Open       int
-	Acked      int
-	Resolved   int
-	BySeverity map[string]int
-	ByKind     map[string]int
-	TopDomains []Aggregate
-	TopClients []Aggregate
-	Trend      []TrendPoint
-	Bucket     string // hour | day
+	Total         int
+	Open          int
+	Acked         int
+	Resolved      int
+	BySeverity    map[string]int
+	ByKind        map[string]int
+	ByIntelSource map[string]int // 情报来源显示名 → 报警数（仅 DNS 风险访问）
+	TopDomains    []Aggregate
+	TopClients    []Aggregate
+	Trend         []TrendPoint
+	Bucket        string // hour | day
 }
 
 // Unread 报警栏数据。
@@ -143,20 +147,22 @@ type Unread struct {
 
 // Event 采集器上报的报警事件。
 type Event struct {
-	DedupKey  string
-	Source    string
-	Kind      string
-	Severity  string
-	Title     string
-	Message   string
-	ClientIP  string
-	ClientMAC string
-	Domain    string
-	Component string
-	Count     int
-	Detail    string
-	FirstSeen time.Time
-	LastSeen  time.Time
+	DedupKey        string
+	Source          string
+	Kind            string
+	Severity        string
+	Title           string
+	Message         string
+	ClientIP        string
+	ClientMAC       string
+	Domain          string
+	Component       string
+	IntelSource     string // 命中情报源的 key（多个用逗号分隔）
+	IntelSourceName string // 命中情报源的显示名（历史留痕）
+	Count           int
+	Detail          string
+	FirstSeen       time.Time
+	LastSeen        time.Time
 }
 
 // Repo 报警持久化。
@@ -218,6 +224,9 @@ func (s *Service) Stats(ctx context.Context, f Filter) (Stats, error) {
 	}
 	if st.ByKind == nil {
 		st.ByKind = map[string]int{}
+	}
+	if st.ByIntelSource == nil {
+		st.ByIntelSource = map[string]int{}
 	}
 	if st.TopDomains == nil {
 		st.TopDomains = []Aggregate{}
@@ -320,6 +329,7 @@ func (s *Service) normalize(f *Filter) error {
 	}
 	f.Q = strings.TrimSpace(f.Q)
 	f.Source = strings.TrimSpace(f.Source)
+	f.IntelSource = strings.TrimSpace(f.IntelSource)
 	f.Kind = strings.TrimSpace(f.Kind)
 	f.Severity = strings.TrimSpace(f.Severity)
 	f.Status = strings.TrimSpace(f.Status)
@@ -361,7 +371,8 @@ func matchText(a Alert, q string) bool {
 		return true
 	}
 	q = strings.ToLower(q)
-	for _, v := range []string{a.Title, a.Message, a.Domain, a.ClientIP, a.ClientMAC, a.Component} {
+	for _, v := range []string{a.Title, a.Message, a.Domain, a.ClientIP, a.ClientMAC,
+		a.Component, a.IntelSource, a.IntelSourceName} {
 		if strings.Contains(strings.ToLower(v), q) {
 			return true
 		}
@@ -386,6 +397,10 @@ func matchFilter(a Alert, f Filter) bool {
 		return false
 	}
 	if f.Status != "" && a.Status != f.Status {
+		return false
+	}
+	if f.IntelSource != "" &&
+		!strings.Contains(strings.ToLower(a.IntelSource+" "+a.IntelSourceName), strings.ToLower(f.IntelSource)) {
 		return false
 	}
 	return matchText(a, f.Q)

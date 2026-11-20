@@ -29,6 +29,12 @@ Alert:
     clientIp: { type: string, description: 访问风险域名的客户端地址（DNS 来源） }
     clientMac: { type: string, description: 客户端 MAC（可关联时填充） }
     domain: { type: string, description: 被拦截的风险域名（DNS 来源） }
+    intelSource:
+      type: string
+      description: 命中的外部情报源 key（多个用逗号分隔；自定义封禁/内置规则为空）
+    intelSourceName:
+      type: string
+      description: 命中的外部情报源显示名（多个用逗号分隔；历史留痕，源改名/删除后仍可读）
     component: { type: string, description: 系统故障组件中性名（database/logstore/dhcp/dns/host...） }
     count: { type: integer, description: 窗口内事件数或连续故障次数 }
     detail: { type: string, description: 原始详情（可折叠展示） }
@@ -64,7 +70,7 @@ AlertTrendPoint:
 
 AlertStats:
   type: object
-  required: [total, open, acked, resolved, bySeverity, byKind, topDomains, topClients, trend]
+  required: [total, open, acked, resolved, bySeverity, byKind, byIntelSource, topDomains, topClients, trend]
   properties:
     total: { type: integer }
     open: { type: integer, description: 未确认 }
@@ -78,6 +84,10 @@ AlertStats:
       type: object
       additionalProperties: { type: integer }
       description: 按类型计数
+    byIntelSource:
+      type: object
+      additionalProperties: { type: integer }
+      description: 按情报来源显示名计数（仅 DNS 风险访问；未知来源不计入）
     topDomains:
       type: array
       items: { $ref: 'alerts.yaml#/AlertAggregate' }

@@ -49,6 +49,10 @@ type IntelService struct {
 
 	mu  sync.Mutex
 	now func() time.Time
+
+	// 来源归属索引（M6-040）：懒构建，源变更后整体作废。
+	attrMu sync.Mutex
+	attr   *domainAttribution
 }
 
 // NewIntelService 创建编译服务；dir 为 zonefile 目录（容器内 /etc/unbound-rendered/zones/rpz）。

@@ -576,14 +576,16 @@
     "filters": {
       "title": "筛选与模糊搜索",
       "keyword": "模糊搜索",
-      "keywordPlaceholder": "域名 / 客户端地址 / 标题 / 组件",
+      "keywordPlaceholder": "域名 / 客户端地址 / 情报来源 / 标题 / 组件",
       "source": "来源",
       "kind": "类型",
       "severity": "级别",
       "status": "状态",
       "all": "全部",
       "active": "{n} 个条件生效",
-      "reset": "重置"
+      "reset": "重置",
+      "intelSource": "情报来源",
+      "allSources": "全部来源"
     },
     "source": {
       "dns": "风险域名访问",
@@ -623,7 +625,10 @@
     "row": {
       "dnsSubtitle": "客户端 {ip} 访问 {domain}",
       "systemSubtitle": "{component}",
-      "count": "{n} 次"
+      "count": "{n} 次",
+      "manualBlock": "自定义封禁规则",
+      "builtinIntel": "内置情报规则",
+      "unknownSource": "未归属来源"
     },
     "table": {
       "title": "报警记录",
@@ -637,7 +642,8 @@
       "lastSeen": "最近发生",
       "ackedBy": "确认人",
       "empty": "当前条件下没有报警",
-      "detail": "详情"
+      "detail": "详情",
+      "intelSource": "情报来源"
     },
     "detail": {
       "title": "报警详情",
@@ -652,7 +658,8 @@
       "resolvedAt": "恢复时间",
       "detail": "原始详情",
       "ack": "确认此报警",
-      "close": "关闭"
+      "close": "关闭",
+      "intelSource": "情报来源"
     },
     "actions": {
       "ackAll": "全部确认",
@@ -671,14 +678,16 @@
       "title": "报警趋势",
       "domains": "风险域名 Top",
       "clients": "客户端地址 Top",
-      "unit": "条"
+      "unit": "条",
+      "sources": "情报来源 Top"
     },
     "notify": {
       "riskTitle": "风险域名访问：{domain}",
       "riskMessage": "客户端 {ip} 访问被拦截域名 {n} 次",
       "systemTitle": "{kind}",
       "systemMessage": "组件 {component} 出现异常（{n} 次），点击查看详情",
-      "viewAll": "查看全部报警"
+      "viewAll": "查看全部报警",
+      "riskSource": "来源：{source}"
     }
   }
 }
