@@ -1,0 +1,461 @@
+== replay assertions on live stack ==
+-- [1]
+{"code":"TOKEN_MISSING","detail":"未携带有效访问令牌","instance":"/api/v1/system/info","status":401,"title":"Unauthorized","type":"https://ipam.local/problems/unauthorized"}
+-- [2]
+[ { "result": 1, "text": "unable to forward command to the dhcp4 service: No such file or directory. The server is likely to be offline" } ]
+-- [3]
+Error response from daemon: Container ec68c148946fd1bc59fd797e0e5e5f54a597836038af56cb403ab7dbb528e782 is restarting, wait until the container is running
+
+-- [4]
+Error response from daemon: Container ec68c148946fd1bc59fd797e0e5e5f54a597836038af56cb403ab7dbb528e782 is restarting, wait until the container is running
+
+-- [5] inject+dig
+Error response from daemon: Container ec68c148946fd1bc59fd797e0e5e5f54a597836038af56cb403ab7dbb528e782 is restarting, wait until the container is running
+Error response from daemon: Container ec68c148946fd1bc59fd797e0e5e5f54a597836038af56cb403ab7dbb528e782 is restarting, wait until the container is running
+-- [6] logs endpoint
+{"code":"TOKEN_MISSING","detail":"未携带有效访问令牌","instance":"/api/v1/logs","status":401,"title":"Unauthorized","type":"https://ipam.local/problems/unauthorized"}
+-- [7] logs table
+0
+
+== ps ==
+NAME                      IMAGE                                       COMMAND                  SERVICE            CREATED         STATUS                                    PORTS
+ipam-clickhouse-1         clickhouse/clickhouse-server:24.8-alpine    "/entrypoint.sh"         clickhouse         4 minutes ago   Up 4 minutes                              8123/tcp, 9009/tcp, 127.0.0.1:9000->9000/tcp
+ipam-coherence-daemon-1   ipam/coherence-daemon:0.1.0-dev             "/usr/local/bin/cohe…"   coherence-daemon   4 minutes ago   Up 4 minutes (healthy)                    
+ipam-control-plane-1      ipam/control-plane:0.1.0-dev                "/usr/local/bin/cont…"   control-plane      4 minutes ago   Up 4 minutes (healthy)                    0.0.0.0:8443->8443/tcp, [::]:8443->8443/tcp
+ipam-kea-ctrl-agent-1     ipam-kea-ctrl-agent                         "kea-ctrl-agent -c /…"   kea-ctrl-agent     4 minutes ago   Up 4 minutes                              127.0.0.1:8000->8000/tcp
+ipam-kea-dhcp4-1          ipam-kea-dhcp4                              "sh -c 'rm -f /run/i…"   kea-dhcp4          4 minutes ago   Restarting (1) 6 seconds ago              
+ipam-kea-dhcp6-1          ipam-kea-dhcp6                              "sh -c 'rm -f /run/i…"   kea-dhcp6          4 minutes ago   Restarting (1) 6 seconds ago              
+ipam-postgresql-1         postgres:16-alpine                          "docker-entrypoint.s…"   postgresql         4 minutes ago   Up 4 minutes (healthy)                    127.0.0.1:5432->5432/tcp
+ipam-unbound-1            ipam/unbound:0.1.0-dev                      "/usr/local/bin/entr…"   unbound            4 minutes ago   Restarting (1) Less than a second ago     
+ipam-vector-1             ghcr.io/vectordotdev/vector:0.46.1-alpine   "/usr/local/bin/vect…"   vector             4 minutes ago   Restarting (255) Less than a second ago   
+ipam-volume-init-1        alpine:3.20                                 "sh -c 'mkdir -p /ex…"   volume-init        4 minutes ago   Exited (0) 4 minutes ago                  
+
+== logs(tail) ==
+clickhouse-1        | /entrypoint.sh: create new user 'ipam' instead 'default'
+clickhouse-1        | Processing configuration file '/etc/clickhouse-server/config.xml'.
+clickhouse-1        | Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.
+clickhouse-1        | Logging trace to /var/log/clickhouse-server/clickhouse-server.log
+clickhouse-1        | Logging errors to /var/log/clickhouse-server/clickhouse-server.err.log
+clickhouse-1        | 
+coherence-daemon-1  | 2026/11/20 10:21:00 loaded 0 bindings from PG
+coherence-daemon-1  | 2026/11/20 10:21:00 loaded 0 templates from PG
+coherence-daemon-1  | 2026/11/20 10:21:00 coherence-daemon listening on /run/ipam/coherence.sock (pg=true)
+postgresql-1        | CREATE INDEX
+kea-dhcp6-1         | 2026-11-20 10:20:54.221 ERROR [kea-dhcp6.dhcp6/1.137768415031808] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:20:54.221 ERROR [kea-dhcp6.dhcp6/1.137768415031808] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:20:54.220 INFO  [kea-dhcp6.dhcp6/1.137768415031808] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-11-20 10:20:54.444 INFO  [kea-dhcp6.dhcp6/1.133380202951168] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-11-20 10:20:54.445 ERROR [kea-dhcp6.dhcp6/1.133380202951168] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:20:54.445 ERROR [kea-dhcp6.dhcp6/1.133380202951168] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:20:54.779 INFO  [kea-dhcp6.dhcp6/1.130675167154688] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-11-20 10:20:54.780 ERROR [kea-dhcp6.dhcp6/1.130675167154688] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:20:54.781 ERROR [kea-dhcp6.dhcp6/1.130675167154688] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:20:55.292 INFO  [kea-dhcp6.dhcp6/1.128668267684352] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-11-20 10:20:55.293 ERROR [kea-dhcp6.dhcp6/1.128668267684352] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:20:55.293 ERROR [kea-dhcp6.dhcp6/1.128668267684352] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:20:56.196 INFO  [kea-dhcp6.dhcp6/1.130046615052800] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-11-20 10:20:56.197 ERROR [kea-dhcp6.dhcp6/1.130046615052800] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:20:56.197 ERROR [kea-dhcp6.dhcp6/1.130046615052800] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:20:57.903 INFO  [kea-dhcp6.dhcp6/1.138663904850432] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-11-20 10:20:57.904 ERROR [kea-dhcp6.dhcp6/1.138663904850432] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:20:57.904 ERROR [kea-dhcp6.dhcp6/1.138663904850432] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:21:01.217 INFO  [kea-dhcp6.dhcp6/1.124729862103552] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-11-20 10:21:01.218 ERROR [kea-dhcp6.dhcp6/1.124729862103552] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:21:01.218 ERROR [kea-dhcp6.dhcp6/1.124729862103552] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:21:07.708 INFO  [kea-dhcp6.dhcp6/1.131362044047872] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-11-20 10:21:07.709 ERROR [kea-dhcp6.dhcp6/1.131362044047872] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:21:07.710 ERROR [kea-dhcp6.dhcp6/1.131362044047872] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:21:20.617 INFO  [kea-dhcp6.dhcp6/1.123749046559232] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-11-20 10:21:20.617 ERROR [kea-dhcp6.dhcp6/1.123749046559232] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:21:20.617 ERROR [kea-dhcp6.dhcp6/1.123749046559232] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:21:46.320 INFO  [kea-dhcp6.dhcp6/1.130521385890304] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-11-20 10:21:46.321 ERROR [kea-dhcp6.dhcp6/1.130521385890304] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:21:46.321 ERROR [kea-dhcp6.dhcp6/1.130521385890304] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:22:37.624 INFO  [kea-dhcp6.dhcp6/1.132225047421440] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-11-20 10:22:37.625 ERROR [kea-dhcp6.dhcp6/1.132225047421440] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:22:37.625 ERROR [kea-dhcp6.dhcp6/1.132225047421440] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:23:37.725 INFO  [kea-dhcp6.dhcp6/1.139977169428992] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-11-20 10:23:37.726 ERROR [kea-dhcp6.dhcp6/1.139977169428992] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:23:37.726 ERROR [kea-dhcp6.dhcp6/1.139977169428992] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:24:37.825 INFO  [kea-dhcp6.dhcp6/1.133952599593472] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-11-20 10:24:37.826 ERROR [kea-dhcp6.dhcp6/1.133952599593472] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:24:37.826 ERROR [kea-dhcp6.dhcp6/1.133952599593472] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:25:37.926 INFO  [kea-dhcp6.dhcp6/1.131052703625728] DHCP6_STARTING Kea DHCPv6 server version 2.2.0 (stable) starting
+kea-dhcp6-1         | 2026-11-20 10:25:37.927 ERROR [kea-dhcp6.dhcp6/1.131052703625728] DHCP6_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp6.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+kea-dhcp6-1         | 2026-11-20 10:25:37.927 ERROR [kea-dhcp6.dhcp6/1.131052703625728] DHCP6_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp6.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp6.conf:5:9) (/etc/kea/kea-dhcp6.conf:4:7)
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0034_ledger_meta.sql
+postgresql-1        | CREATE TABLE
+postgresql-1        | CREATE INDEX
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0035_ldap.sql
+postgresql-1        | ALTER TABLE
+postgresql-1        | CREATE TABLE
+postgresql-1        | INSERT 0 1
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0036_totp_recovery.sql
+postgresql-1        | ALTER TABLE
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0037_user_sessions.sql
+postgresql-1        | CREATE TABLE
+postgresql-1        | CREATE INDEX
+postgresql-1        | CREATE INDEX
+postgresql-1        | COMMENT
+postgresql-1        | COMMENT
+postgresql-1        | COMMENT
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0038_audit_before.sql
+postgresql-1        | ALTER TABLE
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0039_subnet_meta.sql
+postgresql-1        | ALTER TABLE
+postgresql-1        | ALTER TABLE
+postgresql-1        | ALTER TABLE
+postgresql-1        | ALTER TABLE
+postgresql-1        | CREATE INDEX
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0040_dns_ext.sql
+postgresql-1        | ALTER TABLE
+postgresql-1        | ALTER TABLE
+postgresql-1        | ALTER TABLE
+postgresql-1        | ALTER TABLE
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0041_blocklist_version.sql
+postgresql-1        | CREATE TABLE
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0042_org_name_uniq.sql
+postgresql-1        | DELETE 0
+postgresql-1        | UPDATE 0
+postgresql-1        | ALTER TABLE
+postgresql-1        | CREATE INDEX
+postgresql-1        | 
+postgresql-1        | 
+unbound-1           | /etc/unbound/unbound.conf:47: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+unbound-1           | /etc/unbound/unbound.conf:47: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0043_system_metric.sql
+postgresql-1        | CREATE TABLE
+postgresql-1        | CREATE INDEX
+postgresql-1        | CREATE INDEX
+clickhouse-1        | /entrypoint.sh: create database 'ipam'
+postgresql-1        | CREATE TABLE
+clickhouse-1        | /entrypoint.sh: running /docker-entrypoint-initdb.d/01_logs.sql
+postgresql-1        | CREATE INDEX
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0044_intel.sql
+postgresql-1        | CREATE TABLE
+postgresql-1        | CREATE INDEX
+postgresql-1        | CREATE TABLE
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0045_intel_source.sql
+postgresql-1        | CREATE TABLE
+postgresql-1        | CREATE INDEX
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0046_intel_source_abusech_v2.sql
+postgresql-1        | UPDATE 0
+postgresql-1        | UPDATE 0
+postgresql-1        | 
+postgresql-1        | 
+clickhouse-1        | 
+unbound-1           | /etc/unbound/unbound.conf:47: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+unbound-1           | /etc/unbound/unbound.conf:47: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+unbound-1           | /etc/unbound/unbound.conf:47: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+unbound-1           | /etc/unbound/unbound.conf:47: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+unbound-1           | /etc/unbound/unbound.conf:47: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+unbound-1           | /etc/unbound/unbound.conf:47: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+unbound-1           | /etc/unbound/unbound.conf:47: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+unbound-1           | /etc/unbound/unbound.conf:47: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+unbound-1           | /etc/unbound/unbound.conf:47: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+kea-ctrl-agent-1    | 2026-11-20 10:20:54.528 INFO  [kea-ctrl-agent.dctl/1.126984763164544] DCTL_STARTING Control-agent starting, pid: 1, version: 2.2.0 (stable)
+unbound-1           | /etc/unbound/unbound.conf:47: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+kea-ctrl-agent-1    | 2026-11-20 10:20:54.528 INFO  [kea-ctrl-agent.ctrl-agent/1.126984763164544] CTRL_AGENT_HTTP_SERVICE_STARTED HTTP service bound to address 0.0.0.0:8000
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0047_alert.sql
+kea-ctrl-agent-1    | 2026-11-20 10:20:54.528 INFO  [kea-ctrl-agent.dctl/1.126984763164544] DCTL_CONFIG_COMPLETE server has completed configuration: listening on 0.0.0.0, port 8000, control sockets: dhcp4 dhcp6, 0 lib(s):
+postgresql-1        | CREATE TABLE
+kea-ctrl-agent-1    | 2026-11-20 10:20:54.528 INFO  [kea-ctrl-agent.ctrl-agent/1.126984763164544] CTRL_AGENT_STARTED Kea Control Agent version 2.2.0 started
+postgresql-1        | CREATE INDEX
+kea-ctrl-agent-1    | 2026-11-20 10:21:00.246 INFO  [kea-ctrl-agent.commands/1.126984763164544] COMMAND_RECEIVED Received command 'lease4-get-all'
+kea-ctrl-agent-1    | 2026-11-20 10:21:00.246 INFO  [kea-ctrl-agent.ctrl-agent/1.126984763164544] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.6
+kea-ctrl-agent-1    | 2026-11-20 10:21:00.249 INFO  [kea-ctrl-agent.commands/1.126984763164544] COMMAND_RECEIVED Received command 'lease6-get-all'
+clickhouse-1        | 
+kea-ctrl-agent-1    | 2026-11-20 10:21:00.249 INFO  [kea-ctrl-agent.ctrl-agent/1.126984763164544] CTRL_AGENT_COMMAND_RECEIVED command lease6-get-all received from remote address 172.18.0.6
+clickhouse-1        | Processing configuration file '/etc/clickhouse-server/config.xml'.
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+clickhouse-1        | Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.
+unbound-1           | /etc/unbound/unbound.conf:47: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+kea-ctrl-agent-1    | 2026-11-20 10:21:00.250 INFO  [kea-ctrl-agent.commands/1.126984763164544] COMMAND_RECEIVED Received command 'lease4-get-all'
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+unbound-1           | /etc/unbound/unbound.conf:47: error: cannot open include file '/etc/unbound-rendered/unbound-rendered.conf': No such file or directory
+kea-ctrl-agent-1    | 2026-11-20 10:21:00.250 INFO  [kea-ctrl-agent.ctrl-agent/1.126984763164544] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.6
+kea-ctrl-agent-1    | 2026-11-20 10:21:00.257 INFO  [kea-ctrl-agent.commands/1.126984763164544] COMMAND_RECEIVED Received command 'config-set'
+kea-ctrl-agent-1    | 2026-11-20 10:21:00.257 INFO  [kea-ctrl-agent.ctrl-agent/1.126984763164544] CTRL_AGENT_COMMAND_RECEIVED command config-set received from remote address 172.18.0.6
+kea-ctrl-agent-1    | 2026-11-20 10:21:00.324 INFO  [kea-ctrl-agent.commands/1.126984763164544] COMMAND_RECEIVED Received command 'version-get'
+kea-ctrl-agent-1    | 2026-11-20 10:21:00.324 INFO  [kea-ctrl-agent.ctrl-agent/1.126984763164544] CTRL_AGENT_COMMAND_RECEIVED command version-get received from remote address 172.18.0.6
+unbound-1           | read /etc/unbound/unbound.conf failed: 1 errors in configuration file
+postgresql-1        | CREATE INDEX
+postgresql-1        | CREATE INDEX
+postgresql-1        | 
+kea-ctrl-agent-1    | 2026-11-20 10:21:05.261 INFO  [kea-ctrl-agent.commands/1.126984763164544] COMMAND_RECEIVED Received command 'config-set'
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0048_alert_intel_source.sql
+kea-ctrl-agent-1    | 2026-11-20 10:21:05.261 INFO  [kea-ctrl-agent.ctrl-agent/1.126984763164544] CTRL_AGENT_COMMAND_RECEIVED command config-set received from remote address 172.18.0.6
+postgresql-1        | ALTER TABLE
+kea-ctrl-agent-1    | 2026-11-20 10:21:10.263 INFO  [kea-ctrl-agent.commands/1.126984763164544] COMMAND_RECEIVED Received command 'config-set'
+postgresql-1        | ALTER TABLE
+kea-ctrl-agent-1    | 2026-11-20 10:21:10.263 INFO  [kea-ctrl-agent.ctrl-agent/1.126984763164544] CTRL_AGENT_COMMAND_RECEIVED command config-set received from remote address 172.18.0.6
+postgresql-1        | 
+kea-ctrl-agent-1    | 2026-11-20 10:21:15.265 INFO  [kea-ctrl-agent.commands/1.126984763164544] COMMAND_RECEIVED Received command 'config-set'
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0049_alert_drop_wildcard_domain.sql
+postgresql-1        | DELETE 0
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/0050_upstream_default.sql
+postgresql-1        | ALTER TABLE
+postgresql-1        | COMMENT
+postgresql-1        | 
+postgresql-1        | 
+postgresql-1        | waiting for server to shut down....2026-11-20 10:20:55.625 UTC [40] LOG:  received fast shutdown request
+postgresql-1        | 2026-11-20 10:20:55.625 UTC [40] LOG:  aborting any active transactions
+postgresql-1        | 2026-11-20 10:20:55.627 UTC [40] LOG:  background worker "logical replication launcher" (PID 46) exited with exit code 1
+postgresql-1        | 2026-11-20 10:20:55.628 UTC [41] LOG:  shutting down
+postgresql-1        | 2026-11-20 10:20:55.628 UTC [41] LOG:  checkpoint starting: shutdown immediate
+postgresql-1        | 2026-11-20 10:20:55.640 UTC [41] LOG:  checkpoint complete: wrote 1051 buffers (6.4%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.010 s, sync=0.002 s, total=0.013 s; sync files=514, longest=0.001 s, average=0.001 s; distance=5520 kB, estimate=5520 kB; lsn=0/1A6D0B0, redo lsn=0/1A6D0B0
+postgresql-1        | 2026-11-20 10:20:55.644 UTC [40] LOG:  database system is shut down
+postgresql-1        |  done
+postgresql-1        | server stopped
+postgresql-1        | 
+postgresql-1        | PostgreSQL init process complete; ready for start up.
+postgresql-1        | 
+postgresql-1        | 2026-11-20 10:20:55.739 UTC [1] LOG:  starting PostgreSQL 16.16 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+kea-ctrl-agent-1    | 2026-11-20 10:21:15.265 INFO  [kea-ctrl-agent.ctrl-agent/1.126984763164544] CTRL_AGENT_COMMAND_RECEIVED command config-set received from remote address 172.18.0.6
+clickhouse-1        | Logging trace to /var/log/clickhouse-server/clickhouse-server.log
+postgresql-1        | 2026-11-20 10:20:55.739 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+clickhouse-1        | Logging errors to /var/log/clickhouse-server/clickhouse-server.err.log
+postgresql-1        | 2026-11-20 10:20:55.739 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+postgresql-1        | 2026-11-20 10:20:55.740 UTC [1] LOG:  listening on Unix socket "/run/postgresql/.s.PGSQL.5432"
+postgresql-1        | 2026-11-20 10:20:55.741 UTC [156] LOG:  database system was shut down at 2026-11-20 10:20:55 UTC
+postgresql-1        | 2026-11-20 10:20:55.744 UTC [1] LOG:  database system is ready to accept connections
+kea-ctrl-agent-1    | 2026-11-20 10:21:20.268 INFO  [kea-ctrl-agent.commands/1.126984763164544] COMMAND_RECEIVED Received command 'config-set'
+kea-ctrl-agent-1    | 2026-11-20 10:21:20.268 INFO  [kea-ctrl-agent.ctrl-agent/1.126984763164544] CTRL_AGENT_COMMAND_RECEIVED command config-set received from remote address 172.18.0.6
+kea-ctrl-agent-1    | 2026-11-20 10:21:25.270 INFO  [kea-ctrl-agent.commands/1.126984763164544] COMMAND_RECEIVED Received command 'config-set'
+kea-ctrl-agent-1    | 2026-11-20 10:21:25.270 INFO  [kea-ctrl-agent.ctrl-agent/1.126984763164544] CTRL_AGENT_COMMAND_RECEIVED command config-set received from remote address 172.18.0.6
+kea-ctrl-agent-1    | 2026-11-20 10:22:00.248 INFO  [kea-ctrl-agent.commands/1.126984763164544] COMMAND_RECEIVED Received command 'lease4-get-all'
+kea-ctrl-agent-1    | 2026-11-20 10:22:00.248 INFO  [kea-ctrl-agent.ctrl-agent/1.126984763164544] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.6
+kea-ctrl-agent-1    | 2026-11-20 10:22:00.252 INFO  [kea-ctrl-agent.commands/1.126984763164544] COMMAND_RECEIVED Received command 'lease6-get-all'
+kea-ctrl-agent-1    | 2026-11-20 10:22:00.252 INFO  [kea-ctrl-agent.ctrl-agent/1.126984763164544] CTRL_AGENT_COMMAND_RECEIVED command lease6-get-all received from remote address 172.18.0.6
+kea-ctrl-agent-1    | 2026-11-20 10:22:00.252 INFO  [kea-ctrl-agent.commands/1.126984763164544] COMMAND_RECEIVED Received command 'lease4-get-all'
+kea-ctrl-agent-1    | 2026-11-20 10:22:00.252 INFO  [kea-ctrl-agent.ctrl-agent/1.126984763164544] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.6
+kea-ctrl-agent-1    | 2026-11-20 10:22:00.314 INFO  [kea-ctrl-agent.commands/1.126984763164544] COMMAND_RECEIVED Received command 'version-get'
+kea-ctrl-agent-1    | 2026-11-20 10:22:00.314 INFO  [kea-ctrl-agent.ctrl-agent/1.126984763164544] CTRL_AGENT_COMMAND_RECEIVED command version-get received from remote address 172.18.0.6
+kea-ctrl-agent-1    | 2026-11-20 10:23:00.313 INFO  [kea-ctrl-agent.commands/1.126984763164544] COMMAND_RECEIVED Received command 'version-get'
+kea-ctrl-agent-1    | 2026-11-20 10:23:00.313 INFO  [kea-ctrl-agent.ctrl-agent/1.126984763164544] CTRL_AGENT_COMMAND_RECEIVED command version-get received from remote address 172.18.0.6
+kea-ctrl-agent-1    | 2026-11-20 10:24:00.250 INFO  [kea-ctrl-agent.commands/1.126984763164544] COMMAND_RECEIVED Received command 'lease4-get-all'
+kea-ctrl-agent-1    | 2026-11-20 10:24:00.250 INFO  [kea-ctrl-agent.ctrl-agent/1.126984763164544] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.6
+kea-ctrl-agent-1    | 2026-11-20 10:24:00.253 INFO  [kea-ctrl-agent.commands/1.126984763164544] COMMAND_RECEIVED Received command 'lease6-get-all'
+kea-ctrl-agent-1    | 2026-11-20 10:24:00.253 INFO  [kea-ctrl-agent.ctrl-agent/1.126984763164544] CTRL_AGENT_COMMAND_RECEIVED command lease6-get-all received from remote address 172.18.0.6
+kea-ctrl-agent-1    | 2026-11-20 10:24:00.253 INFO  [kea-ctrl-agent.commands/1.126984763164544] COMMAND_RECEIVED Received command 'lease4-get-all'
+kea-ctrl-agent-1    | 2026-11-20 10:24:00.253 INFO  [kea-ctrl-agent.ctrl-agent/1.126984763164544] CTRL_AGENT_COMMAND_RECEIVED command lease4-get-all received from remote address 172.18.0.6
+kea-ctrl-agent-1    | 2026-11-20 10:24:00.326 INFO  [kea-ctrl-agent.commands/1.126984763164544] COMMAND_RECEIVED Received command 'version-get'
+kea-ctrl-agent-1    | 2026-11-20 10:24:00.326 INFO  [kea-ctrl-agent.ctrl-agent/1.126984763164544] CTRL_AGENT_COMMAND_RECEIVED command version-get received from remote address 172.18.0.6
+kea-ctrl-agent-1    | 2026-11-20 10:25:00.313 INFO  [kea-ctrl-agent.commands/1.126984763164544] COMMAND_RECEIVED Received command 'version-get'
+kea-ctrl-agent-1    | 2026-11-20 10:25:00.313 INFO  [kea-ctrl-agent.ctrl-agent/1.126984763164544] CTRL_AGENT_COMMAND_RECEIVED command version-get received from remote address 172.18.0.6
+kea-ctrl-agent-1    | 2026-11-20 10:25:43.861 INFO  [kea-ctrl-agent.commands/1.126984763164544] COMMAND_RECEIVED Received command 'version-get'
+kea-ctrl-agent-1    | 2026-11-20 10:25:43.861 INFO  [kea-ctrl-agent.ctrl-agent/1.126984763164544] CTRL_AGENT_COMMAND_RECEIVED command version-get received from remote address 172.18.0.1
+kea-dhcp4-1         | 2026-11-20 10:20:54.223 INFO  [kea-dhcp4.dhcp4/1.127481951126016] DHCP4_STARTING Kea DHCPv4 server version 2.2.0 (stable) starting
+kea-dhcp4-1         | 2026-11-20 10:20:54.224 ERROR [kea-dhcp4.dhcp4/1.127481951126016] DHCP4_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp4.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:20:54.224 ERROR [kea-dhcp4.dhcp4/1.127481951126016] DHCP4_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp4.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:20:54.448 INFO  [kea-dhcp4.dhcp4/1.132217376166400] DHCP4_STARTING Kea DHCPv4 server version 2.2.0 (stable) starting
+kea-dhcp4-1         | 2026-11-20 10:20:54.449 ERROR [kea-dhcp4.dhcp4/1.132217376166400] DHCP4_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp4.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:20:54.449 ERROR [kea-dhcp4.dhcp4/1.132217376166400] DHCP4_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp4.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:20:54.777 INFO  [kea-dhcp4.dhcp4/1.135721800270336] DHCP4_STARTING Kea DHCPv4 server version 2.2.0 (stable) starting
+kea-dhcp4-1         | 2026-11-20 10:20:54.778 ERROR [kea-dhcp4.dhcp4/1.135721800270336] DHCP4_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp4.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:20:54.778 ERROR [kea-dhcp4.dhcp4/1.135721800270336] DHCP4_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp4.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:20:55.293 INFO  [kea-dhcp4.dhcp4/1.139383947088384] DHCP4_STARTING Kea DHCPv4 server version 2.2.0 (stable) starting
+kea-dhcp4-1         | 2026-11-20 10:20:55.294 ERROR [kea-dhcp4.dhcp4/1.139383947088384] DHCP4_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp4.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:20:55.294 ERROR [kea-dhcp4.dhcp4/1.139383947088384] DHCP4_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp4.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:20:56.196 INFO  [kea-dhcp4.dhcp4/1.130343556051456] DHCP4_STARTING Kea DHCPv4 server version 2.2.0 (stable) starting
+kea-dhcp4-1         | 2026-11-20 10:20:56.197 ERROR [kea-dhcp4.dhcp4/1.130343556051456] DHCP4_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp4.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:20:56.197 ERROR [kea-dhcp4.dhcp4/1.130343556051456] DHCP4_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp4.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+vector-1            | exec /usr/local/bin/vector: exec format error
+vector-1            | exec /usr/local/bin/vector: exec format error
+vector-1            | exec /usr/local/bin/vector: exec format error
+vector-1            | exec /usr/local/bin/vector: exec format error
+vector-1            | exec /usr/local/bin/vector: exec format error
+vector-1            | exec /usr/local/bin/vector: exec format error
+vector-1            | exec /usr/local/bin/vector: exec format error
+vector-1            | exec /usr/local/bin/vector: exec format error
+vector-1            | exec /usr/local/bin/vector: exec format error
+vector-1            | exec /usr/local/bin/vector: exec format error
+vector-1            | exec /usr/local/bin/vector: exec format error
+vector-1            | exec /usr/local/bin/vector: exec format error
+vector-1            | exec /usr/local/bin/vector: exec format error
+vector-1            | exec /usr/local/bin/vector: exec format error
+kea-dhcp4-1         | 2026-11-20 10:20:57.903 INFO  [kea-dhcp4.dhcp4/1.124865089921536] DHCP4_STARTING Kea DHCPv4 server version 2.2.0 (stable) starting
+kea-dhcp4-1         | 2026-11-20 10:20:57.904 ERROR [kea-dhcp4.dhcp4/1.124865089921536] DHCP4_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp4.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:20:57.904 ERROR [kea-dhcp4.dhcp4/1.124865089921536] DHCP4_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp4.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:21:01.214 INFO  [kea-dhcp4.dhcp4/1.131308347068928] DHCP4_STARTING Kea DHCPv4 server version 2.2.0 (stable) starting
+kea-dhcp4-1         | 2026-11-20 10:21:01.215 ERROR [kea-dhcp4.dhcp4/1.131308347068928] DHCP4_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp4.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:21:01.215 ERROR [kea-dhcp4.dhcp4/1.131308347068928] DHCP4_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp4.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:21:07.708 INFO  [kea-dhcp4.dhcp4/1.130940427149824] DHCP4_STARTING Kea DHCPv4 server version 2.2.0 (stable) starting
+kea-dhcp4-1         | 2026-11-20 10:21:07.709 ERROR [kea-dhcp4.dhcp4/1.130940427149824] DHCP4_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp4.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:21:07.710 ERROR [kea-dhcp4.dhcp4/1.130940427149824] DHCP4_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp4.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:21:20.616 INFO  [kea-dhcp4.dhcp4/1.140515520410112] DHCP4_STARTING Kea DHCPv4 server version 2.2.0 (stable) starting
+kea-dhcp4-1         | 2026-11-20 10:21:20.617 ERROR [kea-dhcp4.dhcp4/1.140515520410112] DHCP4_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp4.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:21:20.617 ERROR [kea-dhcp4.dhcp4/1.140515520410112] DHCP4_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp4.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:21:46.320 INFO  [kea-dhcp4.dhcp4/1.126211493044736] DHCP4_STARTING Kea DHCPv4 server version 2.2.0 (stable) starting
+kea-dhcp4-1         | 2026-11-20 10:21:46.321 ERROR [kea-dhcp4.dhcp4/1.126211493044736] DHCP4_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp4.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:21:46.321 ERROR [kea-dhcp4.dhcp4/1.126211493044736] DHCP4_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp4.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:22:37.624 INFO  [kea-dhcp4.dhcp4/1.137705363759616] DHCP4_STARTING Kea DHCPv4 server version 2.2.0 (stable) starting
+kea-dhcp4-1         | 2026-11-20 10:22:37.625 ERROR [kea-dhcp4.dhcp4/1.137705363759616] DHCP4_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp4.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:22:37.625 ERROR [kea-dhcp4.dhcp4/1.137705363759616] DHCP4_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp4.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:23:37.725 INFO  [kea-dhcp4.dhcp4/1.131105088442880] DHCP4_STARTING Kea DHCPv4 server version 2.2.0 (stable) starting
+kea-dhcp4-1         | 2026-11-20 10:23:37.726 ERROR [kea-dhcp4.dhcp4/1.131105088442880] DHCP4_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp4.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:23:37.726 ERROR [kea-dhcp4.dhcp4/1.131105088442880] DHCP4_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp4.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:24:37.826 INFO  [kea-dhcp4.dhcp4/1.134820037104128] DHCP4_STARTING Kea DHCPv4 server version 2.2.0 (stable) starting
+kea-dhcp4-1         | 2026-11-20 10:24:37.826 ERROR [kea-dhcp4.dhcp4/1.134820037104128] DHCP4_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp4.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:24:37.826 ERROR [kea-dhcp4.dhcp4/1.134820037104128] DHCP4_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp4.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:25:37.926 INFO  [kea-dhcp4.dhcp4/1.130816275472896] DHCP4_STARTING Kea DHCPv4 server version 2.2.0 (stable) starting
+kea-dhcp4-1         | 2026-11-20 10:25:37.927 ERROR [kea-dhcp4.dhcp4/1.130816275472896] DHCP4_CONFIG_LOAD_FAIL configuration error using file: /etc/kea/kea-dhcp4.conf, reason: Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+kea-dhcp4-1         | 2026-11-20 10:25:37.927 ERROR [kea-dhcp4.dhcp4/1.130816275472896] DHCP4_INIT_FAIL failed to initialize Kea server: configuration error using file '/etc/kea/kea-dhcp4.conf': Failed to select interface: interface 'ens160' doesn't exist in the system (/etc/kea/kea-dhcp4.conf:5:9) (/etc/kea/kea-dhcp4.conf:4:7)
+control-plane-1     | 2026/11/20 10:21:00 control-plane 0.1.0-dev listening on :8443 (http)
+control-plane-1     | 2026/11/20 10:21:00 ⚠️  未配置 IPAM_TLS_CERT/IPAM_TLS_KEY：当前为明文 HTTP，仅允许开发/受控内网使用
+control-plane-1     | 2026/11/20 10:21:00 network hardening: trustedProxies=[] bodyLimit=1048576
+control-plane-1     | 2026/11/20 10:21:00 write hardening: writeRateLimit=120/min
+control-plane-1     | 2026/11/20 10:21:00 [migrator] 存量库基线：≤0009 记为已应用（9 项）
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0010_users
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0011_dhcp_options
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0012_pd_pool_len
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0013_token_version
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0014_subnet_options
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0015_token_blacklist
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0016_roles
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0017_webui_settings
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0018_webui_settings_port
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0019_reservation_ipv4_uniq
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0020_org_sort_order
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0021_subnet_valid_lifetime
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0022_subnet_options
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0023_subnet_cidr_uniq
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0024_coherence_lease_meta
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0025_dualstack_match_scheme
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0026_log_lifecycle
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0027_user_must_change_password
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0028_security_settings
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0029_backup
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0030_audit_chain
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0031_user_totp
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0032_log_export
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0033_subnet_utilization
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0034_ledger_meta
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0035_ldap
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0036_totp_recovery
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0037_user_sessions
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0038_audit_before
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0039_subnet_meta
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0040_dns_ext
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0041_blocklist_version
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0042_org_name_uniq
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0043_system_metric
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0044_intel
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0045_intel_source
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0046_intel_source_abusech_v2
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0047_alert
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0048_alert_intel_source
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0049_alert_drop_wildcard_domain
+control-plane-1     | 2026/11/20 10:21:00 [migrator] applied 0050_upstream_default
+control-plane-1     | 2026/11/20 10:21:00 [lease-sync] lease4-get-all failed: unable to forward command to the dhcp4 service: No such file or directory. The server is likely to be offline（连续失败 1 次，1m0s 后重试）
+control-plane-1     | 2026/11/20 10:21:00 [lease6-sync] lease6-get-all failed: unable to forward command to the dhcp6 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/11/20 10:21:00 [dualstack-reconcile] lease4-get-all failed: unable to forward command to the dhcp4 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/11/20 10:21:00 [dhcp-apply] config-set: kea command config-set failed: unable to forward command to the dhcp4 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/11/20 10:21:00 [dhcp-apply] startup attempt 1 failed: kea command config-set failed: unable to forward command to the dhcp4 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/11/20 10:21:00 ==================== IPAM INITIAL ADMIN ====================
+control-plane-1     | 账号: admin
+control-plane-1     | 初始口令: Ipam-gFPOgld3BkSZgqez4!9
+control-plane-1     | 该口令仅显示一次；默认不强制改密，可在系统设置中开启。
+control-plane-1     | ==================== IPAM INITIAL ADMIN ====================
+control-plane-1     | 2026/11/20 10:21:00 [intel] ensure zonefiles: mkdir /etc/unbound-rendered/zones: permission denied
+control-plane-1     | 2026/11/20 10:21:00 ⚠️  未设置 IPAM_METRICS_TOKEN：/metrics 对所有可达客户端开放，建议在生产为抓取方设置令牌或仅内网暴露
+control-plane-1     | 2026/11/20 10:21:00 [conf-apply] rpz zonefile /etc/unbound-rendered/zones/rpz/wl.whitelist.rpz.zone 不存在，跳过（应由 EnsureFiles 创建）
+control-plane-1     | 2026/11/20 10:21:00 [conf-apply] rpz zonefile /etc/unbound-rendered/zones/rpz/intel.hot.rpz.zone 不存在，跳过（应由 EnsureFiles 创建）
+control-plane-1     | 2026/11/20 10:21:00 [conf-apply] rpz zonefile /etc/unbound-rendered/zones/rpz/intel.broad.rpz.zone 不存在，跳过（应由 EnsureFiles 创建）
+control-plane-1     | 2026/11/20 10:21:00 [conf-apply] rpz zonefile /etc/unbound-rendered/zones/rpz/intel.custom.rpz.zone 不存在，跳过（应由 EnsureFiles 创建）
+control-plane-1     | 2026/11/20 10:21:00 [conf-apply] startup attempt 1 failed: open /etc/unbound-rendered/unbound-rendered.conf.candidate: permission denied
+control-plane-1     | 2026/11/20 10:21:00 [intel] 读取运行态失败（按缺失处理）: unbound-control [list_auth_zones]: exit status 1
+control-plane-1     | 2026/11/20 10:21:00 [bl-replay] mkdir /etc/unbound-rendered/zones: permission denied
+control-plane-1     | 2026/11/20 10:21:00 http server: addr=:8443 tls=false minTLS=1.2 readTimeout=1m0s writeTimeout=0s maxHeaderBytes=65536
+control-plane-1     | 2026/11/20 10:21:05 [dhcp-apply] config-set: kea command config-set failed: unable to forward command to the dhcp4 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/11/20 10:21:05 [dhcp-apply] startup attempt 2 failed: kea command config-set failed: unable to forward command to the dhcp4 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/11/20 10:21:05 [conf-apply] rpz zonefile /etc/unbound-rendered/zones/rpz/wl.whitelist.rpz.zone 不存在，跳过（应由 EnsureFiles 创建）
+control-plane-1     | 2026/11/20 10:21:05 [conf-apply] rpz zonefile /etc/unbound-rendered/zones/rpz/intel.hot.rpz.zone 不存在，跳过（应由 EnsureFiles 创建）
+control-plane-1     | 2026/11/20 10:21:05 [conf-apply] rpz zonefile /etc/unbound-rendered/zones/rpz/intel.broad.rpz.zone 不存在，跳过（应由 EnsureFiles 创建）
+control-plane-1     | 2026/11/20 10:21:05 [conf-apply] rpz zonefile /etc/unbound-rendered/zones/rpz/intel.custom.rpz.zone 不存在，跳过（应由 EnsureFiles 创建）
+control-plane-1     | 2026/11/20 10:21:05 [conf-apply] startup attempt 2 failed: open /etc/unbound-rendered/unbound-rendered.conf.candidate: permission denied
+control-plane-1     | 2026/11/20 10:21:10 [dhcp-apply] config-set: kea command config-set failed: unable to forward command to the dhcp4 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/11/20 10:21:10 [dhcp-apply] startup attempt 3 failed: kea command config-set failed: unable to forward command to the dhcp4 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/11/20 10:21:10 [conf-apply] rpz zonefile /etc/unbound-rendered/zones/rpz/wl.whitelist.rpz.zone 不存在，跳过（应由 EnsureFiles 创建）
+control-plane-1     | 2026/11/20 10:21:10 [conf-apply] rpz zonefile /etc/unbound-rendered/zones/rpz/intel.hot.rpz.zone 不存在，跳过（应由 EnsureFiles 创建）
+control-plane-1     | 2026/11/20 10:21:10 [conf-apply] rpz zonefile /etc/unbound-rendered/zones/rpz/intel.broad.rpz.zone 不存在，跳过（应由 EnsureFiles 创建）
+control-plane-1     | 2026/11/20 10:21:10 [conf-apply] rpz zonefile /etc/unbound-rendered/zones/rpz/intel.custom.rpz.zone 不存在，跳过（应由 EnsureFiles 创建）
+control-plane-1     | 2026/11/20 10:21:10 [conf-apply] startup attempt 3 failed: open /etc/unbound-rendered/unbound-rendered.conf.candidate: permission denied
+control-plane-1     | 2026/11/20 10:21:15 [dhcp-apply] config-set: kea command config-set failed: unable to forward command to the dhcp4 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/11/20 10:21:15 [dhcp-apply] startup attempt 4 failed: kea command config-set failed: unable to forward command to the dhcp4 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/11/20 10:21:15 [conf-apply] rpz zonefile /etc/unbound-rendered/zones/rpz/wl.whitelist.rpz.zone 不存在，跳过（应由 EnsureFiles 创建）
+control-plane-1     | 2026/11/20 10:21:15 [conf-apply] rpz zonefile /etc/unbound-rendered/zones/rpz/intel.hot.rpz.zone 不存在，跳过（应由 EnsureFiles 创建）
+control-plane-1     | 2026/11/20 10:21:15 [conf-apply] rpz zonefile /etc/unbound-rendered/zones/rpz/intel.broad.rpz.zone 不存在，跳过（应由 EnsureFiles 创建）
+control-plane-1     | 2026/11/20 10:21:15 [conf-apply] rpz zonefile /etc/unbound-rendered/zones/rpz/intel.custom.rpz.zone 不存在，跳过（应由 EnsureFiles 创建）
+control-plane-1     | 2026/11/20 10:21:15 [conf-apply] startup attempt 4 failed: open /etc/unbound-rendered/unbound-rendered.conf.candidate: permission denied
+control-plane-1     | 2026/11/20 10:21:20 [dhcp-apply] config-set: kea command config-set failed: unable to forward command to the dhcp4 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/11/20 10:21:20 [dhcp-apply] startup attempt 5 failed: kea command config-set failed: unable to forward command to the dhcp4 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/11/20 10:21:20 [conf-apply] rpz zonefile /etc/unbound-rendered/zones/rpz/wl.whitelist.rpz.zone 不存在，跳过（应由 EnsureFiles 创建）
+control-plane-1     | 2026/11/20 10:21:20 [conf-apply] rpz zonefile /etc/unbound-rendered/zones/rpz/intel.hot.rpz.zone 不存在，跳过（应由 EnsureFiles 创建）
+control-plane-1     | 2026/11/20 10:21:20 [conf-apply] rpz zonefile /etc/unbound-rendered/zones/rpz/intel.broad.rpz.zone 不存在，跳过（应由 EnsureFiles 创建）
+control-plane-1     | 2026/11/20 10:21:20 [conf-apply] rpz zonefile /etc/unbound-rendered/zones/rpz/intel.custom.rpz.zone 不存在，跳过（应由 EnsureFiles 创建）
+control-plane-1     | 2026/11/20 10:21:20 [conf-apply] startup attempt 5 failed: open /etc/unbound-rendered/unbound-rendered.conf.candidate: permission denied
+control-plane-1     | 2026/11/20 10:21:25 [dhcp-apply] config-set: kea command config-set failed: unable to forward command to the dhcp4 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/11/20 10:21:25 [dhcp-apply] startup converge failed after retries: kea command config-set failed: unable to forward command to the dhcp4 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/11/20 10:21:25 [conf-apply] rpz zonefile /etc/unbound-rendered/zones/rpz/wl.whitelist.rpz.zone 不存在，跳过（应由 EnsureFiles 创建）
+control-plane-1     | 2026/11/20 10:21:25 [conf-apply] rpz zonefile /etc/unbound-rendered/zones/rpz/intel.hot.rpz.zone 不存在，跳过（应由 EnsureFiles 创建）
+control-plane-1     | 2026/11/20 10:21:25 [conf-apply] rpz zonefile /etc/unbound-rendered/zones/rpz/intel.broad.rpz.zone 不存在，跳过（应由 EnsureFiles 创建）
+control-plane-1     | 2026/11/20 10:21:25 [conf-apply] rpz zonefile /etc/unbound-rendered/zones/rpz/intel.custom.rpz.zone 不存在，跳过（应由 EnsureFiles 创建）
+control-plane-1     | 2026/11/20 10:21:25 [conf-apply] startup converge failed after retries: open /etc/unbound-rendered/unbound-rendered.conf.candidate: permission denied
+control-plane-1     | 2026/11/20 10:22:00 [lease-sync] lease4-get-all failed: unable to forward command to the dhcp4 service: No such file or directory. The server is likely to be offline（连续失败 2 次，2m0s 后重试）
+control-plane-1     | 2026/11/20 10:22:00 [lease6-sync] lease6-get-all failed: unable to forward command to the dhcp6 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/11/20 10:22:00 [dualstack-reconcile] lease4-get-all failed: unable to forward command to the dhcp4 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/11/20 10:22:00 [intel] 读取运行态失败（按缺失处理）: unbound-control [list_auth_zones]: exit status 1
+control-plane-1     | 2026/11/20 10:22:00 [bl-schedule] reconcile: mkdir /etc/unbound-rendered/zones: permission denied
+control-plane-1     | 2026/11/20 10:22:00 [alerts] 系统故障：上报 2 项
+control-plane-1     | 2026/11/20 10:23:00 [intel] 读取运行态失败（按缺失处理）: unbound-control [list_auth_zones]: exit status 1
+control-plane-1     | 2026/11/20 10:23:00 [bl-schedule] reconcile: mkdir /etc/unbound-rendered/zones: permission denied
+control-plane-1     | 2026/11/20 10:23:00 [alerts] 系统故障：上报 2 项
+control-plane-1     | 2026/11/20 10:24:00 [lease-sync] lease4-get-all failed: unable to forward command to the dhcp4 service: No such file or directory. The server is likely to be offline（连续失败 3 次，4m0s 后重试）
+control-plane-1     | 2026/11/20 10:24:00 [lease6-sync] lease6-get-all failed: unable to forward command to the dhcp6 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/11/20 10:24:00 [dualstack-reconcile] lease4-get-all failed: unable to forward command to the dhcp4 service: No such file or directory. The server is likely to be offline
+control-plane-1     | 2026/11/20 10:24:00 [intel] 读取运行态失败（按缺失处理）: unbound-control [list_auth_zones]: exit status 1
+control-plane-1     | 2026/11/20 10:24:00 [bl-schedule] reconcile: mkdir /etc/unbound-rendered/zones: permission denied
+control-plane-1     | 2026/11/20 10:24:00 [alerts] 系统故障：上报 2 项
+control-plane-1     | 2026/11/20 10:25:00 [intel] 读取运行态失败（按缺失处理）: unbound-control [list_auth_zones]: exit status 1
+control-plane-1     | 2026/11/20 10:25:00 [bl-schedule] reconcile: mkdir /etc/unbound-rendered/zones: permission denied
+control-plane-1     | 2026/11/20 10:25:00 [alerts] 系统故障：上报 2 项
