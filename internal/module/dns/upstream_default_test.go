@@ -35,6 +35,17 @@ func TestDefaultForwardUpstreams_无默认回退第一条启用(t *testing.T) {
 	}
 }
 
+// 显式默认全部停用时不得回落到非默认上游（M6-042：避免内网 DNS 进入 "."）。
+func TestDefaultForwardUpstreams_显式默认全停用不回落(t *testing.T) {
+	ups := []Upstream{
+		{ID: "intranet", Addrs: []string{"10.0.0.53"}, Enabled: true},
+		{ID: "default", Addrs: []string{"223.5.5.5"}, Enabled: false, IsDefault: true},
+	}
+	if got := DefaultForwardUpstreams(ups); len(got) != 0 {
+		t.Fatalf("explicit defaults disabled must not fall back, got %+v", got)
+	}
+}
+
 func TestValidateDefaultUpstream(t *testing.T) {
 	cases := []struct {
 		name    string

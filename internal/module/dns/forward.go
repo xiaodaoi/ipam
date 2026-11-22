@@ -26,7 +26,12 @@ type ForwardRuleRepo interface {
 	Delete(ctx context.Context, id string) error
 }
 
-var ErrForwardRuleNotFound = errors.New("FORWARD_RULE_NOT_FOUND")
+var (
+	ErrForwardRuleNotFound = errors.New("FORWARD_RULE_NOT_FOUND")
+	// ErrDefaultRuleManaged 根域名 "." 由上游默认公网出口池托管（M6-041/M6-042），
+	// 不再接受条件转发规则，避免“保存成功但不生效”。
+	ErrDefaultRuleManaged = errors.New("DEFAULT_RULE_MANAGED")
+)
 
 // MatchDomain 最长后缀匹配：返回命中的规则；无命中返回 nil。
 func MatchDomain(rules []ForwardRule, qname string) *ForwardRule {
@@ -70,6 +75,9 @@ func NewForwardService(repo ForwardRuleRepo, ups UpstreamRepo, ctl UnboundContro
 
 // Create dryRun=true 仅生成命令预览。
 func (s *ForwardService) Create(ctx context.Context, r ForwardRule, dryRun bool) (ForwardRule, []string, error) {
+	if strings.TrimSpace(r.Domain) == "." {
+		return ForwardRule{}, nil, ErrDefaultRuleManaged
+	}
 	if err := s.validateUpstreams(ctx, r.UpstreamIDs); err != nil {
 		return ForwardRule{}, nil, err
 	}

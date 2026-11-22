@@ -2145,6 +2145,7 @@ export interface paths {
         /**
          * 创建条件转发规则（最长后缀优先）
          * @description 域名后缀与上游绑定；最长后缀优先匹配。dryRun=true 返回将执行的下发命令。
+         *     根域名 "." 由上游管理的默认公网出口池承载（M6-041），此接口拒绝创建/预览 "." 规则。
          *     所需 scope 为 dns.write。支持 Idempotency-Key。
          */
         post: operations["createForwardRule"];

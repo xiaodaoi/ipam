@@ -48,6 +48,10 @@ func (h *ForwardHandler) CreateForwardRule(c *gin.Context) {
 	r := ForwardRule{Domain: body.Domain, UpstreamIDs: ids, Enabled: deref(body.Enabled, true), Note: derefStr(body.Note)}
 	saved, cmds, err := h.svc.Create(c.Request.Context(), r, dryRun)
 	if err != nil {
+		if err == ErrDefaultRuleManaged {
+			problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "DEFAULT_RULE_MANAGED", "根域名「.」由上游默认公网出口池管理，不支持条件转发规则")
+			return
+		}
 		if err == ErrUpstreamNotFound {
 			problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "UPSTREAM_NOT_FOUND", "上游不存在")
 			return

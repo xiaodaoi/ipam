@@ -57,6 +57,10 @@ async function add() {
   const domain = form.value.domain.endsWith('.')
     ? form.value.domain
     : `${form.value.domain}.`;
+  if (domain === '.') {
+    message.warning($t('dns.forward.msg.defaultManaged'));
+    return;
+  }
   try {
     if (editingId.value) {
       await updateForwardRule(editingId.value, {

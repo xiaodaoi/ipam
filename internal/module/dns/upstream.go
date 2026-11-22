@@ -52,16 +52,22 @@ var (
 )
 
 // DefaultForwardUpstreams 返回参与 forward-zone "." 的上游集合（M6-041）：
-// 所有 enabled 且 is_default 的上游；若没有任何默认标记，则回退到第一条 enabled
-// （兼容 0050 之前创建的部署，行为与旧版一致）。
+//   - 一旦存在任何 is_default 标记，只使用 enabled 的默认上游；默认全部停用时返回空，
+//     绝不回落到非默认上游——否则可能把内网 DNS 带入 "."（M3-011 / M6-042）。
+//   - 从未标记默认的旧部署回退第一条 enabled（兼容 0050 之前的行为）。
 func DefaultForwardUpstreams(list []Upstream) []Upstream {
 	picked := make([]Upstream, 0, len(list))
+	hasDefault := false
 	for _, u := range list {
-		if u.Enabled && u.IsDefault {
+		if !u.IsDefault {
+			continue
+		}
+		hasDefault = true
+		if u.Enabled {
 			picked = append(picked, u)
 		}
 	}
-	if len(picked) > 0 {
+	if hasDefault {
 		return picked
 	}
 	for _, u := range list {

@@ -502,6 +502,11 @@
     "emptyFiltered": "没有匹配的上游服务器",
     "empty": "暂无上游服务器，点击右上角「添加上游」创建",
     "defaultTag": "默认公网出口",
+    "defaultTagOff": "默认出口（已停用）",
+    "defaultPool": {
+      "none": "未标记默认公网出口：当前按兼容规则使用最早启用的上游，建议标记至少一条公网出口。",
+      "allDisabled": "默认公网出口已全部停用：`.` 将不再转发（公网查询改由 unbound 直接递归），且不会回落到非默认上游。"
+    },
     "weight": "权重 {n}（预留）",
     "fails": "连续失败 {n}",
     "deleteTitle": "确认删除该上游？",
@@ -764,9 +769,10 @@
     "noUpstream": "未指定上游",
     "deleteTitle": "确认删除该转发规则？",
     "deleteDesc": "删除后不可恢复。",
-    "note": "匹配顺序按后缀长度降序；同一后缀只保留一条规则，编辑时仅允许调整上游与备注。",
+    "note": "匹配顺序按后缀长度降序；同一后缀只保留一条规则，编辑时仅允许调整上游与备注。默认转发「.」由上游页的「默认公网出口」承载，本页不接受「.」规则。",
     "msg": {
       "warnRequired": "域名后缀与转发上游必填",
+      "defaultManaged": "根域名「.」由上游页的「默认公网出口」管理，请在那里标记默认出口。",
       "updated": "转发规则已更新",
       "created": "转发规则已创建",
       "modalTitle": "转发规则",
@@ -779,7 +785,7 @@
     },
     "form": {
       "domainLabel": "域名后缀",
-      "domainPlaceholder": "如 corp.local（最长后缀优先匹配，可用 . 表示默认）",
+      "domainPlaceholder": "如 corp.local（最长后缀优先匹配）",
       "upstreamLabel": "转发上游",
       "upstreamPlaceholder": "选择上游 DNS",
       "noteLabel": "备注",

@@ -242,6 +242,12 @@ const stats = computed(() => {
   const bestRtt = rtts.length > 0 ? Math.min(...rtts) : 0;
   return { avgRtt, bestRtt, down, enabled, total, unknown, up };
 });
+// M6-042：默认公网出口池状态（未标记 / 标记但全部停用 / 正常）
+const defaultPool = computed(() => {
+  const marked = rows.value.filter((r) => r.isDefault);
+  const active = marked.filter((r) => r.enabled);
+  return { active: active.length, marked: marked.length };
+});
 
 // ── 筛选 ──
 const keyword = ref('');
@@ -435,6 +441,24 @@ const columns = computed(() => [
         </div>
       </div>
 
+      <div
+        v-if="defaultPool.marked === 0"
+        class="ipam-note mb-3 text-amber-600"
+      >
+        <IconifyIcon icon="lucide:info" class="mt-0.5 size-3.5 shrink-0" />
+        <span>{{ $t('dns.upstream.defaultPool.none') }}</span>
+      </div>
+      <div
+        v-else-if="defaultPool.active === 0"
+        class="ipam-note mb-3 text-amber-600"
+      >
+        <IconifyIcon
+          icon="lucide:triangle-alert"
+          class="mt-0.5 size-3.5 shrink-0"
+        />
+        <span>{{ $t('dns.upstream.defaultPool.allDisabled') }}</span>
+      </div>
+
       <div class="ipam-toolbar mb-3">
         <div class="ipam-field">
           <span class="ipam-field__label">{{ $t('dns.common.keyword') }}</span>
@@ -491,8 +515,16 @@ const columns = computed(() => [
             <div class="ipam-cell-stack">
               <span class="ipam-cell-title">
                 {{ record.name }}
-                <Tag v-if="record.isDefault" class="ml-1" color="green">
-                  {{ $t('dns.upstream.defaultTag') }}
+                <Tag
+                  v-if="record.isDefault"
+                  class="ml-1"
+                  :color="record.enabled ? 'green' : 'default'"
+                >
+                  {{
+                    record.enabled
+                      ? $t('dns.upstream.defaultTag')
+                      : $t('dns.upstream.defaultTagOff')
+                  }}
                 </Tag>
               </span>
               <span class="ipam-cell-meta ipam-mono">{{

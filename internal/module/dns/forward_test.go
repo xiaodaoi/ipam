@@ -2,6 +2,7 @@ package dns
 
 import (
 	"context"
+	"errors"
 	"testing"
 )
 
@@ -77,5 +78,22 @@ func TestForwardService_创建后触发下发(t *testing.T) {
 	}
 	if fc.ruleSyncs != 1 {
 		t.Fatalf("rule sync not triggered: %d", fc.ruleSyncs)
+	}
+}
+
+// M6-042：根域名 "." 由默认池托管，服务端拒绝创建（含 dryRun）。
+func TestForwardService_拒绝根域规则(t *testing.T) {
+	upRepo := NewMemUpstreamRepo()
+	u, _ := upRepo.Create(context.Background(), Upstream{Name: "a", Addrs: []string{"223.5.5.5"}, Enabled: true})
+	fc := &fakeCtl{}
+	svc := NewForwardService(NewMemForwardRuleRepo(), upRepo, fc)
+	for _, dryRun := range []bool{true, false} {
+		_, _, err := svc.Create(context.Background(), ForwardRule{Domain: ".", UpstreamIDs: []string{u.ID}, Enabled: true}, dryRun)
+		if !errors.Is(err, ErrDefaultRuleManaged) {
+			t.Fatalf("dryRun=%v expect DEFAULT_RULE_MANAGED, got %v", dryRun, err)
+		}
+	}
+	if fc.ruleSyncs != 0 {
+		t.Fatalf("rejected rule must not sync, got %d", fc.ruleSyncs)
 	}
 }

@@ -502,6 +502,11 @@
     "emptyFiltered": "No matching upstream server",
     "empty": "No upstream server yet. Click Add upstream in the top right to create one",
     "defaultTag": "Default public egress",
+    "defaultTagOff": "Default egress (disabled)",
+    "defaultPool": {
+      "none": "No default public egress marked: the earliest enabled upstream is used for compatibility; mark at least one public egress.",
+      "allDisabled": "All default public egress upstreams are disabled: dot will stop forwarding (public queries fall back to unbound recursion) and will not fall back to non-default upstreams."
+    },
     "weight": "Weight {n} (reserved)",
     "fails": "{n} consecutive failures",
     "deleteTitle": "Delete this upstream?",
@@ -764,9 +769,10 @@
     "noUpstream": "No upstream selected",
     "deleteTitle": "Delete this forwarding rule?",
     "deleteDesc": "This cannot be undone.",
-    "note": "Rules are matched by suffix length in descending order; only one rule per suffix is kept, and editing only allows changing the upstream and note.",
+    "note": "Rules are matched by suffix length in descending order; only one rule per suffix is kept, and editing only allows changing the upstream and note. The default forward zone dot is served by Default public egress on the Upstreams page; dot rules are rejected here.",
     "msg": {
       "warnRequired": "Domain suffix and forwarding upstream are required",
+      "defaultManaged": "The root domain dot is managed by Default public egress on the Upstreams page; mark a default egress there.",
       "updated": "Forwarding rule updated",
       "created": "Forwarding rule created",
       "modalTitle": "Forwarding rule",
@@ -779,7 +785,7 @@
     },
     "form": {
       "domainLabel": "Domain suffix",
-      "domainPlaceholder": "e.g. corp.local (the longest suffix wins; use . for the default)",
+      "domainPlaceholder": "e.g. corp.local (the longest suffix wins)",
       "upstreamLabel": "Forward upstream",
       "upstreamPlaceholder": "Select an upstream DNS",
       "noteLabel": "Note",

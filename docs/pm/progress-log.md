@@ -3,6 +3,12 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-11-22 · DNS 默认池健壮性与提示收口（M6-042）
+- **问题**：M6-041 的回退逻辑在「显式默认全部停用」时会回退第一条 enabled，可能把内网 DNS 带回 `.`；界面无法区分未标记默认与默认全部停用；规则表单仍能创建不生效的 `.` 规则。
+- **修复**：`DefaultForwardUpstreams` 一旦发现任意 `is_default` 标记，就只使用 enabled 默认；全部停用返回空、不回落非默认；旧部署（从未标记）仍回退第一条 enabled。`ForwardService.Create`（含 dryRun）拒绝 `.` 并返回 `DEFAULT_RULE_MANAGED`；前端同步拦截。
+- **UI**：上游页新增默认池状态提示（未标记→兼容回退提示；全部停用→`.` 停止转发告警），停用的默认条目显示「默认出口（已停用）」。
+- **验证**：`go test`、golangci-lint、`vue-tsc`、oxfmt/oxlint/stylelint、i18n 三门禁通过；真实栈 POST `.` 规则返回 400；停用唯一默认上游后渲染文件与 `list_forwards` 均无 `.`，未回落内网；重新启用后三地址恢复。详见 M6-041 实施说明 §7。
+- **遗留**：prober 健康状态仍不参与选路；按健康摘除需另立 ADR。
 ## 2026-11-20 · DNS 上游默认池与规则多选（M6-041）
 - **问题**：`forward-zone "."` 只取最早一条 enabled 上游，真实环境命中的是测试记录 `e2e-fix验证`；其余公网上游对默认解析不生效，单点故障即导致未命中缓存的公网域名 SERVFAIL。条件转发规则 UI 只能选一个上游；权重文案声称影响选路但实际未使用。
 - **后端**：迁移 `0050_upstream_default` 新增 `upstream.is_default`；默认池选择统一为 `dns.DefaultForwardUpstreams`（所有 enabled+isDefault，无标记时回退第一条 enabled）；静态渲染与 `forward_add` 均下发全部默认地址并去重；标记默认时校验地址必须为公网（拒绝 RFC1918/环回/链路本地/ULA/CGNAT 等），内网 DNS 继续只能用于条件规则；规则中的 `"."` 不再单独下发，避免重复 zone。
