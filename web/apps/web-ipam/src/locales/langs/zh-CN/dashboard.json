@@ -19,8 +19,8 @@
       "unbound": "DNS 解析服务"
     },
     "stat": {
-      "activeDevices": "今日活跃终端",
-      "activeHint": "新增 {new} · 离线 {offline}",
+      "activeDevices": "在线租约",
+      "activeHint": "IPv4 {v4} · IPv6 {v6} · 双栈按地址计",
       "qps": "DNS 5 分钟 QPS",
       "qpsHint": "近 1 小时均值 {avg} 次/分",
       "health": "核心服务健康",
@@ -30,7 +30,8 @@
     "unit": {
       "devices": "台",
       "times": "次",
-      "perMin": "次/分"
+      "perMin": "次/分",
+      "addresses": "个"
     },
     "health": {
       "ok": "正常",
@@ -44,15 +45,16 @@
       "poc": "PoC 内存模式下未配置探测目标会显示「未接入」，不影响其他功能。"
     },
     "online": {
-      "title": "活跃终端趋势",
-      "sub": "近 24 小时 · 逐小时",
-      "peak": "峰值 {n} 台",
-      "new": "今日新增",
-      "offline": "离线终端",
-      "hourlyAvg": "小时均值",
+      "title": "DHCP 活跃地址趋势",
+      "sub": "近 24 小时 · 逐小时（日志口径）",
+      "peak": "活跃地址峰值 {n}",
+      "new": "今日新增（日志）",
+      "offline": "近 24h 离线（日志）",
+      "hourlyAvg": "日志活跃均值",
       "dualstack": "双栈联动成功率",
-      "emptyTitle": "暂无活跃终端趋势",
-      "emptyDesc": "租约数据产生后将自动在此展示。"
+      "emptyTitle": "暂无活跃地址趋势",
+      "emptyDesc": "DHCP 日志产生后将在此展示地址活跃趋势。",
+      "note": "「在线终端」按当前有效租约统计；本趋势为 DHCP 日志去重活跃地址，两者口径不同，不能直接相减。"
     },
     "qps": {
       "title": "DNS 查询量",
@@ -92,10 +94,10 @@
       "uptimeHours": "{h}时 {m}分"
     },
     "pools": {
-      "title": "地址池利用率 Top 5",
+      "title": "地址池在线租约 Top 5",
       "manage": "子网管理",
       "dept": "部门：{name}",
-      "used": "已用 {used} / 容量 {capacity}",
+      "used": "在线租约 {used} / 容量 {capacity}",
       "emptyTitle": "暂无地址池数据",
       "emptyDesc": "创建子网并产生租约后展示利用率排名。"
     },

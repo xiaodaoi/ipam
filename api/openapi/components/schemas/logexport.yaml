@@ -13,22 +13,27 @@ LogExportSettings:
     samplingMode:
       type: string
       enum: [all, sample, errors]
-      description: all=全量；sample=按比例抽样；errors=仅非 INFO
+      description: 外发通道采样：all=全量；sample=按比例抽样；errors=仅非 INFO。内部入库不受此设置影响（默认全量）
     sampleRate:
       type: integer
       minimum: 1
       maximum: 1000
-      description: 抽样比例 1/N（仅 sample 模式）
+      description: 外发抽样比例 1/N（仅 sample 模式）
     updatedAt: { type: string, format: date-time }
     effectiveSamplingMode:
       type: string
       enum: [all, sample, errors]
       readOnly: true
-      description: 实际生效的采样模式；磁盘水位自动降级期间与 samplingMode 不同
+      description: 外发通道实际生效的采样模式；磁盘水位自动降级期间固定为 errors
+    ingestSampleRate:
+      type: integer
+      minimum: 1
+      readOnly: true
+      description: 内部日志入库当前采样率 1/N；正常为 1（全量），磁盘自动降级期间为降级抽样率 N
     degraded:
       type: boolean
       readOnly: true
-      description: true=磁盘水位自动降级生效中（当前覆盖为仅异常）
+      description: true=磁盘水位自动降级生效中（内部入库 1/N 抽样 + 外发仅异常）
     diskUsedPercent:
       type: number
       readOnly: true

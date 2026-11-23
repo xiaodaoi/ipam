@@ -45,12 +45,14 @@ const diskPct = ref<number>();
 const auto = reactive({
   degraded: false,
   effectiveSamplingMode: '' as '' | LogExportSettings['effectiveSamplingMode'],
+  ingestSampleRate: 1,
   degradedAt: '',
 });
 
 function applyStatus(s: LogExportSettings) {
   auto.degraded = Boolean(s.degraded);
   auto.effectiveSamplingMode = s.effectiveSamplingMode ?? '';
+  auto.ingestSampleRate = s.ingestSampleRate ?? 1;
   auto.degradedAt = s.degradedAt ?? '';
   if (typeof s.diskUsedPercent === 'number') {
     diskPct.value = s.diskUsedPercent;
@@ -64,12 +66,10 @@ const samplingLabel = computed(() => {
 });
 const effectiveLabel = computed(() => {
   if (!auto.degraded) return samplingLabel.value;
-  const mode = auto.effectiveSamplingMode;
-  if (mode === 'errors') return $t('logs.export.sampling.errorsDegraded');
-  if (mode === 'sample') {
-    return $t('logs.export.sampling.sampleDegraded', { n: form.sampleRate });
-  }
-  return samplingLabel.value;
+  // 降级同时改变两条链路：外发仅异常 + 内部入库 1/N 抽样。
+  return $t('logs.export.sampling.degradedCombined', {
+    n: auto.ingestSampleRate,
+  });
 });
 const samplingOptions = computed(() => [
   { value: 'all', label: $t('logs.export.samplingCard.modeAll') },
@@ -93,10 +93,12 @@ const diskNote = computed(() => {
       head +
       (auto.degradedAt
         ? $t('logs.export.diskNote.degraded', {
+            n: auto.ingestSampleRate,
             policy: samplingLabel.value,
             time: new Date(auto.degradedAt).toLocaleString(),
           })
         : $t('logs.export.diskNote.degradedNoTime', {
+            n: auto.ingestSampleRate,
             policy: samplingLabel.value,
           }))
     );
@@ -236,7 +238,10 @@ onMounted(load);
         :tone="auto.degraded ? 'amber' : 'cyan'"
         :hint="
           auto.degraded
-            ? $t('logs.export.kpi.degradedHint', { policy: samplingLabel })
+            ? $t('logs.export.kpi.degradedHint', {
+                n: auto.ingestSampleRate,
+                policy: samplingLabel,
+              })
             : form.samplingMode === 'sample'
               ? $t('logs.export.kpi.samplingHint')
               : form.samplingMode === 'errors'

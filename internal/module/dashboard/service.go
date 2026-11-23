@@ -44,11 +44,16 @@ type SubnetSource func(ctx context.Context) []ipam.Subnet
 // BindingSource 联动绑定快照回调。
 type BindingSource func(ctx context.Context) ([]ipam.LedgerBinding, error)
 
+// LedgerSource 地址台账数据源（租约/预留/子网），用于在线终端与池利用率口径。
+// 与 DHCP 子网页共用同一数据源，保证「在线租约」数字一致（M6-043）。
+type LedgerSource func(ctx context.Context) ipam.LedgerSource
+
 // Service 聚合编排。
 type Service struct {
 	logs     logquery.Store
 	subnets  SubnetSource
 	bindings BindingSource
+	ledger   LedgerSource
 	lights   Lights
 	now      func() time.Time // 测试注入
 
@@ -76,6 +81,15 @@ func NewService(logs logquery.Store, subnets SubnetSource, bindings BindingSourc
 func (s *Service) SetOrgNameResolver(fn func(id string) string) {
 	s.mu.Lock()
 	s.orgName = fn
+	s.cache = map[int]cacheEntry{}
+	s.mu.Unlock()
+}
+
+// SetLedgerSource 注入地址台账数据源（M6-043）：在线终端数与池已用改为租约口径，
+// 与 DHCP 子网页保持一致。未注入时回退日志活跃 IP（兼容 PoC/单测）。
+func (s *Service) SetLedgerSource(fn LedgerSource) {
+	s.mu.Lock()
+	s.ledger = fn
 	s.cache = map[int]cacheEntry{}
 	s.mu.Unlock()
 }
@@ -108,6 +122,8 @@ type Overview struct {
 	TS               time.Time
 	TodayStart       time.Time
 	OnlineNow        int64
+	OnlineV4         int64 // 当前在线租约 IPv4 地址数（与 DHCP 子网页 family=4 一致）
+	OnlineV6         int64 // 当前在线租约 IPv6 地址数（与 DHCP 子网页 family=6 一致）
 	OnlineTrend      []logquery.QpsPoint
 	NewTerminals     *int64
 	OfflineTerminals *int64
@@ -176,6 +192,14 @@ func (s *Service) build(ctx context.Context, poolTopN int, now time.Time) *Overv
 	wg.Add(4)
 	go func() {
 		defer wg.Done()
+		// 在线终端 = 当前有效租约（与地址台账/DHCP 子网页同口径）；台账不可用时回退日志活跃 IP。
+		if s.ledger != nil {
+			src := s.ledger(ctx)
+			if len(src.Subnets) > 0 {
+				ips = onlineLeaseAddrs(src)
+				return
+			}
+		}
 		if v, err := s.logs.DistinctClientIPs(ctx,
 			logquery.LogFilter{From: today, To: now, Type: "dhcp"}, logquery.OrgScope{}); err == nil {
 			ips = v
@@ -198,6 +222,15 @@ func (s *Service) build(ctx context.Context, poolTopN int, now time.Time) *Overv
 	wg.Wait()
 
 	ov.OnlineNow = int64(len(ips))
+	for _, ip := range ips {
+		if a, err := netip.ParseAddr(ip); err == nil {
+			if a.Is4() {
+				ov.OnlineV4++
+			} else {
+				ov.OnlineV6++
+			}
+		}
+	}
 	ov.OnlineTrend = fillHourly(trend, now)
 	ov.NewTerminals, ov.OfflineTerminals = fresh, offline
 	ov.Qps5m, ov.BlockedToday = qps, blockedToday
@@ -249,8 +282,65 @@ func (s *Service) dnsMetrics(ctx context.Context, now, today time.Time) (*float6
 	return qps, blocked
 }
 
-// poolTop 池利用率 TopN（used=今日区间 distinct client_ip）。
-// 今日活动 IP 集合只取一次，按池区间在内存侧二分计数——替代以往「每池一次 CH 查询」。
+// onlineLeaseAddrs 从台账数据源提取当前在线租约地址（IPv4/IPv6）。
+// 口径与平台「在线 = 租约存在」一致（§13.4）：只统计 active/grace 绑定且落在已配置
+// 子网内；静态/保留地址不计为动态在线租约，与 ipam.Classify 的六态判定保持一致。
+func onlineLeaseAddrs(src ipam.LedgerSource) []string {
+	prefixes := make([]netip.Prefix, 0, len(src.Subnets))
+	for _, sn := range src.Subnets {
+		if p, err := netip.ParsePrefix(sn.CIDR); err == nil {
+			prefixes = append(prefixes, p)
+		}
+	}
+	reserved := map[string]struct{}{}
+	for _, r := range src.Reservations {
+		if r.IPv4 == "" {
+			continue
+		}
+		if a, err := netip.ParseAddr(r.IPv4); err == nil {
+			reserved[a.Unmap().String()] = struct{}{}
+		}
+	}
+	seen := map[string]struct{}{}
+	add := func(raw string) {
+		if raw == "" {
+			return
+		}
+		a, err := netip.ParseAddr(raw)
+		if err != nil {
+			return
+		}
+		a = a.Unmap()
+		if !a.IsValid() || a.IsUnspecified() {
+			return
+		}
+		if _, ok := reserved[a.String()]; ok {
+			return
+		}
+		for _, p := range prefixes {
+			if p.Contains(a) {
+				seen[a.String()] = struct{}{}
+				return
+			}
+		}
+	}
+	for _, b := range src.Bindings {
+		if b.State != "" && b.State != "active" && b.State != "grace" {
+			continue
+		}
+		add(b.IPv4)
+		add(b.IPv6)
+	}
+	out := make([]string, 0, len(seen))
+	for ip := range seen {
+		out = append(out, ip)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// poolTop 池利用率 TopN（used=当前池内在线租约地址数）。
+// 与 DHCP 子网页共用租约口径；IPv6 PD 池不是地址池，跳过。
 func (s *Service) poolTop(ctx context.Context, n int, ips []string) []PoolUtil {
 	if n <= 0 {
 		n = 5
@@ -273,6 +363,9 @@ func (s *Service) poolTop(ctx context.Context, n int, ips []string) []PoolUtil {
 			orgName = s.orgName(sn.OrgID)
 		}
 		for i, p := range sn.Pools {
+			if p.Kind == "pd" {
+				continue // PD 是委派前缀，不是可用地址池
+			}
 			rng, cap, ok := poolRangeCapacity(p.StartAddr, p.EndAddr)
 			if !ok {
 				continue

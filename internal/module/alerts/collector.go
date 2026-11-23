@@ -266,7 +266,7 @@ func (c *Collector) CollectSystem(ctx context.Context) (int, error) {
 			report(Event{
 				DedupKey: "system|" + KindLogExportDegraded + "|log-export",
 				Source:   SourceSystem, Kind: KindLogExportDegraded, Severity: SeverityWarning,
-				Title: "日志外发已降级", Message: "磁盘水位或队列积压导致日志外发自动降级，外发可能延迟",
+				Title: "日志入库与外发已降级", Message: "磁盘水位过高：内部日志按 1/N 抽样写入（保留 INFO），外发仅异常；统计数值为抽样结果",
 				Component: "log-export", Count: 1, LastSeen: c.now(),
 			})
 		}

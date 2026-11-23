@@ -554,7 +554,7 @@
   },
   "utilization": {
     "title": "Utilization",
-    "description": "Every 5 minutes each IPv4 subnet pool's used addresses (bindings/reservations) are sampled and kept for 90 days; above 85% triggers the alert metric.",
+    "description": "Every 5 minutes each IPv4 subnet pool's used addresses (bindings/reservations) are sampled and kept for 90 days; above 85% triggers the alert metric. \"Used\" here includes in-pool reservations, so it can be slightly higher than \"active leases\" on the DHCP subnets page; the two are distinct measures and are labelled as such.",
     "meta": "{n} subnets",
     "stat": {
       "sampled": "Sampled subnets",

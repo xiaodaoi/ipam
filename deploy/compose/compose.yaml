@@ -94,10 +94,11 @@ services:
       # 日志外发/采样（M6-008）：模板只读，生成配置写入共享卷供 Vector 热加载
       IPAM_VECTOR_TEMPLATE: "/etc/vector-template/vector.toml"
       IPAM_VECTOR_CONFIG: "/etc/vector-config/vector.toml"
-      # 磁盘水位自动降级阈值/间隔（M6-008）
+      # 磁盘水位自动降级阈值/间隔与降级期间内部入库采样率（M6-008/M6-043）
       IPAM_LOG_DEGRADE_HIGH: "${IPAM_LOG_DEGRADE_HIGH:-90}"
       IPAM_LOG_DEGRADE_LOW: "${IPAM_LOG_DEGRADE_LOW:-85}"
       IPAM_LOG_DEGRADE_INTERVAL: "${IPAM_LOG_DEGRADE_INTERVAL:-1m}"
+      IPAM_LOG_DEGRADE_SAMPLE_RATE: "${IPAM_LOG_DEGRADE_SAMPLE_RATE:-10}"
       # License（M6-004）：离线授权文件 + Ed25519 公钥（base64/PEM）
       IPAM_LICENSE_FILE: "/srv/log-exports/license.json"
       IPAM_LICENSE_PUBKEY: "${IPAM_LICENSE_PUBKEY:-}"
@@ -195,6 +196,8 @@ services:
     volumes:
       - ch-data:/var/lib/clickhouse
       - ../../db/clickhouse/logs.sql:/docker-entrypoint-initdb.d/01_logs.sql:ro
+      # 系统日志表 TTL：避免 text_log/trace_log 等无界增长吃满数据盘（M6-043）
+      - ../../config/clickhouse/system-logs.xml:/etc/clickhouse-server/config.d/system-logs.xml:ro
     ulimits:
       nofile: { soft: 262144, hard: 262144 }
     restart: unless-stopped

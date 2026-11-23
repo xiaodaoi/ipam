@@ -310,7 +310,7 @@ async function main() {
         // 1. 即时切换：无需刷新
         await switchLocale(page, 'English');
         await waitText(page, 'Overview');
-        await waitText(page, 'Active devices today');
+        await waitText(page, 'Active leases');
         // 2. 刷新后保持（偏好持久化）
         await page.reload({ waitUntil: 'domcontentloaded' });
         await waitText(page, 'Overview');

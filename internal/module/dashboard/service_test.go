@@ -167,6 +167,81 @@ func TestPoolUsedCountsInRange(t *testing.T) {
 		t.Fatalf("capacity=%d want 11", c)
 	}
 }
+func TestOnlineNowUsesLeaseLedger(t *testing.T) {
+	now := fixedNow()
+	// 日志里仅有 1 个活跃 IP；台账里另有 1 个在线租约、1 个保留、1 个越界地址。
+	m := logquery.NewMemStore()
+	m.Append(logquery.LogRow{TS: now.Add(-time.Minute), Type: "dhcp", ClientIP: "10.61.172.11"})
+	subs := []ipam.Subnet{{
+		ID: "44444444-4444-4444-4444-444444444444", Name: "研发", Family: 4,
+		CIDR:  "10.61.172.0/24",
+		Pools: []ipam.Pool{{StartAddr: "10.61.172.10", EndAddr: "10.61.172.20"}},
+	}}
+	svc := NewService(m, func(context.Context) []ipam.Subnet { return subs }, nil, Lights{})
+	svc.SetLedgerSource(func(context.Context) ipam.LedgerSource {
+		return ipam.LedgerSource{
+			Subnets: subs,
+			Bindings: []ipam.LedgerBinding{
+				{MAC: "aa", IPv4: "10.61.172.11", State: "active"},
+				{MAC: "bb", IPv4: "10.61.172.12", State: "active"},
+				{MAC: "cc", IPv4: "10.61.172.13", State: "active"}, // 静态保留 → 不计在线
+			},
+			Reservations: []ipam.Reservation{{MAC: "cc", IPv4: "10.61.172.13"}},
+		}
+	})
+	svc.now = func() time.Time { return now }
+	ov, err := svc.Overview(context.Background(), 5)
+	if err != nil {
+		t.Fatalf("overview: %v", err)
+	}
+	if ov.OnlineNow != 2 {
+		t.Fatalf("onlineNow=%d want 2（租约口径、保留剔除、日志不参与）", ov.OnlineNow)
+	}
+	if ov.OnlineV4 != 2 || ov.OnlineV6 != 0 {
+		t.Fatalf("family split v4=%d v6=%d want 2/0", ov.OnlineV4, ov.OnlineV6)
+	}
+	if len(ov.PoolTop) != 1 || ov.PoolTop[0].Used != 2 {
+		t.Fatalf("池已用应为 2: %+v", ov.PoolTop)
+	}
+}
+
+func TestOnlineNowSkipsPdPool(t *testing.T) {
+	now := fixedNow()
+	m := logquery.NewMemStore()
+	subs := []ipam.Subnet{{
+		ID: "77777777-7777-7777-7777-777777777777", Name: "v6", Family: 6,
+		CIDR: "2001:db8::/64",
+		Pools: []ipam.Pool{
+			{StartAddr: "2001:db8::1", EndAddr: "2001:db8::ff"},
+			{Kind: "pd", StartAddr: "2001:db8:1::", EndAddr: "2001:db8:1:ffff:ffff:ffff:ffff:ffff"},
+		},
+	}}
+	svc := NewService(m, func(context.Context) []ipam.Subnet { return subs }, nil, Lights{})
+	svc.SetLedgerSource(func(context.Context) ipam.LedgerSource {
+		return ipam.LedgerSource{
+			Subnets:  subs,
+			Bindings: []ipam.LedgerBinding{{MAC: "aa", IPv6: "2001:db8::10", State: "active"}},
+		}
+	})
+	svc.now = func() time.Time { return now }
+	ov, err := svc.Overview(context.Background(), 5)
+	if err != nil {
+		t.Fatalf("overview: %v", err)
+	}
+	if ov.OnlineNow != 1 {
+		t.Fatalf("onlineNow=%d want 1", ov.OnlineNow)
+	}
+	if ov.OnlineV4 != 0 || ov.OnlineV6 != 1 {
+		t.Fatalf("family split v4=%d v6=%d want 0/1", ov.OnlineV4, ov.OnlineV6)
+	}
+	if len(ov.PoolTop) != 1 { // PD 池不参与地址池排行
+		t.Fatalf("PD 池不应进入 Top: %+v", ov.PoolTop)
+	}
+	if ov.PoolTop[0].Used != 1 {
+		t.Fatalf("v6 普通池已用=%d want 1", ov.PoolTop[0].Used)
+	}
+}
+
 func TestPoolTopOrgName(t *testing.T) {
 	now := fixedNow()
 	m := logquery.NewMemStore()

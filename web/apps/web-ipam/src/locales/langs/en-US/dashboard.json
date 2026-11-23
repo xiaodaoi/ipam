@@ -19,8 +19,8 @@
       "unbound": "DNS resolver"
     },
     "stat": {
-      "activeDevices": "Active devices today",
-      "activeHint": "New {new} · Offline {offline}",
+      "activeDevices": "Active leases",
+      "activeHint": "IPv4 {v4} · IPv6 {v6} · dual-stack counted per address",
       "qps": "DNS QPS (5 min)",
       "qpsHint": "1-hour average {avg} queries/min",
       "health": "Core service health",
@@ -30,7 +30,8 @@
     "unit": {
       "devices": "",
       "times": "",
-      "perMin": "queries/min"
+      "perMin": "queries/min",
+      "addresses": ""
     },
     "health": {
       "ok": "Healthy",
@@ -44,15 +45,16 @@
       "poc": "In PoC memory mode, components without a probe target show \"Not connected\"; other features are unaffected."
     },
     "online": {
-      "title": "Active device trend",
-      "sub": "Last 24 hours · hourly",
-      "peak": "Peak {n}",
-      "new": "New today",
-      "offline": "Offline devices",
-      "hourlyAvg": "Hourly average",
+      "title": "DHCP active address trend",
+      "sub": "Last 24 hours · hourly (log-based)",
+      "peak": "Address peak {n}",
+      "new": "New today (logs)",
+      "offline": "Offline in 24h (logs)",
+      "hourlyAvg": "Avg log-active",
       "dualstack": "Dual-stack matching",
-      "emptyTitle": "No active device trend",
-      "emptyDesc": "Shown here once lease data is available."
+      "emptyTitle": "No active address trend",
+      "emptyDesc": "The address activity trend appears once DHCP logs arrive.",
+      "note": "\"Online devices\" counts current active leases. This trend counts distinct DHCP log source addresses, so the two use different measures and should not be subtracted."
     },
     "qps": {
       "title": "DNS queries",
@@ -92,10 +94,10 @@
       "uptimeHours": "{h}h {m}m"
     },
     "pools": {
-      "title": "Top 5 pool utilization",
+      "title": "Top 5 pools by active leases",
       "manage": "Manage subnets",
       "dept": "Department: {name}",
-      "used": "{used} used / {capacity} capacity",
+      "used": "{used} active leases / {capacity} capacity",
       "emptyTitle": "No pool data",
       "emptyDesc": "Utilization ranking appears after subnets and leases exist."
     },

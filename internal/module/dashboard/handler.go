@@ -51,6 +51,8 @@ func toGenOverview(ov Overview) apigen.DashboardOverview {
 		Ts:                      ov.TS,
 		TodayStart:              &ov.TodayStart,
 		OnlineNow:               int(ov.OnlineNow),
+		OnlineV4:                int(ov.OnlineV4),
+		OnlineV6:                int(ov.OnlineV6),
 		OnlineTrend:             trend,
 		NewTerminals:            int64Ptr(ov.NewTerminals),
 		OfflineTerminals:        int64Ptr(ov.OfflineTerminals),

@@ -1,0 +1,38 @@
+<clickhouse>
+    <!--
+      系统日志表保留期（M6-043）。
+      ClickHouse 镜像默认的 text_log/trace_log/metric_log 等几乎不设 TTL 或保留过久，
+      在 1 亿级日志写入场景下会持续占用数据盘（真实环境曾累计约 9 GiB），
+      最终把根分区推到 90% 触发日志降级。这里只收紧保留期，其余字段沿用镜像默认。
+    -->
+    <query_log>
+        <ttl>event_date + INTERVAL 3 DAY</ttl>
+    </query_log>
+    <query_thread_log>
+        <ttl>event_date + INTERVAL 3 DAY</ttl>
+    </query_thread_log>
+    <query_views_log>
+        <ttl>event_date + INTERVAL 3 DAY</ttl>
+    </query_views_log>
+    <part_log>
+        <ttl>event_date + INTERVAL 3 DAY</ttl>
+    </part_log>
+    <metric_log>
+        <ttl>event_date + INTERVAL 3 DAY</ttl>
+    </metric_log>
+    <asynchronous_metric_log>
+        <ttl>event_date + INTERVAL 3 DAY</ttl>
+    </asynchronous_metric_log>
+    <text_log>
+        <ttl>event_date + INTERVAL 2 DAY</ttl>
+    </text_log>
+    <trace_log>
+        <ttl>event_date + INTERVAL 1 DAY</ttl>
+    </trace_log>
+    <processors_profile_log>
+        <ttl>event_date + INTERVAL 1 DAY</ttl>
+    </processors_profile_log>
+    <session_log>
+        <ttl>event_date + INTERVAL 3 DAY</ttl>
+    </session_log>
+</clickhouse>

@@ -64,11 +64,11 @@ docker compose -f observability/compose.observability.yaml --profile observabili
 日志中心 → 外发与采样：
 
 - Syslog RFC5424（TCP/UDP）、Kafka、Webhook；
-- 全量/1/N/仅异常；
+- 外发采样：全量/1/N/仅异常（只影响外发通道）；
 - 保存后 Vector `--watch-config` 热加载；
-- 磁盘连续 3 次 ≥90% 自动切换为仅异常，连续 3 次 ≤85% 自动恢复为用户策略；85–90% 为回差区间保持现状；
-- 自动降级只在渲染层生效，不修改用户保存的策略，页面「采样策略」显示实际生效模式；
-- 阈值可用环境变量 `IPAM_LOG_DEGRADE_HIGH`（默认 90）/ `IPAM_LOG_DEGRADE_LOW`（默认 85）调整。
+- 磁盘连续 3 次 ≥90% 自动降级为「内部入库 1/N 抽样（默认 1/10，保留 INFO）+ 外发仅异常」，连续 3 次 ≤85% 自动恢复为用户策略；85–90% 为回差区间保持现状；
+- 自动降级只在渲染层生效，不修改用户保存的外发策略，页面显示外发实际模式与内部入库抽样率；
+- 阈值可用环境变量 `IPAM_LOG_DEGRADE_HIGH`（默认 90）/ `IPAM_LOG_DEGRADE_LOW`（默认 85）/ `IPAM_LOG_DEGRADE_SAMPLE_RATE`（降级抽样率 1/N，默认 10）调整。
 
 外发/入库积压观测（M6-008）：Vector 暴露自身指标（容器内 `vector:9598`，Prometheus `ipam-vector` job 抓取）：
 

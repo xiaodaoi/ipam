@@ -43,6 +43,11 @@ func toGen(s Settings, st Status) apigen.LogExportSettings {
 		mode := apigen.LogExportSettingsEffectiveSamplingMode(st.EffectiveSamplingMode)
 		out.EffectiveSamplingMode = &mode
 	}
+	ingest := st.EffectiveIngestSampleRate
+	if ingest < 1 {
+		ingest = 1
+	}
+	out.IngestSampleRate = &ingest
 	degraded := st.Degraded
 	out.Degraded = &degraded
 	if st.DiskUsedPercent > 0 {

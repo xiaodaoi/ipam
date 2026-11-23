@@ -386,24 +386,23 @@
       "kafkaHint": "For SIEM / data platforms",
       "webhookHint": "JSON over HTTP",
       "sampling": "Sampling policy",
-      "samplingHint": "1/N sampling for ingest/forward",
-      "errorsHint": "Non-INFO logs only",
-      "allHint": "Full collection",
-      "degradedHint": "Auto-degraded by disk usage (user policy {policy})"
+      "samplingHint": "1/N export sampling (ingest unaffected)",
+      "errorsHint": "Export non-INFO logs only (ingest unaffected)",
+      "allHint": "Full export",
+      "degradedHint": "Disk watermark degradation active: exports are errors-only while ingest is sampled at 1/{n} (saved export policy: {policy})"
     },
     "sampling": {
       "all": "Full",
       "errors": "Errors only",
       "sample": "1/{n}",
-      "errorsDegraded": "Errors only (auto-degraded)",
-      "sampleDegraded": "1/{n} (auto-degraded)"
+      "degradedCombined": "Export errors only · ingest 1/{n}"
     },
     "diskNote": {
       "usage": "Current root partition usage {pct}; ",
       "unknown": "unknown",
-      "degraded": "the limit has been exceeded repeatedly, so the system automatically switched to errors-only sampling to protect the disk (user policy {policy}); it recovers automatically once usage stays below 85% (this start: {time}).",
-      "degradedNoTime": "the limit has been exceeded repeatedly, so the system automatically switched to errors-only sampling to protect the disk (user policy {policy}); it recovers automatically once usage stays below 85%.",
-      "over90": "usage is above 90%, so it will switch to errors-only after 3 consecutive checks; you can also switch manually now and clean up archives.",
+      "degraded": "Disk usage has stayed above the threshold, so the system switched to \"errors-only export + 1/{n} ingest sampling\" (saved export policy: {policy}). It restores automatically after usage stays below 85% (started: {time}).",
+      "degradedNoTime": "Disk usage has stayed above the threshold, so the system switched to \"errors-only export + 1/{n} ingest sampling\" (saved export policy: {policy}). It restores automatically after usage stays below 85%.",
+      "over90": "Usage is above 90%. After 3 consecutive checks the system switches to \"errors-only export + 1/N ingest sampling (INFO retained)\". You can also clean archives manually now.",
       "over85": "usage is above 85%, please watch capacity; staying above 90% triggers automatic degradation.",
       "normal": "capacity is normal and automatic degradation is not triggered."
     },
@@ -420,13 +419,13 @@
     },
     "samplingCard": {
       "title": "Sampling & capacity",
-      "mode": "Sampling mode",
+      "mode": "Export sampling mode",
       "modeAll": "Full (recommended)",
       "modeSample": "Proportional sampling",
       "modeErrors": "Errors only (non-INFO)",
-      "rate": "Sampling ratio 1/N",
-      "hint": "Sampling applies to both log ingestion and all export channels; 85% disk usage raises a warning, 90% degrades to errors-only automatically, and it restores below 85%. Evaluate audit/compliance retention requirements before changing this in production.",
-      "footer": "The collector retries failed exports internally and never blocks log ingestion"
+      "rate": "Export sampling ratio 1/N",
+      "hint": "Sampling applies to export channels only (Syslog/Kafka/Webhook). Internal log ingestion is full by default; above 90% disk usage it degrades to 1/N sampling (INFO is never dropped) and restores below 85%. Evaluate audit/compliance retention requirements before changing this in production.",
+      "footer": "The collector retries failed exports and never blocks log ingestion"
     },
     "messages": {
       "loadFail": "Failed to load policy",

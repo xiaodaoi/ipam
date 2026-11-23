@@ -3,6 +3,20 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-11-23 · 仪表盘统计口径统一（M6-044）
+- **问题**：仪表盘「活跃终端」与地址池「已用」取“今日 DHCP 日志 distinct client_ip”，DHCP 子网页「在线租约」取地址台账有效租约，同一地址池出现 49 / 103 两个已用数；「活跃终端趋势」又是日志逐小时口径，KPI 卡还把日志口径的新增/离线与在线数并排展示，导致数字随时间窗口漂移、无法解释。
+- **后端**：`dashboard.Service` 注入 `ipam.LedgerSource`（与台账页同源），在线终端改为“active/grace 且落在已配置子网内、剔除静态/保留/未指定地址”的地址集合；池已用按池区间二分计数，PD 池跳过；台账不可用时回退日志活跃 IP。契约新增 `onlineV4/onlineV6`（required），先改 `dashboard.yaml` 再 `make gen`。
+- **前端**：KPI 改为「在线租约」+ `IPv4 x · IPv6 y · 双栈按地址计`；趋势卡改「DHCP 活跃地址趋势（日志口径）」并加口径说明；新增/离线标签加“（日志）”；利用率分析页说明「已用」含池内预留，与在线租约口径不同；zh/en 成对。
+- **验证**：真实栈 `onlineNow 278 = v4 104 + v6 174`，池已用合计 278，无线 vlan66 仪表盘 103 = `/ledger?subnetId=…&state=online` 103；`go test`、`golangci-lint`、`vue-tsc`、i18n 三门禁通过。详见 `docs/dev/M6-044-仪表盘统计口径统一.md`。
+- **遗留**：在线仍为“租约存在”近似（非主动探测）；利用率页含预留，若要求完全一致需拆分“在线/预留”两列。
+
+## 2026-11-23 · 日志入库降级链路修复（M6-043）
+- **根因**：`logexport.Render` 把 ClickHouse sink 的输入从 `normalize` 替换为外发用的 `log_out`，自动降级时 `log_out` 只保留非 INFO，导致内部入库完全停止；仪表盘与日志概览 KPI 全部归零且无提示。
+- **修复**：拆成两条链路——`normalize → ch_out → clickhouse`（内部入库，正常全量）与 `normalize → log_out → siem_*`（外发，按 all/sample/errors）。降级时内部按 1/N 抽样（新增 `IPAM_LOG_DEGRADE_SAMPLE_RATE`，默认 10，保留 INFO），外发才 errors-only；API 暴露只读 `ingestSampleRate`；告警文案改为「日志入库与外发已降级」。
+- **运维**：新增 `config/clickhouse/system-logs.xml` 并挂载，system 日志表 TTL（text_log 2 天，trace/metric/query 3 天，trace/processors 1 天，part_log ALTER 补 TTL）；磁盘由 90% 降至约 69%；截断 8.7GB `unbound.log`。
+- **验证**：真实栈 Vector `[sinks.clickhouse] inputs=["ch_out"]`、`ch_out.rate=1`，`ipam.logs` 恢复写入；`go test ./internal/module/logexport/` 覆盖双链路与降级抽样；`vector validate` 通过。
+- **遗留**：运行中的 unbound 镜像仍缺 logrotate（仓库 Dockerfile 已含 M5-032 配置），需重建镜像后生效。
+
 ## 2026-11-22 · DNS 默认池健壮性与提示收口（M6-042）
 - **问题**：M6-041 的回退逻辑在「显式默认全部停用」时会回退第一条 enabled，可能把内网 DNS 带回 `.`；界面无法区分未标记默认与默认全部停用；规则表单仍能创建不生效的 `.` 规则。
 - **修复**：`DefaultForwardUpstreams` 一旦发现任意 `is_default` 标记，就只使用 enabled 默认；全部停用返回空、不回落非默认；旧部署（从未标记）仍回退第一条 enabled。`ForwardService.Create`（含 dryRun）拒绝 `.` 并返回 `DEFAULT_RULE_MANAGED`；前端同步拦截。

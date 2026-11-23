@@ -349,14 +349,13 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
       <StatCard
         :label="$t('dashboard.ipam.stat.activeDevices')"
         :value="fmtInt(data?.onlineNow)"
-        :unit="$t('dashboard.ipam.unit.devices')"
+        :unit="$t('dashboard.ipam.unit.addresses')"
         icon="lucide:monitor-smartphone"
         tone="blue"
-        :spark="onlineSpark"
         :hint="
           $t('dashboard.ipam.stat.activeHint', {
-            new: fmtInt(data?.newTerminals),
-            offline: fmtInt(data?.offlineTerminals),
+            v4: fmtInt(data?.onlineV4),
+            v6: fmtInt(data?.onlineV6),
           })
         "
       />
@@ -413,7 +412,7 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
             :markers="false"
             bars
             tone="blue"
-            :unit="$t('dashboard.ipam.unit.devices')"
+            :unit="$t('dashboard.ipam.unit.addresses')"
           />
           <div class="ipam-figure-row">
             <div class="ipam-figure">
@@ -444,7 +443,7 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
               }}</span>
               <span class="ipam-figure__value">{{ fmtInt(onlineAvg) }}</span>
               <span class="ipam-figure__unit">{{
-                $t('dashboard.ipam.unit.devices')
+                $t('dashboard.ipam.unit.addresses')
               }}</span>
             </div>
             <div class="ipam-figure">
@@ -457,6 +456,10 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
               <span class="ipam-figure__unit">%</span>
               <span class="ipam-figure__hint">DHCP ↔ DNS</span>
             </div>
+          </div>
+          <div class="ipam-note mt-3">
+            <IconifyIcon icon="lucide:info" class="mt-0.5 size-3.5 shrink-0" />
+            <span>{{ $t('dashboard.ipam.online.note') }}</span>
           </div>
         </template>
         <div v-else class="ipam-empty">

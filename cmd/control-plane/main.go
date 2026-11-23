@@ -499,6 +499,8 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		Unbound:    unixLight("unbound", "/run/ipam/unbound-ctl.sock"),
 	}
 	dashSvc := dashboard.NewService(logStore, subSrc, bindSrc, lights)
+	// 在线终端/池已用统一走地址台账（有效租约），与 DHCP 子网页一致（M6-043）。
+	dashSvc.SetLedgerSource(ledgerSrc)
 	// 地址池行展示所属部门（组织名，M6-020）。
 	dashSvc.SetOrgNameResolver(func(id string) string {
 		if n, ok := orgStore.Get(id); ok {
@@ -832,10 +834,13 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		vectorConfig = "/etc/vector-config/vector.toml"
 	}
 	exportSvc := logexport.NewService(exportRepo, vectorTemplate, vectorConfig)
+	// 磁盘水位自动降级参数：高/低水位、检查间隔与降级期间入库采样率 1/N。
+	degradeCfg := logexport.WatermarkConfigFromEnv(os.Getenv)
+	exportSvc.SetDegradeSampleRate(degradeCfg.SampleRate)
 	if err := exportSvc.Apply(rootCtx); err != nil {
 		log.Printf("[log-export] 渲染 Vector 配置失败（外发可能未生效）: %v", err)
 	}
-	// 磁盘水位自动降级（M6-008）：连续 3 次 ≥90% 切仅异常，连续 3 次 ≤85% 恢复。
+	// 磁盘水位自动降级（M6-008/M6-043）：连续 3 次 ≥90% 切 1/N 入库+仅异常外发，连续 3 次 ≤85% 恢复。
 	watermark := logexport.NewWatermark(exportSvc, func() (float64, error) {
 		if hostCol == nil {
 			return 0, errors.New("宿主资源采集器未初始化")
@@ -853,7 +858,7 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 			return m.Disks[0].UsedPct, nil
 		}
 		return 0, errors.New("未发现可用磁盘")
-	}, logexport.WatermarkConfigFromEnv(os.Getenv))
+	}, degradeCfg)
 	go watermark.Run(rootCtx)
 	exportH := logexport.NewLogExportHandler(exportSvc)
 	backupH := backupmodule.NewAPIHandler(backupSvc, backupSettingsRepo)

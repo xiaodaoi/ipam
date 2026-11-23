@@ -3602,9 +3602,13 @@ export interface components {
              * @description 「今日」口径起点（UTC 当日 00:00）
              */
             todayStart?: string;
-            /** @description 今日活跃终端数（DHCP 日志 distinct client_ip，租约活跃近似 §13.4） */
+            /** @description 当前在线租约地址数（有效租约口径：active/grace 绑定且落在已配置子网内；与 DHCP 子网页「在线租约」一致，双栈按地址计数） */
             onlineNow: number;
-            /** @description 24h 逐小时活跃终端趋势（不足补零） */
+            /** @description 当前在线租约 IPv4 地址数（等于 DHCP 子网页 family=4 在线租约总数） */
+            onlineV4: number;
+            /** @description 当前在线租约 IPv6 地址数（等于 DHCP 子网页 family=6 在线租约总数） */
+            onlineV6: number;
+            /** @description 近 24 小时 DHCP 活跃地址趋势（日志口径，逐小时去重；与当前在线租约口径不同，页面需注明） */
             onlineTrend: {
                 /** Format: date-time */
                 ts: string;
@@ -3628,7 +3632,7 @@ export interface components {
                 /** @description 今日拦截量（action=blocked；vector 归一化增强 M4-001 遗留② 前为 0/null） */
                 blockedToday?: number | null;
             };
-            /** @description 池利用率 Top5（used=今日池区间内 distinct client_ip；capacity=区间地址数） */
+            /** @description 池利用率 Top5（used=当前池内在线租约地址数，与 DHCP 子网页一致；capacity=区间地址数） */
             poolUtilTop?: components["schemas"]["PoolUtilization"][];
             /** @description 双栈联动成功率（active/(active+conflict) ×100；绑定仓储不可用时 null） */
             coherenceSuccessRatePct?: number | null;
@@ -3645,7 +3649,7 @@ export interface components {
             orgName?: string;
             /** @description 池序号（0 起） */
             poolIndex: string;
-            /** @description 今日区间内 distinct client_ip */
+            /** @description 当前池内在线租约地址数（与 DHCP 子网页同口径） */
             used: number;
             /** @description 池区间容量（/127+ 大段按 uint64 饱和展示） */
             capacity: number;
@@ -4367,20 +4371,22 @@ export interface components {
             webhookEnabled: boolean;
             webhookUrl?: string;
             /**
-             * @description all=全量；sample=按比例抽样；errors=仅非 INFO
+             * @description 外发通道采样：all=全量；sample=按比例抽样；errors=仅非 INFO。内部入库不受此设置影响（默认全量）
              * @enum {string}
              */
             samplingMode: "all" | "sample" | "errors";
-            /** @description 抽样比例 1/N（仅 sample 模式） */
+            /** @description 外发抽样比例 1/N（仅 sample 模式） */
             sampleRate: number;
             /** Format: date-time */
             updatedAt?: string;
             /**
-             * @description 实际生效的采样模式；磁盘水位自动降级期间与 samplingMode 不同
+             * @description 外发通道实际生效的采样模式；磁盘水位自动降级期间固定为 errors
              * @enum {string}
              */
             readonly effectiveSamplingMode?: "all" | "sample" | "errors";
-            /** @description true=磁盘水位自动降级生效中（当前覆盖为仅异常） */
+            /** @description 内部日志入库当前采样率 1/N；正常为 1（全量），磁盘自动降级期间为降级抽样率 N */
+            readonly ingestSampleRate?: number;
+            /** @description true=磁盘水位自动降级生效中（内部入库 1/N 抽样 + 外发仅异常） */
             readonly degraded?: boolean;
             /** @description 最近一次水位检查的根分区使用率（%） */
             readonly diskUsedPercent?: number;

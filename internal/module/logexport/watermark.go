@@ -13,10 +13,12 @@ type WatermarkConfig struct {
 	Low         float64       // 恢复正常的回差（默认 85%）
 	Consecutive int           // 连续命中次数（默认 3，避免抖动）
 	Interval    time.Duration // 采样间隔（默认 1 分钟）
+	SampleRate  int           // 降级期间内部入库采样率 1/N（默认 10）
 }
 
 func DefaultWatermarkConfig() WatermarkConfig {
-	return WatermarkConfig{High: 90, Low: 85, Consecutive: 3, Interval: time.Minute}
+	return WatermarkConfig{High: 90, Low: 85, Consecutive: 3, Interval: time.Minute,
+		SampleRate: DefaultDegradeSampleRate}
 }
 
 // WatermarkConfigFromEnv 读取 IPAM_LOG_DEGRADE_HIGH/LOW，非法值回退默认。
@@ -46,11 +48,17 @@ func WatermarkConfigFromEnv(getenv func(string) string) WatermarkConfig {
 			cfg.Interval = d
 		}
 	}
+	if raw := getenv("IPAM_LOG_DEGRADE_SAMPLE_RATE"); raw != "" {
+		if v, err := strconv.Atoi(raw); err == nil && v >= 1 && v <= 1000 {
+			cfg.SampleRate = v
+		}
+	}
 	return cfg
 }
 
-// Watermark 按宿主磁盘水位自动切换日志采样（M6-008）：
-//   - 连续 N 次 ≥ High：覆盖采样为 errors（仅非 INFO），迅速降低入库/外发量；
+// Watermark 按宿主磁盘水位自动切换日志采样（M6-008/M6-043）：
+//   - 连续 N 次 ≥ High：内部入库按 1/N 抽样（保留 INFO），外发仅异常，
+//     既降低写入量，又不让内部日志完全断流；
 //   - 连续 N 次 ≤ Low：解除覆盖，恢复用户配置；
 //   - High/Low 之间保持现状（回差防抖）。
 //
@@ -110,7 +118,8 @@ func (w *Watermark) Evaluate(ctx context.Context) (degraded bool, pct float64) {
 			if err := w.svc.SetAutoSampling(ctx, "errors"); err != nil {
 				log.Printf("[log-export] 自动降级失败: %v", err)
 			} else {
-				log.Printf("[log-export] 磁盘使用率 %.1f%% ≥ %.0f%%，已自动切换为仅异常采样", pct, w.cfg.High)
+				log.Printf("[log-export] 磁盘使用率 %.1f%% ≥ %.0f%%，已切换为内部 1/%d 抽样 + 外发仅异常",
+					pct, w.cfg.High, w.svc.degradeRate())
 			}
 		}
 	case pct <= w.cfg.Low:

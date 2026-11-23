@@ -2,7 +2,7 @@
 
 DashboardOverview:
   type: object
-  required: [ts, onlineNow, onlineTrend, services]
+  required: [ts, onlineNow, onlineV4, onlineV6, onlineTrend, services]
   properties:
     ts:
       type: string
@@ -14,10 +14,16 @@ DashboardOverview:
       description: 「今日」口径起点（UTC 当日 00:00）
     onlineNow:
       type: integer
-      description: 今日活跃终端数（DHCP 日志 distinct client_ip，租约活跃近似 §13.4）
+      description: 当前在线租约地址数（有效租约口径：active/grace 绑定且落在已配置子网内；与 DHCP 子网页「在线租约」一致，双栈按地址计数）
+    onlineV4:
+      type: integer
+      description: 当前在线租约 IPv4 地址数（等于 DHCP 子网页 family=4 在线租约总数）
+    onlineV6:
+      type: integer
+      description: 当前在线租约 IPv6 地址数（等于 DHCP 子网页 family=6 在线租约总数）
     onlineTrend:
       type: array
-      description: 24h 逐小时活跃终端趋势（不足补零）
+      description: 近 24 小时 DHCP 活跃地址趋势（日志口径，逐小时去重；与当前在线租约口径不同，页面需注明）
       items:
         type: object
         required: [ts, count]
@@ -58,7 +64,7 @@ DashboardOverview:
     poolUtilTop:
       type: array
       maxItems: 5
-      description: 池利用率 Top5（used=今日池区间内 distinct client_ip；capacity=区间地址数）
+      description: 池利用率 Top5（used=当前池内在线租约地址数，与 DHCP 子网页一致；capacity=区间地址数）
       items:
         $ref: 'dashboard.yaml#/PoolUtilization'
     coherenceSuccessRatePct:
@@ -81,7 +87,7 @@ PoolUtilization:
     orgId: { type: string, description: 所属组织（部门）ID }
     orgName: { type: string, description: 所属组织（部门）名称；组织缺失时为空 }
     poolIndex: { type: string, description: 池序号（0 起） }
-    used: { type: integer, description: 今日区间内 distinct client_ip }
+    used: { type: integer, description: 当前池内在线租约地址数（与 DHCP 子网页同口径） }
     capacity: { type: integer, description: 池区间容量（/127+ 大段按 uint64 饱和展示） }
     pct:
       type: number
