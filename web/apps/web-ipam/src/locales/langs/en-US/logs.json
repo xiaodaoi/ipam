@@ -176,7 +176,8 @@
       "human": "Human",
       "bot": "Bot",
       "system": "System"
-    }
+    },
+    "samplingBanner": "Disk watermark auto-degrade is active: KPIs and trends on this page are sampled at 1/{rate} and are lower bounds; online leases and pool usage are unaffected."
   },
   "search": {
     "title": "Search",

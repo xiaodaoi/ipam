@@ -25,8 +25,8 @@ func seedLogs(t *testing.T, now time.Time) logquery.Store {
 			ClientMAC: "aabbccddee0" + string(rune('a'+i)), ClientIP: ip,
 		})
 	}
-	// 昨日活跃、今日未见 → 离线
-	rows = append(rows, logquery.LogRow{TS: now.Add(-30 * time.Hour), Type: "dhcp",
+	// 近 24h 内活跃、今日未见 → 离线（滚动窗口，M6-045）
+	rows = append(rows, logquery.LogRow{TS: now.Add(-20 * time.Hour), Type: "dhcp",
 		ClientMAC: "offline01", ClientIP: "10.61.173.9"})
 	// 三天前首见且今日仍活动 → 非新增
 	rows = append(rows, logquery.LogRow{TS: now.Add(-72 * time.Hour), Type: "dhcp",
@@ -185,6 +185,7 @@ func TestOnlineNowUsesLeaseLedger(t *testing.T) {
 				{MAC: "aa", IPv4: "10.61.172.11", State: "active"},
 				{MAC: "bb", IPv4: "10.61.172.12", State: "active"},
 				{MAC: "cc", IPv4: "10.61.172.13", State: "active"}, // 静态保留 → 不计在线
+				{MAC: "gg", IPv4: "10.61.172.14", State: "grace"},  // 宽限单列 → 不计在线
 			},
 			Reservations: []ipam.Reservation{{MAC: "cc", IPv4: "10.61.172.13"}},
 		}
@@ -195,13 +196,92 @@ func TestOnlineNowUsesLeaseLedger(t *testing.T) {
 		t.Fatalf("overview: %v", err)
 	}
 	if ov.OnlineNow != 2 {
-		t.Fatalf("onlineNow=%d want 2（租约口径、保留剔除、日志不参与）", ov.OnlineNow)
+		t.Fatalf("onlineNow=%d want 2（租约口径、保留/宽限剔除、日志不参与）", ov.OnlineNow)
 	}
 	if ov.OnlineV4 != 2 || ov.OnlineV6 != 0 {
 		t.Fatalf("family split v4=%d v6=%d want 2/0", ov.OnlineV4, ov.OnlineV6)
 	}
 	if len(ov.PoolTop) != 1 || ov.PoolTop[0].Used != 2 {
 		t.Fatalf("池已用应为 2: %+v", ov.PoolTop)
+	}
+}
+
+func TestOnlineNowSkipsExpiredLease(t *testing.T) {
+	now := fixedNow()
+	subs := []ipam.Subnet{{
+		ID: "44444444-4444-4444-4444-444444444444", Name: "研发", Family: 4,
+		CIDR:  "10.61.172.0/24",
+		Pools: []ipam.Pool{{StartAddr: "10.61.172.10", EndAddr: "10.61.172.20"}},
+	}}
+	svc := NewService(logquery.NewMemStore(), func(context.Context) []ipam.Subnet { return subs }, nil, Lights{})
+	svc.SetLedgerSource(func(context.Context) ipam.LedgerSource {
+		return ipam.LedgerSource{
+			Subnets: subs,
+			Bindings: []ipam.LedgerBinding{
+				// 有效租约：cltt=now-30m，valid=3600s
+				{MAC: "aa:bb:cc:dd:ee:01", IPv4: "10.61.172.11", State: "active",
+					Cltt: now.Add(-30 * time.Minute).Unix(), ValidLft: 3600},
+				// 状态仍是 active，但租期已过 → 不应算在线
+				{MAC: "aa:bb:cc:dd:ee:02", IPv4: "10.61.172.12", State: "active",
+					Cltt: now.Add(-2 * time.Hour).Unix(), ValidLft: 3600},
+			},
+		}
+	})
+	svc.now = func() time.Time { return now }
+	ov, err := svc.Overview(context.Background(), 5)
+	if err != nil {
+		t.Fatalf("overview: %v", err)
+	}
+	if ov.OnlineNow != 1 {
+		t.Fatalf("onlineNow=%d want 1（过期租约剔除）", ov.OnlineNow)
+	}
+	if ov.PoolTop[0].Used != 1 {
+		t.Fatalf("池已用=%d want 1", ov.PoolTop[0].Used)
+	}
+}
+
+func TestOfflineUsesLeaseAndNormalizedMAC(t *testing.T) {
+	now := fixedNow() // 09:00 UTC
+	today := now.Truncate(24 * time.Hour)
+	m := logquery.NewMemStore()
+	m.Append(
+		// 近 24h 有活动 + 当前有租约（MAC 大小写/分隔符不同）→ 在线，不算离线
+		logquery.LogRow{TS: now.Add(-20 * time.Hour), Type: "dhcp", ClientMAC: "AABBCCDDEE01", ClientIP: "10.61.172.11"},
+		logquery.LogRow{TS: now.Add(-2 * time.Hour), Type: "dhcp", ClientMAC: "AABBCCDDEE01", ClientIP: "10.61.172.11"},
+		// 昨日首见、近 24h 有活动 + 无租约 → 离线
+		logquery.LogRow{TS: now.Add(-20 * time.Hour), Type: "dhcp", ClientMAC: "aabbccddee02", ClientIP: "10.61.172.12"},
+		logquery.LogRow{TS: now.Add(-3 * time.Hour), Type: "dhcp", ClientMAC: "aabbccddee02", ClientIP: "10.61.172.12"},
+		// 今日首见 → 新增（同时无租约，计入离线）
+		logquery.LogRow{TS: now.Add(-30 * time.Minute), Type: "dhcp", ClientMAC: "aabbccddee03", ClientIP: "10.61.172.13"},
+	)
+	subs := []ipam.Subnet{{
+		ID: "44444444-4444-4444-4444-444444444444", Name: "研发", Family: 4,
+		CIDR:  "10.61.172.0/24",
+		Pools: []ipam.Pool{{StartAddr: "10.61.172.10", EndAddr: "10.61.172.20"}},
+	}}
+	svc := NewService(m, func(context.Context) []ipam.Subnet { return subs }, nil, Lights{})
+	svc.SetLedgerSource(func(context.Context) ipam.LedgerSource {
+		return ipam.LedgerSource{
+			Subnets: subs,
+			Bindings: []ipam.LedgerBinding{
+				{MAC: "aa:bb:cc:dd:ee:01", IPv4: "10.61.172.11", State: "active"},
+			},
+		}
+	})
+	svc.now = func() time.Time { return now }
+	ov, err := svc.Overview(context.Background(), 5)
+	if err != nil {
+		t.Fatalf("overview: %v", err)
+	}
+	_ = today
+	if ov.OnlineNow != 1 {
+		t.Fatalf("onlineNow=%d want 1", ov.OnlineNow)
+	}
+	if ov.OfflineTerminals == nil || *ov.OfflineTerminals != 2 {
+		t.Fatalf("offline=%v want 2（近 24h 活跃且无租约；有租约的不计）", ov.OfflineTerminals)
+	}
+	if ov.NewTerminals == nil || *ov.NewTerminals != 1 {
+		t.Fatalf("new=%v want 1（今日首见）", ov.NewTerminals)
 	}
 }
 

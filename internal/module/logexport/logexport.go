@@ -235,24 +235,47 @@ func (s *Service) renderLocked(st Settings, autoMode string) error {
 
 // Render 在基础模板上生成两条独立链路（M6-043）：
 //
-//	normalize → ch_out(内部入库，1/N 采样) → clickhouse
+//	normalize → ch_out(全量) → clickhouse
+//	normalize → ch_err(非 INFO 全保留) + ch_info→ch_sample(INFO 1/N) → clickhouse   # 降级
 //	normalize → log_out(外发策略) → siem_syslog/kafka/webhook
 //
-// 关键点：ClickHouse 永远接 ch_out，绝不被外发 errors 过滤器清零；
-// ingestRate=1 表示全量入库，>1 表示磁盘水位降级期间的 1/N 抽样。
+// 关键点：ClickHouse 永远接内部链路，绝不被外发 errors 过滤器清零；
+// ingestRate=1 表示全量入库，>1 表示磁盘水位降级期间 INFO 按 1/N 抽样（WARN/ERROR 不丢）。
 func Render(base string, st Settings, ingestRate int) string {
 	if ingestRate < 1 {
 		ingestRate = 1
 	}
-	// 仅替换 clickhouse sink 的输入（模板中唯一精确匹配）
-	body := strings.Replace(base, "inputs = [\"normalize\"]", "inputs = [\"ch_out\"]", 1)
+	// 仅替换 clickhouse sink 的输入（模板中唯一精确匹配）。
+	// 降级时直接扇入“非 INFO 全量”与“INFO 抽样”两条支路。
+	chInputs := `["ch_out"]`
+	if ingestRate > 1 {
+		chInputs = `["ch_err", "ch_sample"]`
+	}
+	body := strings.Replace(base, "inputs = [\"normalize\"]", "inputs = "+chInputs, 1)
 	var b strings.Builder
 	b.WriteString(strings.TrimRight(body, "\n"))
-	b.WriteString("\n\n# ── M6-043：内部入库链路（全量 / 降级抽样，永不丢弃 INFO）──\n")
-	b.WriteString("[transforms.ch_out]\n")
-	b.WriteString("inputs = [\"normalize\"]\n")
-	b.WriteString("type = \"sample\"\n")
-	b.WriteString("rate = " + strconv.Itoa(ingestRate) + "\n")
+	if ingestRate <= 1 {
+		b.WriteString("\n\n# ── M6-043：内部入库链路（全量）──\n")
+		b.WriteString("[transforms.ch_out]\n")
+		b.WriteString("inputs = [\"normalize\"]\n")
+		b.WriteString("type = \"sample\"\n")
+		b.WriteString("rate = 1\n")
+	} else {
+		// M6-045：降级只对 INFO 抽样，WARN/ERROR 全量保留——磁盘吃紧时仍可排障。
+		b.WriteString("\n\n# ── M6-045：内部入库降级链路（WARN/ERROR 全保留 + INFO 1/N）──\n")
+		b.WriteString("[transforms.ch_err]\n")
+		b.WriteString("inputs = [\"normalize\"]\n")
+		b.WriteString("type = \"filter\"\n")
+		b.WriteString("condition = '.severity != \"INFO\"'\n")
+		b.WriteString("\n[transforms.ch_info]\n")
+		b.WriteString("inputs = [\"normalize\"]\n")
+		b.WriteString("type = \"filter\"\n")
+		b.WriteString("condition = '.severity == \"INFO\"'\n")
+		b.WriteString("\n[transforms.ch_sample]\n")
+		b.WriteString("inputs = [\"ch_info\"]\n")
+		b.WriteString("type = \"sample\"\n")
+		b.WriteString("rate = " + strconv.Itoa(ingestRate) + "\n")
+	}
 
 	// 外发链路仅在存在通道时渲染，避免无意义的事件副本。
 	if st.SyslogEnabled || st.KafkaEnabled || st.WebhookEnabled {

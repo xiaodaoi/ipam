@@ -25,7 +25,8 @@
       "qpsHint": "1-hour average {avg} queries/min",
       "health": "Core service health",
       "blocked": "DNS blocks today",
-      "blockedHint": "Blocklist hits (today)"
+      "blockedHint": "Blocklist hits (today)",
+      "qpsHintSampled": "1-hour average {avg} queries/min · sampled 1/{rate}"
     },
     "unit": {
       "devices": "",
@@ -49,7 +50,7 @@
       "sub": "Last 24 hours · hourly (log-based)",
       "peak": "Address peak {n}",
       "new": "New today (logs)",
-      "offline": "Offline in 24h (logs)",
+      "offline": "Active in 24h, no lease",
       "hourlyAvg": "Avg log-active",
       "dualstack": "Dual-stack matching",
       "emptyTitle": "No active address trend",
@@ -101,6 +102,10 @@
       "emptyTitle": "No pool data",
       "emptyDesc": "Utilization ranking appears after subnets and leases exist."
     },
-    "listSep": ", "
+    "listSep": ", ",
+    "sampling": {
+      "banner": "Disk watermark auto-degrade is active: DNS queries, blocks and the address trend are sampled at 1/{rate}, so these KPIs are lower bounds. Online leases and pool usage come from the ledger and are unaffected.",
+      "tag": "sampled 1/{rate}"
+    }
   }
 }

@@ -37,7 +37,7 @@ DashboardOverview:
     offlineTerminals:
       type: integer
       nullable: true
-      description: 离线终端（前 24h 有活动、今日未见）
+      description: 近 24h 有 DHCP 活动、当前无有效租约的 MAC 数（日志活动与台账按 MAC 比对；台账不可用时回退「今日未见」）
     services:
       type: object
       required: [postgres, clickhouse, kea, unbound]

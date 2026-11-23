@@ -1292,6 +1292,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/logs/sampling": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 日志采样状态
+         * @description 返回内部日志入库的当前抽样率与磁盘降级状态（M6-045）。
+         *     仪表盘与日志概览据此提示「KPI 为抽样下界」，避免把降级期间的统计当作全量。
+         */
+        get: operations["getLogSampling"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/logs/alerts": {
         parameters: {
             query?: never;
@@ -3616,7 +3637,7 @@ export interface components {
             }[];
             /** @description 今日新增 MAC（近 7 天窗口内首见日=今日）；无数据源时 null */
             newTerminals?: number | null;
-            /** @description 离线终端（前 24h 有活动、今日未见） */
+            /** @description 近 24h 有 DHCP 活动、当前无有效租约的 MAC 数（日志活动与台账按 MAC 比对；台账不可用时回退「今日未见」） */
             offlineTerminals?: number | null;
             services: {
                 postgres: components["schemas"]["HealthLight"];
@@ -4516,6 +4537,19 @@ export interface components {
          * @enum {string}
          */
         HealthLight: "up" | "down" | "unknown";
+        LogSamplingStatus: {
+            /** @description true=磁盘水位自动降级生效中（内部入库 1/N 抽样 + 外发仅异常） */
+            degraded: boolean;
+            /** @description 内部日志入库当前采样率 1/N；1=全量，>1=降级抽样 */
+            ingestSampleRate: number;
+            /** @description 最近一次水位检查的根分区使用率（%） */
+            readonly diskUsedPercent?: number;
+            /**
+             * Format: date-time
+             * @description 本次自动降级开始时间
+             */
+            degradedAt?: string;
+        };
         AuditVerifyResult: {
             /** @description 校验的记录数 */
             checked: number;
@@ -7127,6 +7161,26 @@ export interface operations {
             };
             400: components["responses"]["LogBadRequest"];
             503: components["responses"]["LogDown"];
+        };
+    };
+    getLogSampling: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 采样状态 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogSamplingStatus"];
+                };
+            };
         };
     };
     listAlerts: {

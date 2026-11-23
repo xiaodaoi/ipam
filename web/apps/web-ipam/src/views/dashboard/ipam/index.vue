@@ -19,6 +19,7 @@ import MetricRing from '#/components/metric-ring.vue';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
 import TrendChart from '#/components/trend-chart.vue';
+import { useLogSampling } from '#/composables/use-log-sampling';
 import {
   readOnboarding,
   useOnboardingUsername,
@@ -71,6 +72,7 @@ async function loadDashboard() {
   lastUpdated.value = new Date();
   void loadQps();
   void loadTopDomains();
+  void sampling.load();
 }
 async function loadMetrics() {
   try {
@@ -197,6 +199,9 @@ const qpsPeakRate = computed(() => {
   const peak = Math.max(0, ...qpsPoints.value.map((p) => p.count));
   return peak / qpsBucketMin.value;
 });
+
+// ── 日志采样状态（M6-045）：降级期间 KPI 为抽样下界 ──
+const sampling = useLogSampling();
 
 let qpsSeq = 0;
 async function loadQps() {
@@ -344,6 +349,19 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
       </Button>
     </div>
 
+    <!-- 日志抽样提示（M6-045）：降级期间日志类 KPI 仅为抽样下界 -->
+    <div
+      v-if="sampling.degraded.value"
+      class="ipam-note mb-4 flex-wrap items-center gap-3 text-amber-600"
+    >
+      <IconifyIcon icon="lucide:triangle-alert" class="size-4 shrink-0" />
+      <span class="flex-1">
+        {{
+          $t('dashboard.ipam.sampling.banner', { rate: sampling.rate.value })
+        }}
+      </span>
+    </div>
+
     <!-- 核心指标 -->
     <div class="ipam-stat-grid">
       <StatCard
@@ -367,7 +385,12 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
         tone="cyan"
         :spark="qpsSpark"
         :hint="
-          $t('dashboard.ipam.stat.qpsHint', { avg: fmtDecimal(qpsAvgRate) })
+          sampling.degraded.value
+            ? $t('dashboard.ipam.stat.qpsHintSampled', {
+                avg: fmtDecimal(qpsAvgRate),
+                rate: sampling.rate.value,
+              })
+            : $t('dashboard.ipam.stat.qpsHint', { avg: fmtDecimal(qpsAvgRate) })
         "
       />
       <StatCard
@@ -395,7 +418,17 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
           <span class="ipam-card-title">
             <IconifyIcon icon="lucide:users" />
             {{ $t('dashboard.ipam.online.title') }}
-            <em class="ipam-card-sub">{{ $t('dashboard.ipam.online.sub') }}</em>
+            <em class="ipam-card-sub">
+              {{ $t('dashboard.ipam.online.sub')
+              }}<template v-if="sampling.degraded.value">
+                ·
+                {{
+                  $t('dashboard.ipam.sampling.tag', {
+                    rate: sampling.rate.value,
+                  })
+                }}
+              </template>
+            </em>
           </span>
         </template>
         <template #extra>

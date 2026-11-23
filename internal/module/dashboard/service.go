@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"net/netip"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -180,6 +181,17 @@ func (s *Service) build(ctx context.Context, poolTopN int, now time.Time) *Overv
 			"unbound":    s.lights.of(ctx, s.lights.Unbound),
 		}}
 
+	// 台账只取一次：在线租约与「近 24h 无租约」判定共用同一快照（M6-045）。
+	// 放在并发取数之前，保证两处口径来自同一时点。
+	var lease leaseSnapshot
+	leaseOK := false
+	if s.ledger != nil {
+		if src := s.ledger(ctx); len(src.Subnets) > 0 {
+			lease = onlineLeaseSnapshot(src, now)
+			leaseOK = true
+		}
+	}
+
 	// 四个数据源彼此独立 → 并发取数；任一失败按「该指标降级为空」处理，不拖垮整页。
 	var (
 		ips            []string
@@ -193,12 +205,9 @@ func (s *Service) build(ctx context.Context, poolTopN int, now time.Time) *Overv
 	go func() {
 		defer wg.Done()
 		// 在线终端 = 当前有效租约（与地址台账/DHCP 子网页同口径）；台账不可用时回退日志活跃 IP。
-		if s.ledger != nil {
-			src := s.ledger(ctx)
-			if len(src.Subnets) > 0 {
-				ips = onlineLeaseAddrs(src)
-				return
-			}
+		if leaseOK {
+			ips = lease.addrs
+			return
 		}
 		if v, err := s.logs.DistinctClientIPs(ctx,
 			logquery.LogFilter{From: today, To: now, Type: "dhcp"}, logquery.OrgScope{}); err == nil {
@@ -213,7 +222,7 @@ func (s *Service) build(ctx context.Context, poolTopN int, now time.Time) *Overv
 	}()
 	go func() {
 		defer wg.Done()
-		fresh, offline = s.terminalFlow(ctx, now, today)
+		fresh, offline = s.terminalFlow(ctx, now, today, lease.macs, leaseOK)
 	}()
 	go func() {
 		defer wg.Done()
@@ -239,20 +248,31 @@ func (s *Service) build(ctx context.Context, poolTopN int, now time.Time) *Overv
 	return ov
 }
 
-// terminalFlow 新增/离线终端（近 7 天 MAC 活动窗口推导）。
-func (s *Service) terminalFlow(ctx context.Context, now, today time.Time) (*int64, *int64) {
+// terminalFlow 新增/离线终端（近 7 天 MAC 活动窗口推导，M6-045）。
+// 离线口径与在线租约对齐：近 24h 有 DHCP 活动且当前无有效租约（按 MAC 比对），
+// 不再用“今日 0 点后未见”这种日切窗口，避免凌晨出现“在线很多、离线也很多”。
+// 台账不可用时回退旧口径（今日未见）。
+func (s *Service) terminalFlow(ctx context.Context, now, today time.Time, online map[string]struct{}, leaseOK bool) (*int64, *int64) {
 	act, err := s.logs.MacActivity(ctx, today.Add(-7*24*time.Hour), now)
 	if err != nil || len(act) == 0 {
 		return nil, nil
 	}
+	floor := now.Add(-24 * time.Hour)
 	var fresh, offline int64
-	for _, w := range act {
+	for mac, w := range act {
 		first := w[0].UTC()
 		last := w[1].UTC()
 		if !first.Before(today) {
 			fresh++
 		}
-		if last.Before(today) && !last.Before(today.Add(-24*time.Hour)) {
+		if last.Before(floor) {
+			continue
+		}
+		if leaseOK {
+			if _, ok := online[normalizeMAC(mac)]; !ok {
+				offline++
+			}
+		} else if last.Before(today) {
 			offline++
 		}
 	}
@@ -282,10 +302,18 @@ func (s *Service) dnsMetrics(ctx context.Context, now, today time.Time) (*float6
 	return qps, blocked
 }
 
-// onlineLeaseAddrs 从台账数据源提取当前在线租约地址（IPv4/IPv6）。
-// 口径与平台「在线 = 租约存在」一致（§13.4）：只统计 active/grace 绑定且落在已配置
-// 子网内；静态/保留地址不计为动态在线租约，与 ipam.Classify 的六态判定保持一致。
-func onlineLeaseAddrs(src ipam.LedgerSource) []string {
+// leaseSnapshot 在线租约快照：地址集合 + 归一化 MAC 集合。
+type leaseSnapshot struct {
+	addrs []string
+	macs  map[string]struct{}
+}
+
+// onlineLeaseSnapshot 从台账数据源提取当前在线租约（M6-044/M6-045）。
+// 口径与平台「在线 = 租约存在」一致（§13.4）：
+//   - 只认 active 绑定；grace 在台账里是「过期/宽限」单列状态，不计在线；
+//   - 落在已配置子网内，剔除静态/保留与未指定地址（0.0.0.0 / ::）；
+//   - cltt/valid_lft 可判定时校验租期未过期，避免绑定状态滞后造成假在线。
+func onlineLeaseSnapshot(src ipam.LedgerSource, now time.Time) leaseSnapshot {
 	prefixes := make([]netip.Prefix, 0, len(src.Subnets))
 	for _, sn := range src.Subnets {
 		if p, err := netip.ParsePrefix(sn.CIDR); err == nil {
@@ -324,19 +352,37 @@ func onlineLeaseAddrs(src ipam.LedgerSource) []string {
 			}
 		}
 	}
+	macs := map[string]struct{}{}
+	nowUnix := now.Unix()
 	for _, b := range src.Bindings {
-		if b.State != "" && b.State != "active" && b.State != "grace" {
+		if b.State != "" && b.State != "active" {
 			continue
 		}
+		if b.Cltt > 0 && b.ValidLft > 0 && b.Cltt+int64(b.ValidLft) <= nowUnix {
+			continue // 租期已过：状态未及时翻转时仍按离线处理
+		}
+		before := len(seen)
 		add(b.IPv4)
 		add(b.IPv6)
+		if len(seen) > before && b.MAC != "" {
+			macs[normalizeMAC(b.MAC)] = struct{}{}
+		}
 	}
 	out := make([]string, 0, len(seen))
 	for ip := range seen {
 		out = append(out, ip)
 	}
 	sort.Strings(out)
-	return out
+	return leaseSnapshot{addrs: out, macs: macs}
+}
+
+// normalizeMAC 统一 MAC/DUID 文本（小写、去分隔符）：日志 client_mac 为无分隔小写，
+// 台账可能带冒号，双栈 v6 还可能用 DUID 十六进制，需归一后才能比对。
+func normalizeMAC(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	s = strings.ReplaceAll(s, ":", "")
+	s = strings.ReplaceAll(s, "-", "")
+	return s
 }
 
 // poolTop 池利用率 TopN（used=当前池内在线租约地址数）。

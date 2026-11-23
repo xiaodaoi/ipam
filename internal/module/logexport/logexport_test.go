@@ -53,10 +53,10 @@ inputs = ["normalize"]
 		SamplingMode: "errors", WebhookEnabled: true, WebhookURL: "https://siem/hook",
 	}, 1)
 	// 内部入库仍为全量；errors 仅作用于 log_out 外发。
-	if !sectionHas(out, "[transforms.ch_out]", "[transforms.log_out]", `rate = 1`) {
+	if !chHas(out, `rate = 1`) {
 		t.Fatalf("外发仅异常不应影响内部入库:\n%s", out)
 	}
-	if !strings.Contains(out, `.severity != "INFO"`) {
+	if !sectionHas(out, "[transforms.log_out]", "[sinks.", `.severity != "INFO"`) {
 		t.Fatalf("外发 errors 过滤器缺失:\n%s", out)
 	}
 	if !sectionHas(out, "[sinks.clickhouse]", "[transforms.ch_out]", `inputs = ["ch_out"]`) {
@@ -71,10 +71,20 @@ inputs = ["normalize"]
 	out := Render(base, Settings{
 		SamplingMode: "errors", SyslogEnabled: true, SyslogAddress: "siem:514",
 	}, 10)
-	if !sectionHas(out, "[transforms.ch_out]", "[transforms.log_out]", `rate = 10`) {
-		t.Fatalf("降级期间内部入库应按 1/10 抽样:\n%s", out)
+	if !chHas(out, `rate = 10`) || !chHas(out, `[transforms.ch_sample]`) {
+		t.Fatalf("降级期间 INFO 应按 1/10 抽样:\n%s", out)
 	}
-	if !strings.Contains(out, `.severity != "INFO"`) {
+	// 降级期间 WARN/ERROR 必须全量入库（M6-045）。
+	if !chHas(out, `[transforms.ch_err]`) || !chHas(out, `.severity != "INFO"`) {
+		t.Fatalf("降级期间非 INFO 应全量保留:\n%s", out)
+	}
+	if !chHas(out, `[transforms.ch_info]`) || !chHas(out, `.severity == "INFO"`) {
+		t.Fatalf("降级期间 INFO 应单独过滤后再抽样:\n%s", out)
+	}
+	if !sectionHas(out, "[sinks.clickhouse]", "", `inputs = ["ch_err", "ch_sample"]`) {
+		t.Fatalf("clickhouse 降级时应扇入 ch_err + ch_sample:\n%s", out)
+	}
+	if !sectionHas(out, "[transforms.log_out]", "[sinks.", `.severity != "INFO"`) {
 		t.Fatalf("降级期间外发应为仅异常:\n%s", out)
 	}
 }
@@ -93,6 +103,27 @@ func sectionHas(out, start, end, want string) bool {
 	}
 	return strings.Contains(seg, want)
 }
+
+// chSection 截取内部入库链路段落（正常 ch_out；降级 ch_err/ch_info/ch_sample）。
+func chSection(out string) string {
+	i := strings.Index(out, "[transforms.ch_out]")
+	if i < 0 {
+		i = strings.Index(out, "[transforms.ch_err]")
+	}
+	if i < 0 {
+		return ""
+	}
+	seg := out[i:]
+	for _, end := range []string{"[transforms.log_out]", "[sinks.siem_"} {
+		if j := strings.Index(seg, end); j >= 0 {
+			seg = seg[:j]
+		}
+	}
+	return seg
+}
+
+// chHas 判断内部入库链路是否包含 want。
+func chHas(out, want string) bool { return strings.Contains(chSection(out), want) }
 
 func TestValidate(t *testing.T) {
 	cases := []struct {
@@ -135,17 +166,17 @@ func TestAutoSamplingOverrideAndRestore(t *testing.T) {
 	if err := svc.Apply(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if got := readFile(t, out); !sectionHas(got, "[transforms.ch_out]", "[transforms.log_out]", "rate = 1") {
+	if got := readFile(t, out); !chHas(got, "rate = 1") {
 		t.Fatalf("默认 all 应全量入库 rate=1:\n%s", got)
 	}
 	if err := svc.SetAutoSampling(ctx, "errors"); err != nil {
 		t.Fatal(err)
 	}
 	got := readFile(t, out)
-	if !sectionHas(got, "[transforms.ch_out]", "[transforms.log_out]", "rate = 10") {
+	if !chHas(got, "rate = 10") {
 		t.Fatalf("降级应保持内部 1/10 抽样:\n%s", got)
 	}
-	if !strings.Contains(got, `.severity != "INFO"`) {
+	if !sectionHas(got, "[transforms.log_out]", "[sinks.", `.severity != "INFO"`) {
 		t.Fatalf("降级应渲染外发仅异常:\n%s", got)
 	}
 	st := svc.Status()
@@ -158,7 +189,7 @@ func TestAutoSamplingOverrideAndRestore(t *testing.T) {
 		t.Fatal(err)
 	}
 	got = readFile(t, out)
-	if !strings.Contains(got, `.severity != "INFO"`) || !sectionHas(got, "[transforms.ch_out]", "[transforms.log_out]", "rate = 10") {
+	if !chHas(got, "rate = 10") || !sectionHas(got, "[transforms.log_out]", "[sinks.", `.severity != "INFO"`) {
 		t.Fatalf("保存后降级应保持: \n%s", got)
 	}
 	saved, _ := svc.Get(ctx)
@@ -172,7 +203,7 @@ func TestAutoSamplingOverrideAndRestore(t *testing.T) {
 	if strings.Contains(got, `.severity != "INFO"`) {
 		t.Fatalf("恢复后不应保留外发仅异常:\n%s", got)
 	}
-	if !sectionHas(got, "[transforms.ch_out]", "[transforms.log_out]", "rate = 1") {
+	if !chHas(got, "rate = 1") {
 		t.Fatalf("恢复后内部入库应回到全量:\n%s", got)
 	}
 	if st := svc.Status(); st.Degraded || st.EffectiveIngestSampleRate != 1 {
@@ -196,10 +227,10 @@ func TestWatermarkHysteresis(t *testing.T) {
 		t.Fatal("连续命中应降级")
 	}
 	got := readFile(t, out)
-	if !sectionHas(got, "[transforms.ch_out]", "[transforms.log_out]", "rate = 10") {
+	if !chHas(got, "rate = 10") {
 		t.Fatalf("降级应保持内部 1/10 抽样:\n%s", got)
 	}
-	if !strings.Contains(got, `.severity != "INFO"`) {
+	if !sectionHas(got, "[transforms.log_out]", "[sinks.", `.severity != "INFO"`) {
 		t.Fatalf("降级应渲染外发仅异常:\n%s", got)
 	}
 	// 回差区间保持降级
@@ -219,7 +250,7 @@ func TestWatermarkHysteresis(t *testing.T) {
 	if strings.Contains(got, `.severity != "INFO"`) {
 		t.Fatalf("恢复后不应保留外发仅异常:\n%s", got)
 	}
-	if !sectionHas(got, "[transforms.ch_out]", "[transforms.log_out]", "rate = 1") {
+	if !chHas(got, "rate = 1") {
 		t.Fatalf("恢复后内部入库应回到全量:\n%s", got)
 	}
 	if got := svc.Status().DiskUsedPercent; got != 80 {

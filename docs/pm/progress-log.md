@@ -3,6 +3,15 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-11-23 · 统计可信度与降级可观测性（M6-045）
+- **降级保留异常**：`ch_out` 均匀抽样会连 WARN/ERROR 一起丢。降级改为 `ch_err`（非 INFO 全量）+ `ch_info→ch_sample`（INFO 1/N），ClickHouse 扇入二者；正常仍单路全量。真实模板渲染经容器内 `vector validate` 通过。
+- **租约口径收紧**：`onlineLeaseSnapshot` 只认 `active`（`grace` 单列）、`cltt+valid_lft` 未过期、子网内且非静态/保留；台账只查一次，同时产出归一化 MAC 集合供离线判定复用。
+- **离线口径对齐**：`offlineTerminals` 改为“近 24h 有 DHCP 活动且当前无有效租约”（滚动窗口 + MAC 比对），不再用“今日 0 点后未见”；标签改为「近 24h 有活动·无租约（日志）」。
+- **抽样可见**：新增只读 `GET /logs/sampling`（logs 域）；`composables/use-log-sampling.ts` 在仪表盘与日志概览顶部提示“1/N 抽样、KPI 为下界”，QPS 卡片与趋势副标题追加抽样标记。
+- **回归门禁**：E2E 新增「统计口径一致性」步骤，断言 `onlineNow = v4+v6`、`Σ pool.used = onlineNow`、池已用与台账一致（容差 2），并校验 UI 的 IPv4/IPv6 拆分与“日志口径”标注。
+- **验证**：`onlineNow 272 = v4 102 + v6 170`，池已用合计 272；`go test ./...`、golangci-lint、vue-tsc、i18n 三门禁、vitest 38/38、E2E **20/20**。详见 `docs/dev/M6-045-统计可信度与降级可观测性.md`。
+- **遗留**：离线数为日志+台账近似；“设备数”需引入稳定设备主键（当前约 3/280 绑定同时带双栈）。
+
 ## 2026-11-23 · 仪表盘统计口径统一（M6-044）
 - **问题**：仪表盘「活跃终端」与地址池「已用」取“今日 DHCP 日志 distinct client_ip”，DHCP 子网页「在线租约」取地址台账有效租约，同一地址池出现 49 / 103 两个已用数；「活跃终端趋势」又是日志逐小时口径，KPI 卡还把日志口径的新增/离线与在线数并排展示，导致数字随时间窗口漂移、无法解释。
 - **后端**：`dashboard.Service` 注入 `ipam.LedgerSource`（与台账页同源），在线终端改为“active/grace 且落在已配置子网内、剔除静态/保留/未指定地址”的地址集合；池已用按池区间二分计数，PD 池跳过；台账不可用时回退日志活跃 IP。契约新增 `onlineV4/onlineV6`（required），先改 `dashboard.yaml` 再 `make gen`。

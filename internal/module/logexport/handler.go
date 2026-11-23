@@ -70,6 +70,26 @@ func (h *LogExportHandler) GetLogExportSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, toGen(s, h.svc.Status()))
 }
 
+// GetLogSampling GET /logs/sampling：内部入库抽样率与磁盘降级状态（M6-045）。
+// 仅返回采样元数据，不含外发地址等配置，供仪表盘/日志概览提示“KPI 为抽样下界”。
+func (h *LogExportHandler) GetLogSampling(c *gin.Context) {
+	st := h.svc.Status()
+	rate := st.EffectiveIngestSampleRate
+	if rate < 1 {
+		rate = 1
+	}
+	out := apigen.LogSamplingStatus{Degraded: st.Degraded, IngestSampleRate: rate}
+	if st.DiskUsedPercent > 0 {
+		pct := float32(st.DiskUsedPercent)
+		out.DiskUsedPercent = &pct
+	}
+	if !st.DegradedAt.IsZero() {
+		at := st.DegradedAt
+		out.DegradedAt = &at
+	}
+	c.JSON(http.StatusOK, out)
+}
+
 func (h *LogExportHandler) UpdateLogExportSettings(c *gin.Context) {
 	var body apigen.LogExportSettings
 	if err := c.ShouldBindJSON(&body); err != nil {

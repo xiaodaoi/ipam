@@ -43,3 +43,25 @@ LogExportSettings:
       format: date-time
       readOnly: true
       description: 本次自动降级开始时间
+
+# 日志采样状态（M6-045）：轻量只读端点，供仪表盘/日志概览提示“KPI 为抽样下界”。
+# 与 LogExportSettings 分开，避免把外发地址等配置暴露给只读角色。
+LogSamplingStatus:
+  type: object
+  required: [degraded, ingestSampleRate]
+  properties:
+    degraded:
+      type: boolean
+      description: true=磁盘水位自动降级生效中（内部入库 1/N 抽样 + 外发仅异常）
+    ingestSampleRate:
+      type: integer
+      minimum: 1
+      description: 内部日志入库当前采样率 1/N；1=全量，>1=降级抽样
+    diskUsedPercent:
+      type: number
+      readOnly: true
+      description: 最近一次水位检查的根分区使用率（%）
+    degradedAt:
+      type: string
+      format: date-time
+      description: 本次自动降级开始时间

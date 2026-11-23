@@ -89,6 +89,25 @@ async function login(page) {
   hashMode = page.url().includes('#/');
 }
 
+/**
+ * 用浏览器上下文直接调用业务 API（复用登录态授权头）。
+ * 说明：浏览器同源 fetch 可避免 Node 侧自签证书/协议差异。
+ */
+async function apiGet(page, path, authHeader) {
+  assert(authHeader, '未捕获到 API 授权头，无法做接口断言');
+  const res = await page.evaluate(
+    async ({ auth, p }) => {
+      const r = await fetch(`/api/v1${p}`, {
+        headers: { Authorization: auth },
+      });
+      return { body: r.ok ? await r.json() : null, status: r.status };
+    },
+    { auth: authHeader, p: path },
+  );
+  assert(res.status === 200, `GET ${path} -> HTTP ${res.status}`);
+  return res.body;
+}
+
 async function main() {
   await mkdir(artifactDir, { recursive: true });
   const browser = await chromium.launch({
@@ -116,6 +135,13 @@ async function main() {
   }
   console.log(`目标: ${base}`);
   const page = await context.newPage();
+  // M6-045：捕获业务 API 的授权头，供“统计口径一致性”步骤直接断言接口数值。
+  let authHeader = '';
+  page.on('request', (req) => {
+    if (!req.url().includes('/api/v1/')) return;
+    const h = req.headers()['authorization'];
+    if (h) authHeader = h;
+  });
   // M6-018：监控任何指向外部图标 CDN 的请求（离线化后应为 0）。
   const externalIconRequests = [];
   page.on('request', (req) => {
@@ -143,6 +169,51 @@ async function main() {
       // 地址池利用率行显示所属部门（M6-020）。
       await page.locator('.ipam-rank__item--pool').first().waitFor({ timeout: 15_000 });
       await page.locator('.ipam-rank__dept').first().waitFor({ timeout: 15_000 });
+      // M6-045：KPI 必须给出 IPv4/IPv6 拆分，趋势必须标注日志口径。
+      await page.getByText('在线租约', { exact: true }).first().waitFor({ timeout: 15_000 });
+      await page
+        .getByText(/IPv4 \d+ · IPv6 \d+/)
+        .first()
+        .waitFor({ timeout: 15_000 });
+      await page.getByText(/日志口径/).first().waitFor({ timeout: 15_000 });
+    });
+
+    await step('统计口径一致性（在线租约/池已用）', async () => {
+      // M6-045 回归断言：仪表盘、台账、地址池三处数字必须同源同口径。
+      // 容差仅用于吸收两次请求之间的租约到期/续约，远小于历史漂移（49 vs 103）。
+      const TOLERANCE = 2;
+      const dash = await apiGet(page, '/dashboard?poolTopN=100', authHeader);
+      assert(
+        dash.onlineNow === dash.onlineV4 + dash.onlineV6,
+        `onlineNow=${dash.onlineNow} != onlineV4(${dash.onlineV4}) + onlineV6(${dash.onlineV6})`,
+      );
+      const poolSum = (dash.poolUtilTop ?? []).reduce((n, p) => n + p.used, 0);
+      assert(
+        poolSum === dash.onlineNow,
+        `地址池已用合计 ${poolSum} != 在线租约 ${dash.onlineNow}`,
+      );
+      const v4 = await apiGet(page, '/ledger?family=4&state=online&pageSize=1', authHeader);
+      const v6 = await apiGet(page, '/ledger?family=6&state=online&pageSize=1', authHeader);
+      assert(
+        Math.abs(dash.onlineV4 - v4.total) <= TOLERANCE,
+        `仪表盘 IPv4 在线 ${dash.onlineV4} 与台账 ${v4.total} 不一致`,
+      );
+      assert(
+        Math.abs(dash.onlineV6 - v6.total) <= TOLERANCE,
+        `仪表盘 IPv6 在线 ${dash.onlineV6} 与台账 ${v6.total} 不一致`,
+      );
+      const top = (dash.poolUtilTop ?? []).find((p) => p.used > 0);
+      if (top) {
+        const sn = await apiGet(
+          page,
+          `/ledger?subnetId=${top.subnetId}&state=online&pageSize=1`,
+          authHeader,
+        );
+        assert(
+          Math.abs(top.used - sn.total) <= TOLERANCE,
+          `地址池「${top.name || top.cidr}」已用 ${top.used} 与台账 ${sn.total} 不一致`,
+        );
+      }
     });
 
     await step('首次使用向导', async () => {

@@ -217,3 +217,20 @@ LogsTail:
                   : ping
       '400':
         $ref: '../components/responses/logs.yaml#/LogBadRequest'
+
+LogSampling:
+  get:
+    operationId: getLogSampling
+    tags: [logs]
+    summary: 日志采样状态
+    description: |
+      返回内部日志入库的当前抽样率与磁盘降级状态（M6-045）。
+      仪表盘与日志概览据此提示「KPI 为抽样下界」，避免把降级期间的统计当作全量。
+    security: []
+    responses:
+      '200':
+        description: 采样状态
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/logexport.yaml#/LogSamplingStatus'

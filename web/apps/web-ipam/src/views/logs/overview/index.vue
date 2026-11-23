@@ -12,6 +12,7 @@ import MetricRing from '#/components/metric-ring.vue';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
 import TrendChart from '#/components/trend-chart.vue';
+import { useLogSampling } from '#/composables/use-log-sampling';
 import { $t } from '#/locales';
 
 import { useLogWindowStats } from '../use-log-window-stats';
@@ -75,6 +76,8 @@ function refreshWindow() {
 
 // ── KPI（复用检索页同口径统计）──
 const kpi = useLogWindowStats();
+// 日志采样状态（M6-045）：降级期间 KPI 为抽样下界。
+const sampling = useLogSampling();
 const stats = computed(() => kpi.stats.value);
 
 // ── 趋势 / TopN / 最近审计 ──
@@ -141,6 +144,7 @@ async function loadAll() {
   });
   loading.value = false;
   void kpi.load(base);
+  void sampling.load();
 }
 
 function setRange(key: RangeKey) {
@@ -245,6 +249,16 @@ onBeforeUnmount(() => timer && clearInterval(timer));
         </Button>
       </template>
     </PageHeader>
+
+    <div
+      v-if="sampling.degraded.value"
+      class="ipam-note mb-4 flex-wrap items-center gap-3 text-amber-600"
+    >
+      <IconifyIcon icon="lucide:triangle-alert" class="size-4 shrink-0" />
+      <span class="flex-1">
+        {{ $t('logs.overview.samplingBanner', { rate: sampling.rate.value }) }}
+      </span>
+    </div>
 
     <div class="ipam-stat-grid">
       <StatCard

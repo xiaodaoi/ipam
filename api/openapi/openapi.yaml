@@ -162,6 +162,8 @@ paths:
     $ref: './paths/logs.yaml#/LogsTop'
   /logs/qps:
     $ref: './paths/logs.yaml#/LogsQps'
+  /logs/sampling:
+    $ref: './paths/logs.yaml#/LogSampling'
   /logs/alerts:
     $ref: './paths/alerts.yaml#/AlertsCollection'
   /logs/alerts/stats:

@@ -139,6 +139,9 @@ export const getSystemInfo = () => req<SystemInfo>('/system/info');
 export type LogExportSettings = components['schemas']['LogExportSettings'];
 export const getLogExportSettings = () =>
   req<LogExportSettings>('/system/log-export-settings');
+export type LogSamplingStatus = components['schemas']['LogSamplingStatus'];
+/** 内部入库抽样率与磁盘降级状态（M6-045，logs 域只读） */
+export const getLogSampling = () => req<LogSamplingStatus>('/logs/sampling');
 export const updateLogExportSettings = (s: LogExportSettings) =>
   req<LogExportSettings>('/system/log-export-settings', {
     method: 'PUT',

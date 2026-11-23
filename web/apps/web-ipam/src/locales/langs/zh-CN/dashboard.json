@@ -25,7 +25,8 @@
       "qpsHint": "近 1 小时均值 {avg} 次/分",
       "health": "核心服务健康",
       "blocked": "今日 DNS 拦截",
-      "blockedHint": "封禁名单命中（今日累计）"
+      "blockedHint": "封禁名单命中（今日累计）",
+      "qpsHintSampled": "近 1 小时均值 {avg} 次/分 · 抽样 1/{rate}"
     },
     "unit": {
       "devices": "台",
@@ -49,7 +50,7 @@
       "sub": "近 24 小时 · 逐小时（日志口径）",
       "peak": "活跃地址峰值 {n}",
       "new": "今日新增（日志）",
-      "offline": "近 24h 离线（日志）",
+      "offline": "近 24h 有活动·无租约",
       "hourlyAvg": "日志活跃均值",
       "dualstack": "双栈联动成功率",
       "emptyTitle": "暂无活跃地址趋势",
@@ -101,6 +102,10 @@
       "emptyTitle": "暂无地址池数据",
       "emptyDesc": "创建子网并产生租约后展示利用率排名。"
     },
-    "listSep": "、"
+    "listSep": "、",
+    "sampling": {
+      "banner": "磁盘水位自动降级中：DNS 查询量、拦截量与活跃地址趋势按 1/{rate} 抽样，KPI 为抽样后下界；在线租约与地址池数据来自台账，不受影响。",
+      "tag": "抽样 1/{rate}"
+    }
   }
 }

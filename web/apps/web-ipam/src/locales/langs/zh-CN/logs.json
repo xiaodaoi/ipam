@@ -176,7 +176,8 @@
       "human": "人工",
       "bot": "Bot",
       "system": "系统"
-    }
+    },
+    "samplingBanner": "磁盘水位自动降级中：本页 KPI 与趋势按 1/{rate} 抽样，数值为下界；在线租约与地址池数据不受影响。"
   },
   "search": {
     "title": "查询检索",
