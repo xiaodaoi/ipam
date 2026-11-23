@@ -15,7 +15,7 @@
 - **修复**：拆成两条链路——`normalize → ch_out → clickhouse`（内部入库，正常全量）与 `normalize → log_out → siem_*`（外发，按 all/sample/errors）。降级时内部按 1/N 抽样（新增 `IPAM_LOG_DEGRADE_SAMPLE_RATE`，默认 10，保留 INFO），外发才 errors-only；API 暴露只读 `ingestSampleRate`；告警文案改为「日志入库与外发已降级」。
 - **运维**：新增 `config/clickhouse/system-logs.xml` 并挂载，system 日志表 TTL（text_log 2 天，trace/metric/query 3 天，trace/processors 1 天，part_log ALTER 补 TTL）；磁盘由 90% 降至约 69%；截断 8.7GB `unbound.log`。
 - **验证**：真实栈 Vector `[sinks.clickhouse] inputs=["ch_out"]`、`ch_out.rate=1`，`ipam.logs` 恢复写入；`go test ./internal/module/logexport/` 覆盖双链路与降级抽样；`vector validate` 通过。
-- **遗留**：运行中的 unbound 镜像仍缺 logrotate（仓库 Dockerfile 已含 M5-032 配置），需重建镜像后生效。
+- **遗留**：无。运行中的 unbound 镜像已重建（2026-11-23），`/usr/sbin/logrotate` 与 `/etc/logrotate.d/unbound` 就位，容器内 logrotate 后台循环每 15 分钟检查一次（daily + maxsize 200M + copytruncate），`unbound.log` 不再无界增长。
 
 ## 2026-11-22 · DNS 默认池健壮性与提示收口（M6-042）
 - **问题**：M6-041 的回退逻辑在「显式默认全部停用」时会回退第一条 enabled，可能把内网 DNS 带回 `.`；界面无法区分未标记默认与默认全部停用；规则表单仍能创建不生效的 `.` 规则。
