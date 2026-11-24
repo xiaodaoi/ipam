@@ -58,6 +58,10 @@ type LedgerBinding struct {
 	State    string
 	Cltt     int64 // 客户端最近交互时间（unix 秒，真实租用时间）
 	ValidLft int   // 剩余有效期（秒）
+	// 地址归属子网（最长前缀匹配；M6-046 未登记终端补上下文，v4/v6 均未命中时为空）
+	SubnetID   string
+	SubnetCIDR string
+	OrgID      string
 }
 
 // LedgerSource 台账数据源聚合（绑定/预留/资产/子网池）。
@@ -162,7 +166,7 @@ func QueryLedger(src LedgerSource, q LedgerQuery) ([]LedgerRow, string, int) {
 					if r := resByAddr[addr]; r.MAC != "" {
 						row.MAC = r.MAC
 					}
-					if a := src.Assets[row.MAC]; a.MAC != "" {
+					if a := src.Assets[row.MAC]; a.Identity() != "" {
 						row.Owner = a.Owner
 					}
 					rows = append(rows, row)
@@ -197,7 +201,7 @@ func QueryLedger(src LedgerSource, q LedgerQuery) ([]LedgerRow, string, int) {
 					if r := resByAddr[addr]; r.MAC != "" {
 						row.MAC = r.MAC
 					}
-					if a := src.Assets[row.MAC]; a.MAC != "" {
+					if a := src.Assets[row.MAC]; a.Identity() != "" {
 						row.Owner = a.Owner
 					}
 					rows = append(rows, row)
@@ -249,7 +253,7 @@ func QueryLedger(src LedgerSource, q LedgerQuery) ([]LedgerRow, string, int) {
 						row.LeaseStart = time.Unix(b.Cltt, 0)
 						row.LeaseExpiry = time.Unix(b.Cltt+int64(b.ValidLft), 0)
 					}
-					if asset := src.Assets[row.MAC]; asset.MAC != "" {
+					if asset := src.Assets[row.MAC]; asset.Identity() != "" {
 						row.Owner = asset.Owner
 					}
 					rows = append(rows, row)

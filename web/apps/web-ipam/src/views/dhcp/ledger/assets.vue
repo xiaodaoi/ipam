@@ -160,6 +160,7 @@ function csvCell(v: unknown): string {
 function exportCsv() {
   const header = [
     $t('dhcpLedger.assets.csv.mac'),
+    $t('dhcpLedger.assets.csv.duid'),
     $t('dhcpLedger.assets.csv.owner'),
     $t('dhcpLedger.assets.csv.dept'),
     $t('dhcpLedger.assets.csv.org'),
@@ -168,7 +169,8 @@ function exportCsv() {
   ];
   const lines = visibleRows.value.map((r) =>
     [
-      r.mac,
+      r.mac ?? '',
+      r.duid ?? '',
       r.owner,
       r.dept ?? '',
       orgPathOf(r.orgId).join(' / '),
@@ -191,9 +193,10 @@ function exportCsv() {
 }
 
 // ── 登记 / 编辑 ──
-const editingMac = ref('');
+const editingIdentity = ref('');
 const form = reactive({
   mac: '',
+  duid: '',
   owner: '',
   dept: '',
   orgId: undefined as string | undefined,
@@ -209,8 +212,9 @@ const [FormModal, formModalApi] = useVbenModal({
 });
 
 function resetForm() {
-  editingMac.value = '';
+  editingIdentity.value = '';
   form.mac = '';
+  form.duid = '';
   form.owner = '';
   form.dept = '';
   form.orgId = undefined;
@@ -229,24 +233,41 @@ function openCreate() {
 
 function openEdit(r: Asset) {
   resetForm();
-  editingMac.value = r.mac;
-  form.mac = r.mac;
+  editingIdentity.value = r.identity;
+  form.mac = r.mac ?? '';
+  form.duid = r.duid ?? '';
   form.owner = r.owner ?? '';
   form.dept = r.dept ?? '';
   form.orgId = r.orgId || undefined;
   form.tags = [...(r.tags ?? [])];
   form.note = r.note ?? '';
   formModalApi.setState({
-    title: $t('dhcpLedger.assets.modalEditTitle', { mac: r.mac }),
+    title: $t('dhcpLedger.assets.modalEditTitle', {
+      mac: r.mac || $t('dhcpLedger.assets.duidOnly'),
+    }),
     confirmText: $t('dhcpLedger.assets.modalSaveChanges'),
   });
   formModalApi.open();
 }
 
 async function save() {
-  const mac = editingMac.value || normalizeMacInput(form.mac);
-  if (!mac) {
+  const rawMac = form.mac.trim();
+  const mac = rawMac ? normalizeMacInput(rawMac) : null;
+  if (rawMac && !mac) {
     message.warning($t('dhcpLedger.common.invalidMac'));
+    return;
+  }
+  // DUID 归一化：小写、去分隔符（IPv6-only 终端的身份键，M6-046）。
+  const duid = form.duid
+    .trim()
+    .toLowerCase()
+    .replaceAll(/[:\-.\s]/g, '');
+  if (duid && !/^[0-9a-f]+$/.test(duid)) {
+    message.warning($t('dhcpLedger.assets.invalidDuid'));
+    return;
+  }
+  if (!mac && !duid) {
+    message.warning($t('dhcpLedger.assets.identityRequired'));
     return;
   }
   if (!form.owner.trim()) {
@@ -255,7 +276,8 @@ async function save() {
   }
   try {
     await upsertAsset({
-      mac,
+      mac: mac ?? undefined,
+      duid: duid || undefined,
       owner: form.owner.trim(),
       dept: form.dept.trim() || undefined,
       orgId: form.orgId || undefined,
@@ -264,7 +286,7 @@ async function save() {
       note: form.note.trim() || undefined,
     });
     message.success(
-      editingMac.value
+      editingIdentity.value
         ? $t('dhcpLedger.assets.updated')
         : $t('dhcpLedger.assets.created'),
     );
@@ -279,9 +301,9 @@ async function save() {
   }
 }
 
-async function remove(mac: string) {
+async function remove(identity: string) {
   try {
-    await deleteAsset(mac);
+    await deleteAsset(identity);
     message.success($t('dhcpLedger.assets.deleted'));
   } catch (error) {
     message.error(
@@ -455,21 +477,31 @@ onMounted(async () => {
             :columns="assetColumns"
             :locale="{ emptyText }"
             :pagination="{ pageSize: 20, showSizeChanger: true, showTotal }"
-            row-key="mac"
+            :row-key="(r: Asset) => r.identity"
             size="small"
           >
             <template #bodyCell="{ column, record }">
               <template v-if="column.dataIndex === 'mac'">
                 <div class="ipam-cell-stack">
-                  <span class="ipam-mono">{{ record.mac }}</span>
+                  <span v-if="record.mac" class="ipam-mono">{{
+                    record.mac
+                  }}</span>
+                  <span v-else class="ipam-chip" data-tone="violet">
+                    {{ $t('dhcpLedger.assets.duidOnly') }}
+                  </span>
                   <span
-                    v-if="record.note"
-                    class="ipam-cell-meta"
-                    :title="record.note"
+                    v-if="record.duid"
+                    class="ipam-cell-meta ipam-mono"
+                    :title="record.duid"
                   >
+                    DUID {{ record.duid }}
+                  </span>
+                  <span v-if="record.note" class="ipam-cell-meta">
                     {{ record.note }}
                   </span>
-                  <span v-else class="ipam-cell-meta">—</span>
+                  <span v-else-if="!record.duid" class="ipam-cell-meta">
+                    —
+                  </span>
                 </div>
               </template>
               <template v-else-if="column.dataIndex === 'owner'">
@@ -550,8 +582,19 @@ onMounted(async () => {
           }}</span>
           <Input
             v-model:value="form.mac"
-            :disabled="!!editingMac"
+            :disabled="!!editingIdentity"
             :placeholder="$t('dhcpLedger.common.macExample')"
+            style="width: 300px"
+          />
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="w-16 shrink-0 text-right text-xs text-gray-400">{{
+            $t('dhcpLedger.assets.form.duid')
+          }}</span>
+          <Input
+            v-model:value="form.duid"
+            :disabled="!!editingIdentity"
+            :placeholder="$t('dhcpLedger.assets.form.duidPlaceholder')"
             style="width: 300px"
           />
         </div>

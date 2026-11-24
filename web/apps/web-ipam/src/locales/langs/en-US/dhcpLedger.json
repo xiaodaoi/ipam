@@ -159,7 +159,7 @@
   },
   "assets": {
     "title": "Asset Registry",
-    "desc": "Register owner / department / organization / note keyed by MAC so information survives address changes; provides the terminal → organization link for the log center.",
+    "desc": "Register owner / department / organization / notes keyed by MAC or DUID, so a terminal keeps its record when its address changes. IPv6-only terminals (DUID) are supported too, which feeds the \"terminal → organization\" chain in the log center.",
     "meta": "{total} assets · {departments} departments",
     "create": "Register Asset",
     "statTotal": "Total Assets",
@@ -172,13 +172,13 @@
     "statTagsHint": "{count} distinct tags",
     "listCard": "Asset List",
     "listCardSub": "{shown} / {total}",
-    "listCardHint": "Idempotent by MAC · decoupled from IP",
-    "keywordPlaceholder": "MAC / owner / department",
+    "listCardHint": "Idempotent by MAC / DUID · decoupled from IP",
+    "keywordPlaceholder": "MAC (colons optional) / DUID / owner / department",
     "scopeAll": "All assets",
     "scopeUnassigned": "Unassigned",
     "scopeTagged": "Tagged",
     "hintDecoupled": "Registration data is decoupled from IP and survives address changes",
-    "colTerminal": "Terminal (MAC / note)",
+    "colTerminal": "Terminal (MAC / DUID)",
     "colOwnerDept": "Owner / department",
     "colOrg": "Organization",
     "colTags": "Tags",
@@ -206,7 +206,8 @@
       "dept": "Department",
       "org": "Organization",
       "tags": "Tags",
-      "note": "Note"
+      "note": "Note",
+      "duid": "DUID"
     },
     "form": {
       "mac": "MAC address",
@@ -219,23 +220,28 @@
       "deptPlaceholder": "Department (optional)",
       "orgPlaceholder": "Select an organization (optional)",
       "tagsPlaceholder": "Press Enter to add tags (optional)",
-      "notePlaceholder": "Note (optional)"
-    }
+      "notePlaceholder": "Note (optional)",
+      "duid": "DUID (optional)",
+      "duidPlaceholder": "For IPv6-only terminals; MAC may be left empty"
+    },
+    "duidOnly": "DUID terminal",
+    "invalidDuid": "Invalid DUID (hexadecimal, separators allowed)",
+    "identityRequired": "Enter a MAC or a DUID"
   },
   "discovered": {
     "title": "Discovered devices",
-    "desc": "Terminals with DHCP bindings/leases that are not yet registered as assets. Register one to link its owner, department and organization.",
+    "desc": "Terminals with a valid DHCP lease that are not registered as assets. DUIDs are resolved to MACs first; IPv6-only terminals use the DUID as their identity. Register one to link its owner, department and organization.",
     "meta": "Last activity {time}",
     "statUnregistered": "Discovered devices",
-    "statUnregisteredHint": "MAC not present in the asset table",
+    "statUnregisteredHint": "Online terminals missing from the asset table",
     "statV4": "Has IPv4",
-    "statV4Hint": "From coherence bindings",
+    "statV4Hint": "From coherence bindings (IPv4)",
     "statV6": "Has IPv6",
-    "statV6Hint": "Includes dual-stack terminals",
+    "statV6Hint": "Includes {count} DUID-only terminals",
     "statLatest": "Last Activity",
-    "statLatestHint": "By lease cltt",
-    "listHint": "Only active/grace/conflict bindings are shown; a terminal leaves the list once registered.",
-    "keywordPlaceholder": "Search MAC / IP / hostname",
+    "statLatestHint": "Sorted by lease cltt",
+    "listHint": "Only active/grace bindings with a valid lease are shown; v4/v6 bindings of the same device are merged, and a terminal leaves the list once registered.",
+    "keywordPlaceholder": "Search MAC / DUID / IP / hostname / subnet",
     "register": "Register",
     "modalTitle": "Register Unregistered Terminal",
     "loadFailed": "Failed to load the discovered list",
@@ -252,7 +258,6 @@
     "colLastSeen": "Last activity",
     "colActions": "Actions",
     "form": {
-      "mac": "MAC",
       "ownerLabel": "Owner / responsible person *",
       "ownerPlaceholder": "Owner / responsible person",
       "dept": "Department",
@@ -260,7 +265,12 @@
       "org": "Organization",
       "orgPlaceholder": "Optional",
       "note": "Note",
-      "notePlaceholder": "Note (optional)"
-    }
+      "notePlaceholder": "Note (optional)",
+      "identity": "Identity"
+    },
+    "colIdentity": "Terminal (MAC / DUID)",
+    "colSubnet": "Subnet",
+    "colOrg": "Organization",
+    "duidOnly": "DUID terminal"
   }
 }

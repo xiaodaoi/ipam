@@ -2,6 +2,7 @@ package ipam
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -42,23 +43,16 @@ func (h *AssetHandler) ListDiscoveredTerminals(c *gin.Context) {
 	}
 	items := make([]apigen.DiscoveredTerminal, 0, len(list))
 	for _, d := range list {
-		item := apigen.DiscoveredTerminal{Mac: d.MAC}
-		if d.IPv4 != "" {
-			v := d.IPv4
-			item.Ipv4 = &v
-		}
-		if d.IPv6 != "" {
-			v := d.IPv6
-			item.Ipv6 = &v
-		}
-		if d.Hostname != "" {
-			v := d.Hostname
-			item.Hostname = &v
-		}
-		if d.State != "" {
-			v := d.State
-			item.State = &v
-		}
+		item := apigen.DiscoveredTerminal{Identity: d.Identity}
+		item.Mac = optStr(d.MAC)
+		item.Duid = optStr(d.DUID)
+		item.Ipv4 = optStr(d.IPv4)
+		item.Ipv6 = optStr(d.IPv6)
+		item.Hostname = optStr(d.Hostname)
+		item.State = optStr(d.State)
+		item.SubnetId = optStr(d.SubnetID)
+		item.SubnetCidr = optStr(d.SubnetCIDR)
+		item.OrgId = optStr(d.OrgID)
 		if !d.LastSeen.IsZero() {
 			v := d.LastSeen
 			item.LastSeen = &v
@@ -86,7 +80,8 @@ func (h *AssetHandler) ListAssets(c *gin.Context, params apigen.ListAssetsParams
 	for _, a := range list {
 		items = append(items, toGenAsset(a))
 	}
-	c.JSON(http.StatusOK, apigen.AssetList{Items: items, Total: &[]int{len(items)}[0]})
+	total := len(items)
+	c.JSON(http.StatusOK, apigen.AssetList{Items: items, Total: &total})
 }
 
 func (h *AssetHandler) UpsertAsset(c *gin.Context) {
@@ -96,7 +91,8 @@ func (h *AssetHandler) UpsertAsset(c *gin.Context) {
 		return
 	}
 	in := Asset{
-		MAC:   body.Mac,
+		MAC:   derefStr(body.Mac),
+		DUID:  derefStr(body.Duid),
 		Owner: body.Owner,
 		Dept:  derefStr(body.Dept),
 		Note:  derefStr(body.Note),
@@ -109,38 +105,58 @@ func (h *AssetHandler) UpsertAsset(c *gin.Context) {
 	}
 	saved, err := h.svc.Upsert(c.Request.Context(), in)
 	if err != nil {
-		if strings.Contains(err.Error(), "BAD_MAC") {
-			problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "BAD_MAC", "MAC 格式非法")
-			return
-		}
-		if err == ErrOrgNotFound2 {
+		switch {
+		case errors.Is(err, ErrBadMAC):
+			problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "BAD_MAC", "MAC 格式非法（需 12 位十六进制）")
+		case errors.Is(err, ErrBadDUID):
+			problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "BAD_DUID", "DUID 格式非法（需偶数长度十六进制）")
+		case errors.Is(err, ErrBadIdentity):
+			problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "BAD_IDENTITY", "MAC 与 DUID 至少填写一个")
+		case errors.Is(err, ErrOwnerEmpty):
+			problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "OWNER_REQUIRED", "使用人不能为空")
+		case errors.Is(err, ErrOrgNotFound2):
 			problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "ORG_NOT_FOUND", "组织节点不存在")
-			return
+		default:
+			problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "INTERNAL", err.Error())
 		}
-		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "INTERNAL", err.Error())
 		return
 	}
 	c.JSON(http.StatusOK, toGenAsset(saved))
 }
 
+// DeleteAsset DELETE /assets/{mac}：路径参数为身份键（MAC 或 DUID）。
 func (h *AssetHandler) DeleteAsset(c *gin.Context, mac string) {
 	if err := h.svc.Delete(c.Request.Context(), mac); err != nil {
-		problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "ASSET_NOT_FOUND", "资产不存在")
+		if errors.Is(err, ErrAssetNotFound) {
+			problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "ASSET_NOT_FOUND", "资产不存在")
+			return
+		}
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "INTERNAL", err.Error())
 		return
 	}
 	c.Status(http.StatusNoContent)
 }
 
 func toGenAsset(a Asset) apigen.Asset {
-	out := apigen.Asset{Mac: a.MAC, Owner: a.Owner}
+	out := apigen.Asset{Identity: a.Identity(), Owner: a.Owner}
 	if a.OrgID != "" {
-		u := uuidPtr(a.OrgID)
-		out.OrgId = u
+		out.OrgId = uuidPtr(a.OrgID)
 	}
-	out.Dept = strPtr(a.Dept)
-	out.Note = strPtr(a.Note)
+	out.Mac = optStr(a.MAC)
+	out.Duid = optStr(a.DUID)
+	out.Dept = optStr(a.Dept)
+	out.Note = optStr(a.Note)
 	if len(a.Tags) > 0 {
 		out.Tags = &a.Tags
 	}
 	return out
+}
+
+// optStr 空串转 nil：契约里这些字段是可选的，回空串会让前端显示空白列。
+func optStr(s string) *string {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	v := s
+	return &v
 }

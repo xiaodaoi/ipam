@@ -2279,12 +2279,12 @@ export interface paths {
         };
         /**
          * 查询资产登记
-         * @description 按组织/关键字（MAC/使用人/部门）过滤；台账页资产页签数据源。
+         * @description 按组织/关键字过滤；台账页资产页签数据源。关键字支持 MAC（可省略冒号/短横线）、DUID、使用人、部门。
          */
         get: operations["listAssets"];
         /**
-         * 创建/更新资产登记（MAC 幂等 upsert）
-         * @description 以 MAC 为键幂等写入；换址（IP 变更）不影响备注。所需 scope 为 asset.write。支持 Idempotency-Key。
+         * 创建/更新资产登记（身份键幂等 upsert）
+         * @description 以身份键（MAC 优先，回退 DUID）幂等写入；换址（IP 变更）不影响备注。所需 scope 为 assets:write。支持 Idempotency-Key。
          */
         put: operations["upsertAsset"];
         post?: never;
@@ -2303,7 +2303,9 @@ export interface paths {
         };
         /**
          * 未登记终端（影子资产）
-         * @description 联动绑定中有租约、但资产表未登记的 MAC；用于发现并登记。scope 为 assets:read。
+         * @description 联动绑定中有有效租约、但资产表未登记的设备；用于发现并登记。scope 为 assets:read。
+         *     DUID 会先经 dualstack_identity 或 DUID-LLT/LL 解析归并为 MAC，解析不出时以 DUID 为身份键，
+         *     因此 IPv6-only 终端同样可见（M6-046）。
          */
         get: operations["listDiscoveredTerminals"];
         put?: never;
@@ -2326,7 +2328,7 @@ export interface paths {
         post?: never;
         /**
          * 删除资产登记
-         * @description 按 MAC 删除。所需 scope 为 asset.write。
+         * @description 按身份键（MAC 或 DUID）删除；不存在返回 404。所需 scope 为 assets:write。
          */
         delete: operations["deleteAsset"];
         options?: never;
@@ -3061,10 +3063,17 @@ export interface components {
             mac: string;
             hostname?: string;
         };
-        /** @description 资产登记（MAC 为身份键，换址备注不丢；§13.4 资产登记）。 */
+        /**
+         * @description 资产登记（身份键 = 归一化 MAC，或 MAC 无法解析时的 DHCPv6 DUID；换址备注不丢；§13.4 资产登记）。
+         *     M6-046：IPv6-only 终端只有 DUID，没有 MAC，因此身份键允许退化为 DUID。
+         */
         Asset: {
-            /** @description 归一化小写冒号格式（aa:bb:cc:dd:ee:ff） */
-            mac: string;
+            /** @description 身份键。归一化 MAC（aa:bb:cc:dd:ee:ff）或 DUID（小写十六进制） */
+            identity: string;
+            /** @description 归一化 MAC；DUID-only 终端为空 */
+            mac?: string;
+            /** @description DHCPv6 DUID（小写十六进制）；MAC 可解析时也保留，供双栈关联 */
+            duid?: string;
             /**
              * Format: uuid
              * @description 所属组织节点（资产→组织→日志关联链）
@@ -3076,9 +3085,13 @@ export interface components {
             note?: string;
             tags?: string[];
         };
-        /** @description 创建/更新（以 MAC 幂等 upsert） */
+        /**
+         * @description 创建/更新（按身份键幂等 upsert）。`mac` 与 `duid` 至少填一个：
+         *     MAC 可解析时以 MAC 为身份键，否则以 DUID 为身份键（IPv6-only 终端）。
+         */
         AssetUpsert: {
-            mac: string;
+            mac?: string;
+            duid?: string;
             /** Format: uuid */
             orgId?: string;
             owner: string;
@@ -4732,15 +4745,32 @@ export interface components {
             /** @description 启用/停用区域（停用即不再渲染解析） */
             enabled?: boolean;
         };
-        /** @description 未登记终端（有 DHCP 绑定/租约，但 asset 表无记录）。 */
+        /**
+         * @description 未登记终端（有 DHCP 绑定/租约，但资产表无记录）。
+         *     M6-046：DUID 通过 dualstack_identity 映射或 DUID-LLT/LL 链路层地址解析归并为 MAC；
+         *     解析不出 MAC 的 DUID（如 DUID-UUID）以 DUID 作为身份键，仍可登记。
+         */
         DiscoveredTerminal: {
-            mac: string;
+            /** @description 身份键（MAC 优先，回退 DUID）；同设备 v4/v6 绑定已合并为一条 */
+            identity: string;
+            /** @description 归一化 MAC（DUID 无法解析时为空） */
+            mac?: string;
+            /** @description DHCPv6 DUID（v4-only 终端为空） */
+            duid?: string;
             ipv4?: string;
             ipv6?: string;
             hostname?: string;
-            /** @description active/grace/conflict */
+            /** @description active/grace（租期已过的绑定不计入） */
             state?: string;
-            /** Format: date-time */
+            /** @description 所属子网（按地址归属取最长前缀） */
+            subnetId?: string;
+            subnetCidr?: string;
+            /** @description 子网所属组织（登记时可默认带入） */
+            orgId?: string;
+            /**
+             * Format: date-time
+             * @description 最近租约开始时间（kea cltt）；用于排序，不等同链路层活跃时间
+             */
             lastSeen?: string;
         };
         DiscoveredTerminalList: {
@@ -8934,7 +8964,7 @@ export interface operations {
         parameters: {
             query?: {
                 orgId?: string;
-                /** @description 关键字：MAC/owner/dept 模糊匹配 */
+                /** @description 关键字：MAC（无需分隔符）/DUID/owner/dept 模糊匹配 */
                 q?: string;
             };
             header?: never;
@@ -9003,6 +9033,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description 身份键（MAC 或 DUID） */
                 mac: string;
             };
             cookie?: never;
@@ -9016,7 +9047,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description 资产不存在 */
+            /** @description 资产不存在（未匹配到任何身份键） */
             404: {
                 headers: {
                     [name: string]: unknown;

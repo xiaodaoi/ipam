@@ -1,11 +1,19 @@
 Asset:
   type: object
-  description: 资产登记（MAC 为身份键，换址备注不丢；§13.4 资产登记）。
-  required: [mac, owner]
+  description: |
+    资产登记（身份键 = 归一化 MAC，或 MAC 无法解析时的 DHCPv6 DUID；换址备注不丢；§13.4 资产登记）。
+    M6-046：IPv6-only 终端只有 DUID，没有 MAC，因此身份键允许退化为 DUID。
+  required: [identity, owner]
   properties:
+    identity:
+      type: string
+      description: 身份键。归一化 MAC（aa:bb:cc:dd:ee:ff）或 DUID（小写十六进制）
     mac:
       type: string
-      description: 归一化小写冒号格式（aa:bb:cc:dd:ee:ff）
+      description: 归一化 MAC；DUID-only 终端为空
+    duid:
+      type: string
+      description: DHCPv6 DUID（小写十六进制）；MAC 可解析时也保留，供双栈关联
     orgId:
       type: string
       format: uuid
@@ -24,12 +32,15 @@ Asset:
 
 AssetUpsert:
   type: object
-  description: 创建/更新（以 MAC 幂等 upsert）
-  required: [mac, owner]
+  description: |
+    创建/更新（按身份键幂等 upsert）。`mac` 与 `duid` 至少填一个：
+    MAC 可解析时以 MAC 为身份键，否则以 DUID 为身份键（IPv6-only 终端）。
+  required: [owner]
   properties:
     mac: { type: string }
+    duid: { type: string }
     orgId: { type: string, format: uuid }
-    owner: { type: string }
+    owner: { type: string, minLength: 1 }
     dept: { type: string }
     note: { type: string, maxLength: 256 }
     tags: { type: array, items: { type: string } }
@@ -46,15 +57,28 @@ AssetList:
 
 DiscoveredTerminal:
   type: object
-  description: 未登记终端（有 DHCP 绑定/租约，但 asset 表无记录）。
-  required: [mac]
+  description: |
+    未登记终端（有 DHCP 绑定/租约，但资产表无记录）。
+    M6-046：DUID 通过 dualstack_identity 映射或 DUID-LLT/LL 链路层地址解析归并为 MAC；
+    解析不出 MAC 的 DUID（如 DUID-UUID）以 DUID 作为身份键，仍可登记。
+  required: [identity]
   properties:
-    mac: { type: string }
+    identity:
+      type: string
+      description: 身份键（MAC 优先，回退 DUID）；同设备 v4/v6 绑定已合并为一条
+    mac: { type: string, description: 归一化 MAC（DUID 无法解析时为空） }
+    duid: { type: string, description: DHCPv6 DUID（v4-only 终端为空） }
     ipv4: { type: string }
     ipv6: { type: string }
     hostname: { type: string }
-    state: { type: string, description: active/grace/conflict }
-    lastSeen: { type: string, format: date-time }
+    state: { type: string, description: active/grace（租期已过的绑定不计入） }
+    subnetId: { type: string, description: 所属子网（按地址归属取最长前缀） }
+    subnetCidr: { type: string }
+    orgId: { type: string, description: 子网所属组织（登记时可默认带入） }
+    lastSeen:
+      type: string
+      format: date-time
+      description: 最近租约开始时间（kea cltt）；用于排序，不等同链路层活跃时间
 
 DiscoveredTerminalList:
   type: object

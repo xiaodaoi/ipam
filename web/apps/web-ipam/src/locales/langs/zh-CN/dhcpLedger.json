@@ -159,7 +159,7 @@
   },
   "assets": {
     "title": "资产登记",
-    "desc": "以 MAC 为身份键登记使用人 / 部门 / 组织 / 备注，终端换址不丢；为日志中心提供「终端 → 组织」关联链。",
+    "desc": "以 MAC 或 DUID 为身份键登记使用人 / 部门 / 组织 / 备注，终端换址不丢；IPv6-only 终端（DUID）同样可登记。为日志中心提供「终端 → 组织」关联链。",
     "meta": "{total} 条资产 · 覆盖 {departments} 个部门",
     "create": "登记资产",
     "statTotal": "资产总数",
@@ -172,13 +172,13 @@
     "statTagsHint": "共 {count} 个不同标签",
     "listCard": "资产清单",
     "listCardSub": "{shown} / {total} 条",
-    "listCardHint": "以 MAC 幂等登记 · 与 IP 解耦",
-    "keywordPlaceholder": "MAC / 使用人 / 部门",
+    "listCardHint": "以 MAC / DUID 幂等登记 · 与 IP 解耦",
+    "keywordPlaceholder": "MAC（可省略冒号）/ DUID / 使用人 / 部门",
     "scopeAll": "全部资产",
     "scopeUnassigned": "未归属组织",
     "scopeTagged": "已打标签",
     "hintDecoupled": "登记信息与 IP 解耦，终端换址后保持不变",
-    "colTerminal": "终端（MAC / 备注）",
+    "colTerminal": "终端（MAC / DUID）",
     "colOwnerDept": "使用人 / 部门",
     "colOrg": "所属组织",
     "colTags": "标签",
@@ -206,7 +206,8 @@
       "dept": "部门",
       "org": "所属组织",
       "tags": "标签",
-      "note": "备注"
+      "note": "备注",
+      "duid": "DUID"
     },
     "form": {
       "mac": "MAC 地址",
@@ -219,23 +220,28 @@
       "deptPlaceholder": "部门（可选）",
       "orgPlaceholder": "选择组织（可选）",
       "tagsPlaceholder": "回车添加标签（可选）",
-      "notePlaceholder": "备注（可选）"
-    }
+      "notePlaceholder": "备注（可选）",
+      "duid": "DUID（可选）",
+      "duidPlaceholder": "IPv6-only 终端填 DUID，MAC 可留空"
+    },
+    "duidOnly": "DUID 终端",
+    "invalidDuid": "DUID 格式非法（十六进制，可含分隔符）",
+    "identityRequired": "MAC 与 DUID 至少填写一个"
   },
   "discovered": {
     "title": "未登记终端",
-    "desc": "有 DHCP 绑定/租约、但资产表尚未登记的终端。登记后即可关联使用人、部门与组织。",
+    "desc": "有 DHCP 有效租约、但资产表尚未登记的终端；DUID 会先解析为 MAC，IPv6-only 终端以 DUID 作为身份键。登记后即可关联使用人、部门与组织。",
     "meta": "最近活动 {time}",
     "statUnregistered": "未登记终端",
-    "statUnregisteredHint": "MAC 未出现在资产表",
+    "statUnregisteredHint": "不在资产表内的在线终端",
     "statV4": "有 IPv4",
-    "statV4Hint": "来自 coherence 绑定",
+    "statV4Hint": "来自 coherence 绑定（IPv4）",
     "statV6": "有 IPv6",
-    "statV6Hint": "含双栈终端",
+    "statV6Hint": "含 {count} 台 DUID-only 终端",
     "statLatest": "最近活动",
-    "statLatestHint": "按租约 cltt",
-    "listHint": "仅展示 active/grace/conflict 绑定；登记后该终端从列表移除。",
-    "keywordPlaceholder": "搜索 MAC / IP / 主机名",
+    "statLatestHint": "按租约 cltt 排序",
+    "listHint": "仅展示 active/grace 且租期未过的绑定；同一设备 v4/v6 合并为一条，登记后从列表移除。",
+    "keywordPlaceholder": "搜索 MAC / DUID / IP / 主机名 / 子网",
     "register": "登记",
     "modalTitle": "登记未登记终端",
     "loadFailed": "发现列表加载失败",
@@ -252,7 +258,6 @@
     "colLastSeen": "最近活动",
     "colActions": "操作",
     "form": {
-      "mac": "MAC",
       "ownerLabel": "使用人 / 责任人 *",
       "ownerPlaceholder": "使用人 / 责任人",
       "dept": "部门",
@@ -260,7 +265,12 @@
       "org": "所属组织",
       "orgPlaceholder": "可选",
       "note": "备注",
-      "notePlaceholder": "备注（可选）"
-    }
+      "notePlaceholder": "备注（可选）",
+      "identity": "身份"
+    },
+    "colIdentity": "终端（MAC / DUID）",
+    "colSubnet": "子网",
+    "colOrg": "所属组织",
+    "duidOnly": "DUID 终端"
   }
 }

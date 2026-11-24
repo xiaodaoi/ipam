@@ -4,14 +4,18 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/xiaodaoi/ipam/internal/module/coherence"
 )
 
-// Asset 资产登记（PG asset 表，MAC 身份键，§13.4）。
+// Asset 资产登记（PG asset 表，身份键 = MAC 或 DUID，§13.4）。
+// M6-046：IPv6-only 终端只有 DUID（coherence_binding.mac 存 DUID、ipv4=0.0.0.0），
+// 原先强制 MAC 身份键会把这类终端整个丢掉，因此身份键允许退化为 DUID。
 type Asset struct {
 	MAC   string
+	DUID  string
 	OrgID string
 	Owner string
 	Dept  string
@@ -19,25 +23,47 @@ type Asset struct {
 	Tags  []string
 }
 
-// DiscoveredTerminal 未登记终端（有租约/绑定但 asset 表无记录）。
-type DiscoveredTerminal struct {
-	MAC      string
-	IPv4     string
-	IPv6     string
-	Hostname string
-	State    string
-	LastSeen time.Time
+// Identity 身份键：优先归一化 MAC，回退 DUID。
+func (a Asset) Identity() string {
+	if a.MAC != "" {
+		return a.MAC
+	}
+	return a.DUID
 }
 
-// AssetRepo 资产持久化。
+// DiscoveredTerminal 未登记终端（有租约/绑定但 asset 表无记录）。
+type DiscoveredTerminal struct {
+	Identity   string // 身份键（MAC 优先，回退 DUID）
+	MAC        string
+	DUID       string
+	IPv4       string
+	IPv6       string
+	Hostname   string
+	State      string
+	SubnetID   string
+	SubnetCIDR string
+	OrgID      string
+	Cltt       int64 // 租约最近开始时间（unix 秒）
+	LastSeen   time.Time
+}
+
+// AssetRepo 资产持久化（按身份键读写）。
 type AssetRepo interface {
 	List(ctx context.Context, orgID, q string) ([]Asset, error)
+	Get(ctx context.Context, identity string) (Asset, bool, error)
 	Upsert(ctx context.Context, a Asset) error
-	Delete(ctx context.Context, mac string) error
+	Delete(ctx context.Context, identity string) error
 }
 
 // ErrAssetNotFound 资产不存在（404）。
 var ErrAssetNotFound = errors.New("ASSET_NOT_FOUND")
+
+// 身份键校验错误：handler 按错误值映射为 400，避免把内部错误直接回给前端。
+var (
+	ErrBadDUID     = errors.New("BAD_DUID")
+	ErrBadIdentity = errors.New("BAD_IDENTITY")
+	ErrOwnerEmpty  = errors.New("OWNER_REQUIRED")
+)
 
 // normalizeTags 规整标签数组：nil → 空数组。
 // PG asset.tags 为 NOT NULL DEFAULT '{}'，但显式传 nil 会被驱动编码为 NULL 覆盖默认值而报错（M2-048）。
@@ -48,28 +74,117 @@ func normalizeTags(tags []string) []string {
 	return tags
 }
 
-// AssetService 校验 MAC 归一化与 org 存在性。
+// NormalizeDUID 归一化 DUID 文本：小写、去分隔符；只接受偶数长度十六进制（4..128）。
+// 与 MAC 不同，DUID 长度不固定（LLT/LL = 14 字节，UUID = 18 字节），
+// 因此不能用 coherence.NormalizeMAC（它只接受 12 位 hex，会返回空串）。
+func NormalizeDUID(raw string) string {
+	var b strings.Builder
+	b.Grow(len(raw))
+	for _, r := range strings.ToLower(strings.TrimSpace(raw)) {
+		switch {
+		case r >= '0' && r <= '9', r >= 'a' && r <= 'f':
+			b.WriteRune(r)
+		case r == ':', r == '-', r == '.', r == ' ':
+			// 分隔符忽略：方便粘贴 DUID: 前缀或分组书写的值
+		default:
+			return ""
+		}
+	}
+	s := b.String()
+	if len(s) < 4 || len(s) > 128 || len(s)%2 != 0 {
+		return ""
+	}
+	return s
+}
+
+// macFromDUID 从 DUID-LLT(type 1)/DUID-LL(type 3) 推导链路层 MAC（RFC 8415 §11）。
+// 布局：类型(2B) + 硬件类型(2B) + [时间(4B)] + 链路层地址；以太网硬件类型 0001 时链路层地址为 6 字节。
+func macFromDUID(duid string) string {
+	switch {
+	case len(duid) == 28 && strings.HasPrefix(duid, "00010001"):
+		// DUID-LLT：0001 | 0001 | time(8 hex) | MAC(12 hex)
+		return coherence.NormalizeMAC(duid[16:])
+	case len(duid) == 20 && strings.HasPrefix(duid, "00030001"):
+		// DUID-LL：0003 | 0001 | MAC(12 hex)
+		return coherence.NormalizeMAC(duid[8:])
+	}
+	return ""
+}
+
+// resolveBindingIdentity 解析联动绑定的身份：MAC 优先；否则按 DUID 查映射/推导链路层地址。
+// 返回 (mac, duid)：mac 为空表示只能以 DUID 作为身份键（如 DUID-UUID）。
+func resolveBindingIdentity(raw string, duidToMAC map[string]string) (string, string) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", ""
+	}
+	if mac := coherence.NormalizeMAC(raw); mac != "" {
+		return mac, ""
+	}
+	duid := NormalizeDUID(raw)
+	if duid == "" {
+		return "", ""
+	}
+	if m := duidToMAC[duid]; m != "" {
+		if mac := coherence.NormalizeMAC(m); mac != "" {
+			return mac, duid
+		}
+	}
+	if mac := macFromDUID(duid); mac != "" {
+		return mac, duid
+	}
+	return "", duid
+}
+
+// AssetService 校验身份键与 org 存在性，并产出未登记终端。
 type AssetService struct {
-	repo AssetRepo
-	orgs OrgStore
+	repo    AssetRepo
+	orgs    OrgStore
+	mapping func(context.Context) (map[string]string, error)
 }
 
 func NewAssetService(repo AssetRepo, orgs OrgStore) *AssetService {
 	return &AssetService{repo: repo, orgs: orgs}
 }
 
-// Upsert 幂等：MAC 归一化后写入；换址不丢备注（MAC 为键）。
+// SetIdentityMapping 注入 DUID→MAC 映射源（dualstack_identity）；nil 时仅靠 DUID-LLT/LL 推导。
+func (s *AssetService) SetIdentityMapping(fn func(context.Context) (map[string]string, error)) {
+	s.mapping = fn
+}
+
+// normalizeIdentity 归一化入参：MAC 可解析则用 MAC 作身份键，否则回退合法 DUID。
+func normalizeIdentity(mac, duid string) (string, string, error) {
+	normMAC := coherence.NormalizeMAC(mac)
+	if strings.TrimSpace(mac) != "" && normMAC == "" {
+		return "", "", ErrBadMAC
+	}
+	normDUID := NormalizeDUID(duid)
+	if strings.TrimSpace(duid) != "" && normDUID == "" {
+		return "", "", ErrBadDUID
+	}
+	if normMAC == "" && normDUID == "" {
+		return "", "", ErrBadIdentity
+	}
+	return normMAC, normDUID, nil
+}
+
+// Upsert 幂等：以身份键写入；换址不丢备注。
 func (s *AssetService) Upsert(ctx context.Context, a Asset) (Asset, error) {
-	norm := coherence.NormalizeMAC(a.MAC)
-	if norm == "" {
-		return Asset{}, errors.New("BAD_MAC")
+	normMAC, normDUID, err := normalizeIdentity(a.MAC, a.DUID)
+	if err != nil {
+		return Asset{}, err
+	}
+	if strings.TrimSpace(a.Owner) == "" {
+		return Asset{}, ErrOwnerEmpty
 	}
 	if a.OrgID != "" {
 		if _, ok := s.orgs.Get(a.OrgID); !ok {
 			return Asset{}, ErrOrgNotFound2
 		}
 	}
-	a.MAC = norm
+	a.MAC = normMAC
+	a.DUID = normDUID
+	a.Owner = strings.TrimSpace(a.Owner)
 	a.Tags = normalizeTags(a.Tags)
 	if err := s.repo.Upsert(ctx, a); err != nil {
 		return Asset{}, err
@@ -77,48 +192,156 @@ func (s *AssetService) Upsert(ctx context.Context, a Asset) (Asset, error) {
 	return a, nil
 }
 
-// Delete 按 MAC 删除。
-func (s *AssetService) Delete(ctx context.Context, mac string) error {
-	return s.repo.Delete(ctx, coherence.NormalizeMAC(mac))
+// Delete 按身份键删除（MAC 或 DUID）。
+func (s *AssetService) Delete(ctx context.Context, identity string) error {
+	id := coherence.NormalizeMAC(identity)
+	if id == "" {
+		id = NormalizeDUID(identity)
+	}
+	if id == "" {
+		return ErrAssetNotFound
+	}
+	return s.repo.Delete(ctx, id)
 }
 
-// Discover 从联动绑定中筛出未登记资产（MAC 为身份键），按最近活动倒序。
+// Get 按身份键读取（审计 before 快照用）。
+func (s *AssetService) Get(ctx context.Context, identity string) (Asset, bool, error) {
+	id := coherence.NormalizeMAC(identity)
+	if id == "" {
+		id = NormalizeDUID(identity)
+	}
+	if id == "" {
+		return Asset{}, false, nil
+	}
+	return s.repo.Get(ctx, id)
+}
+
+// Discover 从联动绑定中筛出未登记资产（身份键 = MAC 优先 / DUID 回退），按最近租约倒序。
+//
+// 与旧实现的关键差异（M6-046）：
+//   - DUID 先经 dualstack_identity 映射、再按 DUID-LLT/LL 推导 MAC，IPv6-only 终端不再被丢弃；
+//   - 同一设备的 v4/v6 绑定按身份键合并为一条（地址/主机名/状态取并集）；
+//   - 只认 active/grace，且校验 cltt+valid_lft 未过期，与仪表盘在线租约口径一致。
 func (s *AssetService) Discover(ctx context.Context, bindings []LedgerBinding) ([]DiscoveredTerminal, error) {
 	assets, err := s.repo.List(ctx, "", "")
 	if err != nil {
 		return nil, err
 	}
-	known := make(map[string]struct{}, len(assets))
+	known := make(map[string]struct{}, len(assets)*2)
 	for _, a := range assets {
-		known[a.MAC] = struct{}{}
+		if a.MAC != "" {
+			known[a.MAC] = struct{}{}
+		}
+		if a.DUID != "" {
+			known[a.DUID] = struct{}{}
+		}
 	}
-	seen := map[string]struct{}{}
-	out := make([]DiscoveredTerminal, 0)
+
+	var duidToMAC map[string]string
+	if s.mapping != nil {
+		if m, err := s.mapping(ctx); err == nil {
+			duidToMAC = m
+		}
+	}
+
+	now := time.Now().Unix()
+	byID := make(map[string]*DiscoveredTerminal, len(bindings))
+	order := make([]string, 0, len(bindings))
 	for _, b := range bindings {
-		mac := coherence.NormalizeMAC(b.MAC)
-		if mac == "" || b.State == "inactive" {
+		state := strings.ToLower(strings.TrimSpace(b.State))
+		if state != "active" && state != "grace" {
 			continue
 		}
-		if _, ok := known[mac]; ok {
+		// 状态未及时翻转时按租期判定，避免"假未登记"（与 M6-045 在线租约口径一致）。
+		if b.Cltt > 0 && b.ValidLft > 0 && b.Cltt+int64(b.ValidLft) <= now {
 			continue
 		}
-		if _, ok := seen[mac]; ok {
+		mac, duid := resolveBindingIdentity(b.MAC, duidToMAC)
+		if mac == "" && duid == "" {
 			continue
 		}
-		seen[mac] = struct{}{}
-		ipv6 := b.IPv6
-		if ipv6 == "::" {
-			ipv6 = ""
+		if mac != "" {
+			if _, ok := known[mac]; ok {
+				continue
+			}
 		}
-		var lastSeen time.Time
-		if b.Cltt > 0 {
-			lastSeen = time.Unix(b.Cltt, 0).UTC()
+		if duid != "" {
+			if _, ok := known[duid]; ok {
+				continue
+			}
 		}
-		out = append(out, DiscoveredTerminal{
-			MAC: mac, IPv4: b.IPv4, IPv6: ipv6, Hostname: b.Hostname,
-			State: b.State, LastSeen: lastSeen,
-		})
+		id := mac
+		if id == "" {
+			id = duid
+		}
+		t := byID[id]
+		if t == nil {
+			t = &DiscoveredTerminal{Identity: id, MAC: mac, DUID: duid}
+			byID[id] = t
+			order = append(order, id)
+		}
+		mergeDiscovered(t, b)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].LastSeen.After(out[j].LastSeen) })
+
+	out := make([]DiscoveredTerminal, 0, len(order))
+	for _, id := range order {
+		out = append(out, *byID[id])
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].LastSeen.Equal(out[j].LastSeen) {
+			return out[i].LastSeen.After(out[j].LastSeen)
+		}
+		return out[i].Identity < out[j].Identity
+	})
 	return out, nil
+}
+
+// mergeDiscovered 合并同一身份的 v4/v6 绑定：地址/主机名/子网取首个非空，状态取最严重。
+func mergeDiscovered(t *DiscoveredTerminal, b LedgerBinding) {
+	if t.IPv4 == "" {
+		t.IPv4 = usableAddr(b.IPv4)
+	}
+	if t.IPv6 == "" {
+		t.IPv6 = usableAddr(b.IPv6)
+	}
+	if t.Hostname == "" {
+		t.Hostname = strings.TrimSpace(b.Hostname)
+	}
+	if t.SubnetID == "" && b.SubnetID != "" {
+		t.SubnetID, t.SubnetCIDR, t.OrgID = b.SubnetID, b.SubnetCIDR, b.OrgID
+	}
+	if stateRank(b.State) > stateRank(t.State) {
+		t.State = strings.ToLower(strings.TrimSpace(b.State))
+	}
+	if b.Cltt > 0 {
+		seen := time.Unix(b.Cltt, 0).UTC()
+		if seen.After(t.LastSeen) {
+			t.LastSeen = seen
+			t.Cltt = b.Cltt
+		}
+	}
+}
+
+// stateRank 冲突 > 宽限 > 活跃，用于多绑定合并时选取代表状态。
+func stateRank(state string) int {
+	switch strings.ToLower(strings.TrimSpace(state)) {
+	case "conflict":
+		return 3
+	case "grace":
+		return 2
+	case "active":
+		return 1
+	default:
+		return 0
+	}
+}
+
+// usableAddr 过滤未指定地址（0.0.0.0 / ::）与空值。
+func usableAddr(addr string) string {
+	a := strings.TrimSpace(addr)
+	switch a {
+	case "", "0.0.0.0", "::", "<nil>":
+		return ""
+	}
+	return a
 }

@@ -50,18 +50,47 @@ const orgOptions = computed(() => {
   return out;
 });
 
+/** 组织 id → 完整路径（发现列表里展示终端归属，登记后可核对） */
+const orgPathMap = computed(() => {
+  const m = new Map<string, string[]>();
+  const walk = (nodes: OrgTreeNode[], trail: string[]) => {
+    for (const n of nodes) {
+      const next = [...trail, n.name];
+      m.set(n.id, next);
+      if (n.children?.length) walk(n.children, next);
+    }
+  };
+  walk(orgTree.value, []);
+  return m;
+});
+
+function orgPathOf(orgId?: string): string {
+  return orgId ? (orgPathMap.value.get(orgId)?.join(' / ') ?? '') : '';
+}
+
 const filtered = computed(() => {
   const kw = keyword.value.trim().toLowerCase();
   if (!kw) return rows.value;
+  // 支持省略分隔符的 MAC/DUID 输入（库里是带冒号格式）。
+  const compact = kw.replaceAll(/[:\-.\s]/g, '');
   return rows.value.filter((r) =>
-    [r.mac, r.ipv4, r.ipv6, r.hostname]
+    [r.identity, r.mac, r.duid, r.ipv4, r.ipv6, r.hostname, r.subnetCidr]
       .filter(Boolean)
-      .some((v) => String(v).toLowerCase().includes(kw)),
+      .some((v) => {
+        const s = String(v).toLowerCase();
+        return (
+          s.includes(kw) ||
+          (compact.length >= 4 && s.replaceAll(':', '').includes(compact))
+        );
+      }),
   );
 });
 
 const v4Count = computed(() => rows.value.filter((r) => r.ipv4).length);
 const v6Count = computed(() => rows.value.filter((r) => r.ipv6).length);
+const duidCount = computed(
+  () => rows.value.filter((r) => !r.mac && r.duid).length,
+);
 const latestSeen = computed(() => {
   let latest = 0;
   for (const r of rows.value) {
@@ -107,14 +136,15 @@ async function loadOrgs() {
 }
 
 function openClaim(row: Partial<DiscoveredTerminal>) {
-  if (!row.mac) return;
+  if (!row.identity) return;
   claimTarget.value = row as DiscoveredTerminal;
   claimForm.owner = '';
   claimForm.dept = '';
   claimForm.note = row.hostname
     ? $t('dhcpLedger.discovered.autoNote', { hostname: row.hostname })
     : $t('dhcpLedger.discovered.autoNotePlain');
-  claimForm.orgId = undefined;
+  // 组织默认取子网归属，减少手工选择（M6-046）。
+  claimForm.orgId = row.orgId || undefined;
   claimOpen.value = true;
 }
 
@@ -127,7 +157,8 @@ async function submitClaim() {
   claimSaving.value = true;
   try {
     await upsertAsset({
-      mac: claimTarget.value.mac,
+      mac: claimTarget.value.mac || undefined,
+      duid: claimTarget.value.duid || undefined,
       owner: claimForm.owner.trim(),
       dept: claimForm.dept.trim() || undefined,
       note: claimForm.note.trim() || undefined,
@@ -149,22 +180,22 @@ async function submitClaim() {
 
 const columns = computed(() => [
   {
-    title: $t('dhcpLedger.discovered.colMac'),
-    dataIndex: 'mac',
-    key: 'mac',
-    width: 170,
+    title: $t('dhcpLedger.discovered.colIdentity'),
+    dataIndex: 'identity',
+    key: 'identity',
+    minWidth: 210,
   },
   {
     title: $t('dhcpLedger.discovered.colIpv4'),
     dataIndex: 'ipv4',
     key: 'ipv4',
-    width: 140,
+    width: 130,
   },
   {
     title: $t('dhcpLedger.discovered.colIpv6'),
     dataIndex: 'ipv6',
     key: 'ipv6',
-    width: 240,
+    minWidth: 220,
   },
   {
     title: $t('dhcpLedger.discovered.colHostname'),
@@ -173,18 +204,30 @@ const columns = computed(() => [
     ellipsis: true,
   },
   {
+    title: $t('dhcpLedger.discovered.colSubnet'),
+    dataIndex: 'subnetCidr',
+    key: 'subnetCidr',
+    minWidth: 140,
+  },
+  {
+    title: $t('dhcpLedger.discovered.colOrg'),
+    dataIndex: 'orgId',
+    key: 'orgId',
+    minWidth: 150,
+  },
+  {
     title: $t('dhcpLedger.discovered.colState'),
     dataIndex: 'state',
     key: 'state',
-    width: 100,
+    width: 90,
   },
   {
     title: $t('dhcpLedger.discovered.colLastSeen'),
     dataIndex: 'lastSeen',
     key: 'lastSeen',
-    width: 180,
+    width: 170,
   },
-  { title: $t('dhcpLedger.discovered.colActions'), key: 'actions', width: 100 },
+  { title: $t('dhcpLedger.discovered.colActions'), key: 'actions', width: 90 },
 ]);
 
 onMounted(async () => {
@@ -236,7 +279,7 @@ onMounted(async () => {
         :unit="$t('dhcpLedger.common.units.device')"
         icon="lucide:globe"
         tone="cyan"
-        :hint="$t('dhcpLedger.discovered.statV6Hint')"
+        :hint="$t('dhcpLedger.discovered.statV6Hint', { count: duidCount })"
       />
       <StatCard
         :label="$t('dhcpLedger.discovered.statLatest')"
@@ -269,19 +312,45 @@ onMounted(async () => {
         :columns="columns"
         :data-source="filtered"
         :loading="loading"
-        :pagination="{ pageSize: 20, showSizeChanger: false }"
-        row-key="mac"
+        :pagination="{ pageSize: 20, showSizeChanger: true }"
+        :row-key="(r: DiscoveredTerminal) => r.identity"
         size="small"
+        :scroll="{ x: 1180 }"
       >
         <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'mac'">
-            <span class="ipam-mono">{{ record.mac }}</span>
+          <template v-if="column.key === 'identity'">
+            <div class="ipam-cell-stack">
+              <span v-if="record.mac" class="ipam-mono">{{ record.mac }}</span>
+              <span v-else class="ipam-chip" data-tone="violet">
+                {{ $t('dhcpLedger.discovered.duidOnly') }}
+              </span>
+              <span
+                v-if="record.duid"
+                class="ipam-cell-meta ipam-mono"
+                :title="record.duid"
+              >
+                DUID {{ record.duid }}
+              </span>
+            </div>
           </template>
           <template v-else-if="column.key === 'ipv4'">
             <span class="ipam-mono">{{ record.ipv4 || '—' }}</span>
           </template>
           <template v-else-if="column.key === 'ipv6'">
             <span class="ipam-mono">{{ record.ipv6 || '—' }}</span>
+          </template>
+          <template v-else-if="column.key === 'subnetCidr'">
+            <span class="ipam-mono">{{ record.subnetCidr || '—' }}</span>
+          </template>
+          <template v-else-if="column.key === 'orgId'">
+            <span
+              v-if="record.orgId"
+              class="ipam-org-path ipam-org-path--start"
+              :title="orgPathOf(record.orgId)"
+            >
+              {{ orgPathOf(record.orgId) }}
+            </span>
+            <span v-else class="text-gray-400">—</span>
           </template>
           <template v-else-if="column.key === 'state'">
             <Tag :color="stateColor(record.state)" class="m-0">
@@ -311,9 +380,9 @@ onMounted(async () => {
       <div class="ipam-form-grid">
         <div class="ipam-form-field">
           <span class="ipam-form-field__label">{{
-            $t('dhcpLedger.discovered.form.mac')
+            $t('dhcpLedger.discovered.form.identity')
           }}</span>
-          <Input :value="claimTarget?.mac" disabled />
+          <Input :value="claimTarget?.identity" disabled />
         </div>
         <div class="ipam-form-field">
           <span class="ipam-form-field__label">{{

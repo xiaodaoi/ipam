@@ -3,7 +3,7 @@ AssetsCollection:
     operationId: listAssets
     tags: [asset]
     summary: 查询资产登记
-    description: 按组织/关键字（MAC/使用人/部门）过滤；台账页资产页签数据源。
+    description: 按组织/关键字过滤；台账页资产页签数据源。关键字支持 MAC（可省略冒号/短横线）、DUID、使用人、部门。
     security: []
     parameters:
       - name: orgId
@@ -12,7 +12,7 @@ AssetsCollection:
       - name: q
         in: query
         schema: { type: string, maxLength: 64 }
-        description: 关键字：MAC/owner/dept 模糊匹配
+        description: 关键字：MAC（无需分隔符）/DUID/owner/dept 模糊匹配
     responses:
       '200':
         description: 资产列表
@@ -25,14 +25,14 @@ AssetsCollection:
                   summary: 两条资产
                   value:
                     items:
-                      - { mac: "aa:bb:cc:dd:ee:01", owner: 张三, dept: 研发部 }
-                      - { mac: "aa:bb:cc:dd:ee:02", owner: 李四 }
+                      - { identity: "aa:bb:cc:dd:ee:01", mac: "aa:bb:cc:dd:ee:01", owner: 张三, dept: 研发部 }
+                      - { identity: "000100012df9b6d9f8a2d6c97867", duid: "000100012df9b6d9f8a2d6c97867", owner: 李四 }
                     total: 2
   put:
     operationId: upsertAsset
     tags: [asset]
-    summary: 创建/更新资产登记（MAC 幂等 upsert）
-    description: 以 MAC 为键幂等写入；换址（IP 变更）不影响备注。所需 scope 为 asset.write。支持 Idempotency-Key。
+    summary: 创建/更新资产登记（身份键幂等 upsert）
+    description: 以身份键（MAC 优先，回退 DUID）幂等写入；换址（IP 变更）不影响备注。所需 scope 为 assets:write。支持 Idempotency-Key。
     security: [{ bearerAuth: [] }]
     requestBody:
       required: true
@@ -52,26 +52,30 @@ AssetItem:
     operationId: deleteAsset
     tags: [asset]
     summary: 删除资产登记
-    description: 按 MAC 删除。所需 scope 为 asset.write。
+    description: 按身份键（MAC 或 DUID）删除；不存在返回 404。所需 scope 为 assets:write。
     security: [{ bearerAuth: [] }]
     x-risk-level: destructive
     parameters:
       - name: mac
         in: path
         required: true
+        description: 身份键（MAC 或 DUID）
         schema: { type: string }
     responses:
       '204':
         description: 已删除
       '404':
-        description: 资产不存在
+        description: 资产不存在（未匹配到任何身份键）
 
 DiscoveredTerminals:
   get:
     operationId: listDiscoveredTerminals
     tags: [asset]
     summary: 未登记终端（影子资产）
-    description: 联动绑定中有租约、但资产表未登记的 MAC；用于发现并登记。scope 为 assets:read。
+    description: |
+      联动绑定中有有效租约、但资产表未登记的设备；用于发现并登记。scope 为 assets:read。
+      DUID 会先经 dualstack_identity 或 DUID-LLT/LL 解析归并为 MAC，解析不出时以 DUID 为身份键，
+      因此 IPv6-only 终端同样可见（M6-046）。
     security: [{ bearerAuth: [] }]
     responses:
       '200':

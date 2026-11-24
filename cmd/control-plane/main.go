@@ -291,11 +291,18 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 				meta = mm
 			}
 		}
+		// 资产按身份键（MAC 优先 / DUID 回退）索引，DUID 另存别名：
+		// 台账 v6 行的 MAC 列可能仍是 DUID，两种键都要能命中（M6-046）。
 		assets := map[string]ipam.Asset{}
 		if pool != nil {
 			if list, err := ipam.NewPgAssetRepo(pool).List(ctx, "", ""); err == nil {
 				for _, a := range list {
-					assets[a.MAC] = a
+					if id := a.Identity(); id != "" {
+						assets[id] = a
+					}
+					if a.DUID != "" {
+						assets[a.DUID] = a
+					}
 				}
 			}
 		}
@@ -427,7 +434,15 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	if pool != nil {
 		assetRepo = ipam.NewPgAssetRepo(pool)
 	}
-	assetH := ipam.NewAssetHandler(ipam.NewAssetService(assetRepo, orgStore))
+	assetSvc := ipam.NewAssetService(assetRepo, orgStore)
+	// DUID→MAC 映射（dualstack_identity）：IPv6-only 终端身份解析，缺失时回退 DUID-LLT/LL 推导（M6-046）。
+	assetSvc.SetIdentityMapping(func(ctx context.Context) (map[string]string, error) {
+		if pool == nil {
+			return nil, nil
+		}
+		return ipam.LoadDUIDToMAC(ctx, pool)
+	})
+	assetH := ipam.NewAssetHandler(assetSvc)
 	assetH.SetBindingSource(func(ctx context.Context) ([]ipam.LedgerBinding, error) {
 		if pool == nil {
 			return nil, nil
@@ -1146,6 +1161,14 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 			return nil, err
 		}
 		return sn, nil
+	})
+	auditRec.RegisterBefore("/assets/:mac", func(ctx context.Context, c *gin.Context) (any, error) {
+		// 资产以 MAC 或 DUID 为身份键，删除/改名前的快照用于审计追溯（M6-046）。
+		a, ok, err := assetSvc.Get(ctx, c.Param("mac"))
+		if err != nil || !ok {
+			return nil, err
+		}
+		return a, nil
 	})
 	auditRec.RegisterBefore("/users/:userId", func(ctx context.Context, c *gin.Context) (any, error) {
 		u, ok, err := userStore.GetByID(ctx, c.Param("userId"))

@@ -3,6 +3,15 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-11-24 · 终端身份解析与未登记口径修复（M6-046）
+- **问题**：「未登记终端」只显示 108 条，而在网终端 278 台——170 台 IPv6-only 终端（`coherence_binding.mac` 实存 DUID、`ipv4=0.0.0.0`）被 `NormalizeMAC` 归一化丢弃；同时 `asset` 表以 `mac` 为主键，这类终端即使可见也无法登记。
+- **身份解析**：新增 `NormalizeDUID`（4..128 位偶数长度 hex）与 `macFromDUID`（RFC 8415 DUID-LLT/LL 链路层地址推导）；三级解析 `dualstack_identity` 映射 → DUID 启发式 → DUID 兜底身份。同一设备 v4/v6 绑定按身份键合并（地址/主机名/子网取并集，状态 conflict>grace>active，lastSeen 取最近），只认 `active/grace` 且 `cltt+valid_lft` 未过期。
+- **资产身份键**：迁移 `0051_asset_identity` 引入 `identity` 主键（MAC 优先 / DUID 回退）+ `duid` 列，`mac` 可空；`PgAssetRepo.Upsert` 在事务内处理身份漂移（先 DUID-only 登记、后解析出 MAC 时迁移为单行）。
+- **P0 修复**：MAC 搜索支持省略分隔符（`replace(lower(mac),':','')` / 内存实现同语义）；`DELETE /assets/{mac}` 按 `RowsAffected` 返回 404；审计 `RegisterBefore("/assets/:mac")` 补 before 快照；发现列表补子网/组织上下文（`LoadLedgerBindings` LATERAL 最长前缀），登记弹窗默认带入子网组织。
+- **契约/前端**：`Asset/AssetUpsert/DiscoveredTerminal` 先改 spec 再 `make gen`（identity/duid/subnetId/subnetCidr/orgId）；资产页 DUID 表单/展示/校验/CSV 列，发现页「DUID 终端」标签 + 子网/组织列 + 省略分隔符搜索；zh/en 成对，术语表补 2 条。
+- **验证**：真实栈迁移 `applied 0051_asset_identity`，`/assets/discovered` **108 → 251**（含 DUID 149、DUID-only 16、25 台双栈合并、251 条带子网/组织）；PUT DUID-only 可登记、补 MAC 后单行迁移、`q=285471c56e52` 命中、DELETE 404/204 均实测；`go test ./...`、golangci-lint、vue-tsc、i18n 三门禁、E2E **22/22** 通过。测试资产已清理（asset 表 0 行）。
+- **遗留**：批量登记 + 忽略名单；资产页 join 当前 IP/在线状态；组织筛选按子树展开；`/assets` 分页与 `pg_trgm`；CSV 导入；`lastSeen` 改取日志 `max(ts)`。
+
 ## 2026-11-23 · 统计可信度与降级可观测性（M6-045）
 - **降级保留异常**：`ch_out` 均匀抽样会连 WARN/ERROR 一起丢。降级改为 `ch_err`（非 INFO 全量）+ `ch_info→ch_sample`（INFO 1/N），ClickHouse 扇入二者；正常仍单路全量。真实模板渲染经容器内 `vector validate` 通过。
 - **租约口径收紧**：`onlineLeaseSnapshot` 只认 `active`（`grace` 单列）、`cltt+valid_lft` 未过期、子网内且非静态/保留；台账只查一次，同时产出归一化 MAC 集合供离线判定复用。

@@ -216,6 +216,34 @@ async function main() {
       }
     });
 
+    await step('终端身份解析（DUID 与未登记口径）', async () => {
+      // M6-046 回归断言：IPv6-only 终端以 DUID 存在，旧实现会整批丢弃（实测 108/278）。
+      const dash = await apiGet(page, '/dashboard?poolTopN=100', authHeader);
+      const disc = await apiGet(page, '/assets/discovered', authHeader);
+      const items = disc.items ?? [];
+      assert(items.length > 0, '未登记终端列表为空');
+      for (const it of items) {
+        assert(it.identity, `发现项缺少 identity: ${JSON.stringify(it)}`);
+        assert(it.mac || it.duid, `发现项既无 MAC 也无 DUID: ${JSON.stringify(it)}`);
+      }
+      if (dash.onlineV6 > 0) {
+        const duidItems = items.filter((i) => i.duid).length;
+        const floor = Math.floor(dash.onlineV6 * 0.5);
+        assert(
+          duidItems >= floor,
+          `DUID 终端仅 ${duidItems} 台（在线 IPv6 ${dash.onlineV6}，期望 ≥ ${floor}）——身份解析可能丢弃了 IPv6-only 终端`,
+        );
+        assert(
+          items.some((i) => !i.mac && i.duid),
+          '没有出现以 DUID 为身份键的 IPv6-only 终端',
+        );
+      }
+      assert(
+        items.some((i) => i.subnetCidr),
+        '发现项缺少子网上下文（登记时无法带出组织）',
+      );
+    });
+
     await step('首次使用向导', async () => {
       // M6-024：仪表盘入口 → 5 步只读检测 → 稍后再说收起入口。
       await waitText(page, '首次使用向导');
@@ -252,6 +280,20 @@ async function main() {
       await page.goto(urlFor('/dhcp/ledger/discovered'), { waitUntil: 'domcontentloaded' });
       await waitText(page, '未登记终端');
       await page.locator('.vxe-table:visible, .ant-table:visible, .ipam-empty:visible').first().waitFor({ timeout: 15_000 });
+      // M6-046：列表需带子网/组织上下文，且 DUID-only 终端可见（不再只显示 MAC 终端）。
+      await page.locator('.ant-table-tbody tr').first().waitFor({ timeout: 15_000 });
+      await page.getByText('所属组织').first().waitFor({ timeout: 15_000 });
+      await page.getByText('DUID 终端').first().waitFor({ timeout: 15_000 });
+    });
+
+    await step('资产登记（MAC / DUID 身份键）', async () => {
+      await page.goto(urlFor('/dhcp/ledger/assets'), { waitUntil: 'domcontentloaded' });
+      await waitText(page, '资产登记');
+      // M6-046：终端列明确区分 MAC / DUID，登记弹窗提供 DUID 字段。
+      await page.getByText('终端（MAC / DUID）').first().waitFor({ timeout: 15_000 });
+      await page.locator('button', { hasText: '登记资产' }).first().click();
+      await page.getByPlaceholder(/IPv6-only/).first().waitFor({ timeout: 15_000 });
+      await page.keyboard.press('Escape');
     });
 
     await step('租约管理 v4/v6 切换', async () => {

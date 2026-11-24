@@ -3,6 +3,7 @@ package ipam
 import (
 	"context"
 	"errors"
+	"sort"
 	"strings"
 	"sync"
 
@@ -487,12 +488,23 @@ func NewNoopKea() *NoopKea { return &NoopKea{} }
 
 func (n *NoopKea) DeploySubnet(_ context.Context, _ []Subnet, _ bool) (int, error) { return 1, nil }
 
-// LoadLedgerBindings 台账绑定源：读 PG coherence_binding（active/grace）。
+// LoadLedgerBindings 台账绑定源：读 PG coherence_binding（active/grace），
+// 并按地址归属带出最长前缀匹配的子网与组织（M6-046：未登记终端展示上下文/预填组织）。
 func LoadLedgerBindings(ctx context.Context, pool *pgxpool.Pool) ([]LedgerBinding, error) {
 	rows, err := pool.Query(ctx,
-		`SELECT coalesce(mac,''), host(ipv4), coalesce(host(ipv6),''), coalesce(hostname,''), state,
-		 coalesce(cltt,0), coalesce(valid_lft,0)
-		 FROM coherence_binding WHERE state IN ('active','grace')`)
+		`SELECT coalesce(b.mac,''), host(b.ipv4), coalesce(host(b.ipv6),''), coalesce(b.hostname,''), b.state,
+		 coalesce(b.cltt,0), coalesce(b.valid_lft,0),
+		 coalesce(s.id::text,''), coalesce(s.cidr::text,''), coalesce(s.org_id::text,'')
+		 FROM coherence_binding b
+		 LEFT JOIN LATERAL (
+		   SELECT sn.id, sn.cidr, sn.org_id
+		   FROM subnet sn
+		   WHERE (b.ipv4 <> '0.0.0.0'::inet AND b.ipv4 << sn.cidr)
+		      OR (b.ipv6 <> '::'::inet AND b.ipv6 << sn.cidr)
+		   ORDER BY masklen(sn.cidr) DESC
+		   LIMIT 1
+		 ) s ON true
+		 WHERE b.state IN ('active','grace')`)
 	if err != nil {
 		return nil, err
 	}
@@ -500,8 +512,29 @@ func LoadLedgerBindings(ctx context.Context, pool *pgxpool.Pool) ([]LedgerBindin
 	out := []LedgerBinding{}
 	for rows.Next() {
 		var b LedgerBinding
-		if err := rows.Scan(&b.MAC, &b.IPv4, &b.IPv6, &b.Hostname, &b.State, &b.Cltt, &b.ValidLft); err == nil {
+		if err := rows.Scan(&b.MAC, &b.IPv4, &b.IPv6, &b.Hostname, &b.State, &b.Cltt, &b.ValidLft,
+			&b.SubnetID, &b.SubnetCIDR, &b.OrgID); err == nil {
 			out = append(out, b)
+		}
+	}
+	return out, rows.Err()
+}
+
+// LoadDUIDToMAC 读 dualstack_identity 的 DUID→MAC 映射（未登记终端身份解析，M6-046）。
+func LoadDUIDToMAC(ctx context.Context, pool *pgxpool.Pool) (map[string]string, error) {
+	rows, err := pool.Query(ctx, `SELECT duid, mac FROM dualstack_identity`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var duid, mac string
+		if err := rows.Scan(&duid, &mac); err != nil {
+			return nil, err
+		}
+		if d := NormalizeDUID(duid); d != "" {
+			out[d] = mac
 		}
 	}
 	return out, rows.Err()
@@ -518,29 +551,102 @@ func (r *MemAssetRepo) List(_ context.Context, orgID, q string) ([]Asset, error)
 		if orgID != "" && a.OrgID != orgID {
 			continue
 		}
-		if q != "" && !strings.Contains(a.MAC, q) && !strings.Contains(a.Owner, q) && !strings.Contains(a.Dept, q) {
+		if q != "" && !assetMatchesQuery(a, q) {
 			continue
 		}
 		out = append(out, a)
 	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Identity() < out[j].Identity() })
 	return out, nil
 }
-func (r *MemAssetRepo) Upsert(_ context.Context, a Asset) error {
-	r.items[a.MAC] = a
-	return nil
+
+func (r *MemAssetRepo) Get(_ context.Context, identity string) (Asset, bool, error) {
+	a, ok := r.items[identity]
+	if ok {
+		return a, true, nil
+	}
+	for _, a := range r.items {
+		if a.MAC == identity || (a.DUID != "" && a.DUID == identity) {
+			return a, true, nil
+		}
+	}
+	return Asset{}, false, nil
 }
-func (r *MemAssetRepo) Delete(_ context.Context, mac string) error {
-	delete(r.items, mac)
+
+func (r *MemAssetRepo) Upsert(_ context.Context, a Asset) error {
+	id := a.Identity()
+	// 身份键漂移（原 DUID-only 后解析出 MAC）：删除旧键上的记录，避免同一设备两条。
+	for key, old := range r.items {
+		if key == id {
+			continue
+		}
+		if (a.MAC != "" && old.MAC == a.MAC) || (a.DUID != "" && old.DUID == a.DUID) {
+			delete(r.items, key)
+		}
+	}
+	r.items[id] = a
 	return nil
 }
 
-// PgAssetRepo PG 实现。
+func (r *MemAssetRepo) Delete(_ context.Context, identity string) error {
+	if _, ok := r.items[identity]; ok {
+		delete(r.items, identity)
+		return nil
+	}
+	for key, a := range r.items {
+		if a.MAC == identity || (a.DUID != "" && a.DUID == identity) {
+			delete(r.items, key)
+			return nil
+		}
+	}
+	return ErrAssetNotFound
+}
+
+// assetMatchesQuery 关键字匹配：MAC/DUID 支持省略分隔符输入（库里存的是带冒号 MAC）。
+func assetMatchesQuery(a Asset, q string) bool {
+	kw := strings.ToLower(strings.TrimSpace(q))
+	if kw == "" {
+		return true
+	}
+	hay := []string{strings.ToLower(a.MAC), strings.ToLower(a.DUID), strings.ToLower(a.Owner), strings.ToLower(a.Dept)}
+	for _, h := range hay {
+		if h != "" && strings.Contains(h, kw) {
+			return true
+		}
+	}
+	compact := compactIdentity(q)
+	if len(compact) < 4 {
+		return false
+	}
+	for _, h := range hay[:2] {
+		if strings.Contains(strings.ReplaceAll(h, ":", ""), compact) {
+			return true
+		}
+	}
+	return false
+}
+
+// compactIdentity 提取关键字中的十六进制片段（用于忽略 : - . 与空格的分隔差异）。
+func compactIdentity(q string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(q) {
+		switch {
+		case r >= '0' && r <= '9', r >= 'a' && r <= 'f':
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// PgAssetRepo PG 实现（asset.identity 为身份键；mac/duid 各自唯一）。
 type PgAssetRepo struct{ pool *pgxpool.Pool }
 
 func NewPgAssetRepo(pool *pgxpool.Pool) *PgAssetRepo { return &PgAssetRepo{pool: pool} }
 
+const assetCols = `coalesce(mac,''), coalesce(duid,''), coalesce(org_id::text,''), coalesce(owner,''), coalesce(dept,''), coalesce(note,''), coalesce(tags,'{}')`
+
 func (r *PgAssetRepo) List(ctx context.Context, orgID, q string) ([]Asset, error) {
-	sql := `SELECT mac, coalesce(org_id::text,''), coalesce(owner,''), coalesce(dept,''), coalesce(note,''), coalesce(tags,'{}') FROM asset WHERE true`
+	sql := `SELECT ` + assetCols + ` FROM asset WHERE true`
 	var args []any
 	if orgID != "" {
 		args = append(args, orgID)
@@ -548,8 +654,16 @@ func (r *PgAssetRepo) List(ctx context.Context, orgID, q string) ([]Asset, error
 	}
 	if q != "" {
 		args = append(args, "%"+q+"%")
-		sql += ` AND (mac ILIKE $` + fmt1(len(args)) + ` OR owner ILIKE $` + fmt1(len(args)) + ` OR dept ILIKE $` + fmt1(len(args)) + `)`
+		like := fmt1(len(args))
+		sql += ` AND (mac ILIKE $` + like + ` OR duid ILIKE $` + like + ` OR owner ILIKE $` + like + ` OR dept ILIKE $` + like
+		// MAC 允许省略分隔符输入：replace(mac,':','') 与压缩后的关键字比较（M6-046）。
+		if compact := compactIdentity(q); len(compact) >= 4 {
+			args = append(args, "%"+compact+"%")
+			sql += ` OR replace(lower(mac), ':', '') LIKE $` + fmt1(len(args))
+		}
+		sql += `)`
 	}
+	sql += ` ORDER BY identity`
 	rows, err := r.pool.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, err
@@ -559,7 +673,7 @@ func (r *PgAssetRepo) List(ctx context.Context, orgID, q string) ([]Asset, error
 	for rows.Next() {
 		var a Asset
 		var tags []string
-		if err := rows.Scan(&a.MAC, &a.OrgID, &a.Owner, &a.Dept, &a.Note, &tags); err == nil {
+		if err := rows.Scan(&a.MAC, &a.DUID, &a.OrgID, &a.Owner, &a.Dept, &a.Note, &tags); err == nil {
 			a.Tags = tags
 			out = append(out, a)
 		}
@@ -567,19 +681,67 @@ func (r *PgAssetRepo) List(ctx context.Context, orgID, q string) ([]Asset, error
 	return out, rows.Err()
 }
 
+func (r *PgAssetRepo) Get(ctx context.Context, identity string) (Asset, bool, error) {
+	var a Asset
+	var tags []string
+	err := r.pool.QueryRow(ctx,
+		`SELECT `+assetCols+` FROM asset WHERE identity=$1 OR mac=$1 OR duid=$1 LIMIT 1`, identity).
+		Scan(&a.MAC, &a.DUID, &a.OrgID, &a.Owner, &a.Dept, &a.Note, &tags)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Asset{}, false, nil
+	}
+	if err != nil {
+		return Asset{}, false, err
+	}
+	a.Tags = tags
+	return a, true, nil
+}
+
 func (r *PgAssetRepo) Upsert(ctx context.Context, a Asset) error {
 	// tags 列为 NOT NULL DEFAULT '{}'：显式传 nil 会被编码为 NULL 覆盖默认值而报错，统一规整为空数组。
 	tags := normalizeTags(a.Tags)
-	_, err := r.pool.Exec(ctx,
-		`INSERT INTO asset(mac, org_id, owner, dept, note, tags, updated_at)
-		 VALUES($1,$2,$3,$4,$5,$6,now())
-		 ON CONFLICT (mac) DO UPDATE SET org_id=EXCLUDED.org_id, owner=EXCLUDED.owner,
-		   dept=EXCLUDED.dept, note=EXCLUDED.note, tags=EXCLUDED.tags, updated_at=now()`,
-		a.MAC, nullStr(a.OrgID), a.Owner, nullStr(a.Dept), nullStr(a.Note), tags)
-	return err
+	id := a.Identity()
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// 身份键漂移合并：DUID-only 旧行在解析出 MAC 后，迁移到 MAC 身份；若 MAC 行已存在则删除旧行。
+	if a.DUID != "" && a.MAC != "" {
+		if _, err := tx.Exec(ctx,
+			`DELETE FROM asset WHERE duid=$1 AND identity<>$2
+			   AND EXISTS (SELECT 1 FROM asset x WHERE x.mac=$2)`, a.DUID, id); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx,
+			`UPDATE asset SET identity=$1, mac=$2 WHERE duid=$3 AND identity<>$1`, id, a.MAC, a.DUID); err != nil {
+			return err
+		}
+	}
+
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO asset(identity, mac, duid, org_id, owner, dept, note, tags, updated_at)
+		 VALUES($1,$2,$3,$4,$5,$6,$7,$8,now())
+		 ON CONFLICT (identity) DO UPDATE SET
+		   mac=coalesce(EXCLUDED.mac, asset.mac),
+		   duid=coalesce(EXCLUDED.duid, asset.duid),
+		   org_id=EXCLUDED.org_id, owner=EXCLUDED.owner, dept=EXCLUDED.dept,
+		   note=EXCLUDED.note, tags=EXCLUDED.tags, updated_at=now()`,
+		id, nullStr(a.MAC), nullStr(a.DUID), nullStr(a.OrgID), a.Owner,
+		nullStr(a.Dept), nullStr(a.Note), tags); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
-func (r *PgAssetRepo) Delete(ctx context.Context, mac string) error {
-	_, err := r.pool.Exec(ctx, `DELETE FROM asset WHERE mac=$1`, mac)
-	return err
+func (r *PgAssetRepo) Delete(ctx context.Context, identity string) error {
+	tag, err := r.pool.Exec(ctx, `DELETE FROM asset WHERE identity=$1 OR mac=$1 OR duid=$1`, identity)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrAssetNotFound
+	}
+	return nil
 }
