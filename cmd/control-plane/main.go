@@ -295,7 +295,7 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		// 台账 v6 行的 MAC 列可能仍是 DUID，两种键都要能命中（M6-046）。
 		assets := map[string]ipam.Asset{}
 		if pool != nil {
-			if list, err := ipam.NewPgAssetRepo(pool).List(ctx, "", ""); err == nil {
+			if list, err := ipam.NewPgAssetRepo(pool).List(ctx, nil, ""); err == nil {
 				for _, a := range list {
 					if id := a.Identity(); id != "" {
 						assets[id] = a
@@ -435,6 +435,12 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		assetRepo = ipam.NewPgAssetRepo(pool)
 	}
 	assetSvc := ipam.NewAssetService(assetRepo, orgStore)
+	// 忽略名单（M6-047）：打印机/AP 等无需登记资产的终端，抑制后发现列表只增不减。
+	var ignoredRepo ipam.IgnoredRepo = ipam.NewMemIgnoredRepo()
+	if pool != nil {
+		ignoredRepo = ipam.NewPgIgnoredRepo(pool)
+	}
+	assetSvc.SetIgnoredRepo(ignoredRepo)
 	// DUID→MAC 映射（dualstack_identity）：IPv6-only 终端身份解析，缺失时回退 DUID-LLT/LL 推导（M6-046）。
 	assetSvc.SetIdentityMapping(func(ctx context.Context) (map[string]string, error) {
 		if pool == nil {

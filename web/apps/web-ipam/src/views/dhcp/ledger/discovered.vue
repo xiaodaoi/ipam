@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import type { DiscoveredTerminal, OrgTreeNode } from '#/api/ipam';
+import type {
+  AssetUpsert,
+  DiscoveredTerminal,
+  IgnoredTerminal,
+  OrgTreeNode,
+} from '#/api/ipam';
 
 import { computed, onMounted, reactive, ref } from 'vue';
 
@@ -11,12 +16,21 @@ import {
   Input,
   message,
   Modal,
+  Popconfirm,
   Select,
   Table,
   Tag,
 } from 'ant-design-vue';
 
-import { listDiscoveredTerminals, listOrgTree, upsertAsset } from '#/api/ipam';
+import {
+  bulkUpsertAssets,
+  deleteIgnoredTerminal,
+  ignoreTerminal,
+  listDiscoveredTerminals,
+  listIgnoredTerminals,
+  listOrgTree,
+  upsertAsset,
+} from '#/api/ipam';
 import PageHeader from '#/components/page-header.vue';
 import StatCard from '#/components/stat-card.vue';
 import { $t } from '#/locales';
@@ -37,6 +51,31 @@ const claimForm = reactive({
   orgId: undefined as string | undefined,
   owner: '',
 });
+
+// ── 多选批量登记（M6-047）──
+const selectedKeys = ref<string[]>([]);
+const bulkOpen = ref(false);
+const bulkSaving = ref(false);
+const bulkForm = reactive({
+  dept: '',
+  orgId: undefined as string | undefined,
+  owner: '',
+});
+
+// ── 忽略名单（M6-047）──
+const ignoredOpen = ref(false);
+const ignoredLoading = ref(false);
+const ignoredRows = ref<IgnoredTerminal[]>([]);
+
+const selectedRows = computed(() =>
+  rows.value.filter((r) => selectedKeys.value.includes(r.identity)),
+);
+const rowSelection = computed(() => ({
+  selectedRowKeys: selectedKeys.value,
+  onChange: (keys: (number | string)[]) => {
+    selectedKeys.value = keys.map(String);
+  },
+}));
 
 const orgOptions = computed(() => {
   const out: { label: string; value: string }[] = [];
@@ -116,6 +155,9 @@ async function load() {
   try {
     const res = await listDiscoveredTerminals();
     rows.value = res.items ?? [];
+    // 已登记/已忽略的终端会从列表消失，同步剔除失效的选中项。
+    const alive = new Set(rows.value.map((r) => r.identity));
+    selectedKeys.value = selectedKeys.value.filter((k) => alive.has(k));
   } catch (error) {
     message.error(
       error instanceof Error
@@ -132,6 +174,142 @@ async function loadOrgs() {
     orgTree.value = await listOrgTree();
   } catch {
     orgTree.value = [];
+  }
+}
+
+async function loadIgnored() {
+  ignoredLoading.value = true;
+  try {
+    const res = await listIgnoredTerminals();
+    ignoredRows.value = res.items ?? [];
+  } catch {
+    ignoredRows.value = [];
+  } finally {
+    ignoredLoading.value = false;
+  }
+}
+
+function openIgnored() {
+  ignoredOpen.value = true;
+  void loadIgnored();
+}
+
+function openBulk() {
+  if (selectedRows.value.length === 0) return;
+  bulkForm.owner = '';
+  bulkForm.dept = '';
+  // 选中终端同属一个子网组织时默认带入，否则留空由用户选择。
+  const orgIds = new Set(selectedRows.value.map((r) => r.orgId ?? ''));
+  bulkForm.orgId =
+    orgIds.size === 1 ? (selectedRows.value[0]?.orgId ?? undefined) : undefined;
+  bulkOpen.value = true;
+}
+
+async function submitBulk() {
+  if (!bulkForm.owner.trim()) {
+    message.warning($t('dhcpLedger.discovered.ownerRequired'));
+    return;
+  }
+  const owner = bulkForm.owner.trim();
+  const dept = bulkForm.dept.trim() || undefined;
+  const items: AssetUpsert[] = selectedRows.value.map((r) => ({
+    mac: r.mac || undefined,
+    duid: r.duid || undefined,
+    owner,
+    dept,
+    orgId: bulkForm.orgId,
+    note: r.hostname
+      ? $t('dhcpLedger.discovered.autoNote', { hostname: r.hostname })
+      : undefined,
+  }));
+  bulkSaving.value = true;
+  try {
+    const res = await bulkUpsertAssets(items);
+    if (res.failures?.length) {
+      message.warning(
+        $t('dhcpLedger.discovered.bulkPartial', {
+          failed: res.failures.length,
+          saved: res.saved,
+        }),
+      );
+    } else {
+      message.success(
+        $t('dhcpLedger.discovered.bulkDone', { count: res.saved }),
+      );
+    }
+    bulkOpen.value = false;
+    selectedKeys.value = [];
+    await load();
+  } catch (error) {
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dhcpLedger.discovered.registerFailed'),
+    );
+  } finally {
+    bulkSaving.value = false;
+  }
+}
+
+/** 忽略：无需登记资产的打印机/AP 等，抑制后发现列表不再出现。 */
+async function ignoreRow(row: DiscoveredTerminal) {
+  try {
+    await ignoreTerminal({
+      mac: row.mac || undefined,
+      duid: row.duid || undefined,
+    });
+    message.success($t('dhcpLedger.discovered.ignoredDone'));
+    selectedKeys.value = selectedKeys.value.filter((k) => k !== row.identity);
+    await Promise.all([load(), loadIgnored()]);
+  } catch (error) {
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dhcpLedger.discovered.ignoreFailed'),
+    );
+  }
+}
+
+async function ignoreSelected() {
+  const targets = [...selectedRows.value];
+  let failed = 0;
+  for (const row of targets) {
+    try {
+      await ignoreTerminal({
+        mac: row.mac || undefined,
+        duid: row.duid || undefined,
+      });
+    } catch {
+      failed += 1;
+    }
+  }
+  if (failed > 0) {
+    message.warning(
+      $t('dhcpLedger.discovered.ignorePartial', {
+        failed,
+        saved: targets.length - failed,
+      }),
+    );
+  } else {
+    message.success(
+      $t('dhcpLedger.discovered.ignoreDone', { count: targets.length }),
+    );
+  }
+  selectedKeys.value = [];
+  await Promise.all([load(), loadIgnored()]);
+}
+
+async function restoreIgnored(it: IgnoredTerminal) {
+  try {
+    await deleteIgnoredTerminal(it.identity);
+    message.success($t('dhcpLedger.discovered.restored'));
+    await Promise.all([load(), loadIgnored()]);
+  } catch (error) {
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dhcpLedger.discovered.restoreFailed'),
+    );
   }
 }
 
@@ -227,11 +405,40 @@ const columns = computed(() => [
     key: 'lastSeen',
     width: 170,
   },
-  { title: $t('dhcpLedger.discovered.colActions'), key: 'actions', width: 90 },
+  {
+    title: $t('dhcpLedger.discovered.colActions'),
+    key: 'actions',
+    width: 150,
+  },
+]);
+
+const ignoredColumns = computed(() => [
+  {
+    title: $t('dhcpLedger.discovered.colIdentity'),
+    dataIndex: 'identity',
+    key: 'identity',
+    minWidth: 220,
+  },
+  {
+    title: $t('dhcpLedger.discovered.colReason'),
+    dataIndex: 'reason',
+    key: 'reason',
+  },
+  {
+    title: $t('dhcpLedger.discovered.colIgnoredAt'),
+    dataIndex: 'createdAt',
+    key: 'createdAt',
+    width: 170,
+  },
+  {
+    title: $t('dhcpLedger.discovered.colActions'),
+    key: 'actions',
+    width: 80,
+  },
 ]);
 
 onMounted(async () => {
-  await Promise.all([load(), loadOrgs()]);
+  await Promise.all([load(), loadOrgs(), loadIgnored()]);
 });
 </script>
 
@@ -296,6 +503,33 @@ onMounted(async () => {
           $t('dhcpLedger.discovered.listHint')
         }}</span>
         <span class="ipam-toolbar__spacer"></span>
+        <template v-if="selectedKeys.length > 0">
+          <Button type="primary" size="small" @click="openBulk">
+            {{
+              $t('dhcpLedger.discovered.bulkRegister', {
+                count: selectedKeys.length,
+              })
+            }}
+          </Button>
+          <Popconfirm
+            :title="$t('dhcpLedger.discovered.ignoreSelectedTitle')"
+            :ok-text="$t('dhcpLedger.discovered.ignore')"
+            :cancel-text="$t('dhcpLedger.common.cancel')"
+            @confirm="ignoreSelected"
+          >
+            <Button size="small">
+              {{
+                $t('dhcpLedger.discovered.ignoreSelected', {
+                  count: selectedKeys.length,
+                })
+              }}
+            </Button>
+          </Popconfirm>
+        </template>
+        <Button size="small" @click="openIgnored">
+          {{ $t('dhcpLedger.discovered.ignoredList') }}
+          <span v-if="ignoredRows.length > 0">({{ ignoredRows.length }})</span>
+        </Button>
         <Input
           v-model:value="keyword"
           allow-clear
@@ -314,8 +548,9 @@ onMounted(async () => {
         :loading="loading"
         :pagination="{ pageSize: 20, showSizeChanger: true }"
         :row-key="(r: DiscoveredTerminal) => r.identity"
+        :row-selection="rowSelection"
         size="small"
-        :scroll="{ x: 1180 }"
+        :scroll="{ x: 1260 }"
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'identity'">
@@ -361,9 +596,22 @@ onMounted(async () => {
             {{ fmtTime(record.lastSeen) }}
           </template>
           <template v-else-if="column.key === 'actions'">
-            <Button size="small" type="link" @click="openClaim(record)">
-              {{ $t('dhcpLedger.discovered.register') }}
-            </Button>
+            <div class="flex items-center gap-1">
+              <Button size="small" type="link" @click="openClaim(record)">
+                {{ $t('dhcpLedger.discovered.register') }}
+              </Button>
+              <Popconfirm
+                :title="$t('dhcpLedger.discovered.ignoreConfirmTitle')"
+                :description="$t('dhcpLedger.discovered.ignoreConfirmDesc')"
+                :ok-text="$t('dhcpLedger.discovered.ignore')"
+                :cancel-text="$t('dhcpLedger.common.cancel')"
+                @confirm="ignoreRow(record as DiscoveredTerminal)"
+              >
+                <Button size="small" type="link" danger>
+                  {{ $t('dhcpLedger.discovered.ignore') }}
+                </Button>
+              </Popconfirm>
+            </div>
           </template>
         </template>
       </Table>
@@ -423,6 +671,92 @@ onMounted(async () => {
           />
         </div>
       </div>
+    </Modal>
+
+    <Modal
+      v-model:open="bulkOpen"
+      :title="
+        $t('dhcpLedger.discovered.bulkTitle', { count: selectedKeys.length })
+      "
+      :ok-text="$t('dhcpLedger.discovered.bulkSubmit')"
+      :cancel-text="$t('dhcpLedger.common.cancel')"
+      :confirm-loading="bulkSaving"
+      @ok="submitBulk"
+    >
+      <div class="ipam-hint mb-2">
+        {{ $t('dhcpLedger.discovered.bulkHint') }}
+      </div>
+      <div class="ipam-form-grid">
+        <div class="ipam-form-field">
+          <span class="ipam-form-field__label">{{
+            $t('dhcpLedger.discovered.form.ownerLabel')
+          }}</span>
+          <Input
+            v-model:value="bulkForm.owner"
+            :placeholder="$t('dhcpLedger.discovered.form.ownerPlaceholder')"
+          />
+        </div>
+        <div class="ipam-form-field">
+          <span class="ipam-form-field__label">{{
+            $t('dhcpLedger.discovered.form.dept')
+          }}</span>
+          <Input
+            v-model:value="bulkForm.dept"
+            :placeholder="$t('dhcpLedger.discovered.form.deptPlaceholder')"
+          />
+        </div>
+        <div class="ipam-form-field">
+          <span class="ipam-form-field__label">{{
+            $t('dhcpLedger.discovered.form.org')
+          }}</span>
+          <Select
+            v-model:value="bulkForm.orgId"
+            allow-clear
+            :options="orgOptions"
+            :placeholder="$t('dhcpLedger.discovered.form.orgPlaceholder')"
+          />
+        </div>
+      </div>
+    </Modal>
+
+    <Modal
+      v-model:open="ignoredOpen"
+      :footer="null"
+      :title="$t('dhcpLedger.discovered.ignoredTitle')"
+      :width="760"
+    >
+      <div class="ipam-hint mb-2">
+        {{ $t('dhcpLedger.discovered.ignoredHint') }}
+      </div>
+      <Table
+        :columns="ignoredColumns"
+        :data-source="ignoredRows"
+        :loading="ignoredLoading"
+        :pagination="{ pageSize: 10 }"
+        :row-key="(r: IgnoredTerminal) => r.identity"
+        size="small"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'identity'">
+            <span class="ipam-mono">{{ record.mac || record.duid }}</span>
+          </template>
+          <template v-else-if="column.key === 'reason'">
+            {{ record.reason || '—' }}
+          </template>
+          <template v-else-if="column.key === 'createdAt'">
+            {{ fmtTime(record.createdAt) }}
+          </template>
+          <template v-else-if="column.key === 'actions'">
+            <Button
+              size="small"
+              type="link"
+              @click="restoreIgnored(record as IgnoredTerminal)"
+            >
+              {{ $t('dhcpLedger.discovered.restore') }}
+            </Button>
+          </template>
+        </template>
+      </Table>
     </Modal>
   </div>
 </template>

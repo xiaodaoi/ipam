@@ -3,6 +3,16 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-11-24 · 未登记终端批量登记、忽略名单与资产在线视图（M6-047）
+- **批量登记**：新增 `POST /assets/bulk`（上限 500，逐条校验写入、失败项按 index+code 返回，部分成功不回滚）；发现页多选后统一填使用人/部门/组织。
+- **忽略名单**：迁移 `0052_asset_ignore` + `GET/PUT /assets/ignored`、`DELETE /assets/ignored/{identity}`；`Discover` 同时按 MAC/DUID/identity 抑制（先按 DUID 忽略、后解析出 MAC 仍生效），可恢复。
+- **资产在线视图**：`GET /assets` 服务端 join 联动绑定，返回 `ipv4/ipv6/state/online/lastSeen` 与 `onlineCount`，支持 `online=true|false`；`online` 与仪表盘在线租约同口径（active 且租期未过），`state` 取 conflict>grace>active。
+- **组织子树筛选**：`GET /assets?orgId=` 按子树展开（与日志中心一致），未知组织返回空；`AssetRepo.List` 改收子树 ID 集合。
+- **回归修复**：`logquery.PgOrgExpander` 在 `asset.mac` 可空后扫描 NULL 会 500，改为 `coalesce` + 跳过空串；内存展开器跳过 DUID-only 资产的空 MAC。
+- **前端**：发现页多选批量登记、行内/批量忽略、忽略名单弹窗与恢复；资产页新增「当前地址/在线状态」列与在线筛选，统计卡改「在线终端（离线 N）」，CSV 增 IPv4/IPv6/在线列；zh/en 成对，术语表补 2 条。
+- **验证**：真实栈 `discovered 246`；批量 3 项（1 非法）= saved 2 / index=2 BAD_MAC；在线筛选 2/0；忽略 246→243、恢复 244；组织子树 2/1/0；清理后 asset=0、asset_ignore=0；`go test ./...`、golangci-lint 0 issues、vue-tsc、i18n 三门禁、E2E **23/23**。
+- **遗留**：忽略原因暂无输入框（接口已支持）；`/assets` 仍前端分页、未加 `pg_trgm`；组织筛选在 PG 侧可进一步改 `org_group.path` 子查询；忽略操作未入审计。
+
 ## 2026-11-24 · 终端身份解析与未登记口径修复（M6-046）
 - **问题**：「未登记终端」只显示 108 条，而在网终端 278 台——170 台 IPv6-only 终端（`coherence_binding.mac` 实存 DUID、`ipv4=0.0.0.0`）被 `NormalizeMAC` 归一化丢弃；同时 `asset` 表以 `mac` 为主键，这类终端即使可见也无法登记。
 - **身份解析**：新增 `NormalizeDUID`（4..128 位偶数长度 hex）与 `macFromDUID`（RFC 8415 DUID-LLT/LL 链路层地址推导）；三级解析 `dualstack_identity` 映射 → DUID 启发式 → DUID 兜底身份。同一设备 v4/v6 绑定按身份键合并（地址/主机名/子网取并集，状态 conflict>grace>active，lastSeen 取最近），只认 `active/grace` 且 `cltt+valid_lft` 未过期。

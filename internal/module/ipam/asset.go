@@ -48,8 +48,9 @@ type DiscoveredTerminal struct {
 }
 
 // AssetRepo 资产持久化（按身份键读写）。
+// orgIDs 为组织子树展开后的节点集合（空=不过滤），M6-047 起与日志中心组织口径一致。
 type AssetRepo interface {
-	List(ctx context.Context, orgID, q string) ([]Asset, error)
+	List(ctx context.Context, orgIDs []string, q string) ([]Asset, error)
 	Get(ctx context.Context, identity string) (Asset, bool, error)
 	Upsert(ctx context.Context, a Asset) error
 	Delete(ctx context.Context, identity string) error
@@ -57,6 +58,42 @@ type AssetRepo interface {
 
 // ErrAssetNotFound 资产不存在（404）。
 var ErrAssetNotFound = errors.New("ASSET_NOT_FOUND")
+
+// ErrIgnoredNotFound 忽略名单中不存在该身份键（404）。
+var ErrIgnoredNotFound = errors.New("IGNORED_NOT_FOUND")
+
+// IgnoredTerminal 忽略名单条目：无需登记资产的终端（打印机/AP/临时设备）。
+type IgnoredTerminal struct {
+	Identity  string
+	MAC       string
+	DUID      string
+	Reason    string
+	CreatedAt time.Time
+}
+
+// IgnoredRepo 忽略名单持久化（按身份键幂等）。
+type IgnoredRepo interface {
+	List(ctx context.Context) ([]IgnoredTerminal, error)
+	Upsert(ctx context.Context, it IgnoredTerminal) error
+	Delete(ctx context.Context, identity string) error
+}
+
+// AssetLease 资产当前租约视图（只读，由联动绑定归并得出）。
+type AssetLease struct {
+	IPv4     string
+	IPv6     string
+	State    string
+	Online   bool
+	LastSeen time.Time
+}
+
+// AssetBulkError 批量登记单行失败（index 0 起）。
+type AssetBulkError struct {
+	Index    int
+	Identity string
+	Code     string
+	Message  string
+}
 
 // 身份键校验错误：handler 按错误值映射为 400，避免把内部错误直接回给前端。
 var (
@@ -140,6 +177,7 @@ func resolveBindingIdentity(raw string, duidToMAC map[string]string) (string, st
 type AssetService struct {
 	repo    AssetRepo
 	orgs    OrgStore
+	ignored IgnoredRepo
 	mapping func(context.Context) (map[string]string, error)
 }
 
@@ -150,6 +188,167 @@ func NewAssetService(repo AssetRepo, orgs OrgStore) *AssetService {
 // SetIdentityMapping 注入 DUID→MAC 映射源（dualstack_identity）；nil 时仅靠 DUID-LLT/LL 推导。
 func (s *AssetService) SetIdentityMapping(fn func(context.Context) (map[string]string, error)) {
 	s.mapping = fn
+}
+
+// SetIgnoredRepo 注入忽略名单仓储（M6-047）；nil 时 Discover 不做忽略过滤。
+func (s *AssetService) SetIgnoredRepo(r IgnoredRepo) { s.ignored = r }
+
+// subtreeOrgIDs 组织子树展开（含自身）；orgID 为空返回 nil（不过滤）。
+func (s *AssetService) subtreeOrgIDs(orgID string) []string {
+	if orgID == "" || s.orgs == nil {
+		return nil
+	}
+	if _, ok := s.orgs.Get(orgID); !ok {
+		return []string{}
+	}
+	return subtreeIDs(s.orgs.List(), orgID)
+}
+
+// List 资产列表：组织按子树展开（与日志中心一致），关键字匹配 MAC/DUID/使用人/部门。
+func (s *AssetService) List(ctx context.Context, orgID, q string) ([]Asset, error) {
+	return s.repo.List(ctx, s.subtreeOrgIDs(orgID), q)
+}
+
+// BulkUpsert 批量登记：逐条校验与写入（部分成功），失败项按 index 返回。
+// 不做整体回滚——批量登记时不应因一行格式错误把其余全部回退。
+func (s *AssetService) BulkUpsert(ctx context.Context, items []Asset) (int, []AssetBulkError) {
+	saved := 0
+	failures := []AssetBulkError{}
+	for i, a := range items {
+		if _, err := s.Upsert(ctx, a); err != nil {
+			failures = append(failures, AssetBulkError{
+				Index: i, Identity: a.Identity(), Code: assetErrCode(err), Message: err.Error(),
+			})
+			continue
+		}
+		saved++
+	}
+	return saved, failures
+}
+
+// assetErrCode 把域内错误映射为稳定的失败码（批量结果与单条 400 共用语义）。
+func assetErrCode(err error) string {
+	switch {
+	case errors.Is(err, ErrBadMAC):
+		return "BAD_MAC"
+	case errors.Is(err, ErrBadDUID):
+		return "BAD_DUID"
+	case errors.Is(err, ErrBadIdentity):
+		return "BAD_IDENTITY"
+	case errors.Is(err, ErrOwnerEmpty):
+		return "OWNER_REQUIRED"
+	case errors.Is(err, ErrOrgNotFound2):
+		return "ORG_NOT_FOUND"
+	default:
+		return "DB_ERROR"
+	}
+}
+
+// ListIgnored 忽略名单。
+func (s *AssetService) ListIgnored(ctx context.Context) ([]IgnoredTerminal, error) {
+	if s.ignored == nil {
+		return []IgnoredTerminal{}, nil
+	}
+	return s.ignored.List(ctx)
+}
+
+// Ignore 加入忽略名单（身份键规则与资产登记一致）。
+func (s *AssetService) Ignore(ctx context.Context, mac, duid, reason string) (IgnoredTerminal, error) {
+	normMAC, normDUID, err := normalizeIdentity(mac, duid)
+	if err != nil {
+		return IgnoredTerminal{}, err
+	}
+	it := IgnoredTerminal{
+		MAC: normMAC, DUID: normDUID,
+		Reason:    strings.TrimSpace(reason),
+		CreatedAt: time.Now().UTC(),
+	}
+	it.Identity = normMAC
+	if it.Identity == "" {
+		it.Identity = normDUID
+	}
+	if s.ignored == nil {
+		return it, nil
+	}
+	if err := s.ignored.Upsert(ctx, it); err != nil {
+		return IgnoredTerminal{}, err
+	}
+	return it, nil
+}
+
+// Unignore 从忽略名单移除（恢复发现）。
+func (s *AssetService) Unignore(ctx context.Context, identity string) error {
+	id := coherence.NormalizeMAC(identity)
+	if id == "" {
+		id = NormalizeDUID(identity)
+	}
+	if id == "" || s.ignored == nil {
+		return ErrIgnoredNotFound
+	}
+	return s.ignored.Delete(ctx, id)
+}
+
+// LeaseIndex 用注入的 DUID→MAC 映射解析绑定身份后归并（资产页在线状态/地址列）。
+func (s *AssetService) LeaseIndex(ctx context.Context, bindings []LedgerBinding) map[string]AssetLease {
+	var duidToMAC map[string]string
+	if s.mapping != nil {
+		if m, err := s.mapping(ctx); err == nil {
+			duidToMAC = m
+		}
+	}
+	return AssetLeaseIndex(bindings, duidToMAC)
+}
+
+// AssetLeaseIndex 把联动绑定按身份键归并为资产租约视图。
+//
+// online 口径与仪表盘「在线租约」一致：只认 active 且 cltt+valid_lft 未过期；
+// state 取该身份所有绑定中最严重者（conflict>grace>active），供资产页展示异常。
+func AssetLeaseIndex(bindings []LedgerBinding, duidToMAC map[string]string) map[string]AssetLease {
+	now := time.Now().Unix()
+	out := make(map[string]AssetLease, len(bindings))
+	for _, b := range bindings {
+		state := strings.ToLower(strings.TrimSpace(b.State))
+		if state != "active" && state != "grace" && state != "conflict" {
+			continue
+		}
+		valid := b.Cltt == 0 || b.ValidLft == 0 || b.Cltt+int64(b.ValidLft) > now
+		if !valid {
+			continue
+		}
+		mac, duid := resolveBindingIdentity(b.MAC, duidToMAC)
+		id := mac
+		if id == "" {
+			id = duid
+		}
+		if id == "" {
+			continue
+		}
+		cur := out[id]
+		if cur.IPv4 == "" {
+			cur.IPv4 = usableAddr(b.IPv4)
+		}
+		if cur.IPv6 == "" {
+			cur.IPv6 = usableAddr(b.IPv6)
+		}
+		if state == "active" {
+			cur.Online = true
+		}
+		if stateRank(state) > stateRank(cur.State) {
+			cur.State = state
+		}
+		if b.Cltt > 0 {
+			seen := time.Unix(b.Cltt, 0).UTC()
+			if seen.After(cur.LastSeen) {
+				cur.LastSeen = seen
+			}
+		}
+		// v6 绑定解析出的 MAC 身份也登记为别名，供只存 MAC 的资产行命中。
+		out[id] = cur
+		if duid != "" && mac != "" {
+			out[duid] = cur
+		}
+	}
+	return out
 }
 
 // normalizeIdentity 归一化入参：MAC 可解析则用 MAC 作身份键，否则回退合法 DUID。
@@ -223,7 +422,7 @@ func (s *AssetService) Get(ctx context.Context, identity string) (Asset, bool, e
 //   - 同一设备的 v4/v6 绑定按身份键合并为一条（地址/主机名/状态取并集）；
 //   - 只认 active/grace，且校验 cltt+valid_lft 未过期，与仪表盘在线租约口径一致。
 func (s *AssetService) Discover(ctx context.Context, bindings []LedgerBinding) ([]DiscoveredTerminal, error) {
-	assets, err := s.repo.List(ctx, "", "")
+	assets, err := s.repo.List(ctx, nil, "")
 	if err != nil {
 		return nil, err
 	}
@@ -234,6 +433,23 @@ func (s *AssetService) Discover(ctx context.Context, bindings []LedgerBinding) (
 		}
 		if a.DUID != "" {
 			known[a.DUID] = struct{}{}
+		}
+	}
+
+	// 忽略名单：Mac/DUID 两种键都记，避免解析前后身份差异导致忽略失效（M6-047）。
+	if s.ignored != nil {
+		if list, err := s.ignored.List(ctx); err == nil {
+			for _, it := range list {
+				if it.MAC != "" {
+					known[it.MAC] = struct{}{}
+				}
+				if it.DUID != "" {
+					known[it.DUID] = struct{}{}
+				}
+				if it.Identity != "" {
+					known[it.Identity] = struct{}{}
+				}
+			}
 		}
 	}
 

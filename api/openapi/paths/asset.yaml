@@ -3,16 +3,24 @@ AssetsCollection:
     operationId: listAssets
     tags: [asset]
     summary: 查询资产登记
-    description: 按组织/关键字过滤；台账页资产页签数据源。关键字支持 MAC（可省略冒号/短横线）、DUID、使用人、部门。
-    security: []
+    description: |
+      台账页资产页签数据源。`orgId` 按子树展开（与日志中心组织筛选口径一致）；
+      关键字支持 MAC（可省略冒号/短横线）、DUID、使用人、部门。
+      返回项附带当前租约地址与在线状态（只读，来自联动绑定）。
+    security: [{ bearerAuth: [] }]
     parameters:
       - name: orgId
         in: query
         schema: { type: string, format: uuid }
+        description: 组织节点；含全部子节点（子树展开）
       - name: q
         in: query
         schema: { type: string, maxLength: 64 }
         description: 关键字：MAC（无需分隔符）/DUID/owner/dept 模糊匹配
+      - name: online
+        in: query
+        schema: { type: boolean }
+        description: 仅在线（true）/仅离线（false）；缺省不过滤
     responses:
       '200':
         description: 资产列表
@@ -22,12 +30,14 @@ AssetsCollection:
               $ref: '../components/schemas/asset.yaml#/AssetList'
             examples:
                 ok:
-                  summary: 两条资产
+                  summary: 两条资产（一条在线、一条 DUID-only）
                   value:
                     items:
-                      - { identity: "aa:bb:cc:dd:ee:01", mac: "aa:bb:cc:dd:ee:01", owner: 张三, dept: 研发部 }
-                      - { identity: "000100012df9b6d9f8a2d6c97867", duid: "000100012df9b6d9f8a2d6c97867", owner: 李四 }
+                      - { identity: "aa:bb:cc:dd:ee:01", mac: "aa:bb:cc:dd:ee:01", owner: 张三, dept: 研发部,
+                          ipv4: "10.61.66.20", online: true, state: active }
+                      - { identity: "000100012df9b6d9f8a2d6c97867", duid: "000100012df9b6d9f8a2d6c97867", owner: 李四, online: false }
                     total: 2
+                    onlineCount: 1
   put:
     operationId: upsertAsset
     tags: [asset]
@@ -47,6 +57,40 @@ AssetsCollection:
           application/json:
             schema:
               $ref: '../components/schemas/asset.yaml#/Asset'
+
+AssetsBulk:
+  post:
+    operationId: bulkUpsertAssets
+    tags: [asset]
+    summary: 批量登记资产（部分成功）
+    description: |
+      「未登记终端」多选后一次登记使用人/部门/组织。每项独立校验与写入，
+      失败项在 failures 中按 index 返回，不做整体回滚。单次上限 500 项。
+      所需 scope 为 assets:write。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/asset.yaml#/AssetBulkRequest'
+          examples:
+            two:
+              summary: 两台终端共用一个使用人
+              value:
+                items:
+                  - { mac: "aa:bb:cc:dd:ee:01", owner: 张三, dept: 研发部 }
+                  - { duid: "000100012df9b6d9f8a2d6c97867", owner: 张三, dept: 研发部 }
+    responses:
+      '200':
+        description: 批量结果（可能部分成功）
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/asset.yaml#/AssetBulkResult'
+      '400':
+        description: 请求体非法（items 为空或超过上限）
+
 AssetItem:
   delete:
     operationId: deleteAsset
@@ -73,7 +117,7 @@ DiscoveredTerminals:
     tags: [asset]
     summary: 未登记终端（影子资产）
     description: |
-      联动绑定中有有效租约、但资产表未登记的设备；用于发现并登记。scope 为 assets:read。
+      联动绑定中有有效租约、但资产表未登记、且不在忽略名单中的设备；用于发现并登记。scope 为 assets:read。
       DUID 会先经 dualstack_identity 或 DUID-LLT/LL 解析归并为 MAC，解析不出时以 DUID 为身份键，
       因此 IPv6-only 终端同样可见（M6-046）。
     security: [{ bearerAuth: [] }]
@@ -84,3 +128,60 @@ DiscoveredTerminals:
           application/json:
             schema:
               $ref: '../components/schemas/asset.yaml#/DiscoveredTerminalList'
+
+AssetsIgnored:
+  get:
+    operationId: listIgnoredTerminals
+    tags: [asset]
+    summary: 忽略名单
+    description: |
+      列出被标记为"无需登记"的终端身份（打印机、AP、临时设备等）。
+      忽略后不再出现在「未登记终端」，可随时恢复。scope 为 assets:read。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: 忽略名单
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/asset.yaml#/IgnoredTerminalList'
+  put:
+    operationId: ignoreTerminal
+    tags: [asset]
+    summary: 加入忽略名单
+    description: 以身份键（MAC 优先，回退 DUID）幂等加入；已存在则更新原因。所需 scope 为 assets:write。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/asset.yaml#/IgnoredTerminalUpsert'
+    responses:
+      '200':
+        description: 已加入忽略名单
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/asset.yaml#/IgnoredTerminal'
+      '400':
+        description: 身份键非法（MAC/DUID 至少填一个）
+
+AssetIgnoredItem:
+  delete:
+    operationId: deleteIgnoredTerminal
+    tags: [asset]
+    summary: 从忽略名单移除（恢复发现）
+    description: 按身份键移除；不存在返回 404。移除后若仍有有效租约，该终端会重新出现在「未登记终端」。所需 scope 为 assets:write。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: identity
+        in: path
+        required: true
+        description: 身份键（MAC 或 DUID）
+        schema: { type: string }
+    responses:
+      '204':
+        description: 已移除
+      '404':
+        description: 忽略名单中不存在该身份键

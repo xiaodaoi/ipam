@@ -79,6 +79,14 @@ const scopeOptions = computed(() => [
   { label: $t('dhcpLedger.assets.scopeUnassigned'), value: 'unassigned' },
   { label: $t('dhcpLedger.assets.scopeTagged'), value: 'tagged' },
 ]);
+// 在线状态走服务端过滤（租约视图由后端 join 联动绑定，M6-047）。
+type OnlineFilter = 'all' | 'offline' | 'online';
+const onlineFilter = ref<OnlineFilter>('all');
+const onlineOptions = computed(() => [
+  { label: $t('dhcpLedger.assets.onlineAll'), value: 'all' },
+  { label: $t('dhcpLedger.assets.onlineOnly'), value: 'online' },
+  { label: $t('dhcpLedger.assets.offlineOnly'), value: 'offline' },
+]);
 
 async function load() {
   loading.value = true;
@@ -86,6 +94,10 @@ async function load() {
     const res = await listAssets({
       orgId: selectedOrgId.value || undefined,
       q: keyword.value.trim() || undefined,
+      online:
+        onlineFilter.value === 'all'
+          ? undefined
+          : onlineFilter.value === 'online',
     });
     rows.value = res.items ?? [];
   } finally {
@@ -96,6 +108,7 @@ async function load() {
 function resetFilters() {
   keyword.value = '';
   scope.value = 'all';
+  onlineFilter.value = 'all';
   void load();
 }
 
@@ -113,12 +126,18 @@ const assetColumns = computed(() => [
     minWidth: 190,
   },
   {
+    title: $t('dhcpLedger.assets.colAddress'),
+    dataIndex: 'ipv4',
+    minWidth: 170,
+  },
+  {
     title: $t('dhcpLedger.assets.colOwnerDept'),
     dataIndex: 'owner',
     minWidth: 130,
   },
   { title: $t('dhcpLedger.assets.colOrg'), dataIndex: 'orgId', minWidth: 180 },
   { title: $t('dhcpLedger.assets.colTags'), dataIndex: 'tags', width: 130 },
+  { title: $t('dhcpLedger.assets.colOnline'), dataIndex: 'online', width: 110 },
   { title: $t('dhcpLedger.common.actions'), key: 'op', width: 110 },
 ]);
 
@@ -134,17 +153,13 @@ const stats = computed(() => {
   const assigned = rows.value.filter((r) => !!r.orgId).length;
   const owners = new Set(rows.value.map((r) => r.owner).filter(Boolean));
   const depts = new Set(rows.value.map((r) => r.dept).filter(Boolean));
-  const tagged = rows.value.filter((r) => (r.tags ?? []).length > 0).length;
-  const tags = new Set<string>();
-  for (const r of rows.value) {
-    for (const t of r.tags ?? []) tags.add(t);
-  }
+  const online = rows.value.filter((r) => r.online).length;
   return {
     assigned,
     deptCount: depts.size,
+    offline: total - online,
+    online,
     ownerCount: owners.size,
-    tagged,
-    tagCount: tags.size,
     total,
     unassigned: total - assigned,
   };
@@ -161,6 +176,9 @@ function exportCsv() {
   const header = [
     $t('dhcpLedger.assets.csv.mac'),
     $t('dhcpLedger.assets.csv.duid'),
+    $t('dhcpLedger.assets.csv.ipv4'),
+    $t('dhcpLedger.assets.csv.ipv6'),
+    $t('dhcpLedger.assets.csv.online'),
     $t('dhcpLedger.assets.csv.owner'),
     $t('dhcpLedger.assets.csv.dept'),
     $t('dhcpLedger.assets.csv.org'),
@@ -171,6 +189,9 @@ function exportCsv() {
     [
       r.mac ?? '',
       r.duid ?? '',
+      r.ipv4 ?? '',
+      r.ipv6 ?? '',
+      r.online ? '1' : '0',
       r.owner,
       r.dept ?? '',
       orgPathOf(r.orgId).join(' / '),
@@ -396,13 +417,14 @@ onMounted(async () => {
             "
           />
           <StatCard
-            :label="$t('dhcpLedger.assets.statTags')"
-            :value="stats.tagged"
-            :unit="$t('dhcpLedger.common.units.item')"
-            icon="lucide:tags"
-            :tone="stats.tagCount > 0 ? 'violet' : 'amber'"
+            :label="$t('dhcpLedger.assets.statOnline')"
+            :value="stats.online"
+            :unit="$t('dhcpLedger.common.units.device')"
+            icon="lucide:activity"
+            :progress="stats.total > 0 ? (stats.online / stats.total) * 100 : 0"
+            :tone="stats.offline > 0 ? 'amber' : 'green'"
             :hint="
-              $t('dhcpLedger.assets.statTagsHint', { count: stats.tagCount })
+              $t('dhcpLedger.assets.statOnlineHint', { count: stats.offline })
             "
           />
         </div>
@@ -449,6 +471,17 @@ onMounted(async () => {
                 v-model:value="scope"
                 :options="scopeOptions"
                 style="width: 150px"
+              />
+            </div>
+            <div class="ipam-field">
+              <span class="ipam-field__label">{{
+                $t('dhcpLedger.assets.onlineLabel')
+              }}</span>
+              <Select
+                v-model:value="onlineFilter"
+                :options="onlineOptions"
+                style="width: 120px"
+                @change="load"
               />
             </div>
             <Button size="small" @click="load">
@@ -503,6 +536,30 @@ onMounted(async () => {
                     —
                   </span>
                 </div>
+              </template>
+              <template v-else-if="column.dataIndex === 'ipv4'">
+                <div class="ipam-cell-stack">
+                  <span v-if="record.ipv4" class="ipam-mono">{{
+                    record.ipv4
+                  }}</span>
+                  <span v-if="record.ipv6" class="ipam-mono ipam-cell-meta">{{
+                    record.ipv6
+                  }}</span>
+                  <span
+                    v-if="!record.ipv4 && !record.ipv6"
+                    class="text-gray-400"
+                  >
+                    {{ $t('dhcpLedger.assets.noLease') }}
+                  </span>
+                </div>
+              </template>
+              <template v-else-if="column.dataIndex === 'online'">
+                <Tag v-if="record.online" color="green" class="m-0">
+                  {{ $t('dhcpLedger.assets.online') }}
+                </Tag>
+                <Tag v-else color="default" class="m-0">
+                  {{ $t('dhcpLedger.assets.offline') }}
+                </Tag>
               </template>
               <template v-else-if="column.dataIndex === 'owner'">
                 <div class="ipam-cell-stack">

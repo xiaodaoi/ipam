@@ -545,10 +545,15 @@ type MemAssetRepo struct{ items map[string]Asset }
 
 func NewMemAssetRepo() *MemAssetRepo { return &MemAssetRepo{items: map[string]Asset{}} }
 
-func (r *MemAssetRepo) List(_ context.Context, orgID, q string) ([]Asset, error) {
+func (r *MemAssetRepo) List(_ context.Context, orgIDs []string, q string) ([]Asset, error) {
+	scope := map[string]bool{}
+	for _, id := range orgIDs {
+		scope[id] = true
+	}
 	out := []Asset{}
 	for _, a := range r.items {
-		if orgID != "" && a.OrgID != orgID {
+		// nil=不过滤；非 nil 空切片=组织不存在（返回空，而不是退化为全量）。
+		if orgIDs != nil && !scope[a.OrgID] {
 			continue
 		}
 		if q != "" && !assetMatchesQuery(a, q) {
@@ -645,12 +650,13 @@ func NewPgAssetRepo(pool *pgxpool.Pool) *PgAssetRepo { return &PgAssetRepo{pool:
 
 const assetCols = `coalesce(mac,''), coalesce(duid,''), coalesce(org_id::text,''), coalesce(owner,''), coalesce(dept,''), coalesce(note,''), coalesce(tags,'{}')`
 
-func (r *PgAssetRepo) List(ctx context.Context, orgID, q string) ([]Asset, error) {
+func (r *PgAssetRepo) List(ctx context.Context, orgIDs []string, q string) ([]Asset, error) {
 	sql := `SELECT ` + assetCols + ` FROM asset WHERE true`
 	var args []any
-	if orgID != "" {
-		args = append(args, orgID)
-		sql += ` AND org_id = $` + fmt1(len(args))
+	if orgIDs != nil {
+		// 子树展开后的节点集合；orgID 不存在时传空数组→结果为空。
+		args = append(args, orgIDs)
+		sql += ` AND org_id::text = ANY($` + fmt1(len(args)) + `)`
 	}
 	if q != "" {
 		args = append(args, "%"+q+"%")

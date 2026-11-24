@@ -93,6 +93,27 @@ async function login(page) {
  * 用浏览器上下文直接调用业务 API（复用登录态授权头）。
  * 说明：浏览器同源 fetch 可避免 Node 侧自签证书/协议差异。
  */
+async function apiSend(page, method, path, authHeader, body) {
+  assert(authHeader, '未捕获到 API 授权头，无法做接口断言');
+  const res = await page.evaluate(
+    async ({ auth, m, p, b }) => {
+      const r = await fetch(`/api/v1${p}`, {
+        method: m,
+        headers: { Authorization: auth, 'Content-Type': 'application/json' },
+        body: b === undefined ? undefined : JSON.stringify(b),
+      });
+      const text = await r.text();
+      return { body: text ? JSON.parse(text) : null, status: r.status };
+    },
+    { auth: authHeader, m: method, p: path, b: body },
+  );
+  assert(
+    res.status >= 200 && res.status < 300,
+    `${method} ${path} -> HTTP ${res.status}`,
+  );
+  return res.body;
+}
+
 async function apiGet(page, path, authHeader) {
   assert(authHeader, '未捕获到 API 授权头，无法做接口断言');
   const res = await page.evaluate(
@@ -284,6 +305,13 @@ async function main() {
       await page.locator('.ant-table-tbody tr').first().waitFor({ timeout: 15_000 });
       await page.getByText('所属组织').first().waitFor({ timeout: 15_000 });
       await page.getByText('DUID 终端').first().waitFor({ timeout: 15_000 });
+      // M6-047：多选 → 批量登记入口；忽略名单入口（无需登记资产的终端可抑制）。
+      await page.locator('.ant-table-tbody .ant-checkbox-input').first().check();
+      await page.getByText(/批量登记（1）/).first().waitFor({ timeout: 15_000 });
+      await page.locator('.ant-table-tbody .ant-checkbox-input').first().uncheck();
+      await page.locator('button', { hasText: '忽略名单' }).first().click();
+      await page.getByText('这些终端不参与').first().waitFor({ timeout: 15_000 });
+      await page.keyboard.press('Escape');
     });
 
     await step('资产登记（MAC / DUID 身份键）', async () => {
@@ -291,9 +319,82 @@ async function main() {
       await waitText(page, '资产登记');
       // M6-046：终端列明确区分 MAC / DUID，登记弹窗提供 DUID 字段。
       await page.getByText('终端（MAC / DUID）').first().waitFor({ timeout: 15_000 });
+      // M6-047：资产页 join 当前租约地址与在线状态，并支持在线/离线筛选。
+      await page.getByText('当前地址').first().waitFor({ timeout: 15_000 });
+      await page.getByText('在线状态').first().waitFor({ timeout: 15_000 });
       await page.locator('button', { hasText: '登记资产' }).first().click();
       await page.getByPlaceholder(/IPv6-only/).first().waitFor({ timeout: 15_000 });
       await page.keyboard.press('Escape');
+    });
+
+    await step('批量登记与忽略名单（API）', async () => {
+      const disc = await apiGet(page, '/assets/discovered', authHeader);
+      const items = (disc.items ?? []).slice(0, 3);
+      assert(items.length >= 2, '未登记终端不足 2 台，无法验证批量登记');
+      const owner = 'E2E批量登记';
+      const bulk = await apiSend(page, 'POST', '/assets/bulk', authHeader, {
+        items: items.slice(0, 2).map((i) => ({
+          mac: i.mac,
+          duid: i.duid,
+          owner,
+          note: 'e2e',
+        })),
+      });
+      assert(
+        bulk.saved === 2 && bulk.ok === true,
+        `批量登记应成功 2 台: ${JSON.stringify(bulk)}`,
+      );
+
+      // 资产页附带租约视图：刚登记的终端应是在线且带当前地址。
+      const assets = await apiGet(
+        page,
+        `/assets?q=${encodeURIComponent(owner)}`,
+        authHeader,
+      );
+      assert(assets.items?.length === 2, '按使用人查不到批量登记结果');
+      for (const a of assets.items) {
+        assert(typeof a.online === 'boolean', '资产缺少在线状态字段');
+        if (a.online) {
+          assert(
+            a.lastSeen,
+            `在线资产缺少最近租约时间: ${JSON.stringify(a)}`,
+          );
+        }
+      }
+
+      // 忽略名单：加入后不再出现在发现列表，恢复后重新出现。
+      const target = items[2] ?? items[0];
+      await apiSend(page, 'PUT', '/assets/ignored', authHeader, {
+        mac: target.mac,
+        duid: target.duid,
+        reason: 'e2e',
+      });
+      const afterIgnore = await apiGet(page, '/assets/discovered', authHeader);
+      assert(
+        !(afterIgnore.items ?? []).some((i) => i.identity === target.identity),
+        '被忽略终端仍出现在发现列表',
+      );
+      const ignored = await apiGet(page, '/assets/ignored', authHeader);
+      assert(
+        (ignored.items ?? []).some((i) => i.identity === target.identity),
+        '忽略名单未记录目标终端',
+      );
+      await apiSend(
+        page,
+        'DELETE',
+        `/assets/ignored/${encodeURIComponent(target.identity)}`,
+        authHeader,
+      );
+
+      // 清理：撤销批量登记的资产，避免污染后续会话/统计。
+      for (const i of items.slice(0, 2)) {
+        await apiSend(
+          page,
+          'DELETE',
+          `/assets/${encodeURIComponent(i.identity)}`,
+          authHeader,
+        );
+      }
     });
 
     await step('租约管理 v4/v6 切换', async () => {

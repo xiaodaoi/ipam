@@ -159,7 +159,7 @@
   },
   "assets": {
     "title": "Asset Registry",
-    "desc": "Register owner / department / organization / notes keyed by MAC or DUID, so a terminal keeps its record when its address changes. IPv6-only terminals (DUID) are supported too, which feeds the \"terminal → organization\" chain in the log center.",
+    "desc": "Register owner / department / organization / notes keyed by MAC or DUID, so a terminal keeps its record when its address changes. The list joins current lease addresses and online status; IPv6-only terminals (DUID) are supported too, feeding the \"terminal → organization\" chain in the log center.",
     "meta": "{total} assets · {departments} departments",
     "create": "Register Asset",
     "statTotal": "Total Assets",
@@ -177,7 +177,7 @@
     "scopeAll": "All assets",
     "scopeUnassigned": "Unassigned",
     "scopeTagged": "Tagged",
-    "hintDecoupled": "Registration data is decoupled from IP and survives address changes",
+    "hintDecoupled": "Registration is decoupled from IP; online status is computed from valid leases in real time",
     "colTerminal": "Terminal (MAC / DUID)",
     "colOwnerDept": "Owner / department",
     "colOrg": "Organization",
@@ -207,7 +207,10 @@
       "org": "Organization",
       "tags": "Tags",
       "note": "Note",
-      "duid": "DUID"
+      "duid": "DUID",
+      "ipv4": "IPv4",
+      "ipv6": "IPv6",
+      "online": "Online (1/0)"
     },
     "form": {
       "mac": "MAC address",
@@ -226,7 +229,18 @@
     },
     "duidOnly": "DUID terminal",
     "invalidDuid": "Invalid DUID (hexadecimal, separators allowed)",
-    "identityRequired": "Enter a MAC or a DUID"
+    "identityRequired": "Enter a MAC or a DUID",
+    "colAddress": "Current address",
+    "colOnline": "Status",
+    "noLease": "No lease",
+    "online": "Online",
+    "offline": "Offline",
+    "onlineLabel": "Status",
+    "onlineAll": "Any status",
+    "onlineOnly": "Online only",
+    "offlineOnly": "Offline only",
+    "statOnline": "Online terminals",
+    "statOnlineHint": "{count} offline (no valid lease)"
   },
   "discovered": {
     "title": "Discovered devices",
@@ -271,6 +285,29 @@
     "colIdentity": "Terminal (MAC / DUID)",
     "colSubnet": "Subnet",
     "colOrg": "Organization",
-    "duidOnly": "DUID terminal"
+    "duidOnly": "DUID terminal",
+    "bulkRegister": "Bulk register ({count})",
+    "bulkTitle": "Register {count} terminals",
+    "bulkSubmit": "Register",
+    "bulkHint": "Fill one owner / department / organization for the selected terminals. Each row is validated independently and failures are reported separately.",
+    "bulkDone": "Registered {count} terminals",
+    "bulkPartial": "Registered {saved}, {failed} failed (check MAC/DUID and owner)",
+    "ignore": "Ignore",
+    "ignoreSelected": "Ignore selected ({count})",
+    "ignoreSelectedTitle": "Add selected terminals to the ignore list?",
+    "ignoreConfirmTitle": "Add to ignore list?",
+    "ignoreConfirmDesc": "Ignored terminals leave the discovery list and can be restored anytime.",
+    "ignoredDone": "Added to ignore list",
+    "ignoreDone": "Ignored {count} terminals",
+    "ignorePartial": "Ignored {saved}, {failed} failed",
+    "ignoreFailed": "Failed to ignore",
+    "ignoredList": "Ignored",
+    "ignoredTitle": "Ignore list",
+    "ignoredHint": "These terminals are excluded from discovery; click Restore to include them again.",
+    "restore": "Restore",
+    "restored": "Restored to discovery",
+    "restoreFailed": "Failed to restore",
+    "colReason": "Reason",
+    "colIgnoredAt": "Ignored at"
   }
 }

@@ -39,11 +39,12 @@ func (e *MemOrgExpander) Expand(ctx context.Context, orgID string) (logquery.Org
 			scope.CIDRs = append(scope.CIDRs, s.CIDR)
 		}
 	}
-	list, err := e.assets.List(ctx, "", "")
+	list, err := e.assets.List(ctx, nil, "")
 	if err != nil {
 		return scope, err
 	}
 	for _, a := range list {
+		// DUID-only 资产的 MAC 为空；日志侧关联键只认 MAC（v6 终端由组织 CIDR 覆盖）。
 		if idset[a.OrgID] && a.MAC != "" {
 			scope.MACs = append(scope.MACs, a.MAC)
 		}

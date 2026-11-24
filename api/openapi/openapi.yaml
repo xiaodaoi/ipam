@@ -26,7 +26,7 @@ tags:
   - name: ledger
     description: 地址台账（六态矩阵与保留/绑定操作，§13.4）
   - name: asset
-    description: 资产登记（MAC 身份键，§13.4）
+    description: 资产登记（MAC / DUID 身份键、未登记终端与忽略名单，§13.4）
   - name: reservation
     description: 保留与静态绑定批量管理（FR-A-04、§13.4）
   - name: dns
@@ -252,6 +252,12 @@ paths:
     $ref: './paths/asset.yaml#/AssetsCollection'
   /assets/discovered:
     $ref: './paths/asset.yaml#/DiscoveredTerminals'
+  /assets/bulk:
+    $ref: './paths/asset.yaml#/AssetsBulk'
+  /assets/ignored:
+    $ref: './paths/asset.yaml#/AssetsIgnored'
+  /assets/ignored/{identity}:
+    $ref: './paths/asset.yaml#/AssetIgnoredItem'
   /assets/{mac}:
     $ref: './paths/asset.yaml#/AssetItem'
   /ledger:
@@ -605,6 +611,18 @@ components:
       $ref: './components/schemas/asset.yaml#/AssetUpsert'
     AssetList:
       $ref: './components/schemas/asset.yaml#/AssetList'
+    AssetBulkRequest:
+      $ref: './components/schemas/asset.yaml#/AssetBulkRequest'
+    AssetBulkFailure:
+      $ref: './components/schemas/asset.yaml#/AssetBulkFailure'
+    AssetBulkResult:
+      $ref: './components/schemas/asset.yaml#/AssetBulkResult'
+    IgnoredTerminal:
+      $ref: './components/schemas/asset.yaml#/IgnoredTerminal'
+    IgnoredTerminalUpsert:
+      $ref: './components/schemas/asset.yaml#/IgnoredTerminalUpsert'
+    IgnoredTerminalList:
+      $ref: './components/schemas/asset.yaml#/IgnoredTerminalList'
     ReservationBulkEntry:
       $ref: './components/schemas/reservation.yaml#/ReservationBulkEntry'
     ReservationBulkRequest:

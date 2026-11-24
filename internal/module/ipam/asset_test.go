@@ -24,7 +24,7 @@ func TestAssetUpsert_MAC归一化与幂等(t *testing.T) {
 	if _, err := svc.Upsert(context.Background(), Asset{MAC: "aa:bb:cc:dd:ee:ff", Owner: "张三", Note: "打印机"}); err != nil {
 		t.Fatal(err)
 	}
-	list, _ := repo.List(context.Background(), "", "")
+	list, _ := repo.List(context.Background(), nil, "")
 	if len(list) != 1 || list[0].Note != "打印机" {
 		t.Fatalf("upsert not idempotent: %+v", list)
 	}
@@ -64,16 +64,16 @@ func TestAssetList_过滤(t *testing.T) {
 	_, _ = svc.Upsert(context.Background(), Asset{MAC: "aa:bb:cc:dd:ee:01", Owner: "张三"})
 	_, _ = svc.Upsert(context.Background(), Asset{MAC: "aa:bb:cc:dd:ee:02", Owner: "李四", Dept: "财务"})
 
-	if list, _ := repo.List(context.Background(), "", "李四"); len(list) != 1 {
+	if list, _ := repo.List(context.Background(), nil, "李四"); len(list) != 1 {
 		t.Fatalf("q filter: %+v", list)
 	}
-	if list, _ := repo.List(context.Background(), "", "财务"); len(list) != 1 {
+	if list, _ := repo.List(context.Background(), nil, "财务"); len(list) != 1 {
 		t.Fatalf("dept filter: %+v", list)
 	}
 	if err := svc.Delete(context.Background(), "AA:BB:CC:DD:EE:01"); err != nil {
 		t.Fatal(err)
 	}
-	if list, _ := repo.List(context.Background(), "", ""); len(list) != 1 || strings.Contains(list[0].MAC, "01") {
+	if list, _ := repo.List(context.Background(), nil, ""); len(list) != 1 || strings.Contains(list[0].MAC, "01") {
 		t.Fatalf("delete failed: %+v", list)
 	}
 }
@@ -141,7 +141,7 @@ func TestAssetDelete_NotFoundAndSearchCompact(t *testing.T) {
 	}
 	// 省略冒号/短横线都能命中（前端搜索框常见输入）。
 	for _, q := range []string{"688fc95b39cf", "68-8f-c9", "68:8F:C9", "研发", "张三"} {
-		if list, err := repo.List(context.Background(), "", q); err != nil || len(list) != 1 {
+		if list, err := repo.List(context.Background(), nil, q); err != nil || len(list) != 1 {
 			t.Fatalf("q=%q 应命中 1 条，实际 %d (%v)", q, len(list), err)
 		}
 	}
@@ -151,7 +151,7 @@ func TestAssetDelete_NotFoundAndSearchCompact(t *testing.T) {
 	if err := svc.Delete(context.Background(), "688FC95B39CF"); err != nil {
 		t.Fatalf("省略分隔符删除应成功: %v", err)
 	}
-	if list, _ := repo.List(context.Background(), "", ""); len(list) != 0 {
+	if list, _ := repo.List(context.Background(), nil, ""); len(list) != 0 {
 		t.Fatalf("删除后应为空: %+v", list)
 	}
 }
@@ -252,5 +252,116 @@ func TestDiscoverSkipsExpiredAndRegistered(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].MAC != "aa:bb:cc:dd:ee:04" || got[0].State != "grace" {
 		t.Fatalf("过期/非活跃/已登记都应剔除: %+v", got)
+	}
+}
+
+func TestAssetListExpandsOrgSubtree(t *testing.T) {
+	// M6-047：资产页组织筛选按子树展开，与日志中心口径一致。
+	const root, child, other = "11111111-1111-1111-1111-111111111111",
+		"22222222-2222-2222-2222-222222222222", "33333333-3333-3333-3333-333333333333"
+	orgs := NewMemOrgStore()
+	_ = orgs.Create(OrgNode{ID: root, Name: "总部", Path: "/" + root})
+	_ = orgs.Create(OrgNode{ID: child, ParentID: root, Name: "研发", Path: "/" + root + "/" + child})
+	_ = orgs.Create(OrgNode{ID: other, Name: "其他", Path: "/" + other})
+
+	svc := NewAssetService(NewMemAssetRepo(), orgs)
+	for i, orgID := range []string{root, child, other} {
+		mac := "aa:bb:cc:dd:ee:0" + fmt1(i+1)
+		if _, err := svc.Upsert(context.Background(), Asset{MAC: mac, Owner: "张三", OrgID: orgID}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	list, err := svc.List(context.Background(), root, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 2 {
+		t.Fatalf("根节点应含自身+子节点共 2 条，实际 %d", len(list))
+	}
+	if list, _ = svc.List(context.Background(), child, ""); len(list) != 1 || list[0].OrgID != child {
+		t.Fatalf("子节点应只含自身 1 条: %+v", list)
+	}
+	// 不存在的组织节点 → 空结果（不能退化为全量）。
+	if list, _ = svc.List(context.Background(), "99999999-9999-9999-9999-999999999999", ""); len(list) != 0 {
+		t.Fatalf("未知组织应返回空，实际 %d 条", len(list))
+	}
+}
+
+func TestDiscoverSkipsIgnored(t *testing.T) {
+	// 忽略名单按 MAC / DUID 双键生效：先 DUID-only 忽略 → 解析出 MAC 后仍被抑制。
+	svc := NewAssetService(NewMemAssetRepo(), NewMemOrgStore())
+	ignored := NewMemIgnoredRepo()
+	svc.SetIgnoredRepo(ignored)
+	duid := "000100012f51e6c570089431ccb5"
+	if _, err := svc.Ignore(context.Background(), "", duid, "打印机"); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().Unix()
+	got, err := svc.Discover(context.Background(), []LedgerBinding{
+		{MAC: duid, IPv4: "0.0.0.0", IPv6: "2406::9", State: "active", Cltt: now - 60, ValidLft: 3600},
+		{MAC: "aa:bb:cc:dd:ee:01", IPv4: "10.0.0.1", State: "active", Cltt: now - 30, ValidLft: 3600},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].MAC != "aa:bb:cc:dd:ee:01" {
+		t.Fatalf("被忽略终端不应出现: %+v", got)
+	}
+	if list, _ := svc.ListIgnored(context.Background()); len(list) != 1 || list[0].Reason != "打印机" {
+		t.Fatalf("忽略名单读取异常: %+v", list)
+	}
+	if err := svc.Unignore(context.Background(), duid); err != nil {
+		t.Fatalf("恢复失败: %v", err)
+	}
+	if err := svc.Unignore(context.Background(), duid); !errors.Is(err, ErrIgnoredNotFound) {
+		t.Fatalf("重复恢复应 404: %v", err)
+	}
+}
+
+func TestBulkUpsertPartialSuccess(t *testing.T) {
+	svc := NewAssetService(NewMemAssetRepo(), NewMemOrgStore())
+	saved, failures := svc.BulkUpsert(context.Background(), []Asset{
+		{MAC: "aa:bb:cc:dd:ee:01", Owner: "张三"},
+		{MAC: "zz:zz", Owner: "李四"}, // 非法 MAC
+		{DUID: "000100012df9b6d9f8a2d6c97867", Owner: "王五"},
+		{MAC: "aa:bb:cc:dd:ee:02"}, // 缺使用人
+	})
+	if saved != 2 || len(failures) != 2 {
+		t.Fatalf("部分成功语义不符: saved=%d failures=%+v", saved, failures)
+	}
+	if failures[0].Index != 1 || failures[0].Code != "BAD_MAC" {
+		t.Fatalf("首条失败应 index=1/BAD_MAC: %+v", failures[0])
+	}
+	if failures[1].Index != 3 || failures[1].Code != "OWNER_REQUIRED" {
+		t.Fatalf("第二条失败应 index=3/OWNER_REQUIRED: %+v", failures[1])
+	}
+}
+
+func TestAssetLeaseIndex(t *testing.T) {
+	// 在线口径：只认 active 且未过期；grace/conflict 展示状态但不计在线。
+	duid := "000100012f51e6c570089431ccb5"
+	now := time.Now().Unix()
+	idx := AssetLeaseIndex([]LedgerBinding{
+		{MAC: "aa:bb:cc:dd:ee:01", IPv4: "10.0.0.10", State: "active", Cltt: now - 60, ValidLft: 3600},
+		{MAC: "aa:bb:cc:dd:ee:02", IPv4: "10.0.0.11", State: "grace", Cltt: now - 60, ValidLft: 3600},
+		{MAC: "aa:bb:cc:dd:ee:03", IPv4: "10.0.0.12", State: "active", Cltt: now - 7200, ValidLft: 3600},
+		{MAC: duid, IPv4: "0.0.0.0", IPv6: "2406::20", State: "conflict", Cltt: now - 30, ValidLft: 3600},
+	}, map[string]string{duid: "aa:bb:cc:dd:ee:04"})
+
+	if l := idx["aa:bb:cc:dd:ee:01"]; !l.Online || l.IPv4 != "10.0.0.10" {
+		t.Fatalf("active 应在线且带地址: %+v", l)
+	}
+	if l := idx["aa:bb:cc:dd:ee:02"]; l.Online || l.State != "grace" {
+		t.Fatalf("grace 不应计在线: %+v", l)
+	}
+	if l := idx["aa:bb:cc:dd:ee:03"]; l.Online {
+		t.Fatalf("租期已过不应在线: %+v", l)
+	}
+	if l := idx["aa:bb:cc:dd:ee:04"]; l.Online || l.IPv6 != "2406::20" || l.State != "conflict" {
+		t.Fatalf("DUID 绑定应归并到 MAC 身份且保留 conflict: %+v", l)
+	}
+	if l := idx[duid]; l.IPv6 != "2406::20" {
+		t.Fatalf("DUID 别名应可命中: %+v", l)
 	}
 }

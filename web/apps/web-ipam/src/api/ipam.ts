@@ -14,6 +14,8 @@ export type SubnetOption = components['schemas']['SubnetOption'];
 export type Asset = components['schemas']['Asset'];
 export type AssetUpsert = components['schemas']['AssetUpsert'];
 export type DiscoveredTerminal = components['schemas']['DiscoveredTerminal'];
+export type AssetBulkResult = components['schemas']['AssetBulkResult'];
+export type IgnoredTerminal = components['schemas']['IgnoredTerminal'];
 export type LedgerMetaUpsert = components['schemas']['LedgerMetaUpsert'];
 
 const BASE = (import.meta.env.VITE_GLOB_API_URL as string) || '/api/v1';
@@ -92,12 +94,19 @@ export const upsertLedgerMeta = (b: LedgerMetaUpsert) =>
 export const listSubnets = (orgId?: string) =>
   req<{ items: Subnet[] }>(`/subnets${orgId ? `?orgId=${orgId}` : ''}`);
 
-export const listAssets = (params?: { orgId?: string; q?: string }) => {
+export const listAssets = (params?: {
+  online?: boolean;
+  orgId?: string;
+  q?: string;
+}) => {
   const qs = new URLSearchParams();
   if (params?.orgId) qs.set('orgId', params.orgId);
   if (params?.q) qs.set('q', params.q);
+  if (params?.online !== undefined) qs.set('online', String(params.online));
   const s = qs.toString();
-  return req<{ items: Asset[]; total?: number }>(`/assets${s ? `?${s}` : ''}`);
+  return req<{ items: Asset[]; onlineCount?: number; total?: number }>(
+    `/assets${s ? `?${s}` : ''}`,
+  );
 };
 export const upsertAsset = (b: AssetUpsert) =>
   req<Asset>('/assets', { method: 'PUT', body: JSON.stringify(b) });
@@ -105,6 +114,28 @@ export const deleteAsset = (mac: string) =>
   req<undefined>(`/assets/${encodeURIComponent(mac)}`, { method: 'DELETE' });
 export const listDiscoveredTerminals = () =>
   req<{ items: DiscoveredTerminal[] }>('/assets/discovered');
+/** 批量登记（部分成功）：失败项按 index 返回，用于一次性登记多台终端。 */
+export const bulkUpsertAssets = (items: AssetUpsert[]) =>
+  req<AssetBulkResult>('/assets/bulk', {
+    method: 'POST',
+    body: JSON.stringify({ items }),
+  });
+export const listIgnoredTerminals = () =>
+  req<{ items: IgnoredTerminal[] }>('/assets/ignored');
+/** 加入忽略名单（无需登记资产的打印机/AP 等）。 */
+export const ignoreTerminal = (b: {
+  duid?: string;
+  mac?: string;
+  reason?: string;
+}) =>
+  req<IgnoredTerminal>('/assets/ignored', {
+    method: 'PUT',
+    body: JSON.stringify(b),
+  });
+export const deleteIgnoredTerminal = (identity: string) =>
+  req<undefined>(`/assets/ignored/${encodeURIComponent(identity)}`, {
+    method: 'DELETE',
+  });
 export type DashboardOverview = components['schemas']['DashboardOverview'];
 export type PoolUtilization = components['schemas']['PoolUtilization'];
 

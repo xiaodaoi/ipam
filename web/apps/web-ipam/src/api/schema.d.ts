@@ -2279,7 +2279,9 @@ export interface paths {
         };
         /**
          * 查询资产登记
-         * @description 按组织/关键字过滤；台账页资产页签数据源。关键字支持 MAC（可省略冒号/短横线）、DUID、使用人、部门。
+         * @description 台账页资产页签数据源。`orgId` 按子树展开（与日志中心组织筛选口径一致）；
+         *     关键字支持 MAC（可省略冒号/短横线）、DUID、使用人、部门。
+         *     返回项附带当前租约地址与在线状态（只读，来自联动绑定）。
          */
         get: operations["listAssets"];
         /**
@@ -2303,7 +2305,7 @@ export interface paths {
         };
         /**
          * 未登记终端（影子资产）
-         * @description 联动绑定中有有效租约、但资产表未登记的设备；用于发现并登记。scope 为 assets:read。
+         * @description 联动绑定中有有效租约、但资产表未登记、且不在忽略名单中的设备；用于发现并登记。scope 为 assets:read。
          *     DUID 会先经 dualstack_identity 或 DUID-LLT/LL 解析归并为 MAC，解析不出时以 DUID 为身份键，
          *     因此 IPv6-only 终端同样可见（M6-046）。
          */
@@ -2311,6 +2313,73 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/assets/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 批量登记资产（部分成功）
+         * @description 「未登记终端」多选后一次登记使用人/部门/组织。每项独立校验与写入，
+         *     失败项在 failures 中按 index 返回，不做整体回滚。单次上限 500 项。
+         *     所需 scope 为 assets:write。
+         */
+        post: operations["bulkUpsertAssets"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/assets/ignored": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 忽略名单
+         * @description 列出被标记为"无需登记"的终端身份（打印机、AP、临时设备等）。
+         *     忽略后不再出现在「未登记终端」，可随时恢复。scope 为 assets:read。
+         */
+        get: operations["listIgnoredTerminals"];
+        /**
+         * 加入忽略名单
+         * @description 以身份键（MAC 优先，回退 DUID）幂等加入；已存在则更新原因。所需 scope 为 assets:write。
+         */
+        put: operations["ignoreTerminal"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/assets/ignored/{identity}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * 从忽略名单移除（恢复发现）
+         * @description 按身份键移除；不存在返回 404。移除后若仍有有效租约，该终端会重新出现在「未登记终端」。所需 scope 为 assets:write。
+         */
+        delete: operations["deleteIgnoredTerminal"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3066,6 +3135,7 @@ export interface components {
         /**
          * @description 资产登记（身份键 = 归一化 MAC，或 MAC 无法解析时的 DHCPv6 DUID；换址备注不丢；§13.4 资产登记）。
          *     M6-046：IPv6-only 终端只有 DUID，没有 MAC，因此身份键允许退化为 DUID。
+         *     M6-047：列表接口附带当前租约地址与在线状态（来自联动绑定），资产页成为"终端视图"而非通讯录。
          */
         Asset: {
             /** @description 身份键。归一化 MAC（aa:bb:cc:dd:ee:ff）或 DUID（小写十六进制） */
@@ -3084,6 +3154,19 @@ export interface components {
             dept?: string;
             note?: string;
             tags?: string[];
+            /** @description 当前租约 IPv4（只读，来自联动绑定；无则缺省） */
+            ipv4?: string;
+            /** @description 当前租约 IPv6（只读） */
+            ipv6?: string;
+            /** @description 是否有 active/grace 且租期未过的绑定（只读） */
+            online?: boolean;
+            /** @description 绑定状态 active/grace/conflict（只读；无租约时缺省） */
+            state?: string;
+            /**
+             * Format: date-time
+             * @description 最近租约开始时间（只读，kea cltt；不等同链路层活跃时间）
+             */
+            lastSeen?: string;
         };
         /**
          * @description 创建/更新（按身份键幂等 upsert）。`mac` 与 `duid` 至少填一个：
@@ -3102,6 +3185,51 @@ export interface components {
         AssetList: {
             items: components["schemas"]["Asset"][];
             total?: number;
+            /** @description 当前筛选结果中在线（有有效租约）的条数 */
+            onlineCount?: number;
+        };
+        /**
+         * @description 批量登记。每项独立校验与写入（部分成功），失败项在 failures 中按 index 返回，
+         *     不做整体回滚——批量登记 500 台时不应因一行格式错误全废。
+         */
+        AssetBulkRequest: {
+            items: components["schemas"]["AssetUpsert"][];
+        };
+        AssetBulkFailure: {
+            /** @description 请求 items 中的下标（0 起） */
+            index: number;
+            /** @description 归一化身份键（可解析时） */
+            identity?: string;
+            /** @description BAD_MAC / BAD_DUID / BAD_IDENTITY / OWNER_REQUIRED / ORG_NOT_FOUND / DB_ERROR */
+            code: string;
+            message: string;
+        };
+        AssetBulkResult: {
+            /** @description 是否全部成功 */
+            ok: boolean;
+            saved: number;
+            failures: components["schemas"]["AssetBulkFailure"][];
+        };
+        /**
+         * @description 忽略名单条目（打印机、AP、临时设备等无需登记资产的终端）。
+         *     忽略后该身份不再出现在「未登记终端」列表，可随时恢复。
+         */
+        IgnoredTerminal: {
+            identity: string;
+            mac?: string;
+            duid?: string;
+            reason?: string;
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        /** @description 加入忽略名单；`mac` 与 `duid` 至少填一个（与资产登记同一身份规则）。 */
+        IgnoredTerminalUpsert: {
+            mac?: string;
+            duid?: string;
+            reason?: string;
+        };
+        IgnoredTerminalList: {
+            items: components["schemas"]["IgnoredTerminal"][];
         };
         /** @description 批量导入单行（CSV 语义；kind ∈ reserve|bind）。 */
         ReservationBulkEntry: {
@@ -4749,6 +4877,7 @@ export interface components {
          * @description 未登记终端（有 DHCP 绑定/租约，但资产表无记录）。
          *     M6-046：DUID 通过 dualstack_identity 映射或 DUID-LLT/LL 链路层地址解析归并为 MAC；
          *     解析不出 MAC 的 DUID（如 DUID-UUID）以 DUID 作为身份键，仍可登记。
+         *     M6-047：已在忽略名单中的身份不再返回。
          */
         DiscoveredTerminal: {
             /** @description 身份键（MAC 优先，回退 DUID）；同设备 v4/v6 绑定已合并为一条 */
@@ -8963,9 +9092,12 @@ export interface operations {
     listAssets: {
         parameters: {
             query?: {
+                /** @description 组织节点；含全部子节点（子树展开） */
                 orgId?: string;
                 /** @description 关键字：MAC（无需分隔符）/DUID/owner/dept 模糊匹配 */
                 q?: string;
+                /** @description 仅在线（true）/仅离线（false）；缺省不过滤 */
+                online?: boolean;
             };
             header?: never;
             path?: never;
@@ -9025,6 +9157,116 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["DiscoveredTerminalList"];
                 };
+            };
+        };
+    };
+    bulkUpsertAssets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssetBulkRequest"];
+            };
+        };
+        responses: {
+            /** @description 批量结果（可能部分成功） */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetBulkResult"];
+                };
+            };
+            /** @description 请求体非法（items 为空或超过上限） */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listIgnoredTerminals: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 忽略名单 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IgnoredTerminalList"];
+                };
+            };
+        };
+    };
+    ignoreTerminal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IgnoredTerminalUpsert"];
+            };
+        };
+        responses: {
+            /** @description 已加入忽略名单 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IgnoredTerminal"];
+                };
+            };
+            /** @description 身份键非法（MAC/DUID 至少填一个） */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteIgnoredTerminal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 身份键（MAC 或 DUID） */
+                identity: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已移除 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 忽略名单中不存在该身份键 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

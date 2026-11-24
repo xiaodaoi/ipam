@@ -159,7 +159,7 @@
   },
   "assets": {
     "title": "资产登记",
-    "desc": "以 MAC 或 DUID 为身份键登记使用人 / 部门 / 组织 / 备注，终端换址不丢；IPv6-only 终端（DUID）同样可登记。为日志中心提供「终端 → 组织」关联链。",
+    "desc": "以 MAC 或 DUID 为身份键登记使用人 / 部门 / 组织 / 备注，终端换址不丢；列表叠加当前租约地址与在线状态，IPv6-only 终端（DUID）同样可登记。为日志中心提供「终端 → 组织」关联链。",
     "meta": "{total} 条资产 · 覆盖 {departments} 个部门",
     "create": "登记资产",
     "statTotal": "资产总数",
@@ -177,7 +177,7 @@
     "scopeAll": "全部资产",
     "scopeUnassigned": "未归属组织",
     "scopeTagged": "已打标签",
-    "hintDecoupled": "登记信息与 IP 解耦，终端换址后保持不变",
+    "hintDecoupled": "登记信息与 IP 解耦（终端换址不丢）；在线状态按有效租约实时计算",
     "colTerminal": "终端（MAC / DUID）",
     "colOwnerDept": "使用人 / 部门",
     "colOrg": "所属组织",
@@ -207,7 +207,10 @@
       "org": "所属组织",
       "tags": "标签",
       "note": "备注",
-      "duid": "DUID"
+      "duid": "DUID",
+      "ipv4": "IPv4",
+      "ipv6": "IPv6",
+      "online": "在线(1/0)"
     },
     "form": {
       "mac": "MAC 地址",
@@ -226,7 +229,18 @@
     },
     "duidOnly": "DUID 终端",
     "invalidDuid": "DUID 格式非法（十六进制，可含分隔符）",
-    "identityRequired": "MAC 与 DUID 至少填写一个"
+    "identityRequired": "MAC 与 DUID 至少填写一个",
+    "colAddress": "当前地址",
+    "colOnline": "在线状态",
+    "noLease": "无租约",
+    "online": "在线",
+    "offline": "离线",
+    "onlineLabel": "在线状态",
+    "onlineAll": "全部状态",
+    "onlineOnly": "仅在线",
+    "offlineOnly": "仅离线",
+    "statOnline": "在线终端",
+    "statOnlineHint": "离线 {count} 台（无有效租约）"
   },
   "discovered": {
     "title": "未登记终端",
@@ -271,6 +285,29 @@
     "colIdentity": "终端（MAC / DUID）",
     "colSubnet": "子网",
     "colOrg": "所属组织",
-    "duidOnly": "DUID 终端"
+    "duidOnly": "DUID 终端",
+    "bulkRegister": "批量登记（{count}）",
+    "bulkTitle": "批量登记 {count} 台终端",
+    "bulkSubmit": "批量登记",
+    "bulkHint": "为选中的终端统一填写使用人/部门/组织；每台独立校验，失败项会单独提示。",
+    "bulkDone": "已登记 {count} 台终端",
+    "bulkPartial": "已登记 {saved} 台，{failed} 台失败（请检查 MAC/DUID 与使用人）",
+    "ignore": "忽略",
+    "ignoreSelected": "忽略所选（{count}）",
+    "ignoreSelectedTitle": "将所选终端加入忽略名单？",
+    "ignoreConfirmTitle": "加入忽略名单？",
+    "ignoreConfirmDesc": "忽略后该终端不再出现在未登记列表，可随时恢复。",
+    "ignoredDone": "已加入忽略名单",
+    "ignoreDone": "已忽略 {count} 台终端",
+    "ignorePartial": "已忽略 {saved} 台，{failed} 台失败",
+    "ignoreFailed": "忽略失败",
+    "ignoredList": "忽略名单",
+    "ignoredTitle": "忽略名单",
+    "ignoredHint": "这些终端不参与「未登记终端」统计；点击「恢复」可重新纳入发现。",
+    "restore": "恢复",
+    "restored": "已恢复发现",
+    "restoreFailed": "恢复失败",
+    "colReason": "原因",
+    "colIgnoredAt": "忽略时间"
   }
 }

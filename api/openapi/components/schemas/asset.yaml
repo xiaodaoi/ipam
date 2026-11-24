@@ -3,6 +3,7 @@ Asset:
   description: |
     资产登记（身份键 = 归一化 MAC，或 MAC 无法解析时的 DHCPv6 DUID；换址备注不丢；§13.4 资产登记）。
     M6-046：IPv6-only 终端只有 DUID，没有 MAC，因此身份键允许退化为 DUID。
+    M6-047：列表接口附带当前租约地址与在线状态（来自联动绑定），资产页成为"终端视图"而非通讯录。
   required: [identity, owner]
   properties:
     identity:
@@ -29,6 +30,22 @@ Asset:
     tags:
       type: array
       items: { type: string }
+    ipv4:
+      type: string
+      description: 当前租约 IPv4（只读，来自联动绑定；无则缺省）
+    ipv6:
+      type: string
+      description: 当前租约 IPv6（只读）
+    online:
+      type: boolean
+      description: 是否有 active/grace 且租期未过的绑定（只读）
+    state:
+      type: string
+      description: 绑定状态 active/grace/conflict（只读；无租约时缺省）
+    lastSeen:
+      type: string
+      format: date-time
+      description: 最近租约开始时间（只读，kea cltt；不等同链路层活跃时间）
 
 AssetUpsert:
   type: object
@@ -54,6 +71,82 @@ AssetList:
       items:
         $ref: 'asset.yaml#/Asset'
     total: { type: integer }
+    onlineCount:
+      type: integer
+      description: 当前筛选结果中在线（有有效租约）的条数
+
+AssetBulkRequest:
+  type: object
+  description: |
+    批量登记。每项独立校验与写入（部分成功），失败项在 failures 中按 index 返回，
+    不做整体回滚——批量登记 500 台时不应因一行格式错误全废。
+  required: [items]
+  properties:
+    items:
+      type: array
+      maxItems: 500
+      items:
+        $ref: 'asset.yaml#/AssetUpsert'
+
+AssetBulkFailure:
+  type: object
+  required: [index, code, message]
+  properties:
+    index:
+      type: integer
+      description: 请求 items 中的下标（0 起）
+    identity:
+      type: string
+      description: 归一化身份键（可解析时）
+    code:
+      type: string
+      description: BAD_MAC / BAD_DUID / BAD_IDENTITY / OWNER_REQUIRED / ORG_NOT_FOUND / DB_ERROR
+    message:
+      type: string
+
+AssetBulkResult:
+  type: object
+  required: [ok, saved, failures]
+  properties:
+    ok:
+      type: boolean
+      description: 是否全部成功
+    saved:
+      type: integer
+    failures:
+      type: array
+      items:
+        $ref: 'asset.yaml#/AssetBulkFailure'
+
+IgnoredTerminal:
+  type: object
+  description: |
+    忽略名单条目（打印机、AP、临时设备等无需登记资产的终端）。
+    忽略后该身份不再出现在「未登记终端」列表，可随时恢复。
+  required: [identity]
+  properties:
+    identity: { type: string }
+    mac: { type: string }
+    duid: { type: string }
+    reason: { type: string, maxLength: 128 }
+    createdAt: { type: string, format: date-time }
+
+IgnoredTerminalUpsert:
+  type: object
+  description: 加入忽略名单；`mac` 与 `duid` 至少填一个（与资产登记同一身份规则）。
+  properties:
+    mac: { type: string }
+    duid: { type: string }
+    reason: { type: string, maxLength: 128 }
+
+IgnoredTerminalList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: 'asset.yaml#/IgnoredTerminal'
 
 DiscoveredTerminal:
   type: object
@@ -61,6 +154,7 @@ DiscoveredTerminal:
     未登记终端（有 DHCP 绑定/租约，但资产表无记录）。
     M6-046：DUID 通过 dualstack_identity 映射或 DUID-LLT/LL 链路层地址解析归并为 MAC；
     解析不出 MAC 的 DUID（如 DUID-UUID）以 DUID 作为身份键，仍可登记。
+    M6-047：已在忽略名单中的身份不再返回。
   required: [identity]
   properties:
     identity:

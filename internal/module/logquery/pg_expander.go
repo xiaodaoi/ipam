@@ -48,8 +48,9 @@ func (e *PgOrgExpander) Expand(ctx context.Context, orgID string) (OrgScope, err
 		return scope, err
 	}
 
+	// asset.mac 可为空（DUID-only 终端），必须 coalesce，否则 NULL 扫描报错导致按组织过滤 500（M6-047）。
 	macRows, err := e.pool.Query(ctx,
-		`SELECT mac FROM asset WHERE org_id IN (
+		`SELECT coalesce(mac,'') FROM asset WHERE mac IS NOT NULL AND org_id IN (
 		   SELECT id FROM org_group WHERE path LIKE $1 || '%')`, path)
 	if err != nil {
 		return scope, err
@@ -60,7 +61,9 @@ func (e *PgOrgExpander) Expand(ctx context.Context, orgID string) (OrgScope, err
 			macRows.Close()
 			return scope, err
 		}
-		scope.MACs = append(scope.MACs, NormalizeMAC(mac))
+		if norm := NormalizeMAC(mac); norm != "" {
+			scope.MACs = append(scope.MACs, norm)
+		}
 	}
 	macRows.Close()
 	if err := macRows.Err(); err != nil {
