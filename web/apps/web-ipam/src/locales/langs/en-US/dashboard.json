@@ -26,7 +26,9 @@
       "health": "Core service health",
       "blocked": "DNS blocks today",
       "blockedHint": "Blocklist hits (today)",
-      "qpsHintSampled": "1-hour average {avg} queries/min · sampled 1/{rate}"
+      "qpsHintSampled": "1-hour average {avg} queries/min · sampled 1/{rate}",
+      "unregistered": "Unregistered",
+      "unregisteredHint": "Registration {rate} · {assets} registered · {ignored} ignored"
     },
     "unit": {
       "devices": "",

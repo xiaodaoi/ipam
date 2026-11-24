@@ -197,6 +197,15 @@ async function main() {
         .first()
         .waitFor({ timeout: 15_000 });
       await page.getByText(/日志口径/).first().waitFor({ timeout: 15_000 });
+      // M6-048：未登记终端 KPI（含登记率/已登记/忽略说明）。
+      await page
+        .locator('.ipam-stat-card', { hasText: '未登记终端' })
+        .first()
+        .waitFor({ timeout: 15_000 });
+      await page
+        .getByText(/登记率 .* · 已登记 .* · 忽略 /)
+        .first()
+        .waitFor({ timeout: 15_000 });
     });
 
     await step('统计口径一致性（在线租约/池已用）', async () => {
@@ -222,6 +231,16 @@ async function main() {
       assert(
         Math.abs(dash.onlineV6 - v6.total) <= TOLERANCE,
         `仪表盘 IPv6 在线 ${dash.onlineV6} 与台账 ${v6.total} 不一致`,
+      );
+      // M6-048：仪表盘「未登记终端」KPI 与发现页同口径（有效租约 - 已登记 - 忽略）。
+      const discNow = await apiGet(page, '/assets/discovered', authHeader);
+      assert(
+        dash.unregisteredTerminals === (discNow.items ?? []).length,
+        `仪表盘未登记终端 ${dash.unregisteredTerminals} 与发现页 ${(discNow.items ?? []).length} 不一致`,
+      );
+      assert(
+        typeof dash.assetTotal === 'number',
+        '仪表盘缺少资产总数（登记率分母）',
       );
       const top = (dash.poolUtilTop ?? []).find((p) => p.used > 0);
       if (top) {
@@ -352,6 +371,52 @@ async function main() {
         authHeader,
       );
       assert(assets.items?.length === 2, '按使用人查不到批量登记结果');
+      assert(assets.stats?.total === 2, '服务端统计 total 不符');
+      assert(
+        typeof assets.stats?.online === 'number' &&
+          typeof assets.stats?.owners === 'number',
+        '缺少服务端统计字段',
+      );
+
+      // M6-048：服务端分页——每页 1 条时第 1/2 页各 1 条，total 与 stats 不随分页变化。
+      const page1 = await apiGet(
+        page,
+        `/assets?q=${encodeURIComponent(owner)}&pageSize=1&page=1`,
+        authHeader,
+      );
+      const page2 = await apiGet(
+        page,
+        `/assets?q=${encodeURIComponent(owner)}&pageSize=1&page=2`,
+        authHeader,
+      );
+      assert(
+        page1.items?.length === 1 &&
+          page2.items?.length === 1 &&
+          page1.total === 2 &&
+          page2.total === 2 &&
+          page2.stats?.total === 2,
+        `服务端分页异常: page1=${page1.items?.length}/${page1.total} page2=${page2.items?.length}/${page2.total}`,
+      );
+      assert(
+        page1.items[0].identity !== page2.items[0].identity,
+        '分页两页返回了同一条资产',
+      );
+
+      // 状态筛选：仅在线应命中 2 条，仅离线 0 条。
+      const onlyOnline = await apiGet(
+        page,
+        `/assets?q=${encodeURIComponent(owner)}&online=true`,
+        authHeader,
+      );
+      const onlyOffline = await apiGet(
+        page,
+        `/assets?q=${encodeURIComponent(owner)}&online=false`,
+        authHeader,
+      );
+      assert(
+        onlyOnline.items?.length === 2 && onlyOffline.items?.length === 0,
+        '在线状态筛选异常',
+      );
       for (const a of assets.items) {
         assert(typeof a.online === 'boolean', '资产缺少在线状态字段');
         if (a.online) {

@@ -56,6 +56,9 @@ func toGenOverview(ov Overview) apigen.DashboardOverview {
 		OnlineTrend:             trend,
 		NewTerminals:            int64Ptr(ov.NewTerminals),
 		OfflineTerminals:        int64Ptr(ov.OfflineTerminals),
+		UnregisteredTerminals:   int64Ptr(ov.UnregisteredTerminals),
+		IgnoredTerminals:        int64Ptr(ov.IgnoredTerminals),
+		AssetTotal:              int64Ptr(ov.AssetTotal),
 		CoherenceSuccessRatePct: int64Ptr(ov.CoherencePct),
 		PoolUtilTop:             genPoolTop(ov.PoolTop),
 	}

@@ -3182,11 +3182,35 @@ export interface components {
             note?: string;
             tags?: string[];
         };
+        /** @description 资产分页结果（服务端分页 + 服务端统计，M6-048）。 */
         AssetList: {
             items: components["schemas"]["Asset"][];
+            /** @description 当前筛选条件下的总条数（不受分页限制） */
             total?: number;
             /** @description 当前筛选结果中在线（有有效租约）的条数 */
             onlineCount?: number;
+            stats?: components["schemas"]["AssetStats"];
+        };
+        /**
+         * @description 当前筛选条件（组织子树/关键字/在线状态/范围）下的服务端统计，不受分页限制。
+         *     用于资产页 KPI 卡，避免前端只统计当前页导致数字跳变。
+         */
+        AssetStats: {
+            total: number;
+            /** @description 已归属组织的条数 */
+            assigned: number;
+            /** @description 未归属组织的条数 */
+            unassigned: number;
+            /** @description 去重使用人数 */
+            owners: number;
+            /** @description 去重部门数 */
+            depts: number;
+            /** @description 当前有有效租约的条数 */
+            online: number;
+            /** @description 无有效租约的条数 */
+            offline: number;
+            /** @description 有标签的条数 */
+            tagged?: number;
         };
         /**
          * @description 批量登记。每项独立校验与写入（部分成功），失败项在 failures 中按 index 返回，
@@ -3780,6 +3804,12 @@ export interface components {
             newTerminals?: number | null;
             /** @description 近 24h 有 DHCP 活动、当前无有效租约的 MAC 数（日志活动与台账按 MAC 比对；台账不可用时回退「今日未见」） */
             offlineTerminals?: number | null;
+            /** @description 有有效租约但未登记资产、且不在忽略名单的终端数（与「未登记终端」页同口径；资产域不可用时 null） */
+            unregisteredTerminals?: number | null;
+            /** @description 忽略名单条目数（打印机/AP 等无需登记资产的终端） */
+            ignoredTerminals?: number | null;
+            /** @description 资产登记总数；登记率 = assetTotal / (assetTotal + unregisteredTerminals) */
+            assetTotal?: number | null;
             services: {
                 postgres: components["schemas"]["HealthLight"];
                 clickhouse: components["schemas"]["HealthLight"];
@@ -9098,6 +9128,12 @@ export interface operations {
                 q?: string;
                 /** @description 仅在线（true）/仅离线（false）；缺省不过滤 */
                 online?: boolean;
+                /** @description all=全部 / unassigned=未归属组织 / tagged=已打标签 */
+                scope?: "all" | "unassigned" | "tagged";
+                /** @description 页码（1 起） */
+                page?: number;
+                /** @description 每页条数（默认 20，上限 200） */
+                pageSize?: number;
             };
             header?: never;
             path?: never;

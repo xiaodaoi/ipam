@@ -295,7 +295,7 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		// 台账 v6 行的 MAC 列可能仍是 DUID，两种键都要能命中（M6-046）。
 		assets := map[string]ipam.Asset{}
 		if pool != nil {
-			if list, err := ipam.NewPgAssetRepo(pool).List(ctx, nil, ""); err == nil {
+			if list, err := ipam.NewPgAssetRepo(pool).List(ctx, ipam.AssetQuery{}); err == nil {
 				for _, a := range list {
 					if id := a.Identity(); id != "" {
 						assets[id] = a
@@ -448,13 +448,14 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		}
 		return ipam.LoadDUIDToMAC(ctx, pool)
 	})
-	assetH := ipam.NewAssetHandler(assetSvc)
-	assetH.SetBindingSource(func(ctx context.Context) ([]ipam.LedgerBinding, error) {
+	assetBindings := func(ctx context.Context) ([]ipam.LedgerBinding, error) {
 		if pool == nil {
 			return nil, nil
 		}
 		return ipam.LoadLedgerBindings(ctx, pool)
-	})
+	}
+	assetH := ipam.NewAssetHandler(assetSvc)
+	assetH.SetBindingSource(assetBindings)
 
 	// 日志检索（M4-002，FR-E-04）：配置 IPAM_CH_ADDR 走 ClickHouse，否则内存 PoC；
 	// 组织展开：PG 子树（org_group.path）或内存节点遍历。
@@ -522,6 +523,15 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	dashSvc := dashboard.NewService(logStore, subSrc, bindSrc, lights)
 	// 在线终端/池已用统一走地址台账（有效租约），与 DHCP 子网页一致（M6-043）。
 	dashSvc.SetLedgerSource(ledgerSrc)
+	// 未登记终端 KPI（M6-048）：复用发现页口径（有效租约 - 已登记 - 忽略），避免两个数字打架。
+	dashSvc.SetTerminalStats(func(ctx context.Context) (int, int, int, error) {
+		bs, err := assetBindings(ctx)
+		if err != nil {
+			return 0, 0, 0, err
+		}
+		st, err := assetSvc.TerminalStats(ctx, bs)
+		return st.Unregistered, st.Ignored, st.Assets, err
+	})
 	// 地址池行展示所属部门（组织名，M6-020）。
 	dashSvc.SetOrgNameResolver(func(id string) string {
 		if n, ok := orgStore.Get(id); ok {

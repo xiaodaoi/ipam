@@ -611,6 +611,8 @@ components:
       $ref: './components/schemas/asset.yaml#/AssetUpsert'
     AssetList:
       $ref: './components/schemas/asset.yaml#/AssetList'
+    AssetStats:
+      $ref: './components/schemas/asset.yaml#/AssetStats'
     AssetBulkRequest:
       $ref: './components/schemas/asset.yaml#/AssetBulkRequest'
     AssetBulkFailure:

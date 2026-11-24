@@ -26,7 +26,9 @@
       "health": "核心服务健康",
       "blocked": "今日 DNS 拦截",
       "blockedHint": "封禁名单命中（今日累计）",
-      "qpsHintSampled": "近 1 小时均值 {avg} 次/分 · 抽样 1/{rate}"
+      "qpsHintSampled": "近 1 小时均值 {avg} 次/分 · 抽样 1/{rate}",
+      "unregistered": "未登记终端",
+      "unregisteredHint": "登记率 {rate} · 已登记 {assets} 台 · 忽略 {ignored} 台"
     },
     "unit": {
       "devices": "台",

@@ -15,6 +15,7 @@ export type Asset = components['schemas']['Asset'];
 export type AssetUpsert = components['schemas']['AssetUpsert'];
 export type DiscoveredTerminal = components['schemas']['DiscoveredTerminal'];
 export type AssetBulkResult = components['schemas']['AssetBulkResult'];
+export type AssetStats = components['schemas']['AssetStats'];
 export type IgnoredTerminal = components['schemas']['IgnoredTerminal'];
 export type LedgerMetaUpsert = components['schemas']['LedgerMetaUpsert'];
 
@@ -97,16 +98,25 @@ export const listSubnets = (orgId?: string) =>
 export const listAssets = (params?: {
   online?: boolean;
   orgId?: string;
+  page?: number;
+  pageSize?: number;
   q?: string;
+  scope?: 'all' | 'tagged' | 'unassigned';
 }) => {
   const qs = new URLSearchParams();
   if (params?.orgId) qs.set('orgId', params.orgId);
   if (params?.q) qs.set('q', params.q);
   if (params?.online !== undefined) qs.set('online', String(params.online));
+  if (params?.scope && params.scope !== 'all') qs.set('scope', params.scope);
+  if (params?.page) qs.set('page', String(params.page));
+  if (params?.pageSize) qs.set('pageSize', String(params.pageSize));
   const s = qs.toString();
-  return req<{ items: Asset[]; onlineCount?: number; total?: number }>(
-    `/assets${s ? `?${s}` : ''}`,
-  );
+  return req<{
+    items: Asset[];
+    onlineCount?: number;
+    stats?: AssetStats;
+    total?: number;
+  }>(`/assets${s ? `?${s}` : ''}`);
 };
 export const upsertAsset = (b: AssetUpsert) =>
   req<Asset>('/assets', { method: 'PUT', body: JSON.stringify(b) });

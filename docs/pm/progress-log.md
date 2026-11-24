@@ -3,6 +3,15 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-11-24 · 资产服务端分页/统计、pg_trgm 与仪表盘未登记 KPI（M6-048）
+- **服务端分页 + 统计**：`GET /assets` 新增 `page/pageSize`（上限 200）与 `scope`，返回 `stats{total,assigned,unassigned,owners,depts,online,offline,tagged}`；列表与统计共用同一 `assetWhere`，KPI 不随翻页跳变。
+- **在线筛选下推**：`AssetLeaseIndex` 产出的在线身份键集合（含 DUID 别名）以 `identity/mac/duid = ANY(...)` 下推 SQL，避免把全部资产拉内存再过滤。
+- **检索索引**：迁移 `0053_asset_trgm` + pg_trgm GIN（owner/dept/mac/duid + `replace(lower(mac),':','')` 表达式），支持省略分隔符的 MAC 查询。
+- **仪表盘 KPI**：`AssetService.TerminalStats` 复用 `Discover`（有效租约 - 已登记 - 忽略）与忽略名单，`DashboardOverview` 新增 `unregisteredTerminals/ignoredTerminals/assetTotal`；前端五卡布局新增「未登记终端（登记率 · 已登记 · 忽略）」。
+- **前端**：资产页切页/改筛选重新请求并回第 1 页，KPI 取服务端统计，CSV 按当前筛选最多导出 500 条；zh/en 成对。
+- **验证**：25 条测试资产 → page1=10/total=25、page3=5、unassigned=12、tagged=9、组织子树 13 条第 2 页 3 条；`unregisteredTerminals 232 = discovered 232`，assetTotal=25；5 个 `*_trgm` 索引就位；清理后 asset=0。`go test ./...`、golangci-lint 0 issues、vue-tsc、i18n 三门禁、E2E **23/23**（新增分页/stats/在线筛选与仪表盘 KPI 断言）。
+- **遗留**：CSV 导出上限 500（大库需异步导出）；资产页无排序；超短关键字仍退化扫描；绑定源异常时未登记数显示 —（不误报 0）。
+
 ## 2026-11-24 · 未登记终端批量登记、忽略名单与资产在线视图（M6-047）
 - **批量登记**：新增 `POST /assets/bulk`（上限 500，逐条校验写入、失败项按 index+code 返回，部分成功不回滚）；发现页多选后统一填使用人/部门/组织。
 - **忽略名单**：迁移 `0052_asset_ignore` + `GET/PUT /assets/ignored`、`DELETE /assets/ignored/{identity}`；`Discover` 同时按 MAC/DUID/identity 抑制（先按 DUID 忽略、后解析出 MAC 仍生效），可恢复。

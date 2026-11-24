@@ -242,6 +242,29 @@
   }
 }
 
+/* 5 卡布局（仪表盘新增「未登记终端」KPI，M6-048） */
+.ipam-stat-grid--five {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+@media (max-width: 1600px) {
+  .ipam-stat-grid--five {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1024px) {
+  .ipam-stat-grid--five {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .ipam-stat-grid--five {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .ipam-stat-card {
   position: relative;
   display: flex;

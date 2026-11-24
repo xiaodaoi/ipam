@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Asset, OrgTreeNode } from '#/api/ipam';
+import type { Asset, AssetStats, OrgTreeNode } from '#/api/ipam';
 
 import { computed, onMounted, reactive, ref } from 'vue';
 
@@ -68,10 +68,37 @@ const orgOptions = computed(() => {
   return out;
 });
 
-// ── 资产清单 ──
+// ── 资产清单（服务端分页 + 服务端统计，M6-048）──
 const rows = ref<Asset[]>([]);
 const loading = ref(false);
 const keyword = ref('');
+const page = ref(1);
+const pageSize = ref(20);
+const total = ref(0);
+const stats = ref<AssetStats>({
+  assigned: 0,
+  depts: 0,
+  offline: 0,
+  online: 0,
+  owners: 0,
+  tagged: 0,
+  total: 0,
+  unassigned: 0,
+});
+const pagination = computed(() => ({
+  current: page.value,
+  pageSize: pageSize.value,
+  showSizeChanger: true,
+  showTotal,
+  total: total.value,
+}));
+
+/** 表头分页变化：切页/改每页条数都重新请求，避免前端"假分页"。 */
+function onTableChange(p: { current?: number; pageSize?: number }) {
+  if (p.current) page.value = p.current;
+  if (p.pageSize) pageSize.value = p.pageSize;
+  void load();
+}
 type Scope = 'all' | 'tagged' | 'unassigned';
 const scope = ref<Scope>('all');
 const scopeOptions = computed(() => [
@@ -98,26 +125,36 @@ async function load() {
         onlineFilter.value === 'all'
           ? undefined
           : onlineFilter.value === 'online',
+      page: page.value,
+      pageSize: pageSize.value,
+      scope: scope.value,
     });
     rows.value = res.items ?? [];
+    total.value = res.total ?? 0;
+    if (res.stats) stats.value = res.stats;
   } finally {
     loading.value = false;
   }
+}
+
+/** 改筛选条件一律回到第 1 页，否则会落在空页。 */
+function applyFilters() {
+  page.value = 1;
+  void load();
 }
 
 function resetFilters() {
   keyword.value = '';
   scope.value = 'all';
   onlineFilter.value = 'all';
-  void load();
+  applyFilters();
 }
 
-const visibleRows = computed(() => {
-  if (scope.value === 'unassigned') return rows.value.filter((r) => !r.orgId);
-  if (scope.value === 'tagged')
-    return rows.value.filter((r) => (r.tags ?? []).length > 0);
-  return rows.value;
-});
+/** 组织树选择在父组件回调里触发，需同步重置页码。 */
+function onSelectOrgAndReload(orgId: string) {
+  page.value = 1;
+  onSelectOrg(orgId);
+}
 
 const assetColumns = computed(() => [
   {
@@ -147,24 +184,6 @@ const emptyText = computed(() =>
     : $t('dhcpLedger.assets.emptyList'),
 );
 
-// ── 资产指标 ──
-const stats = computed(() => {
-  const total = rows.value.length;
-  const assigned = rows.value.filter((r) => !!r.orgId).length;
-  const owners = new Set(rows.value.map((r) => r.owner).filter(Boolean));
-  const depts = new Set(rows.value.map((r) => r.dept).filter(Boolean));
-  const online = rows.value.filter((r) => r.online).length;
-  return {
-    assigned,
-    deptCount: depts.size,
-    offline: total - online,
-    online,
-    ownerCount: owners.size,
-    total,
-    unassigned: total - assigned,
-  };
-});
-
 // ── CSV 导出（当前筛选结果，含完整组织路径） ──
 function csvCell(v: unknown): string {
   const s = String(v ?? '');
@@ -172,7 +191,20 @@ function csvCell(v: unknown): string {
   return needsQuote ? `"${s.replaceAll('"', '""')}"` : s;
 }
 
-function exportCsv() {
+async function exportCsv() {
+  // 服务端分页后前端只有当前页：导出时按同一筛选最多取 500 条（与批量登记上限一致）。
+  const res = await listAssets({
+    orgId: selectedOrgId.value || undefined,
+    q: keyword.value.trim() || undefined,
+    online:
+      onlineFilter.value === 'all'
+        ? undefined
+        : onlineFilter.value === 'online',
+    page: 1,
+    pageSize: 500,
+    scope: scope.value,
+  });
+  const exportRows = res.items ?? [];
   const header = [
     $t('dhcpLedger.assets.csv.mac'),
     $t('dhcpLedger.assets.csv.duid'),
@@ -185,7 +217,7 @@ function exportCsv() {
     $t('dhcpLedger.assets.csv.tags'),
     $t('dhcpLedger.assets.csv.note'),
   ];
-  const lines = visibleRows.value.map((r) =>
+  const lines = exportRows.map((r) =>
     [
       r.mac ?? '',
       r.duid ?? '',
@@ -209,7 +241,7 @@ function exportCsv() {
   a.click();
   URL.revokeObjectURL(a.href);
   message.success(
-    $t('dhcpLedger.assets.exportDone', { count: visibleRows.value.length }),
+    $t('dhcpLedger.assets.exportDone', { count: exportRows.length }),
   );
 }
 
@@ -356,7 +388,7 @@ onMounted(async () => {
           {{
             $t('dhcpLedger.assets.meta', {
               total: stats.total,
-              departments: stats.deptCount,
+              departments: stats.depts,
             })
           }}
         </span>
@@ -376,7 +408,7 @@ onMounted(async () => {
       <OrgFilterCard
         :org-tree="orgTree"
         :selected-org-id="selectedOrgId"
-        @select="onSelectOrg"
+        @select="onSelectOrgAndReload"
       />
 
       <div class="ipam-subnets-main">
@@ -388,7 +420,7 @@ onMounted(async () => {
             icon="lucide:contact"
             tone="blue"
             :hint="
-              $t('dhcpLedger.assets.statTotalHint', { count: stats.ownerCount })
+              $t('dhcpLedger.assets.statTotalHint', { count: stats.owners })
             "
           />
           <StatCard
@@ -408,12 +440,12 @@ onMounted(async () => {
           />
           <StatCard
             :label="$t('dhcpLedger.assets.statOwners')"
-            :value="stats.ownerCount"
+            :value="stats.owners"
             :unit="$t('dhcpLedger.common.units.person')"
             icon="lucide:user-round"
             tone="green"
             :hint="
-              $t('dhcpLedger.assets.statOwnersHint', { count: stats.deptCount })
+              $t('dhcpLedger.assets.statOwnersHint', { count: stats.depts })
             "
           />
           <StatCard
@@ -437,8 +469,8 @@ onMounted(async () => {
               <em class="ipam-card-sub">
                 {{
                   $t('dhcpLedger.assets.listCardSub', {
-                    shown: visibleRows.length,
-                    total: rows.length,
+                    shown: rows.length,
+                    total,
                   })
                 }}
               </em>
@@ -460,7 +492,7 @@ onMounted(async () => {
                 allow-clear
                 :placeholder="$t('dhcpLedger.assets.keywordPlaceholder')"
                 style="width: 240px"
-                @press-enter="load"
+                @press-enter="applyFilters"
               />
             </div>
             <div class="ipam-field">
@@ -471,6 +503,7 @@ onMounted(async () => {
                 v-model:value="scope"
                 :options="scopeOptions"
                 style="width: 150px"
+                @change="applyFilters"
               />
             </div>
             <div class="ipam-field">
@@ -481,10 +514,10 @@ onMounted(async () => {
                 v-model:value="onlineFilter"
                 :options="onlineOptions"
                 style="width: 120px"
-                @change="load"
+                @change="applyFilters"
               />
             </div>
-            <Button size="small" @click="load">
+            <Button size="small" @click="applyFilters">
               {{ $t('dhcpLedger.common.query') }}
             </Button>
             <Button size="small" @click="resetFilters">
@@ -493,7 +526,7 @@ onMounted(async () => {
             <div class="ipam-toolbar__spacer"></div>
             <Button
               size="small"
-              :disabled="visibleRows.length === 0"
+              :disabled="rows.length === 0"
               @click="exportCsv"
             >
               <IconifyIcon icon="lucide:download" class="mr-1 size-3.5" />
@@ -505,13 +538,14 @@ onMounted(async () => {
           </div>
 
           <Table
-            :data-source="visibleRows"
+            :data-source="rows"
             :loading="loading"
             :columns="assetColumns"
             :locale="{ emptyText }"
-            :pagination="{ pageSize: 20, showSizeChanger: true, showTotal }"
+            :pagination="pagination"
             :row-key="(r: Asset) => r.identity"
             size="small"
+            @change="onTableChange"
           >
             <template #bodyCell="{ column, record }">
               <template v-if="column.dataIndex === 'mac'">

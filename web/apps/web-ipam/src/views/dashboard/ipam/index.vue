@@ -100,6 +100,22 @@ onBeforeUnmount(() => {
 });
 
 // ── 格式化 ──
+/** 登记率 = 已登记 /（已登记 + 未登记）；口径与「未登记终端」页一致。 */
+const registrationRate = computed(() => {
+  const unregistered = data.value?.unregisteredTerminals;
+  const assets = data.value?.assetTotal;
+  if (
+    unregistered === null ||
+    unregistered === undefined ||
+    assets === null ||
+    assets === undefined
+  ) {
+    return '—';
+  }
+  const denom = assets + unregistered;
+  return denom > 0 ? `${Math.round((assets / denom) * 100)}%` : '—';
+});
+
 function fmtInt(v?: null | number): string {
   if (v === undefined || v === null || Number.isNaN(v)) return '—';
   return v.toLocaleString();
@@ -363,7 +379,7 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
     </div>
 
     <!-- 核心指标 -->
-    <div class="ipam-stat-grid">
+    <div class="ipam-stat-grid ipam-stat-grid--five">
       <StatCard
         :label="$t('dashboard.ipam.stat.activeDevices')"
         :value="fmtInt(data?.onlineNow)"
@@ -408,6 +424,20 @@ const diskPct = computed(() => Number(rootDisk.value?.usedPct ?? 0));
         icon="lucide:shield-ban"
         tone="violet"
         :hint="$t('dashboard.ipam.stat.blockedHint')"
+      />
+      <StatCard
+        :label="$t('dashboard.ipam.stat.unregistered')"
+        :value="fmtInt(data?.unregisteredTerminals ?? null)"
+        :unit="$t('dashboard.ipam.unit.devices')"
+        icon="lucide:radar"
+        tone="amber"
+        :hint="
+          $t('dashboard.ipam.stat.unregisteredHint', {
+            assets: fmtInt(data?.assetTotal ?? null),
+            ignored: fmtInt(data?.ignoredTerminals ?? null),
+            rate: registrationRate,
+          })
+        "
       />
     </div>
 

@@ -65,15 +65,36 @@ AssetUpsert:
 AssetList:
   type: object
   required: [items]
+  description: 资产分页结果（服务端分页 + 服务端统计，M6-048）。
   properties:
     items:
       type: array
       items:
         $ref: 'asset.yaml#/Asset'
-    total: { type: integer }
+    total:
+      type: integer
+      description: 当前筛选条件下的总条数（不受分页限制）
     onlineCount:
       type: integer
       description: 当前筛选结果中在线（有有效租约）的条数
+    stats:
+      $ref: 'asset.yaml#/AssetStats'
+
+AssetStats:
+  type: object
+  description: |
+    当前筛选条件（组织子树/关键字/在线状态/范围）下的服务端统计，不受分页限制。
+    用于资产页 KPI 卡，避免前端只统计当前页导致数字跳变。
+  required: [total, assigned, unassigned, owners, depts, online, offline]
+  properties:
+    total: { type: integer }
+    assigned: { type: integer, description: 已归属组织的条数 }
+    unassigned: { type: integer, description: 未归属组织的条数 }
+    owners: { type: integer, description: 去重使用人数 }
+    depts: { type: integer, description: 去重部门数 }
+    online: { type: integer, description: 当前有有效租约的条数 }
+    offline: { type: integer, description: 无有效租约的条数 }
+    tagged: { type: integer, description: 有标签的条数 }
 
 AssetBulkRequest:
   type: object

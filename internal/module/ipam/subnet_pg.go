@@ -545,24 +545,96 @@ type MemAssetRepo struct{ items map[string]Asset }
 
 func NewMemAssetRepo() *MemAssetRepo { return &MemAssetRepo{items: map[string]Asset{}} }
 
-func (r *MemAssetRepo) List(_ context.Context, orgIDs []string, q string) ([]Asset, error) {
-	scope := map[string]bool{}
-	for _, id := range orgIDs {
-		scope[id] = true
+// filtered 应用与 PG 实现同语义的筛选；分页在 List 中单独处理。
+func (r *MemAssetRepo) filtered(q AssetQuery) []Asset {
+	orgScope := map[string]bool{}
+	for _, id := range q.OrgIDs {
+		orgScope[id] = true
+	}
+	onlineScope := map[string]bool{}
+	for _, id := range q.OnlineIDs {
+		onlineScope[id] = true
 	}
 	out := []Asset{}
 	for _, a := range r.items {
-		// nil=不过滤；非 nil 空切片=组织不存在（返回空，而不是退化为全量）。
-		if orgIDs != nil && !scope[a.OrgID] {
+		if q.OrgIDs != nil && !orgScope[a.OrgID] {
 			continue
 		}
-		if q != "" && !assetMatchesQuery(a, q) {
+		if q.Q != "" && !assetMatchesQuery(a, q.Q) {
 			continue
+		}
+		switch q.Scope {
+		case "unassigned":
+			if a.OrgID != "" {
+				continue
+			}
+		case "tagged":
+			if len(a.Tags) == 0 {
+				continue
+			}
+		}
+		if q.Online != nil {
+			isOnline := onlineScope[a.Identity()] || (a.MAC != "" && onlineScope[a.MAC]) ||
+				(a.DUID != "" && onlineScope[a.DUID])
+			if isOnline != *q.Online {
+				continue
+			}
 		}
 		out = append(out, a)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Identity() < out[j].Identity() })
-	return out, nil
+	return out
+}
+
+func (r *MemAssetRepo) List(_ context.Context, q AssetQuery) ([]Asset, error) {
+	all := r.filtered(q)
+	if q.Limit <= 0 {
+		return all, nil
+	}
+	offset := q.Offset
+	if offset < 0 {
+		offset = 0
+	}
+	if offset >= len(all) {
+		return []Asset{}, nil
+	}
+	end := offset + q.Limit
+	if end > len(all) {
+		end = len(all)
+	}
+	return all[offset:end], nil
+}
+
+func (r *MemAssetRepo) Stats(_ context.Context, q AssetQuery) (AssetStats, error) {
+	all := r.filtered(q)
+	st := AssetStats{Total: len(all)}
+	owners, depts := map[string]bool{}, map[string]bool{}
+	onlineScope := map[string]bool{}
+	for _, id := range q.OnlineIDs {
+		onlineScope[id] = true
+	}
+	for _, a := range all {
+		if a.OrgID != "" {
+			st.Assigned++
+		}
+		if owner := strings.ToLower(strings.TrimSpace(a.Owner)); owner != "" {
+			owners[owner] = true
+		}
+		if dept := strings.ToLower(strings.TrimSpace(a.Dept)); dept != "" {
+			depts[dept] = true
+		}
+		if len(a.Tags) > 0 {
+			st.Tagged++
+		}
+		if onlineScope[a.Identity()] || (a.MAC != "" && onlineScope[a.MAC]) ||
+			(a.DUID != "" && onlineScope[a.DUID]) {
+			st.Online++
+		}
+	}
+	st.Unassigned = st.Total - st.Assigned
+	st.Owners, st.Depts = len(owners), len(depts)
+	st.Offline = st.Total - st.Online
+	return st, nil
 }
 
 func (r *MemAssetRepo) Get(_ context.Context, identity string) (Asset, bool, error) {
@@ -650,26 +722,64 @@ func NewPgAssetRepo(pool *pgxpool.Pool) *PgAssetRepo { return &PgAssetRepo{pool:
 
 const assetCols = `coalesce(mac,''), coalesce(duid,''), coalesce(org_id::text,''), coalesce(owner,''), coalesce(dept,''), coalesce(note,''), coalesce(tags,'{}')`
 
-func (r *PgAssetRepo) List(ctx context.Context, orgIDs []string, q string) ([]Asset, error) {
-	sql := `SELECT ` + assetCols + ` FROM asset WHERE true`
-	var args []any
-	if orgIDs != nil {
+// assetWhere 构造筛选条件；参数追加到 args，返回 WHERE 片段。
+func assetWhere(q AssetQuery, args *[]any) string {
+	conds := []string{"true"}
+	if q.OrgIDs != nil {
 		// 子树展开后的节点集合；orgID 不存在时传空数组→结果为空。
-		args = append(args, orgIDs)
-		sql += ` AND org_id::text = ANY($` + fmt1(len(args)) + `)`
+		*args = append(*args, q.OrgIDs)
+		conds = append(conds, `org_id::text = ANY($`+fmt1(len(*args))+`)`)
 	}
-	if q != "" {
-		args = append(args, "%"+q+"%")
-		like := fmt1(len(args))
-		sql += ` AND (mac ILIKE $` + like + ` OR duid ILIKE $` + like + ` OR owner ILIKE $` + like + ` OR dept ILIKE $` + like
+	if q.Q != "" {
+		*args = append(*args, "%"+q.Q+"%")
+		n := fmt1(len(*args))
+		cond := `(coalesce(mac,'') ILIKE $` + n + ` OR coalesce(duid,'') ILIKE $` + n +
+			` OR coalesce(owner,'') ILIKE $` + n + ` OR coalesce(dept,'') ILIKE $` + n
 		// MAC 允许省略分隔符输入：replace(mac,':','') 与压缩后的关键字比较（M6-046）。
-		if compact := compactIdentity(q); len(compact) >= 4 {
-			args = append(args, "%"+compact+"%")
-			sql += ` OR replace(lower(mac), ':', '') LIKE $` + fmt1(len(args))
+		if compact := compactIdentity(q.Q); len(compact) >= 4 {
+			*args = append(*args, "%"+compact+"%")
+			cond += ` OR replace(lower(coalesce(mac,'')), ':', '') LIKE $` + fmt1(len(*args))
 		}
-		sql += `)`
+		conds = append(conds, cond+`)`)
 	}
-	sql += ` ORDER BY identity`
+	switch q.Scope {
+	case "unassigned":
+		conds = append(conds, "org_id IS NULL")
+	case "tagged":
+		conds = append(conds, "coalesce(array_length(tags,1),0) > 0")
+	}
+	if q.Online != nil {
+		expr := assetOnlineExpr(q.OnlineIDs, args)
+		if !*q.Online {
+			expr = "NOT " + expr
+		}
+		conds = append(conds, expr)
+	}
+	return strings.Join(conds, " AND ")
+}
+
+// assetOnlineExpr 身份键在在线集合内（identity/mac/duid 三键任一命中）。
+func assetOnlineExpr(ids []string, args *[]any) string {
+	if len(ids) == 0 {
+		return "false"
+	}
+	*args = append(*args, ids)
+	n := fmt1(len(*args))
+	return `(identity = ANY($` + n + `) OR coalesce(mac,'') = ANY($` + n +
+		`) OR coalesce(duid,'') = ANY($` + n + `))`
+}
+
+func (r *PgAssetRepo) List(ctx context.Context, q AssetQuery) ([]Asset, error) {
+	args := []any{}
+	sql := `SELECT ` + assetCols + ` FROM asset WHERE ` + assetWhere(q, &args) + ` ORDER BY identity`
+	if q.Limit > 0 {
+		offset := q.Offset
+		if offset < 0 {
+			offset = 0
+		}
+		args = append(args, q.Limit, offset)
+		sql += ` LIMIT $` + fmt1(len(args)-1) + ` OFFSET $` + fmt1(len(args))
+	}
 	rows, err := r.pool.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, err
@@ -685,6 +795,34 @@ func (r *PgAssetRepo) List(ctx context.Context, orgIDs []string, q string) ([]As
 		}
 	}
 	return out, rows.Err()
+}
+
+func (r *PgAssetRepo) Stats(ctx context.Context, q AssetQuery) (AssetStats, error) {
+	args := []any{}
+	where := assetWhere(q, &args)
+	onlineExpr := "false"
+	if len(q.OnlineIDs) > 0 {
+		args = append(args, q.OnlineIDs)
+		n := fmt1(len(args))
+		onlineExpr = `(identity = ANY($` + n + `) OR coalesce(mac,'') = ANY($` + n +
+			`) OR coalesce(duid,'') = ANY($` + n + `))`
+	}
+	var st AssetStats
+	err := r.pool.QueryRow(ctx,
+		`SELECT count(*),
+		   count(*) FILTER (WHERE org_id IS NOT NULL),
+		   count(DISTINCT lower(owner)) FILTER (WHERE coalesce(owner,'') <> ''),
+		   count(DISTINCT lower(dept)) FILTER (WHERE coalesce(dept,'') <> ''),
+		   count(*) FILTER (WHERE coalesce(array_length(tags,1),0) > 0),
+		   count(*) FILTER (WHERE `+onlineExpr+`)
+		 FROM asset WHERE `+where, args...).
+		Scan(&st.Total, &st.Assigned, &st.Owners, &st.Depts, &st.Tagged, &st.Online)
+	if err != nil {
+		return AssetStats{}, err
+	}
+	st.Unassigned = st.Total - st.Assigned
+	st.Offline = st.Total - st.Online
+	return st, nil
 }
 
 func (r *PgAssetRepo) Get(ctx context.Context, identity string) (Asset, bool, error) {

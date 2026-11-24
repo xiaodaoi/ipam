@@ -62,36 +62,60 @@ func (h *AssetHandler) ListDiscoveredTerminals(c *gin.Context) {
 	c.JSON(http.StatusOK, apigen.DiscoveredTerminalList{Items: items})
 }
 
-// ListAssets GET /assets：组织子树筛选 + 关键字 + 在线状态，附带当前租约地址。
+// ListAssets GET /assets：组织子树 + 关键字 + 范围 + 在线状态，服务端分页与统计。
 func (h *AssetHandler) ListAssets(c *gin.Context, params apigen.ListAssetsParams) {
-	orgID := ""
+	q := AssetQuery{Online: params.Online}
 	if params.OrgId != nil {
-		orgID = params.OrgId.String()
+		q.OrgID = params.OrgId.String()
 	}
-	q := ""
 	if params.Q != nil {
-		q = *params.Q
+		q.Q = *params.Q
 	}
-	list, err := h.svc.List(c.Request.Context(), orgID, q)
+	if params.Scope != nil {
+		q.Scope = string(*params.Scope)
+	}
+	page, pageSize := 1, 20
+	if params.Page != nil && *params.Page > 0 {
+		page = *params.Page
+	}
+	if params.PageSize != nil && *params.PageSize > 0 {
+		pageSize = *params.PageSize
+	}
+	if pageSize > 200 {
+		pageSize = 200
+	}
+	q.Limit, q.Offset = pageSize, (page-1)*pageSize
+
+	leases := h.leaseIndex(c.Request.Context())
+	ids := make([]string, 0, len(leases))
+	for id, lease := range leases {
+		if lease.Online {
+			ids = append(ids, id)
+		}
+	}
+	q.OnlineIDs = ids
+
+	list, stats, err := h.svc.ListPage(c.Request.Context(), q)
 	if err != nil {
 		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
 		return
 	}
-	leases := h.leaseIndex(c.Request.Context())
 	items := make([]apigen.Asset, 0, len(list))
-	onlineCount := 0
 	for _, a := range list {
-		lease := leases[a.Identity()]
-		if params.Online != nil && lease.Online != *params.Online {
-			continue
-		}
-		if lease.Online {
-			onlineCount++
-		}
-		items = append(items, toGenAsset(a, lease))
+		items = append(items, toGenAsset(a, leases[a.Identity()]))
 	}
-	total := len(items)
-	c.JSON(http.StatusOK, apigen.AssetList{Items: items, Total: &total, OnlineCount: &onlineCount})
+	total, onlineCount := stats.Total, stats.Online
+	tagged := stats.Tagged
+	c.JSON(http.StatusOK, apigen.AssetList{
+		Items:       items,
+		Total:       &total,
+		OnlineCount: &onlineCount,
+		Stats: &apigen.AssetStats{
+			Total: stats.Total, Assigned: stats.Assigned, Unassigned: stats.Unassigned,
+			Owners: stats.Owners, Depts: stats.Depts, Online: stats.Online,
+			Offline: stats.Offline, Tagged: &tagged,
+		},
+	})
 }
 
 // leaseIndex 联动绑定 → 身份键租约视图；数据源不可用时返回空 map（页面只显示离线）。

@@ -24,7 +24,7 @@ func TestAssetUpsert_MAC归一化与幂等(t *testing.T) {
 	if _, err := svc.Upsert(context.Background(), Asset{MAC: "aa:bb:cc:dd:ee:ff", Owner: "张三", Note: "打印机"}); err != nil {
 		t.Fatal(err)
 	}
-	list, _ := repo.List(context.Background(), nil, "")
+	list, _ := repo.List(context.Background(), AssetQuery{})
 	if len(list) != 1 || list[0].Note != "打印机" {
 		t.Fatalf("upsert not idempotent: %+v", list)
 	}
@@ -64,16 +64,16 @@ func TestAssetList_过滤(t *testing.T) {
 	_, _ = svc.Upsert(context.Background(), Asset{MAC: "aa:bb:cc:dd:ee:01", Owner: "张三"})
 	_, _ = svc.Upsert(context.Background(), Asset{MAC: "aa:bb:cc:dd:ee:02", Owner: "李四", Dept: "财务"})
 
-	if list, _ := repo.List(context.Background(), nil, "李四"); len(list) != 1 {
+	if list, _ := repo.List(context.Background(), AssetQuery{Q: "李四"}); len(list) != 1 {
 		t.Fatalf("q filter: %+v", list)
 	}
-	if list, _ := repo.List(context.Background(), nil, "财务"); len(list) != 1 {
+	if list, _ := repo.List(context.Background(), AssetQuery{Q: "财务"}); len(list) != 1 {
 		t.Fatalf("dept filter: %+v", list)
 	}
 	if err := svc.Delete(context.Background(), "AA:BB:CC:DD:EE:01"); err != nil {
 		t.Fatal(err)
 	}
-	if list, _ := repo.List(context.Background(), nil, ""); len(list) != 1 || strings.Contains(list[0].MAC, "01") {
+	if list, _ := repo.List(context.Background(), AssetQuery{}); len(list) != 1 || strings.Contains(list[0].MAC, "01") {
 		t.Fatalf("delete failed: %+v", list)
 	}
 }
@@ -141,7 +141,7 @@ func TestAssetDelete_NotFoundAndSearchCompact(t *testing.T) {
 	}
 	// 省略冒号/短横线都能命中（前端搜索框常见输入）。
 	for _, q := range []string{"688fc95b39cf", "68-8f-c9", "68:8F:C9", "研发", "张三"} {
-		if list, err := repo.List(context.Background(), nil, q); err != nil || len(list) != 1 {
+		if list, err := repo.List(context.Background(), AssetQuery{Q: q}); err != nil || len(list) != 1 {
 			t.Fatalf("q=%q 应命中 1 条，实际 %d (%v)", q, len(list), err)
 		}
 	}
@@ -151,7 +151,7 @@ func TestAssetDelete_NotFoundAndSearchCompact(t *testing.T) {
 	if err := svc.Delete(context.Background(), "688FC95B39CF"); err != nil {
 		t.Fatalf("省略分隔符删除应成功: %v", err)
 	}
-	if list, _ := repo.List(context.Background(), nil, ""); len(list) != 0 {
+	if list, _ := repo.List(context.Background(), AssetQuery{}); len(list) != 0 {
 		t.Fatalf("删除后应为空: %+v", list)
 	}
 }
@@ -363,5 +363,113 @@ func TestAssetLeaseIndex(t *testing.T) {
 	}
 	if l := idx[duid]; l.IPv6 != "2406::20" {
 		t.Fatalf("DUID 别名应可命中: %+v", l)
+	}
+}
+
+func TestAssetListPaginationAndStats(t *testing.T) {
+	// M6-048：服务端分页 + 统计不受分页影响；在线按身份键集合过滤。
+	const orgA, orgB = "11111111-1111-1111-1111-111111111111",
+		"22222222-2222-2222-2222-222222222222"
+	orgs := NewMemOrgStore()
+	_ = orgs.Create(OrgNode{ID: orgA, Name: "A", Path: "/" + orgA})
+	_ = orgs.Create(OrgNode{ID: orgB, Name: "B", Path: "/" + orgB})
+	repo := NewMemAssetRepo()
+	svc := NewAssetService(repo, orgs)
+	for i := 0; i < 25; i++ {
+		mac := "aa:bb:cc:dd:ee:" + fmt1(10+i)
+		a := Asset{MAC: mac, Owner: "张三", Dept: "研发"}
+		if i%2 == 0 {
+			a.OrgID = orgA
+		}
+		if i%3 == 0 {
+			a.Tags = []string{"server"}
+		}
+		if _, err := svc.Upsert(context.Background(), a); err != nil {
+			t.Fatal(err)
+		}
+	}
+	onlineIDs := []string{"aa:bb:cc:dd:ee:10", "aa:bb:cc:dd:ee:12"}
+
+	items, stats, err := svc.ListPage(context.Background(), AssetQuery{
+		Limit: 10, Offset: 0, OnlineIDs: onlineIDs,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 10 || stats.Total != 25 {
+		t.Fatalf("首页应 10 条、统计 25 条: items=%d stats=%+v", len(items), stats)
+	}
+	if stats.Assigned != 13 || stats.Unassigned != 12 {
+		t.Fatalf("组织归属统计不符: %+v", stats)
+	}
+	if stats.Owners != 1 || stats.Depts != 1 {
+		t.Fatalf("使用人/部门去重不符: %+v", stats)
+	}
+	if stats.Online != 2 || stats.Offline != 23 {
+		t.Fatalf("在线统计不符: %+v", stats)
+	}
+	if stats.Tagged != 9 {
+		t.Fatalf("标签统计不符: %+v", stats)
+	}
+
+	// 第 3 页只剩 5 条，统计仍是全量 25。
+	items, stats, _ = svc.ListPage(context.Background(), AssetQuery{Limit: 10, Offset: 20})
+	if len(items) != 5 || stats.Total != 25 {
+		t.Fatalf("末页应 5 条、统计仍 25: items=%d stats.Total=%d", len(items), stats.Total)
+	}
+
+	// 在线过滤：只返回在线集合内的资产，统计随之收敛。
+	onlineTrue := true
+	items, stats, _ = svc.ListPage(context.Background(), AssetQuery{
+		Limit: 10, OnlineIDs: onlineIDs, Online: &onlineTrue,
+	})
+	if len(items) != 2 || stats.Online != 2 || stats.Total != 2 {
+		t.Fatalf("online=true 过滤不符: items=%d stats=%+v", len(items), stats)
+	}
+
+	// 未归属组织 + 已打标签。
+	_, stats, _ = svc.ListPage(context.Background(), AssetQuery{Scope: "unassigned"})
+	if stats.Total != 12 || stats.Assigned != 0 {
+		t.Fatalf("unassigned 统计不符: %+v", stats)
+	}
+	_, stats, _ = svc.ListPage(context.Background(), AssetQuery{Scope: "tagged"})
+	if stats.Total != 9 || stats.Tagged != 9 {
+		t.Fatalf("tagged 统计不符: %+v", stats)
+	}
+
+	// 组织子树 + 分页组合：A 节点 13 条，第 2 页（10 起）3 条。
+	items, stats, _ = svc.ListPage(context.Background(), AssetQuery{OrgID: orgA, Limit: 10, Offset: 10})
+	if stats.Total != 13 || len(items) != 3 {
+		t.Fatalf("子树分页不符: items=%d stats=%+v", len(items), stats)
+	}
+}
+
+func TestTerminalStats(t *testing.T) {
+	// 仪表盘 KPI 与发现页同口径：未登记 = 有效租约 - 已登记 - 忽略。
+	svc := NewAssetService(NewMemAssetRepo(), NewMemOrgStore())
+	svc.SetIgnoredRepo(NewMemIgnoredRepo())
+	now := time.Now().Unix()
+	bindings := []LedgerBinding{
+		{MAC: "aa:bb:cc:dd:ee:01", IPv4: "10.0.0.1", State: "active", Cltt: now - 10, ValidLft: 3600},
+		{MAC: "aa:bb:cc:dd:ee:02", IPv4: "10.0.0.2", State: "active", Cltt: now - 10, ValidLft: 3600},
+		{MAC: "aa:bb:cc:dd:ee:03", IPv4: "10.0.0.3", State: "active", Cltt: now - 10, ValidLft: 3600},
+		// 已登记（下面 Upsert）
+		// 忽略（下面 Ignore）
+		// 过期 → 不计未登记
+		{MAC: "aa:bb:cc:dd:ee:04", IPv4: "10.0.0.4", State: "active",
+			Cltt: now - 7200, ValidLft: 3600},
+	}
+	if _, err := svc.Upsert(context.Background(), Asset{MAC: "aa:bb:cc:dd:ee:01", Owner: "张三"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Ignore(context.Background(), "aa:bb:cc:dd:ee:02", "", "打印机"); err != nil {
+		t.Fatal(err)
+	}
+	st, err := svc.TerminalStats(context.Background(), bindings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Unregistered != 1 || st.Ignored != 1 || st.Assets != 1 {
+		t.Fatalf("终端概览不符: %+v", st)
 	}
 }

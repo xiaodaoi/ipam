@@ -47,10 +47,35 @@ type DiscoveredTerminal struct {
 	LastSeen   time.Time
 }
 
+// AssetQuery 资产列表查询（服务端分页 + 筛选，M6-048）。
+// OrgID 为单节点入参，服务层展开为 OrgIDs（nil=不过滤，非 nil 空=组织不存在）。
+type AssetQuery struct {
+	OrgID     string
+	OrgIDs    []string
+	Q         string
+	Scope     string   // all|unassigned|tagged
+	Online    *bool    // 仅在线/仅离线
+	OnlineIDs []string // 在线身份键集合（含 DUID 别名；由联动绑定归并得出）
+	Limit     int      // <=0 表示不分页（内部调用用）
+	Offset    int
+}
+
+// AssetStats 当前筛选条件下的服务端统计（不受分页限制）。
+type AssetStats struct {
+	Total      int
+	Assigned   int
+	Unassigned int
+	Owners     int
+	Depts      int
+	Tagged     int
+	Online     int
+	Offline    int
+}
+
 // AssetRepo 资产持久化（按身份键读写）。
-// orgIDs 为组织子树展开后的节点集合（空=不过滤），M6-047 起与日志中心组织口径一致。
 type AssetRepo interface {
-	List(ctx context.Context, orgIDs []string, q string) ([]Asset, error)
+	List(ctx context.Context, q AssetQuery) ([]Asset, error)
+	Stats(ctx context.Context, q AssetQuery) (AssetStats, error)
 	Get(ctx context.Context, identity string) (Asset, bool, error)
 	Upsert(ctx context.Context, a Asset) error
 	Delete(ctx context.Context, identity string) error
@@ -204,9 +229,47 @@ func (s *AssetService) subtreeOrgIDs(orgID string) []string {
 	return subtreeIDs(s.orgs.List(), orgID)
 }
 
-// List 资产列表：组织按子树展开（与日志中心一致），关键字匹配 MAC/DUID/使用人/部门。
+// List 资产列表（不分页）：组织按子树展开（与日志中心一致）。
 func (s *AssetService) List(ctx context.Context, orgID, q string) ([]Asset, error) {
-	return s.repo.List(ctx, s.subtreeOrgIDs(orgID), q)
+	return s.repo.List(ctx, AssetQuery{OrgIDs: s.subtreeOrgIDs(orgID), Q: q})
+}
+
+// ListPage 分页查询 + 服务端统计：两者使用同一筛选条件，KPI 不随翻页跳变。
+func (s *AssetService) ListPage(ctx context.Context, in AssetQuery) ([]Asset, AssetStats, error) {
+	in.OrgIDs = s.subtreeOrgIDs(in.OrgID)
+	items, err := s.repo.List(ctx, in)
+	if err != nil {
+		return nil, AssetStats{}, err
+	}
+	stats, err := s.repo.Stats(ctx, in)
+	if err != nil {
+		return nil, AssetStats{}, err
+	}
+	return items, stats, nil
+}
+
+// AssetTerminalStats 终端登记概览（仪表盘 KPI 用，与「未登记终端」页同口径）。
+type AssetTerminalStats struct {
+	Unregistered int // 有有效租约但未登记、且未忽略
+	Ignored      int // 忽略名单条目数
+	Assets       int // 已登记资产数
+}
+
+// TerminalStats 复用 Discover 与忽略名单，保证仪表盘与发现页数字一致。
+func (s *AssetService) TerminalStats(ctx context.Context, bindings []LedgerBinding) (AssetTerminalStats, error) {
+	disc, err := s.Discover(ctx, bindings)
+	if err != nil {
+		return AssetTerminalStats{}, err
+	}
+	assets, err := s.repo.List(ctx, AssetQuery{})
+	if err != nil {
+		return AssetTerminalStats{}, err
+	}
+	ignored, err := s.ListIgnored(ctx)
+	if err != nil {
+		return AssetTerminalStats{}, err
+	}
+	return AssetTerminalStats{Unregistered: len(disc), Ignored: len(ignored), Assets: len(assets)}, nil
 }
 
 // BulkUpsert 批量登记：逐条校验与写入（部分成功），失败项按 index 返回。
@@ -422,7 +485,7 @@ func (s *AssetService) Get(ctx context.Context, identity string) (Asset, bool, e
 //   - 同一设备的 v4/v6 绑定按身份键合并为一条（地址/主机名/状态取并集）；
 //   - 只认 active/grace，且校验 cltt+valid_lft 未过期，与仪表盘在线租约口径一致。
 func (s *AssetService) Discover(ctx context.Context, bindings []LedgerBinding) ([]DiscoveredTerminal, error) {
-	assets, err := s.repo.List(ctx, nil, "")
+	assets, err := s.repo.List(ctx, AssetQuery{})
 	if err != nil {
 		return nil, err
 	}

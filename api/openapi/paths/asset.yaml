@@ -21,6 +21,18 @@ AssetsCollection:
         in: query
         schema: { type: boolean }
         description: 仅在线（true）/仅离线（false）；缺省不过滤
+      - name: scope
+        in: query
+        schema: { type: string, enum: [all, unassigned, tagged], default: all }
+        description: all=全部 / unassigned=未归属组织 / tagged=已打标签
+      - name: page
+        in: query
+        schema: { type: integer, minimum: 1, default: 1 }
+        description: 页码（1 起）
+      - name: pageSize
+        in: query
+        schema: { type: integer, minimum: 1, maximum: 200, default: 20 }
+        description: 每页条数（默认 20，上限 200）
     responses:
       '200':
         description: 资产列表
@@ -38,6 +50,7 @@ AssetsCollection:
                       - { identity: "000100012df9b6d9f8a2d6c97867", duid: "000100012df9b6d9f8a2d6c97867", owner: 李四, online: false }
                     total: 2
                     onlineCount: 1
+                    stats: { total: 2, assigned: 1, unassigned: 1, owners: 2, depts: 1, online: 1, offline: 1, tagged: 0 }
   put:
     operationId: upsertAsset
     tags: [asset]

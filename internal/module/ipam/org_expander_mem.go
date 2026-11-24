@@ -39,7 +39,7 @@ func (e *MemOrgExpander) Expand(ctx context.Context, orgID string) (logquery.Org
 			scope.CIDRs = append(scope.CIDRs, s.CIDR)
 		}
 	}
-	list, err := e.assets.List(ctx, nil, "")
+	list, err := e.assets.List(ctx, AssetQuery{})
 	if err != nil {
 		return scope, err
 	}

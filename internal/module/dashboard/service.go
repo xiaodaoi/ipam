@@ -45,6 +45,9 @@ type SubnetSource func(ctx context.Context) []ipam.Subnet
 // BindingSource 联动绑定快照回调。
 type BindingSource func(ctx context.Context) ([]ipam.LedgerBinding, error)
 
+// TerminalStatsSource 终端登记概览（未登记/忽略/已登记），与「未登记终端」页同口径（M6-048）。
+type TerminalStatsSource func(ctx context.Context) (unregistered, ignored, assets int, err error)
+
 // LedgerSource 地址台账数据源（租约/预留/子网），用于在线终端与池利用率口径。
 // 与 DHCP 子网页共用同一数据源，保证「在线租约」数字一致（M6-043）。
 type LedgerSource func(ctx context.Context) ipam.LedgerSource
@@ -55,6 +58,7 @@ type Service struct {
 	subnets  SubnetSource
 	bindings BindingSource
 	ledger   LedgerSource
+	terminal TerminalStatsSource
 	lights   Lights
 	now      func() time.Time // 测试注入
 
@@ -134,7 +138,14 @@ type Overview struct {
 	BlockedToday     *int64
 	PoolTop          []PoolUtil
 	CoherencePct     *int64
+	// 终端登记概览（M6-048）：未登记/忽略/已登记，供仪表盘 KPI 与登记率。
+	UnregisteredTerminals *int64
+	IgnoredTerminals      *int64
+	AssetTotal            *int64
 }
+
+// SetTerminalStats 注入终端登记概览数据源（资产域不可用时保持 nil → 前端显示 —）。
+func (s *Service) SetTerminalStats(fn TerminalStatsSource) { s.terminal = fn }
 
 // Overview 单请求聚合（≤1s 预算）：4 条 CH 查询并发执行 + 内存侧池内计数，
 // 结果按 cacheTTL 缓存，避免多客户端轮询放大 ClickHouse 压力。
@@ -194,14 +205,16 @@ func (s *Service) build(ctx context.Context, poolTopN int, now time.Time) *Overv
 
 	// 四个数据源彼此独立 → 并发取数；任一失败按「该指标降级为空」处理，不拖垮整页。
 	var (
-		ips            []string
-		trend          []logquery.QpsPoint
-		fresh, offline *int64
-		qps            *float64
-		blockedToday   *int64
+		ips                   []string
+		trend                 []logquery.QpsPoint
+		fresh, offline        *int64
+		qps                   *float64
+		blockedToday          *int64
+		unregistered, ignored *int64
+		assetTotal            *int64
 	)
 	var wg sync.WaitGroup
-	wg.Add(4)
+	wg.Add(5)
 	go func() {
 		defer wg.Done()
 		// 在线终端 = 当前有效租约（与地址台账/DHCP 子网页同口径）；台账不可用时回退日志活跃 IP。
@@ -228,6 +241,18 @@ func (s *Service) build(ctx context.Context, poolTopN int, now time.Time) *Overv
 		defer wg.Done()
 		qps, blockedToday = s.dnsMetrics(ctx, now, today)
 	}()
+	go func() {
+		defer wg.Done()
+		if s.terminal == nil {
+			return
+		}
+		u, ig, total, err := s.terminal(ctx)
+		if err != nil {
+			return
+		}
+		uv, igv, tv := int64(u), int64(ig), int64(total)
+		unregistered, ignored, assetTotal = &uv, &igv, &tv
+	}()
 	wg.Wait()
 
 	ov.OnlineNow = int64(len(ips))
@@ -244,6 +269,7 @@ func (s *Service) build(ctx context.Context, poolTopN int, now time.Time) *Overv
 	ov.NewTerminals, ov.OfflineTerminals = fresh, offline
 	ov.Qps5m, ov.BlockedToday = qps, blockedToday
 	ov.PoolTop = s.poolTop(ctx, poolTopN, ips)
+	ov.UnregisteredTerminals, ov.IgnoredTerminals, ov.AssetTotal = unregistered, ignored, assetTotal
 	s.coherenceRate(ctx, ov)
 	return ov
 }

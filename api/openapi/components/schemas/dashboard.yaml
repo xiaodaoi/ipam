@@ -38,6 +38,18 @@ DashboardOverview:
       type: integer
       nullable: true
       description: 近 24h 有 DHCP 活动、当前无有效租约的 MAC 数（日志活动与台账按 MAC 比对；台账不可用时回退「今日未见」）
+    unregisteredTerminals:
+      type: integer
+      nullable: true
+      description: 有有效租约但未登记资产、且不在忽略名单的终端数（与「未登记终端」页同口径；资产域不可用时 null）
+    ignoredTerminals:
+      type: integer
+      nullable: true
+      description: 忽略名单条目数（打印机/AP 等无需登记资产的终端）
+    assetTotal:
+      type: integer
+      nullable: true
+      description: 资产登记总数；登记率 = assetTotal / (assetTotal + unregisteredTerminals)
     services:
       type: object
       required: [postgres, clickhouse, kea, unbound]
