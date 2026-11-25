@@ -27,7 +27,6 @@ import {
   InputNumber,
   message,
   Modal,
-  Popconfirm,
   Select,
   Switch,
   Table,
@@ -947,15 +946,15 @@ const rollupPolicies = computed(() =>
                   <Button size="small" type="link" @click="openEditPolicy(record)">
                     {{ $t('alerting.actions.edit') }}
                   </Button>
-                  <Popconfirm
+                  <Button
                     v-if="record.scopeType !== 'global'"
-                    :title="$t('alerting.policies.deleteConfirm', { name: record.name })"
-                    @confirm="removePolicy(record)"
+                    size="small"
+                    type="link"
+                    danger
+                    @click="removePolicy(record)"
                   >
-                    <Button size="small" type="link" danger>
-                      {{ $t('alerting.actions.delete') }}
-                    </Button>
-                  </Popconfirm>
+                    {{ $t('alerting.actions.delete') }}
+                  </Button>
                   <span v-else class="ipam-hint">{{ $t('alerting.policies.globalCannotDelete') }}</span>
                 </div>
               </template>
@@ -1130,14 +1129,14 @@ const rollupPolicies = computed(() =>
                   <Button size="small" type="link" @click="testChannel(record)">
                     {{ $t('alerting.actions.test') }}
                   </Button>
-                  <Popconfirm
-                    :title="$t('alerting.channels.deleteConfirm', { name: record.name })"
-                    @confirm="removeChannel(record)"
+                  <Button
+                    size="small"
+                    type="link"
+                    danger
+                    @click="removeChannel(record)"
                   >
-                    <Button size="small" type="link" danger>
-                      {{ $t('alerting.actions.delete') }}
-                    </Button>
-                  </Popconfirm>
+                    {{ $t('alerting.actions.delete') }}
+                  </Button>
                 </div>
               </template>
             </template>
