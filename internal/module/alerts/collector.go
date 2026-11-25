@@ -299,6 +299,9 @@ func (c *Collector) CollectDNS(ctx context.Context) (int, error) {
 		if ev.LastSeen.After(rc.ev.LastSeen) {
 			rc.ev.LastSeen = ev.LastSeen
 		}
+		if rc.ev.WindowStart.IsZero() || ev.WindowStart.Before(rc.ev.WindowStart) {
+			rc.ev.WindowStart = ev.WindowStart
+		}
 		rc.domains[domain] += g.Count
 		if severityRank(ev.Severity) > severityRank(rc.severity) {
 			rc.severity = ev.Severity
@@ -320,7 +323,7 @@ func (c *Collector) CollectDNS(ctx context.Context) (int, error) {
 		if rc.ev.GroupKey != "" && !strings.Contains(rc.ev.GroupKey, "|domain|") {
 			display := intelDisplay(rc.ev.IntelSourceName)
 			rc.ev.Title = fmt.Sprintf("已拦截 %d 次风险访问（%s）", rc.ev.Count, display)
-			rc.ev.Message = fmt.Sprintf("客户端 %s 在 %s 一小时内命中 %d 次，来源：%s",
+			rc.ev.Message = fmt.Sprintf("客户端 %s 在 %s 起的窗口内命中 %d 次，来源：%s",
 				rc.ev.ClientIP, rc.ev.WindowStart.Format("2006-01-02 15:00"), rc.ev.Count, display)
 			rc.ev.Detail = fmt.Sprintf("%s；Top 域名：%s", rc.ev.Detail, topDomains(rc.domains, 5))
 			rc.ev.Domain = ""

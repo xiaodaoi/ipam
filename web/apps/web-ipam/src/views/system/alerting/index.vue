@@ -218,15 +218,20 @@ async function loadDeliveries() {
   deliveries.value = res.items ?? [];
 }
 async function loadAudits() {
-  const to = new Date();
-  const from = new Date(to.getTime() - 7 * 24 * 3_600_000);
-  const res = await listAudits({
-    from: from.toISOString(),
-    pageSize: 100,
-    q: 'alerting',
-    to: to.toISOString(),
-  });
-  audits.value = res.items ?? [];
+  try {
+    const to = new Date();
+    const from = new Date(to.getTime() - 7 * 24 * 3_600_000);
+    const res = await listAudits({
+      from: from.toISOString(),
+      pageSize: 100,
+      q: 'alerting',
+      to: to.toISOString(),
+    });
+    audits.value = res.items ?? [];
+  } catch {
+    // 审计读取依赖 logs:read；自定义角色可能只有 system:read，静默降级为空。
+    audits.value = [];
+  }
 }
 
 async function refreshAll() {

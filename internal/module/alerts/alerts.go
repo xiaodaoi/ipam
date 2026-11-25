@@ -295,9 +295,16 @@ func (s *Service) invalidatePolicyCache() {
 	s.cacheMu.Unlock()
 }
 
-// EnsurePolicies 首次落库默认策略（不覆盖用户修改）。
+// EnsurePolicies 首次落库默认策略（表为空时）；用户删除默认策略后不会在重启时复活。
 func (s *Service) EnsurePolicies(ctx context.Context) error {
 	if s.admin == nil {
+		return nil
+	}
+	existing, err := s.admin.ListPolicies(ctx)
+	if err != nil {
+		return err
+	}
+	if len(existing) > 0 {
 		return nil
 	}
 	return s.admin.SeedPolicies(ctx, DefaultPolicies())
@@ -428,12 +435,15 @@ func (s *Service) Report(ctx context.Context, ev Event) (Alert, error) {
 		ev.Notify = true
 		ev.AlertClass = inferClass(ev.Kind, splitKeys(ev.IntelSource))
 		ev.Decision = `{"notify":true,"final":"notify","matchedBy":"direct"}`
-	}
-	if ev.RepeatAfterSec == 0 && ev.Source == SourceDNS {
-		ev.RepeatAfterSec = 86400
-	}
-	if ev.ResolveAfterSec == 0 && ev.Source == SourceDNS {
-		ev.ResolveAfterSec = 86400
+		// 仅直连上报补默认窗口；策略事件保留显式 0（表示不重复/不自动恢复）。
+		if ev.Source == SourceDNS {
+			if ev.RepeatAfterSec == 0 {
+				ev.RepeatAfterSec = 86400
+			}
+			if ev.ResolveAfterSec == 0 {
+				ev.ResolveAfterSec = 86400
+			}
+		}
 	}
 	return s.repo.Upsert(ctx, ev)
 }
