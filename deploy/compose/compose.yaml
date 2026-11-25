@@ -4,7 +4,7 @@ services:
   # 一次性初始化共享卷权限（ch-exports/ipam-run 默认 root，control-plane 以 10001 运行）
   volume-init:
     image: alpine:3.20
-    command: ["sh", "-c", "mkdir -p /exports/backups /vector-config /run/ipam/intel-secrets && chown 10001:10001 /exports /exports/backups /vector-config /run/ipam/intel-secrets && chmod 750 /exports && chmod 755 /vector-config && chmod 700 /run/ipam/intel-secrets"]
+    command: ["sh", "-c", "mkdir -p /exports/backups /vector-config /run/ipam/intel-secrets /run/ipam/notify-secrets && chown 10001:10001 /exports /exports/backups /vector-config /run/ipam/intel-secrets /run/ipam/notify-secrets && chmod 750 /exports && chmod 755 /vector-config && chmod 700 /run/ipam/intel-secrets /run/ipam/notify-secrets"]
     volumes:
       - ch-exports:/exports
       - vector-config:/vector-config
@@ -127,6 +127,9 @@ services:
       IPAM_DASHBOARD_CACHE_TTL: "${IPAM_DASHBOARD_CACHE_TTL:-5s}"
       # 首次启动的一次性 admin 口令写入该目录（0600）
       IPAM_RUN_DIR: "/run/ipam"
+      # 告警通知：站内外链基址与通道密钥目录（密钥 0600 文件，随 ipam-run 卷持久化）
+      IPAM_PUBLIC_URL: "${IPAM_PUBLIC_URL:-}"
+      IPAM_NOTIFY_SECRET_DIR: "${IPAM_NOTIFY_SECRET_DIR:-/run/ipam/notify-secrets}"
     volumes:
       - ipam-run:/run/ipam
       - ../../db/postgresql/migrations:/srv/migrations:ro
