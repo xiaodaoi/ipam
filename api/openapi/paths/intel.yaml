@@ -229,3 +229,89 @@ IntelSourceSync:
         description: 源未启用或拉取失败
       '404':
         description: 源不存在
+
+IntelSourceRuns:
+  get:
+    operationId: listIntelSourceRuns
+    tags: [blocklist]
+    summary: 查询情报源同步记录
+    description: |
+      返回最近 N 次同步/回滚记录（默认 20，最多 100），含耗时、新增/移除/白名单排除条目数与失败原因。
+      用于排障「昨晚同步是否成功、拉了多少、为什么没生效」。
+    security: []
+    parameters:
+      - name: sourceId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: limit
+        in: query
+        required: false
+        schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    responses:
+      '200':
+        description: OK
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/intel.yaml#/IntelSourceRunList'
+      '404':
+        description: 源不存在
+
+IntelSourceRevisions:
+  get:
+    operationId: listIntelSourceRevisions
+    tags: [blocklist]
+    summary: 查询情报源历史版本
+    description: |
+      每次成功同步且内容发生变化时生成一个差异快照（默认保留最近 20 个），可按版本一键回滚。
+      版本只保存解析后的域名清单，不保存上游正文。
+    security: []
+    parameters:
+      - name: sourceId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: limit
+        in: query
+        required: false
+        schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    responses:
+      '200':
+        description: OK
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/intel.yaml#/IntelSourceRevisionList'
+      '404':
+        description: 源不存在
+
+IntelSourceRevisionRollback:
+  post:
+    operationId: rollbackIntelSourceRevision
+    tags: [blocklist]
+    summary: 回滚情报源到指定版本
+    description: |
+      将指定版本写回当前缓存并重编译对应层；回滚本身也记录为一次执行（trigger=rollback），
+      原版本仍保留，可再次回滚到回滚前的版本。scope 为 dns:write。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: sourceId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: revision
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    responses:
+      '200':
+        description: OK
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/intel.yaml#/IntelSource'
+      '400':
+        description: 版本内容为空或不可读
+      '404':
+        description: 源或版本不存在

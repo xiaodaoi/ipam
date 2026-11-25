@@ -248,6 +248,12 @@ paths:
     $ref: './paths/intel.yaml#/IntelSourceItem'
   /dns/intel/sources/{sourceId}/sync:
     $ref: './paths/intel.yaml#/IntelSourceSync'
+  /dns/intel/sources/{sourceId}/runs:
+    $ref: './paths/intel.yaml#/IntelSourceRuns'
+  /dns/intel/sources/{sourceId}/revisions:
+    $ref: './paths/intel.yaml#/IntelSourceRevisions'
+  /dns/intel/sources/{sourceId}/revisions/{revision}/rollback:
+    $ref: './paths/intel.yaml#/IntelSourceRevisionRollback'
   /dns/zones:
     $ref: './paths/dnszone.yaml#/DnsZonesCollection'
   /dns/zones/{zoneId}/records:

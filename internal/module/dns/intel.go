@@ -50,6 +50,9 @@ type IntelService struct {
 	mu  sync.Mutex
 	now func() time.Time
 
+	// syncMu 串行化同一进程内的同步/回滚，避免版本号并发分配冲突。
+	syncMu sync.Mutex
+
 	// 来源归属索引（M6-040）：懒构建，源变更后整体作废。
 	attrMu sync.Mutex
 	attr   *domainAttribution

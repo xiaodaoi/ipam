@@ -80,11 +80,20 @@ IntelSource:
     requiresAck: { type: boolean }
     acknowledgedAt: { type: string, format: date-time, nullable: true }
     updateInterval: { type: integer, description: 刷新间隔（秒） }
+    maxSharePct:
+      type: integer
+      minimum: 0
+      maximum: 100
+      description: 单源在所在层的贡献上限（百分比）。仅同层有多个源且总需求超过容量时生效；0=不限。默认 60。
     enabled: { type: boolean }
     entries: { type: integer, description: 最近一次成功同步的条目数 }
     lastSyncAt: { type: string, format: date-time, nullable: true }
     lastStatus: { type: string, enum: [never, ok, failed] }
     lastError: { type: string }
+    lastDurationMs: { type: integer, description: 最近一次同步耗时（毫秒） }
+    lastAdded: { type: integer, description: 最近一次同步新增条目数 }
+    lastRemoved: { type: integer, description: 最近一次同步移除条目数 }
+    lastExcluded: { type: integer, description: 最近一次同步中被白名单排除的条目数 }
     builtin: { type: boolean, description: 预设不可删除 }
     createdAt: { type: string, format: date-time }
     updatedAt: { type: string, format: date-time }
@@ -104,6 +113,7 @@ IntelSourceCreate:
     url: { type: string }
     layer: { type: string, enum: [hot, broad], default: hot }
     updateInterval: { type: integer, description: 秒；默认 21600 }
+    maxSharePct: { type: integer, minimum: 0, maximum: 100, description: 单源贡献上限（百分比；0=不限，默认 60） }
     license: { type: string, nullable: true }
 
 IntelSourceUpdate:
@@ -116,5 +126,51 @@ IntelSourceUpdate:
     secret: { type: string, nullable: true, description: 明文密钥，写入 0600 文件后丢弃，不入库 }
     clearSecret: { type: boolean }
     updateInterval: { type: integer }
+    maxSharePct: { type: integer, minimum: 0, maximum: 100, description: 单源贡献上限（百分比；0=不限） }
     enabled: { type: boolean }
     ackLicense: { type: boolean, description: 启用时必须为 true（确认许可与商用限制） }
+
+IntelSourceRun:
+  type: object
+  description: 情报源一次同步/回滚执行记录（M6-039 P2）。
+  required: [id, sourceId, startedAt, status, trigger, entries]
+  properties:
+    id: { type: integer, format: int64 }
+    sourceId: { type: string, format: uuid }
+    startedAt: { type: string, format: date-time }
+    durationMs: { type: integer, description: 耗时（毫秒） }
+    status: { type: string, enum: [ok, failed, rolled_back] }
+    trigger: { type: string, enum: [manual, schedule, enable, rollback] }
+    entries: { type: integer, description: 本次执行后的条目数（失败时为上一版条目数） }
+    added: { type: integer }
+    removed: { type: integer }
+    excluded: { type: integer, description: 被白名单排除的条目数 }
+    revision: { type: integer, description: 本次生成的版本号；0 表示内容未变化 }
+    error: { type: string }
+
+IntelSourceRunList:
+  type: object
+  required: [items]
+  properties:
+    items: { type: array, items: { $ref: 'intel.yaml#/IntelSourceRun' } }
+    total: { type: integer }
+
+IntelSourceRevision:
+  type: object
+  description: 情报源内容版本（按成功同步的差异快照保存，可一键回滚）。
+  required: [id, sourceId, revision, entries, createdAt, active]
+  properties:
+    id: { type: integer, format: int64 }
+    sourceId: { type: string, format: uuid }
+    revision: { type: integer, description: 版本号（同一源内单调递增） }
+    entries: { type: integer }
+    sha256: { type: string }
+    active: { type: boolean, description: 是否为当前生效版本 }
+    createdAt: { type: string, format: date-time }
+
+IntelSourceRevisionList:
+  type: object
+  required: [items]
+  properties:
+    items: { type: array, items: { $ref: 'intel.yaml#/IntelSourceRevision' } }
+    total: { type: integer }

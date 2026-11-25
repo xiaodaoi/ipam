@@ -2,6 +2,7 @@ package dns
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	rtypes "github.com/oapi-codegen/runtime/types"
@@ -9,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	apigen "github.com/xiaodaoi/ipam/api/gen/go"
+	"github.com/xiaodaoi/ipam/internal/pkg/auditmeta"
 	"github.com/xiaodaoi/ipam/internal/pkg/problem"
 )
 
@@ -146,9 +148,13 @@ func (h *IntelHandler) CreateIntelSource(c *gin.Context) {
 		Layer:          layer,
 		License:        derefStr(body.License),
 		UpdateInterval: 21600,
+		MaxSharePct:    60,
 	}
 	if body.UpdateInterval != nil {
 		src.UpdateInterval = *body.UpdateInterval
+	}
+	if body.MaxSharePct != nil {
+		src.MaxSharePct = clampSharePct(*body.MaxSharePct)
 	}
 	saved, err := h.svc.CreateSource(c.Request.Context(), src)
 	switch {
@@ -178,9 +184,14 @@ func (h *IntelHandler) UpdateIntelSource(c *gin.Context, sourceId rtypes.UUID) {
 		AuthHeader:     body.AuthHeader,
 		Secret:         body.Secret,
 		UpdateInterval: body.UpdateInterval,
+		MaxSharePct:    body.MaxSharePct,
 		Enabled:        body.Enabled,
 		AckLicense:     body.AckLicense != nil && *body.AckLicense,
 		ClearSecret:    body.ClearSecret != nil && *body.ClearSecret,
+	}
+	if up.MaxSharePct != nil {
+		v := clampSharePct(*up.MaxSharePct)
+		up.MaxSharePct = &v
 	}
 	if body.Layer != nil {
 		l := string(*body.Layer)
@@ -233,14 +244,86 @@ func (h *IntelHandler) DeleteIntelSource(c *gin.Context, sourceId rtypes.UUID) {
 // SyncIntelSource POST /dns/intel/sources/{sourceId}/sync（失败保留上一版）
 func (h *IntelHandler) SyncIntelSource(c *gin.Context, sourceId rtypes.UUID) {
 	src, err := h.svc.SyncSource(c.Request.Context(), sourceId.String())
-	switch {
-	case errors.Is(err, ErrSourceNotFound):
+	if err != nil {
+		c.Set(auditmeta.DetailKey, fmt.Sprintf("source=%s sync failed: %v", sourceId, err))
+		switch {
+		case errors.Is(err, ErrSourceNotFound):
+			problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "INTEL_SOURCE_NOT_FOUND", "情报源不存在")
+			return
+		default:
+			problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "INTEL_SOURCE_SYNC_FAILED", err.Error())
+			return
+		}
+	}
+	c.Set(auditmeta.DetailKey, fmt.Sprintf("source=%s entries=%d durationMs=%d added=%d removed=%d excluded=%d status=%s",
+		src.Key, src.Entries, src.LastDurationMs, src.LastAdded, src.LastRemoved, src.LastExcluded, src.LastStatus))
+	c.JSON(http.StatusOK, toGenSource(src))
+}
+
+// ListIntelSourceRuns GET /dns/intel/sources/{sourceId}/runs
+func (h *IntelHandler) ListIntelSourceRuns(c *gin.Context, sourceId rtypes.UUID, params apigen.ListIntelSourceRunsParams) {
+	limit := 20
+	if params.Limit != nil {
+		limit = *params.Limit
+	}
+	list, err := h.svc.SourceRuns(c.Request.Context(), sourceId.String(), limit)
+	if errors.Is(err, ErrSourceNotFound) {
 		problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "INTEL_SOURCE_NOT_FOUND", "情报源不存在")
 		return
-	case err != nil:
-		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "INTEL_SOURCE_SYNC_FAILED", err.Error())
+	}
+	if err != nil {
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
 		return
 	}
+	items := make([]apigen.IntelSourceRun, 0, len(list))
+	for _, run := range list {
+		items = append(items, toGenRun(run))
+	}
+	total := len(items)
+	c.JSON(http.StatusOK, apigen.IntelSourceRunList{Items: items, Total: &total})
+}
+
+// ListIntelSourceRevisions GET /dns/intel/sources/{sourceId}/revisions
+func (h *IntelHandler) ListIntelSourceRevisions(c *gin.Context, sourceId rtypes.UUID, params apigen.ListIntelSourceRevisionsParams) {
+	limit := MaxSourceRevisions
+	if params.Limit != nil {
+		limit = *params.Limit
+	}
+	list, err := h.svc.SourceRevisions(c.Request.Context(), sourceId.String(), limit)
+	if errors.Is(err, ErrSourceNotFound) {
+		problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "INTEL_SOURCE_NOT_FOUND", "情报源不存在")
+		return
+	}
+	if err != nil {
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	items := make([]apigen.IntelSourceRevision, 0, len(list))
+	for _, rev := range list {
+		items = append(items, toGenRevision(rev))
+	}
+	total := len(items)
+	c.JSON(http.StatusOK, apigen.IntelSourceRevisionList{Items: items, Total: &total})
+}
+
+// RollbackIntelSourceRevision POST /dns/intel/sources/{sourceId}/revisions/{revision}/rollback
+func (h *IntelHandler) RollbackIntelSourceRevision(c *gin.Context, sourceId rtypes.UUID, revision int) {
+	src, err := h.svc.RollbackRevision(c.Request.Context(), sourceId.String(), revision)
+	switch {
+	case errors.Is(err, ErrSourceNotFound), errors.Is(err, ErrRevisionNotFound):
+		c.Set(auditmeta.DetailKey, fmt.Sprintf("source=%s revision=%d rollback failed: not found", sourceId, revision))
+		problem.Write(c, http.StatusNotFound, "https://ipam.local/problems/not-found", "INTEL_REVISION_NOT_FOUND", "情报源或版本不存在")
+		return
+	case errors.Is(err, ErrRevisionUnreadable):
+		c.Set(auditmeta.DetailKey, fmt.Sprintf("source=%s revision=%d rollback failed: unreadable", sourceId, revision))
+		problem.Write(c, http.StatusBadRequest, "https://ipam.local/problems/bad-request", "INTEL_REVISION_UNREADABLE", "版本内容为空或不可读，无法回滚")
+		return
+	case err != nil:
+		problem.Write(c, http.StatusInternalServerError, "https://ipam.local/problems/internal", "DB_ERROR", err.Error())
+		return
+	}
+	c.Set(auditmeta.DetailKey, fmt.Sprintf("source=%s rolled back to revision=%d entries=%d added=%d removed=%d",
+		src.Key, revision, src.Entries, src.LastAdded, src.LastRemoved))
 	c.JSON(http.StatusOK, toGenSource(src))
 }
 
@@ -263,17 +346,58 @@ func toGenSource(s IntelSource) apigen.IntelSource {
 	out.CommercialOk = &s.CommercialOK
 	out.RequiresAck = &s.RequiresAck
 	out.AcknowledgedAt = s.AckedAt
+	out.MaxSharePct = &s.MaxSharePct
 	out.Entries = &s.Entries
 	out.LastSyncAt = s.LastSyncAt
 	status := apigen.IntelSourceLastStatus(s.LastStatus)
 	out.LastStatus = &status
 	out.LastError = strPtr(s.LastError)
+	out.LastDurationMs = &s.LastDurationMs
+	out.LastAdded = &s.LastAdded
+	out.LastRemoved = &s.LastRemoved
+	out.LastExcluded = &s.LastExcluded
 	out.Builtin = &s.Builtin
 	if !s.CreatedAt.IsZero() {
 		out.CreatedAt = &s.CreatedAt
 	}
 	if !s.UpdatedAt.IsZero() {
 		out.UpdatedAt = &s.UpdatedAt
+	}
+	return out
+}
+
+func toGenRun(run IntelSourceRun) apigen.IntelSourceRun {
+	out := apigen.IntelSourceRun{
+		Id:        run.ID,
+		SourceId:  *uuidPtr(run.SourceID),
+		StartedAt: run.StartedAt,
+		Status:    apigen.IntelSourceRunStatus(run.Status),
+		Trigger:   apigen.IntelSourceRunTrigger(run.Trigger),
+		Entries:   run.Entries,
+	}
+	added, removed, excluded, duration, revision := run.Added, run.Removed, run.Excluded, run.DurationMs, run.Revision
+	out.Added = &added
+	out.Removed = &removed
+	out.Excluded = &excluded
+	out.DurationMs = &duration
+	out.Revision = &revision
+	if run.Error != "" {
+		out.Error = &run.Error
+	}
+	return out
+}
+
+func toGenRevision(rev IntelSourceRevision) apigen.IntelSourceRevision {
+	out := apigen.IntelSourceRevision{
+		Id:        rev.ID,
+		SourceId:  *uuidPtr(rev.SourceID),
+		Revision:  rev.Revision,
+		Entries:   rev.Entries,
+		Active:    rev.Active,
+		CreatedAt: rev.CreatedAt,
+	}
+	if rev.SHA != "" {
+		out.Sha256 = &rev.SHA
 	}
 	return out
 }

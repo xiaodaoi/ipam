@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import type { AlertPolicy, IntelSourceRow } from '#/api/ipam';
+import type {
+  AlertPolicy,
+  IntelSourceRevisionRow,
+  IntelSourceRow,
+  IntelSourceRunRow,
+} from '#/api/ipam';
 
 import { computed, onMounted, ref } from 'vue';
 
@@ -17,6 +22,8 @@ import {
   Select,
   Switch,
   Table,
+  TabPane,
+  Tabs,
   Tag,
 } from 'ant-design-vue';
 
@@ -24,7 +31,10 @@ import {
   createIntelSource,
   deleteIntelSource,
   listAlertPolicies,
+  listIntelSourceRevisions,
+  listIntelSourceRuns,
   listIntelSources,
+  rollbackIntelSourceRevision,
   syncIntelSource,
   updateIntelSource,
 } from '#/api/ipam';
@@ -156,6 +166,7 @@ const editForm = ref<{
   id: string;
   intervalMin: number;
   layer: 'broad' | 'hot';
+  maxSharePct: number;
   name: string;
   secret: string;
   url: string;
@@ -164,6 +175,7 @@ const editForm = ref<{
   id: '',
   intervalMin: 360,
   layer: 'hot',
+  maxSharePct: 60,
   name: '',
   secret: '',
   url: '',
@@ -186,6 +198,7 @@ function openEdit(src: IntelSourceRow) {
     id: src.id,
     intervalMin: Math.max(5, Math.round((src.updateInterval || 3600) / 60)),
     layer: src.layer,
+    maxSharePct: src.maxSharePct ?? 60,
     name: src.name,
     secret: '',
     url: src.url ?? '',
@@ -203,6 +216,7 @@ async function saveEdit() {
     await updateIntelSource(f.id, {
       clearSecret: f.clearSecret,
       layer: f.layer,
+      maxSharePct: Math.round(f.maxSharePct),
       name: f.name.trim(),
       secret: f.secret.trim() || undefined,
       updateInterval: Math.round(f.intervalMin * 60),
@@ -226,9 +240,10 @@ async function saveEdit() {
 const createForm = ref<{
   intervalMin: number;
   layer: 'broad' | 'hot';
+  maxSharePct: number;
   name: string;
   url: string;
-}>({ intervalMin: 360, layer: 'hot', name: '', url: '' });
+}>({ intervalMin: 360, layer: 'hot', maxSharePct: 60, name: '', url: '' });
 const [CreateModal, createModalApi] = useVbenModal({
   draggable: true,
   title: $t('dns.blocklist.intel.src.createTitle'),
@@ -236,7 +251,13 @@ const [CreateModal, createModalApi] = useVbenModal({
   onConfirm: () => saveCreate(),
 });
 function openCreate() {
-  createForm.value = { intervalMin: 360, layer: 'hot', name: '', url: '' };
+  createForm.value = {
+    intervalMin: 360,
+    layer: 'hot',
+    maxSharePct: 60,
+    name: '',
+    url: '',
+  };
   createModalApi.open();
 }
 async function saveCreate() {
@@ -249,6 +270,7 @@ async function saveCreate() {
   try {
     await createIntelSource({
       layer: f.layer,
+      maxSharePct: Math.round(f.maxSharePct),
       name: f.name.trim(),
       updateInterval: Math.round(f.intervalMin * 60),
       url: f.url.trim(),
@@ -296,6 +318,76 @@ async function remove(src: IntelSourceRow) {
   await load();
 }
 
+// ── 运行记录与版本回滚（M6-039 P2）──
+const opsTarget = ref<IntelSourceRow | null>(null);
+const opsTab = ref('runs');
+const runs = ref<IntelSourceRunRow[]>([]);
+const revisions = ref<IntelSourceRevisionRow[]>([]);
+const opsLoading = ref(false);
+const rollingBack = ref(0);
+const [OpsModal, opsModalApi] = useVbenModal({
+  draggable: true,
+  footer: false,
+  title: $t('dns.blocklist.intel.src.opsTitle'),
+});
+
+async function openOps(src: IntelSourceRow) {
+  opsTarget.value = src;
+  opsTab.value = 'runs';
+  runs.value = [];
+  revisions.value = [];
+  opsModalApi.open();
+  await loadOps(src.id);
+}
+
+async function loadOps(id?: string) {
+  const sourceId = id ?? opsTarget.value?.id;
+  if (!sourceId) return;
+  opsLoading.value = true;
+  try {
+    const [runRes, revRes] = await Promise.all([
+      listIntelSourceRuns(sourceId, 30),
+      listIntelSourceRevisions(sourceId, 30),
+    ]);
+    runs.value = runRes.items ?? [];
+    revisions.value = revRes.items ?? [];
+  } catch (error) {
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dns.blocklist.intel.src.opsFailed'),
+    );
+  } finally {
+    opsLoading.value = false;
+  }
+}
+
+async function rollbackRevision(rev: IntelSourceRevisionRow) {
+  const src = opsTarget.value;
+  if (!src) return;
+  rollingBack.value = rev.revision;
+  try {
+    await rollbackIntelSourceRevision(src.id, rev.revision);
+    message.success($t('dns.blocklist.intel.src.msgRolledBack'));
+    await Promise.all([load(), loadOps(src.id)]);
+    const latest = sources.value.find((s) => s.id === src.id);
+    if (latest) opsTarget.value = latest;
+  } catch (error) {
+    message.error(
+      error instanceof Error
+        ? error.message
+        : $t('dns.blocklist.intel.src.rollbackFailed'),
+    );
+  } finally {
+    rollingBack.value = 0;
+  }
+}
+
+function fmtDuration(ms?: null | number) {
+  if (!ms || ms <= 0) return '—';
+  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
+}
+
 const LAYER_TEXT = computed<Record<string, string>>(() => ({
   broad: $t('dns.blocklist.intel.src.layerBroad'),
   hot: $t('dns.blocklist.intel.src.layerHot'),
@@ -309,7 +401,109 @@ const STATUS_COLOR: Record<string, string> = {
   failed: 'red',
   never: 'default',
   ok: 'green',
+  rolled_back: 'blue',
 };
+
+const TRIGGER_TEXT = computed<Record<string, string>>(() => ({
+  enable: $t('dns.blocklist.intel.src.triggerEnable'),
+  manual: $t('dns.blocklist.intel.src.triggerManual'),
+  rollback: $t('dns.blocklist.intel.src.triggerRollback'),
+  schedule: $t('dns.blocklist.intel.src.triggerSchedule'),
+}));
+const RUN_STATUS_TEXT = computed<Record<string, string>>(() => ({
+  failed: $t('dns.blocklist.intel.src.statusFailed'),
+  ok: $t('dns.blocklist.intel.src.statusOk'),
+  rolled_back: $t('dns.blocklist.intel.src.statusRolledBack'),
+}));
+
+const runColumns = computed(() => [
+  {
+    dataIndex: 'startedAt',
+    key: 'startedAt',
+    width: 170,
+    title: $t('dns.blocklist.intel.src.colStarted'),
+  },
+  {
+    dataIndex: 'status',
+    key: 'status',
+    width: 100,
+    title: $t('dns.blocklist.intel.src.colStatus'),
+  },
+  {
+    dataIndex: 'trigger',
+    key: 'trigger',
+    width: 90,
+    title: $t('dns.blocklist.intel.src.colTrigger'),
+  },
+  {
+    dataIndex: 'durationMs',
+    key: 'durationMs',
+    width: 90,
+    title: $t('dns.blocklist.intel.src.colDuration'),
+  },
+  {
+    dataIndex: 'entries',
+    key: 'entries',
+    width: 90,
+    title: $t('dns.blocklist.intel.src.colEntries'),
+  },
+  {
+    dataIndex: 'added',
+    key: 'added',
+    width: 80,
+    title: $t('dns.blocklist.intel.src.colAdded'),
+  },
+  {
+    dataIndex: 'removed',
+    key: 'removed',
+    width: 80,
+    title: $t('dns.blocklist.intel.src.colRemoved'),
+  },
+  {
+    dataIndex: 'excluded',
+    key: 'excluded',
+    width: 110,
+    title: $t('dns.blocklist.intel.src.colExcluded'),
+  },
+  {
+    dataIndex: 'revision',
+    key: 'revision',
+    width: 80,
+    title: $t('dns.blocklist.intel.src.colRevision'),
+  },
+]);
+
+const revisionColumns = computed(() => [
+  {
+    dataIndex: 'revision',
+    key: 'revision',
+    width: 90,
+    title: $t('dns.blocklist.intel.src.colRevision'),
+  },
+  {
+    dataIndex: 'entries',
+    key: 'entries',
+    width: 110,
+    title: $t('dns.blocklist.intel.src.colEntries'),
+  },
+  {
+    dataIndex: 'active',
+    key: 'active',
+    width: 100,
+    title: $t('dns.blocklist.intel.src.colActive'),
+  },
+  {
+    dataIndex: 'createdAt',
+    key: 'createdAt',
+    width: 180,
+    title: $t('dns.blocklist.intel.src.colStarted'),
+  },
+  {
+    key: 'op',
+    width: 110,
+    title: $t('dns.common.actions'),
+  },
+]);
 
 function fmtTime(v?: null | string) {
   if (!v) return '—';
@@ -360,7 +554,7 @@ const columns = computed(() => [
     width: 180,
     title: $t('dns.blocklist.intel.src.colLastSync'),
   },
-  { key: 'op', width: 210, title: $t('dns.common.actions') },
+  { key: 'op', width: 280, title: $t('dns.common.actions') },
 ]);
 
 onMounted(load);
@@ -483,11 +677,28 @@ defineExpose({ load });
           >
             {{ record.lastError }}
           </div>
+          <div
+            v-else-if="record.lastStatus === 'ok'"
+            class="ipam-cell-meta mt-1 ipam-mono"
+          >
+            {{ fmtDuration(record.lastDurationMs) }} ·
+            <span class="text-green-600">+{{ record.lastAdded ?? 0 }}</span>
+            /
+            <span class="text-red-500">-{{ record.lastRemoved ?? 0 }}</span>
+            <template v-if="record.lastExcluded">
+              · {{ $t('dns.blocklist.intel.src.colExcluded') }}
+              {{ record.lastExcluded }}
+            </template>
+          </div>
         </template>
         <template v-else-if="column.key === 'entries'">
           <span class="ipam-chip" data-tone="blue">{{
             $t('dns.common.count', { n: record.entries ?? 0 })
           }}</span>
+          <div class="ipam-cell-meta mt-1">
+            {{ $t('dns.blocklist.intel.src.colMaxShare') }}:
+            {{ record.maxSharePct ?? 0 }}%
+          </div>
         </template>
         <template v-else-if="column.key === 'lastSyncAt'">
           <span class="ipam-cell-meta">{{ fmtTime(record.lastSyncAt) }}</span>
@@ -501,6 +712,9 @@ defineExpose({ load });
               @click="syncNow(record as IntelSourceRow)"
             >
               {{ $t('dns.blocklist.intel.src.sync') }}
+            </Button>
+            <Button size="small" @click="openOps(record as IntelSourceRow)">
+              {{ $t('dns.blocklist.intel.src.ops') }}
             </Button>
             <Button size="small" @click="openEdit(record as IntelSourceRow)">
               {{ $t('dns.blocklist.intel.src.edit') }}
@@ -623,6 +837,17 @@ defineExpose({ load });
           class="w-full"
         />
       </label>
+      <label class="ipam-form-field">
+        <span class="ipam-form-field__label">{{
+          $t('dns.blocklist.intel.src.maxShareLabel')
+        }}</span>
+        <InputNumber
+          v-model:value="editForm.maxSharePct"
+          :max="100"
+          :min="0"
+          class="w-full"
+        />
+      </label>
       <label v-if="editNeedsAuth" class="ipam-form-field">
         <span class="ipam-form-field__label">{{
           editAuthHeader
@@ -647,6 +872,9 @@ defineExpose({ load });
       </label>
       <div class="ipam-form-hint ipam-form-field--wide">
         {{ $t('dns.blocklist.intel.src.editHint') }}
+      </div>
+      <div class="ipam-form-hint ipam-form-field--wide">
+        {{ $t('dns.blocklist.intel.src.maxShareHint') }}
       </div>
     </div>
   </EditModal>
@@ -692,9 +920,140 @@ defineExpose({ load });
           class="w-full"
         />
       </label>
+      <label class="ipam-form-field">
+        <span class="ipam-form-field__label">{{
+          $t('dns.blocklist.intel.src.maxShareLabel')
+        }}</span>
+        <InputNumber
+          v-model:value="createForm.maxSharePct"
+          :max="100"
+          :min="0"
+          class="w-full"
+        />
+      </label>
       <div class="ipam-form-hint ipam-form-field--wide">
         {{ $t('dns.blocklist.intel.src.createHint') }}
       </div>
+      <div class="ipam-form-hint ipam-form-field--wide">
+        {{ $t('dns.blocklist.intel.src.maxShareHint') }}
+      </div>
     </div>
   </CreateModal>
+
+  <!-- 同步记录与历史版本 -->
+  <OpsModal class="w-[980px]">
+    <div v-if="opsTarget" class="mb-3">
+      <div class="ipam-cell-title">
+        {{ opsTarget.name }}
+        <Tag v-if="opsTarget.builtin" class="ml-1" color="default">
+          {{ $t('dns.blocklist.intel.src.builtin') }}
+        </Tag>
+      </div>
+      <div class="ipam-cell-meta ipam-mono">{{ opsTarget.key }}</div>
+    </div>
+    <Tabs v-model:active-key="opsTab">
+      <TabPane key="runs" :tab="$t('dns.blocklist.intel.src.runsTab')">
+        <Table
+          :columns="runColumns"
+          :data-source="runs"
+          :loading="opsLoading"
+          :locale="{ emptyText: $t('dns.blocklist.intel.src.noRuns') }"
+          :pagination="false"
+          row-key="id"
+          size="small"
+        >
+          <template #bodyCell="{ column, record }">
+            <template v-if="column.key === 'status'">
+              <Tag
+                class="m-0"
+                :color="STATUS_COLOR[record.status] ?? 'default'"
+              >
+                {{ RUN_STATUS_TEXT[record.status] ?? record.status }}
+              </Tag>
+              <div
+                v-if="record.error"
+                class="ipam-cell-meta mt-1"
+                :title="record.error"
+              >
+                {{ record.error }}
+              </div>
+            </template>
+            <template v-else-if="column.key === 'trigger'">
+              {{ TRIGGER_TEXT[record.trigger] ?? record.trigger }}
+            </template>
+            <template v-else-if="column.key === 'startedAt'">
+              <span class="ipam-cell-meta">{{ fmtTime(record.startedAt) }}</span>
+            </template>
+            <template v-else-if="column.key === 'durationMs'">
+              {{ fmtDuration(record.durationMs) }}
+            </template>
+            <template v-else-if="column.key === 'added'">
+              <span class="text-green-600">+{{ record.added ?? 0 }}</span>
+            </template>
+            <template v-else-if="column.key === 'removed'">
+              <span class="text-red-500">-{{ record.removed ?? 0 }}</span>
+            </template>
+            <template v-else-if="column.key === 'revision'">
+              {{ record.revision ? `v${record.revision}` : '—' }}
+            </template>
+          </template>
+        </Table>
+      </TabPane>
+      <TabPane
+        key="revisions"
+        :tab="$t('dns.blocklist.intel.src.revisionsTab')"
+      >
+        <Table
+          :columns="revisionColumns"
+          :data-source="revisions"
+          :loading="opsLoading"
+          :locale="{ emptyText: $t('dns.blocklist.intel.src.noRevisions') }"
+          :pagination="false"
+          row-key="revision"
+          size="small"
+        >
+          <template #bodyCell="{ column, record }">
+            <template v-if="column.key === 'entries'">
+              {{
+                $t('dns.common.count', { n: record.entries ?? 0 })
+              }}
+            </template>
+            <template v-else-if="column.key === 'active'">
+              <Tag v-if="record.active" class="m-0" color="green">
+                {{ $t('dns.blocklist.intel.src.active') }}
+              </Tag>
+              <span v-else class="ipam-hint">—</span>
+            </template>
+            <template v-else-if="column.key === 'createdAt'">
+              <span class="ipam-cell-meta">{{ fmtTime(record.createdAt) }}</span>
+            </template>
+            <template v-else-if="column.key === 'op'">
+              <span v-if="record.active" class="ipam-hint">—</span>
+              <Popconfirm
+                v-else
+                :cancel-text="$t('dns.common.cancel')"
+                :ok-text="$t('dns.blocklist.intel.src.rollback')"
+                :title="
+                  $t('dns.blocklist.intel.src.rollbackConfirm', {
+                    n: record.revision,
+                  })
+                "
+                @confirm="
+                  rollbackRevision(record as IntelSourceRevisionRow)
+                "
+              >
+                <Button
+                  :loading="rollingBack === record.revision"
+                  danger
+                  size="small"
+                >
+                  {{ $t('dns.blocklist.intel.src.rollback') }}
+                </Button>
+              </Popconfirm>
+            </template>
+          </template>
+        </Table>
+      </TabPane>
+    </Tabs>
+  </OpsModal>
 </template>

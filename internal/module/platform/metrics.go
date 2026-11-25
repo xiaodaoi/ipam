@@ -35,7 +35,20 @@ type MetricsSources struct {
 	LogExportDegraded func() bool
 	// LicenseUsage 授权终端计量（M6-004B）：used/limit（0=不限）/是否已授权。
 	LicenseUsage func(context.Context) (int64, int64, bool)
+	// IntelSources 情报源同步状态（M6-039 P2）：条目、状态、耗时、最近同步时间。
+	IntelSources func(context.Context) ([]IntelSourceMetric, error)
 	TLSCertFile  string
+}
+
+// IntelSourceMetric 单个情报源的指标快照（避免 platform 依赖 dns 包）。
+type IntelSourceMetric struct {
+	Key             string
+	Layer           string
+	Status          string
+	Enabled         bool
+	Entries         int64
+	LastSyncUnix    int64
+	DurationSeconds float64
 }
 
 // MetricsHandler 暴露 Prometheus 文本格式指标，并统计 HTTP 请求。
@@ -123,6 +136,35 @@ func (h *MetricsHandler) Serve(c *gin.Context) {
 				}
 			}
 		}
+	}
+
+	if h.src.IntelSources != nil {
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 1500*time.Millisecond)
+		if list, err := h.src.IntelSources(ctx); err == nil {
+			fmt.Fprintf(&b, "# HELP ipam_intel_source_enabled 情报源启用状态（1=启用）\n# TYPE ipam_intel_source_enabled gauge\n")
+			fmt.Fprintf(&b, "# HELP ipam_intel_source_entries 情报源最近一次成功同步的条目数\n# TYPE ipam_intel_source_entries gauge\n")
+			fmt.Fprintf(&b, "# HELP ipam_intel_source_last_status 情报源最近一次同步状态（当前状态为 1）\n# TYPE ipam_intel_source_last_status gauge\n")
+			fmt.Fprintf(&b, "# HELP ipam_intel_source_last_sync_timestamp_seconds 情报源最近同步成功时间（Unix 秒）\n# TYPE ipam_intel_source_last_sync_timestamp_seconds gauge\n")
+			fmt.Fprintf(&b, "# HELP ipam_intel_source_last_sync_duration_seconds 情报源最近一次同步耗时（秒）\n# TYPE ipam_intel_source_last_sync_duration_seconds gauge\n")
+			for _, s := range list {
+				enabled := 0
+				if s.Enabled {
+					enabled = 1
+				}
+				fmt.Fprintf(&b, "ipam_intel_source_enabled{key=%q,layer=%q} %d\n", s.Key, s.Layer, enabled)
+				fmt.Fprintf(&b, "ipam_intel_source_entries{key=%q,layer=%q} %d\n", s.Key, s.Layer, s.Entries)
+				if s.Status != "" {
+					fmt.Fprintf(&b, "ipam_intel_source_last_status{key=%q,status=%q} 1\n", s.Key, s.Status)
+				}
+				if s.LastSyncUnix > 0 {
+					fmt.Fprintf(&b, "ipam_intel_source_last_sync_timestamp_seconds{key=%q} %d\n", s.Key, s.LastSyncUnix)
+				}
+				fmt.Fprintf(&b, "ipam_intel_source_last_sync_duration_seconds{key=%q} %.3f\n", s.Key, s.DurationSeconds)
+			}
+		} else {
+			log.Printf("[metrics] intel sources: %v", err)
+		}
+		cancel()
 	}
 
 	if h.src.LogStats != nil {

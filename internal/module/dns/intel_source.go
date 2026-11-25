@@ -35,8 +35,18 @@ var (
 	ErrSourceSecretNeeded = errors.New("INTEL_SOURCE_SECRET_REQUIRED")
 	ErrSourceEmpty        = errors.New("INTEL_SOURCE_EMPTY")
 	ErrSourceDupKey       = errors.New("INTEL_SOURCE_DUP")
+	// ErrRevisionNotFound 指定版本不存在。
+	ErrRevisionNotFound = errors.New("INTEL_REVISION_NOT_FOUND")
+	// ErrRevisionUnreadable 版本文件缺失或为空。
+	ErrRevisionUnreadable = errors.New("INTEL_REVISION_UNREADABLE")
 	// ErrSecretDirUnwritable 密钥目录不可写（容器以非 root 运行时常见）。
 	ErrSecretDirUnwritable = errors.New("INTEL_SECRET_DIR_UNWRITABLE")
+)
+
+// 版本与执行记录的保留上限（每源）。
+const (
+	MaxSourceRevisions = 20
+	MaxSourceRuns      = 50
 )
 
 // 单层容量上限（方案 §8：热层 ≤10 万、宽层 ≤30 万）。
@@ -63,11 +73,16 @@ type IntelSource struct {
 	RequiresAck    bool
 	AckedAt        *time.Time
 	UpdateInterval int // 秒
+	MaxSharePct    int // 单源层内贡献上限（百分比；0=不限）
 	Enabled        bool
 	Entries        int
 	LastSyncAt     *time.Time
 	LastStatus     string // never | ok | failed
 	LastError      string
+	LastDurationMs int
+	LastAdded      int
+	LastRemoved    int
+	LastExcluded   int
 	Builtin        bool
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
@@ -299,6 +314,9 @@ func (s *IntelService) EnsurePresets(ctx context.Context) error {
 	now := s.now().UTC()
 	for _, p := range PresetSources {
 		p.CreatedAt, p.UpdatedAt = now, now
+		if p.MaxSharePct == 0 {
+			p.MaxSharePct = 60
+		}
 		if err := s.store.UpsertPresetSource(ctx, p); err != nil {
 			return err
 		}
@@ -334,6 +352,7 @@ func (s *IntelService) CreateSource(ctx context.Context, src IntelSource) (Intel
 	if src.UpdateInterval <= 0 {
 		src.UpdateInterval = 21600
 	}
+	src.MaxSharePct = clampSharePct(src.MaxSharePct)
 	src.Kind = "custom"
 	src.Format = "auto"
 	src.Enabled = false
@@ -361,6 +380,7 @@ type SourceUpdate struct {
 	Secret         *string // 明文；写入文件，不入库
 	ClearSecret    bool
 	UpdateInterval *int
+	MaxSharePct    *int
 	Enabled        *bool
 	AckLicense     bool
 }
@@ -388,6 +408,9 @@ func (s *IntelService) UpdateSource(ctx context.Context, id string, up SourceUpd
 	}
 	if up.UpdateInterval != nil && *up.UpdateInterval > 0 {
 		src.UpdateInterval = *up.UpdateInterval
+	}
+	if up.MaxSharePct != nil {
+		src.MaxSharePct = clampSharePct(*up.MaxSharePct)
 	}
 	if up.AckLicense {
 		now := s.now().UTC()
@@ -425,7 +448,7 @@ func (s *IntelService) UpdateSource(ctx context.Context, id string, up SourceUpd
 	src.HasSecret = src.SecretFile != "" && fileExists(src.SecretFile)
 	if enabling {
 		// 启用即尝试同步一次：失败不回滚启用状态，但会记录 last_error 供 UI 展示。
-		if synced, serr := s.SyncSource(ctx, src.ID); serr == nil {
+		if synced, serr := s.SyncSourceWithTrigger(ctx, src.ID, "enable"); serr == nil {
 			return synced, nil
 		} else {
 			log.Printf("[intel] 源 %s 启用后首次同步失败：%v", src.Key, serr)
@@ -455,6 +478,7 @@ func (s *IntelService) DeleteSource(ctx context.Context, id string) error {
 		_ = os.Remove(src.SecretFile)
 	}
 	_ = os.Remove(s.SourceDomainPath(src.Key))
+	_ = os.RemoveAll(filepath.Join(s.dir, "sources", sanitizeKey(src.Key)))
 	if err := s.store.DeleteSource(ctx, id); err != nil {
 		return err
 	}
@@ -465,6 +489,13 @@ func (s *IntelService) DeleteSource(ctx context.Context, id string) error {
 
 // SyncSource 拉取 → 解析 → 落缓存 → 重编译（失败保留上一版数据）。
 func (s *IntelService) SyncSource(ctx context.Context, id string) (IntelSource, error) {
+	return s.SyncSourceWithTrigger(ctx, id, "manual")
+}
+
+// SyncSourceWithTrigger 与 SyncSource 相同，但记录触发来源（manual/schedule/enable）。
+func (s *IntelService) SyncSourceWithTrigger(ctx context.Context, id, trigger string) (IntelSource, error) {
+	s.syncMu.Lock()
+	defer s.syncMu.Unlock()
 	src, ok, err := s.store.GetSource(ctx, id)
 	if err != nil {
 		return IntelSource{}, err
@@ -475,6 +506,7 @@ func (s *IntelService) SyncSource(ctx context.Context, id string) (IntelSource, 
 	if !src.Enabled {
 		return src, fmt.Errorf("源未启用：%s", src.Name)
 	}
+	started := time.Now()
 	secret := ""
 	if src.SecretFile != "" {
 		if b, rerr := os.ReadFile(src.SecretFile); rerr == nil {
@@ -483,11 +515,15 @@ func (s *IntelService) SyncSource(ctx context.Context, id string) (IntelSource, 
 	}
 	body, ferr := s.fetch(ctx, src.URL, src.AuthHeader, secret)
 	now := s.now().UTC()
+	durationMs := int(time.Since(started).Milliseconds())
 	if ferr != nil {
 		src.LastSyncAt = &now
 		src.LastStatus = "failed"
 		src.LastError = ferr.Error()
-		_ = s.store.UpdateSourceSync(ctx, src.ID, src.Entries, now, "failed", src.LastError)
+		src.LastDurationMs = durationMs
+		_ = s.store.UpdateSourceStats(ctx, src.ID, src.Entries, 0, 0, 0, durationMs, now, "failed", src.LastError)
+		s.recordRun(ctx, IntelSourceRun{SourceID: src.ID, StartedAt: now, DurationMs: durationMs,
+			Status: "failed", Trigger: trigger, Entries: src.Entries, Error: src.LastError})
 		return src, ferr
 	}
 	domains := ParseFeedDomains(body)
@@ -495,25 +531,245 @@ func (s *IntelService) SyncSource(ctx context.Context, id string) (IntelSource, 
 		src.LastSyncAt = &now
 		src.LastStatus = "failed"
 		src.LastError = "拉取成功但解析到 0 条（上游格式可能已变更）"
-		_ = s.store.UpdateSourceSync(ctx, src.ID, src.Entries, now, "failed", src.LastError)
+		src.LastDurationMs = durationMs
+		_ = s.store.UpdateSourceStats(ctx, src.ID, src.Entries, 0, 0, 0, durationMs, now, "failed", src.LastError)
+		s.recordRun(ctx, IntelSourceRun{SourceID: src.ID, StartedAt: now, DurationMs: durationMs,
+			Status: "failed", Trigger: trigger, Entries: src.Entries, Error: src.LastError})
 		return src, ErrSourceEmpty
 	}
-	if err := writeDomainCache(s.SourceDomainPath(src.Key), domains); err != nil {
+	cachePath := s.SourceDomainPath(src.Key)
+	old, _ := readDomainCache(cachePath)
+	added, removed := diffDomains(old, domains)
+	excluded := countExcluded(domains, s.activeWhitelistSet(ctx))
+	if err := writeDomainCache(cachePath, domains); err != nil {
 		return src, err
+	}
+	revision := 0
+	if added > 0 || removed > 0 {
+		if rev, rerr := s.saveRevision(ctx, src, domains); rerr != nil {
+			// 版本快照失败不回滚本次同步：拦截能力优先，记录日志便于排查。
+			log.Printf("[intel] 源 %s 保存版本失败：%v", src.Key, rerr)
+		} else {
+			revision = rev.Revision
+		}
 	}
 	src.Entries = len(domains)
 	src.LastSyncAt = &now
 	src.LastStatus = "ok"
 	src.LastError = ""
+	src.LastDurationMs = durationMs
+	src.LastAdded = added
+	src.LastRemoved = removed
+	src.LastExcluded = excluded
 	src.HasSecret = src.SecretFile != "" && fileExists(src.SecretFile)
-	if err := s.store.UpdateSourceSync(ctx, src.ID, src.Entries, now, "ok", ""); err != nil {
+	if err := s.store.UpdateSourceStats(ctx, src.ID, src.Entries, added, removed, excluded, durationMs, now, "ok", ""); err != nil {
 		return src, err
 	}
+	s.recordRun(ctx, IntelSourceRun{SourceID: src.ID, StartedAt: now, DurationMs: durationMs,
+		Status: "ok", Trigger: trigger, Entries: src.Entries, Added: added, Removed: removed,
+		Excluded: excluded, Revision: revision})
 	s.invalidateAttribution()
 	if _, cerr := s.Compile(ctx); cerr != nil {
 		log.Printf("[intel] 源 %s 同步后编译失败：%v", src.Key, cerr)
 	}
 	return src, nil
+}
+
+// saveRevision 保存当前域名清单为一个新版本，并清理超出保留上限的旧版本文件。
+func (s *IntelService) saveRevision(ctx context.Context, src IntelSource, domains []string) (IntelSourceRevision, error) {
+	latest, err := s.store.ListSourceRevisions(ctx, src.ID, 1)
+	if err != nil {
+		return IntelSourceRevision{}, err
+	}
+	next := 1
+	if len(latest) > 0 {
+		next = latest[0].Revision + 1
+	}
+	path := filepath.Join(s.dir, "sources", sanitizeKey(src.Key), fmt.Sprintf("rev-%06d.domains", next))
+	if err := writeDomainCache(path, domains); err != nil {
+		return IntelSourceRevision{}, err
+	}
+	joined := strings.Join(domains, "\n")
+	rev, err := s.store.CreateSourceRevision(ctx, IntelSourceRevision{
+		SourceID: src.ID, Revision: next, Entries: len(domains), Path: path, SHA: sha256Hex(joined),
+	})
+	if err != nil {
+		_ = os.Remove(path)
+		return IntelSourceRevision{}, err
+	}
+	if oldPaths, perr := s.store.PruneSourceRevisions(ctx, src.ID, MaxSourceRevisions); perr == nil {
+		for _, p := range oldPaths {
+			_ = os.Remove(p)
+		}
+	} else {
+		log.Printf("[intel] 源 %s 清理旧版本失败：%v", src.Key, perr)
+	}
+	return rev, nil
+}
+
+// RollbackRevision 将指定版本写回当前缓存并重编译（原版本保留，可再次回滚）。
+func (s *IntelService) RollbackRevision(ctx context.Context, id string, revision int) (IntelSource, error) {
+	s.syncMu.Lock()
+	defer s.syncMu.Unlock()
+	src, ok, err := s.store.GetSource(ctx, id)
+	if err != nil {
+		return IntelSource{}, err
+	}
+	if !ok {
+		return IntelSource{}, ErrSourceNotFound
+	}
+	rev, ok, err := s.store.GetSourceRevision(ctx, src.ID, revision)
+	if err != nil {
+		return IntelSource{}, err
+	}
+	if !ok {
+		return IntelSource{}, ErrRevisionNotFound
+	}
+	domains, err := readDomainCache(rev.Path)
+	if err != nil {
+		return IntelSource{}, fmt.Errorf("%w: %v", ErrRevisionUnreadable, err)
+	}
+	if len(domains) == 0 {
+		return IntelSource{}, ErrRevisionUnreadable
+	}
+	cachePath := s.SourceDomainPath(src.Key)
+	old, _ := readDomainCache(cachePath)
+	added, removed := diffDomains(old, domains)
+	excluded := countExcluded(domains, s.activeWhitelistSet(ctx))
+	if err := writeDomainCache(cachePath, domains); err != nil {
+		return IntelSource{}, err
+	}
+	now := s.now().UTC()
+	src.Entries = len(domains)
+	src.LastSyncAt = &now
+	src.LastStatus = "ok"
+	src.LastError = ""
+	src.LastAdded = added
+	src.LastRemoved = removed
+	src.LastExcluded = excluded
+	src.LastDurationMs = 0
+	if err := s.store.UpdateSourceStats(ctx, src.ID, src.Entries, added, removed, excluded, 0, now, "ok", ""); err != nil {
+		return IntelSource{}, err
+	}
+	s.recordRun(ctx, IntelSourceRun{SourceID: src.ID, StartedAt: now, Status: "rolled_back",
+		Trigger: "rollback", Entries: src.Entries, Added: added, Removed: removed,
+		Excluded: excluded, Revision: revision})
+	s.invalidateAttribution()
+	if _, cerr := s.Compile(ctx); cerr != nil {
+		log.Printf("[intel] 源 %s 回滚后编译失败：%v", src.Key, cerr)
+	}
+	return src, nil
+}
+
+// SourceRuns 查询同步记录（默认 20，最多 100）。
+func (s *IntelService) SourceRuns(ctx context.Context, id string, limit int) ([]IntelSourceRun, error) {
+	if _, ok, err := s.store.GetSource(ctx, id); err != nil {
+		return nil, err
+	} else if !ok {
+		return nil, ErrSourceNotFound
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	return s.store.ListSourceRuns(ctx, id, limit)
+}
+
+// SourceRevisions 查询历史版本，并标记当前生效版本。
+func (s *IntelService) SourceRevisions(ctx context.Context, id string, limit int) ([]IntelSourceRevision, error) {
+	src, ok, err := s.store.GetSource(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, ErrSourceNotFound
+	}
+	if limit <= 0 {
+		limit = MaxSourceRevisions
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	list, err := s.store.ListSourceRevisions(ctx, src.ID, limit)
+	if err != nil {
+		return nil, err
+	}
+	current, _ := readDomainCache(s.SourceDomainPath(src.Key))
+	curSHA := sha256Hex(strings.Join(current, "\n"))
+	activeSet := false
+	for i := range list {
+		if !activeSet && list[i].SHA == curSHA {
+			list[i].Active = true
+			activeSet = true
+		}
+	}
+	return list, nil
+}
+
+func (s *IntelService) recordRun(ctx context.Context, run IntelSourceRun) {
+	if _, err := s.store.RecordSourceRun(ctx, run); err != nil {
+		log.Printf("[intel] 记录执行失败（source=%s）：%v", run.SourceID, err)
+		return
+	}
+	if err := s.store.PruneSourceRuns(ctx, run.SourceID, MaxSourceRuns); err != nil {
+		log.Printf("[intel] 清理旧执行记录失败（source=%s）：%v", run.SourceID, err)
+	}
+}
+
+// activeWhitelistSet 当前生效白名单的精确名集合（后缀语义由 whitelisted 展开）。
+func (s *IntelService) activeWhitelistSet(ctx context.Context) map[string]bool {
+	list, err := s.store.ListWhitelist(ctx)
+	if err != nil {
+		log.Printf("[intel] 读取白名单失败（按空处理）：%v", err)
+		return nil
+	}
+	now := s.now()
+	set := map[string]bool{}
+	for _, w := range list {
+		if !w.Active(now) {
+			continue
+		}
+		if name := normalizeDomain(w.Value); name != "" {
+			set[name] = true
+		}
+	}
+	return set
+}
+
+func countExcluded(domains []string, wl map[string]bool) int {
+	if len(wl) == 0 {
+		return 0
+	}
+	n := 0
+	for _, d := range domains {
+		if whitelisted(d, wl) {
+			n++
+		}
+	}
+	return n
+}
+
+// diffDomains 计算集合差异（忽略顺序）。
+func diffDomains(old, cur []string) (added, removed int) {
+	oldSet := make(map[string]struct{}, len(old))
+	for _, d := range old {
+		oldSet[d] = struct{}{}
+	}
+	curSet := make(map[string]struct{}, len(cur))
+	for _, d := range cur {
+		curSet[d] = struct{}{}
+		if _, ok := oldSet[d]; !ok {
+			added++
+		}
+	}
+	for _, d := range old {
+		if _, ok := curSet[d]; !ok {
+			removed++
+		}
+	}
+	return added, removed
 }
 
 // SyncDueSources 同步到期的已启用源（调度器调用）；返回实际同步成功的源数。
@@ -539,7 +795,7 @@ func (s *IntelService) SyncDueSources(ctx context.Context) int {
 		if !due {
 			continue
 		}
-		if _, serr := s.SyncSource(ctx, src.ID); serr != nil {
+		if _, serr := s.SyncSourceWithTrigger(ctx, src.ID, "schedule"); serr != nil {
 			log.Printf("[intel] 源 %s 同步失败：%v", src.Key, serr)
 			continue
 		}
@@ -570,13 +826,15 @@ func StartIntelScheduler(ctx context.Context, svc *IntelService, interval time.D
 // ── 编译用：读取各层域名 ──
 
 // feedRecordsForLayer 汇总某层所有启用源的域名（去重、剔除白名单、按容量截断）。
+// 质量闸门（M6-039 P2）：同层多个源且总需求超过容量时，按 max_share_pct 限制
+// 单个源的贡献，避免一个大源挤占全部配额；只有一个源时不额外限制。
 func (s *IntelService) feedRecordsForLayer(sources []IntelSource, layer string, wl map[string]bool) []rpz.Record {
-	out := make([]rpz.Record, 0, 1024)
-	seen := make(map[string]struct{}, 1024)
-	limit := MaxHotEntries
-	if layer == "broad" {
-		limit = MaxBroadEntries
+	type bucket struct {
+		src     IntelSource
+		domains []string
 	}
+	buckets := make([]bucket, 0, len(sources))
+	total := 0
 	for _, src := range sources {
 		if !src.Enabled || src.Layer != layer {
 			continue
@@ -586,7 +844,44 @@ func (s *IntelService) feedRecordsForLayer(sources []IntelSource, layer string, 
 			log.Printf("[intel] 读取源 %s 缓存失败：%v", src.Key, err)
 			continue
 		}
-		for _, d := range domains {
+		if len(domains) == 0 {
+			continue
+		}
+		buckets = append(buckets, bucket{src: src, domains: domains})
+		total += len(domains)
+	}
+
+	limit := MaxHotEntries
+	if layer == "broad" {
+		limit = MaxBroadEntries
+	}
+	quotas := make([]int, len(buckets))
+	for i := range quotas {
+		quotas[i] = -1 // -1 = 不限制
+	}
+	if len(buckets) >= 2 && total > limit {
+		for i, b := range buckets {
+			pct := b.src.MaxSharePct
+			if pct <= 0 || pct >= 100 {
+				continue
+			}
+			q := limit * pct / 100
+			if q < 1 {
+				q = 1
+			}
+			quotas[i] = q
+			log.Printf("[intel] %s 层超过容量，源 %s 贡献上限 %d%%（%d 条）", layer, b.src.Key, pct, q)
+		}
+	}
+
+	out := make([]rpz.Record, 0, min(total, limit))
+	seen := make(map[string]struct{}, min(total, 1024))
+	for i, b := range buckets {
+		contributed := 0
+		for _, d := range b.domains {
+			if quotas[i] >= 0 && contributed >= quotas[i] {
+				break
+			}
 			if _, ok := seen[d]; ok {
 				continue
 			}
@@ -595,10 +890,12 @@ func (s *IntelService) feedRecordsForLayer(sources []IntelSource, layer string, 
 				continue
 			}
 			if len(out) >= limit {
-				log.Printf("[intel] %s 层达到容量上限 %d，源 %s 及后续条目被截断", layer, limit, src.Key)
+				log.Printf("[intel] %s 层达到容量上限 %d，源 %s 及后续条目被截断", layer, limit, b.src.Key)
+				sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 				return out
 			}
 			out = append(out, rpz.Record{Name: d, Action: rpz.ActionNXDomain})
+			contributed++
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
@@ -619,6 +916,17 @@ func validateSource(src IntelSource) error {
 		return ErrSourceSecretNeeded
 	}
 	return nil
+}
+
+// clampSharePct 限制单源贡献上限在 0~100（0=不限，100=等同不限制）。
+func clampSharePct(v int) int {
+	if v < 0 {
+		return 0
+	}
+	if v > 100 {
+		return 100
+	}
+	return v
 }
 
 func (s *IntelService) writeSecret(id, secret string) (string, error) {

@@ -563,6 +563,9 @@ export const reloadIntelZones = () =>
 export type IntelSourceRow = components['schemas']['IntelSource'];
 export type IntelSourceCreateRow = components['schemas']['IntelSourceCreate'];
 export type IntelSourceUpdateRow = components['schemas']['IntelSourceUpdate'];
+export type IntelSourceRunRow = components['schemas']['IntelSourceRun'];
+export type IntelSourceRevisionRow =
+  components['schemas']['IntelSourceRevision'];
 export const listIntelSources = () =>
   req<{ items: IntelSourceRow[]; total?: number }>('/dns/intel/sources');
 export const createIntelSource = (body: IntelSourceCreateRow) =>
@@ -573,6 +576,19 @@ export const deleteIntelSource = (id: string) =>
   req<undefined>(`/dns/intel/sources/${id}`, del);
 export const syncIntelSource = (id: string) =>
   req<IntelSourceRow>(`/dns/intel/sources/${id}/sync`, j({}));
+export const listIntelSourceRuns = (id: string, limit = 20) =>
+  req<{ items: IntelSourceRunRow[]; total?: number }>(
+    `/dns/intel/sources/${id}/runs?limit=${limit}`,
+  );
+export const listIntelSourceRevisions = (id: string, limit = 20) =>
+  req<{ items: IntelSourceRevisionRow[]; total?: number }>(
+    `/dns/intel/sources/${id}/revisions?limit=${limit}`,
+  );
+export const rollbackIntelSourceRevision = (id: string, revision: number) =>
+  req<IntelSourceRow>(
+    `/dns/intel/sources/${id}/revisions/${revision}/rollback`,
+    j({}),
+  );
 
 export type BuiltinPackRow = components['schemas']['BuiltinPack'];
 export const listBuiltinPacks = () =>

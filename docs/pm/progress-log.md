@@ -3,6 +3,15 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-11-25 · 情报源运营闭环：贡献上限/版本回滚/同步观测（M6-039 P2）
+- **迁移** `0055_intel_source_governance`：`intel_source` 增加贡献上限与最近同步观测列；新增 `intel_source_revision`、`intel_source_run`。
+- **质量闸门**：同层多个源且总需求超过容量时，按 `maxSharePct`（默认 60%）限制单源贡献；单源/未超容量不截断；白名单剔除先于配额计数，并统计 `lastExcluded`。
+- **版本回滚**：内容变化时保存 `sources/<key>/rev-<n>.domains`（每源保留 20 个）；新增版本列表与 `POST .../revisions/{revision}/rollback`，回滚后可再次回滚（可逆），删除源清理版本目录。
+- **同步观测**：每次 manual/schedule/enable/rollback 记录耗时、增删量、排除数、版本号与错误（每源 50 条）；同步/回滚写审计详情；`/metrics` 暴露 `ipam_intel_source_*` 系列指标。
+- **前端**：情报源卡新增贡献上限编辑与「运行记录」弹窗（同步记录/历史版本），状态列展示耗时与增删量，版本可一键回滚。
+- **验证**：新增 `intel_governance_test.go` 5 个用例；`go test ./internal/module/dns/... ./internal/module/platform/...`、`go build ./...`、`golangci-lint` 0 issues、`vue-tsc`、目标 eslint、i18n 三门禁通过；迁移 `0055` 在真实 PG 事务中执行并回滚校验通过。
+- **遗留**：蓝绿双区、离线导入、view-tag 未做；同步失败仍靠下一轮调度重试；镜像重建因 GitHub 下载 unbound 网络失败，真实上游/unbound 的 E2E 待补跑。详见 `docs/dev/M6-039-情报源实施说明.md` §12。
+
 ## 2026-11-25 · 告警降噪与告警策略中心（M6-049）
 - **问题**：M6-040 把 ClickHouse 拦截记录直接当报警，DNS 去重键带小时桶、全部 warning、铃铛统计所有 open；StevenBlack 等 broad 源几分钟刷满未确认数，确认后下一小时同一域名又复活。
 - **后端**：迁移 `0054_alerting` 新增 `alert_policy/alert_silence/notification_channel/notification_delivery` 与 `alert` 治理列；策略解析 `intel_source > blocklist > kind > component > source > global`，global 仅兜底；默认 StevenBlack=info/digest/按来源聚合、ThreatFox/URLhaus=critical/notify、系统健康 critical 不可 off。

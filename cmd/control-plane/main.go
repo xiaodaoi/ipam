@@ -1136,6 +1136,28 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 			st := licenseSvc.Status(ctx)
 			return st.TerminalsUsed, int64(st.MaxTerminals), st.Licensed
 		},
+		IntelSources: func(ctx context.Context) ([]platform.IntelSourceMetric, error) {
+			list, err := intelSvc.Sources(ctx)
+			if err != nil {
+				return nil, err
+			}
+			out := make([]platform.IntelSourceMetric, 0, len(list))
+			for _, s := range list {
+				m := platform.IntelSourceMetric{
+					Key:             s.Key,
+					Layer:           s.Layer,
+					Status:          s.LastStatus,
+					Enabled:         s.Enabled,
+					Entries:         int64(s.Entries),
+					DurationSeconds: float64(s.LastDurationMs) / 1000,
+				}
+				if s.LastSyncAt != nil {
+					m.LastSyncUnix = s.LastSyncAt.Unix()
+				}
+				out = append(out, m)
+			}
+			return out, nil
+		},
 		Kea: func(ctx context.Context) error {
 			if keaCmd == nil {
 				return nil

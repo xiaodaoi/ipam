@@ -2229,6 +2229,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/dns/intel/sources/{sourceId}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查询情报源同步记录
+         * @description 返回最近 N 次同步/回滚记录（默认 20，最多 100），含耗时、新增/移除/白名单排除条目数与失败原因。
+         *     用于排障「昨晚同步是否成功、拉了多少、为什么没生效」。
+         */
+        get: operations["listIntelSourceRuns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dns/intel/sources/{sourceId}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查询情报源历史版本
+         * @description 每次成功同步且内容发生变化时生成一个差异快照（默认保留最近 20 个），可按版本一键回滚。
+         *     版本只保存解析后的域名清单，不保存上游正文。
+         */
+        get: operations["listIntelSourceRevisions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dns/intel/sources/{sourceId}/revisions/{revision}/rollback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 回滚情报源到指定版本
+         * @description 将指定版本写回当前缓存并重编译对应层；回滚本身也记录为一次执行（trigger=rollback），
+         *     原版本仍保留，可再次回滚到回滚前的版本。scope 为 dns:write。
+         */
+        post: operations["rollbackIntelSourceRevision"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dns/zones": {
         parameters: {
             query?: never;
@@ -5374,6 +5437,8 @@ export interface components {
             acknowledgedAt?: string | null;
             /** @description 刷新间隔（秒） */
             updateInterval: number;
+            /** @description 单源在所在层的贡献上限（百分比）。仅同层有多个源且总需求超过容量时生效；0=不限。默认 60。 */
+            maxSharePct?: number;
             enabled: boolean;
             /** @description 最近一次成功同步的条目数 */
             entries?: number;
@@ -5382,6 +5447,14 @@ export interface components {
             /** @enum {string} */
             lastStatus?: "never" | "ok" | "failed";
             lastError?: string;
+            /** @description 最近一次同步耗时（毫秒） */
+            lastDurationMs?: number;
+            /** @description 最近一次同步新增条目数 */
+            lastAdded?: number;
+            /** @description 最近一次同步移除条目数 */
+            lastRemoved?: number;
+            /** @description 最近一次同步中被白名单排除的条目数 */
+            lastExcluded?: number;
             /** @description 预设不可删除 */
             builtin?: boolean;
             /** Format: date-time */
@@ -5403,6 +5476,8 @@ export interface components {
             layer: "hot" | "broad";
             /** @description 秒；默认 21600 */
             updateInterval?: number;
+            /** @description 单源贡献上限（百分比；0=不限，默认 60） */
+            maxSharePct?: number;
             license?: string | null;
         };
         IntelSourceUpdate: {
@@ -5415,9 +5490,58 @@ export interface components {
             secret?: string | null;
             clearSecret?: boolean;
             updateInterval?: number;
+            /** @description 单源贡献上限（百分比；0=不限） */
+            maxSharePct?: number;
             enabled?: boolean;
             /** @description 启用时必须为 true（确认许可与商用限制） */
             ackLicense?: boolean;
+        };
+        /** @description 情报源一次同步/回滚执行记录（M6-039 P2）。 */
+        IntelSourceRun: {
+            /** Format: int64 */
+            id: number;
+            /** Format: uuid */
+            sourceId: string;
+            /** Format: date-time */
+            startedAt: string;
+            /** @description 耗时（毫秒） */
+            durationMs?: number;
+            /** @enum {string} */
+            status: "ok" | "failed" | "rolled_back";
+            /** @enum {string} */
+            trigger: "manual" | "schedule" | "enable" | "rollback";
+            /** @description 本次执行后的条目数（失败时为上一版条目数） */
+            entries: number;
+            added?: number;
+            removed?: number;
+            /** @description 被白名单排除的条目数 */
+            excluded?: number;
+            /** @description 本次生成的版本号；0 表示内容未变化 */
+            revision?: number;
+            error?: string;
+        };
+        IntelSourceRunList: {
+            items: components["schemas"]["IntelSourceRun"][];
+            total?: number;
+        };
+        /** @description 情报源内容版本（按成功同步的差异快照保存，可一键回滚）。 */
+        IntelSourceRevision: {
+            /** Format: int64 */
+            id: number;
+            /** Format: uuid */
+            sourceId: string;
+            /** @description 版本号（同一源内单调递增） */
+            revision: number;
+            entries: number;
+            sha256?: string;
+            /** @description 是否为当前生效版本 */
+            active: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        IntelSourceRevisionList: {
+            items: components["schemas"]["IntelSourceRevision"][];
+            total?: number;
         };
         DnsRecordUpdate: {
             name?: string;
@@ -9663,6 +9787,105 @@ export interface operations {
                 content?: never;
             };
             /** @description 源不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listIntelSourceRuns: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                sourceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntelSourceRunList"];
+                };
+            };
+            /** @description 源不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listIntelSourceRevisions: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                sourceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntelSourceRevisionList"];
+                };
+            };
+            /** @description 源不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    rollbackIntelSourceRevision: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sourceId: string;
+                revision: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntelSource"];
+                };
+            };
+            /** @description 版本内容为空或不可读 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 源或版本不存在 */
             404: {
                 headers: {
                     [name: string]: unknown;
