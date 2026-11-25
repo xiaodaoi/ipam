@@ -34,7 +34,7 @@ func (h *Handler) SetActorProvider(f func(*gin.Context) string) {
 	}
 }
 
-func filterOf(from, to *time.Time, q, source, kind, severity, status, intelSource *string, page, pageSize *int) Filter {
+func filterOf(from, to *time.Time, q, source, kind, severity, status, intelSource, alertClass *string, notify *bool, page, pageSize *int) Filter {
 	f := Filter{}
 	if from != nil {
 		f.From = *from
@@ -60,6 +60,10 @@ func filterOf(from, to *time.Time, q, source, kind, severity, status, intelSourc
 	if intelSource != nil {
 		f.IntelSource = *intelSource
 	}
+	if alertClass != nil {
+		f.AlertClass = *alertClass
+	}
+	f.Notify = notify
 	if page != nil {
 		f.Page = *page
 	}
@@ -71,7 +75,7 @@ func filterOf(from, to *time.Time, q, source, kind, severity, status, intelSourc
 
 // ListAlerts GET /logs/alerts
 func (h *Handler) ListAlerts(c *gin.Context, p apigen.ListAlertsParams) {
-	var src, sev, st *string
+	var src, sev, st, class *string
 	if p.Source != nil {
 		v := string(*p.Source)
 		src = &v
@@ -84,8 +88,12 @@ func (h *Handler) ListAlerts(c *gin.Context, p apigen.ListAlertsParams) {
 		v := string(*p.Status)
 		st = &v
 	}
+	if p.AlertClass != nil {
+		v := string(*p.AlertClass)
+		class = &v
+	}
 	page, err := h.svc.List(c.Request.Context(), filterOf(
-		p.From, p.To, p.Q, src, p.Kind, sev, st, p.IntelSource, p.Page, p.PageSize))
+		p.From, p.To, p.Q, src, p.Kind, sev, st, p.IntelSource, class, p.Notify, p.Page, p.PageSize))
 	if err != nil {
 		writeErr(c, err)
 		return
@@ -101,7 +109,7 @@ func (h *Handler) ListAlerts(c *gin.Context, p apigen.ListAlertsParams) {
 
 // GetAlertStats GET /logs/alerts/stats
 func (h *Handler) GetAlertStats(c *gin.Context, p apigen.GetAlertStatsParams) {
-	var src, sev, st *string
+	var src, sev, st, class *string
 	if p.Source != nil {
 		v := string(*p.Source)
 		src = &v
@@ -114,14 +122,19 @@ func (h *Handler) GetAlertStats(c *gin.Context, p apigen.GetAlertStatsParams) {
 		v := string(*p.Status)
 		st = &v
 	}
+	if p.AlertClass != nil {
+		v := string(*p.AlertClass)
+		class = &v
+	}
 	stats, err := h.svc.Stats(c.Request.Context(), filterOf(
-		p.From, p.To, p.Q, src, p.Kind, sev, st, p.IntelSource, nil, nil))
+		p.From, p.To, p.Q, src, p.Kind, sev, st, p.IntelSource, class, p.Notify, nil, nil))
 	if err != nil {
 		writeErr(c, err)
 		return
 	}
 	out := apigen.AlertStats{
 		Total: stats.Total, Open: stats.Open, Acked: stats.Acked, Resolved: stats.Resolved,
+		Notified: stats.Notified, Archived: stats.Archived, Suppressed: stats.Suppressed,
 		BySeverity: stats.BySeverity, ByKind: stats.ByKind,
 		ByIntelSource: stats.ByIntelSource,
 		TopDomains:    make([]apigen.AlertAggregate, 0, len(stats.TopDomains)),
@@ -230,6 +243,31 @@ func toGenAlert(a Alert) apigen.Alert {
 	setStr(&out.IntelSourceName, a.IntelSourceName)
 	setStr(&out.Detail, a.Detail)
 	setStr(&out.AckedBy, a.AckedBy)
+	if a.AlertClass != "" {
+		v := apigen.AlertAlertClass(a.AlertClass)
+		out.AlertClass = &v
+	}
+	if a.GroupKey != "" {
+		v := a.GroupKey
+		out.GroupKey = &v
+	}
+	notify := a.Notify
+	out.Notify = &notify
+	nc := a.NotifyCount
+	out.NotifyCount = &nc
+	if !a.WindowStart.IsZero() {
+		t := a.WindowStart
+		out.WindowStart = &t
+	}
+	if a.LastNotifiedAt != nil {
+		t := *a.LastNotifiedAt
+		out.LastNotifiedAt = &t
+	}
+	if a.SuppressedBy != "" {
+		v := a.SuppressedBy
+		out.SuppressedBy = &v
+	}
+	out.Decision = toGenDecision(a.Decision)
 	if a.AckedAt != nil {
 		t := *a.AckedAt
 		out.AckedAt = &t

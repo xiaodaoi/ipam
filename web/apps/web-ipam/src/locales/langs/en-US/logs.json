@@ -585,7 +585,8 @@
       "active": "{n} filters active",
       "reset": "Reset",
       "intelSource": "Threat source",
-      "allSources": "All sources"
+      "allSources": "All sources",
+      "scope": "Notify scope"
     },
     "source": {
       "dns": "Risky domain visit",
@@ -643,7 +644,8 @@
       "ackedBy": "Confirmed by",
       "empty": "No alerts match the current filters",
       "detail": "Details",
-      "intelSource": "Threat source"
+      "intelSource": "Threat source",
+      "notify": "Notify layer"
     },
     "detail": {
       "title": "Alert details",
@@ -659,7 +661,20 @@
       "detail": "Raw detail",
       "ack": "Confirm this alert",
       "close": "Close",
-      "intelSource": "Threat source"
+      "intelSource": "Threat source",
+      "decision": "Decision trace",
+      "decisionNone": "No decision trace (legacy or direct report)",
+      "policy": "Matched policy",
+      "matchedBy": "Scope",
+      "notifyMode": "Policy mode",
+      "final": "Final outcome",
+      "notify": "Notify layer",
+      "alertClass": "Alert class",
+      "suppressedBy": "Suppressed / silenced by",
+      "groupBy": "Group by",
+      "notifyCount": "Notify count",
+      "lastNotifiedAt": "Last notified",
+      "windowStart": "Observation window"
     },
     "actions": {
       "ackAll": "Confirm all",
@@ -693,6 +708,12 @@
       "systemMessage": "{component} is unhealthy ({n} times). Click for details.",
       "viewAll": "View all alerts",
       "riskSource": "Source: {source}"
-    }
+    },
+    "scope": {
+      "attention": "Needs attention",
+      "all": "All",
+      "archived": "Archived"
+    },
+    "archiveTag": "Archived"
   }
 }

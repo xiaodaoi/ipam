@@ -35,6 +35,9 @@ func domainOf(fullPath string) string {
 		return "dash"
 	case strings.HasPrefix(fullPath, "/api/v1/logs"), strings.HasPrefix(fullPath, "/api/v1/audits"):
 		return "logs"
+	case strings.HasPrefix(fullPath, "/api/v1/alerting"):
+		// 告警治理页面（M6-041）：配置类接口归系统管理域，复用 system:read/write。
+		return "system"
 	case strings.HasPrefix(fullPath, "/api/v1/subnets"), strings.HasPrefix(fullPath, "/api/v1/dhcp"),
 		strings.HasPrefix(fullPath, "/api/v1/reservations"), strings.HasPrefix(fullPath, "/api/v1/ledger"),
 		strings.HasPrefix(fullPath, "/api/v1/dualstack"):

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { IntelSourceRow } from '#/api/ipam';
+import type { AlertPolicy, IntelSourceRow } from '#/api/ipam';
 
 import { computed, onMounted, ref } from 'vue';
 
@@ -23,6 +23,7 @@ import {
 import {
   createIntelSource,
   deleteIntelSource,
+  listAlertPolicies,
   listIntelSources,
   syncIntelSource,
   updateIntelSource,
@@ -35,6 +36,7 @@ function needsSecret(src: IntelSourceRow): boolean {
   return !!src.authHeader || (src.url ?? '').includes('{secret}');
 }
 const sources = ref<IntelSourceRow[]>([]);
+const policiesByKey = ref<Record<string, AlertPolicy>>({});
 const loading = ref(false);
 const syncingId = ref('');
 const saving = ref(false);
@@ -57,6 +59,28 @@ async function load() {
   } finally {
     loading.value = false;
   }
+  // 告警策略需要 system:read；无权限时静默跳过，不影响情报源管理。
+  try {
+    const res = await listAlertPolicies();
+    const map: Record<string, AlertPolicy> = {};
+    for (const p of res.items ?? []) {
+      if (p.scopeType === 'intel_source') map[p.scopeKey] = p;
+    }
+    policiesByKey.value = map;
+  } catch {
+    policiesByKey.value = {};
+  }
+}
+
+const POLICY_MODE_COLOR: Record<string, string> = {
+  digest: 'blue',
+  notify: 'green',
+  off: 'default',
+  silent: 'purple',
+};
+
+function policyFor(row: IntelSourceRow): AlertPolicy | undefined {
+  return policiesByKey.value[row.key];
 }
 
 // ── 启用（许可确认 + 可选密钥）──
@@ -314,6 +338,11 @@ const columns = computed(() => [
     title: $t('dns.blocklist.intel.src.colLicense'),
   },
   {
+    key: 'policy',
+    width: 130,
+    title: $t('alerting.policies.title'),
+  },
+  {
     dataIndex: 'status',
     key: 'status',
     width: 190,
@@ -396,6 +425,24 @@ defineExpose({ load });
           <Tag class="m-0" color="geekblue">
             {{ LAYER_TEXT[record.layer] ?? record.layer }}
           </Tag>
+        </template>
+        <template v-else-if="column.key === 'policy'">
+          <Tag
+            v-if="policyFor(record as IntelSourceRow)"
+            :color="
+              POLICY_MODE_COLOR[
+                policyFor(record as IntelSourceRow)?.notifyMode ?? 'notify'
+              ] ?? 'default'
+            "
+            class="m-0"
+          >
+            {{
+              $t(
+                `alerting.mode.${policyFor(record as IntelSourceRow)?.notifyMode ?? 'notify'}`,
+              )
+            }}
+          </Tag>
+          <span v-else class="ipam-hint">{{ $t('alerting.common.none') }}</span>
         </template>
         <template v-else-if="column.key === 'license'">
           <div class="ipam-cell-meta">{{ record.license || '—' }}</div>

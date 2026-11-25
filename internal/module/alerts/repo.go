@@ -3,21 +3,21 @@ package alerts
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
-	guuid "github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const alertColumns = `id, dedup_key, source, kind, severity, status, title, message,
+const alertColumns = `id, dedup_key, fingerprint, source, kind, severity, status, title, message,
   client_ip, client_mac, domain, component, intel_source, intel_source_name,
-  count, detail, first_seen, last_seen, acked_at, acked_by, resolved_at, created_at`
+  alert_class, notify, policy_id, group_key, count, detail, window_start,
+  notify_count, last_notified_at, suppressed_by, silence_id, decision,
+  repeat_after_sec, resolve_after_sec, first_seen, last_seen, acked_at, acked_by,
+  resolved_at, created_at`
 
-// PgRepo PostgreSQL 实现（迁移 0047）。
+// PgRepo PostgreSQL 实现（迁移 0054）。
 type PgRepo struct{ pool *pgxpool.Pool }
 
 // NewPgRepo 构造。
@@ -28,6 +28,27 @@ func likePattern(q string) string {
 	q = strings.ReplaceAll(q, `%`, `\%`)
 	q = strings.ReplaceAll(q, `_`, `\_`)
 	return "%" + q + "%"
+}
+
+func nilIfEmpty(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
+func nilIfZero(t time.Time) any {
+	if t.IsZero() {
+		return nil
+	}
+	return t
+}
+
+func jsonOrEmpty(s string) []byte {
+	if strings.TrimSpace(s) == "" {
+		return []byte("{}")
+	}
+	return []byte(s)
 }
 
 // splitIntelSources 把逗号分隔的来源 key/name 拆开并对齐；
@@ -71,6 +92,11 @@ func buildWhere(f Filter) (string, []any) {
 	add("kind = $%d", f.Kind)
 	add("severity = $%d", f.Severity)
 	add("status = $%d", f.Status)
+	add("alert_class = $%d", f.AlertClass)
+	if f.Notify != nil {
+		args = append(args, *f.Notify)
+		conds = append(conds, fmt.Sprintf("notify = $%d", len(args)))
+	}
 	if f.IntelSource != "" {
 		args = append(args, likePattern(f.IntelSource))
 		n := len(args)
@@ -92,22 +118,49 @@ type rowScanner interface {
 }
 
 func scanAlert(sc rowScanner) (Alert, error) {
+	return scanAlertExtra(sc, false)
+}
+
+func scanAlertExtra(sc rowScanner, withJustified bool) (Alert, error) {
 	var (
-		a                   Alert
-		count               int64
-		ackedAt, resolvedAt *time.Time
+		a                         Alert
+		count, notifyCount        int64
+		policyID, silenceID       *string
+		windowStart, lastNotified *time.Time
+		ackedAt, resolvedAt       *time.Time
+		decision                  []byte
+		justified                 bool
 	)
-	err := sc.Scan(&a.ID, &a.DedupKey, &a.Source, &a.Kind, &a.Severity, &a.Status,
+	dest := []any{
+		&a.ID, &a.DedupKey, &a.Fingerprint, &a.Source, &a.Kind, &a.Severity, &a.Status,
 		&a.Title, &a.Message, &a.ClientIP, &a.ClientMAC, &a.Domain, &a.Component,
-		&a.IntelSource, &a.IntelSourceName,
-		&count, &a.Detail, &a.FirstSeen, &a.LastSeen, &ackedAt, &a.AckedBy,
-		&resolvedAt, &a.CreatedAt)
-	if err != nil {
+		&a.IntelSource, &a.IntelSourceName, &a.AlertClass, &a.Notify, &policyID, &a.GroupKey,
+		&count, &a.Detail, &windowStart, &notifyCount, &lastNotified, &a.SuppressedBy, &silenceID,
+		&decision, &a.RepeatAfterSec, &a.ResolveAfterSec, &a.FirstSeen, &a.LastSeen,
+		&ackedAt, &a.AckedBy, &resolvedAt, &a.CreatedAt,
+	}
+	if withJustified {
+		dest = append(dest, &justified)
+	}
+	if err := sc.Scan(dest...); err != nil {
 		return Alert{}, err
 	}
 	a.Count = int(count)
+	a.NotifyCount = int(notifyCount)
+	a.Decision = string(decision)
+	if policyID != nil {
+		a.PolicyID = *policyID
+	}
+	if silenceID != nil {
+		a.SilenceID = *silenceID
+	}
+	if windowStart != nil {
+		a.WindowStart = *windowStart
+	}
+	a.LastNotifiedAt = lastNotified
 	a.AckedAt = ackedAt
 	a.ResolvedAt = resolvedAt
+	a.JustNotified = withJustified && justified
 	return a, nil
 }
 
@@ -145,14 +198,16 @@ func (r *PgRepo) Stats(ctx context.Context, f Filter) (Stats, error) {
 		ByIntelSource: map[string]int{}}
 
 	rows, err := r.pool.Query(ctx,
-		"SELECT status, severity, kind, count(*) FROM alert WHERE "+where+" GROUP BY 1,2,3", args...)
+		"SELECT status, severity, kind, notify, (suppressed_by <> '') AS suppressed, count(*) FROM alert WHERE "+
+			where+" GROUP BY 1,2,3,4,5", args...)
 	if err != nil {
 		return st, err
 	}
 	for rows.Next() {
 		var status, severity, kind string
+		var notify, suppressed bool
 		var n int64
-		if err := rows.Scan(&status, &severity, &kind, &n); err != nil {
+		if err := rows.Scan(&status, &severity, &kind, &notify, &suppressed, &n); err != nil {
 			rows.Close()
 			return st, err
 		}
@@ -164,6 +219,17 @@ func (r *PgRepo) Stats(ctx context.Context, f Filter) (Stats, error) {
 			st.Acked += int(n)
 		case StatusResolved:
 			st.Resolved += int(n)
+		}
+		if notify {
+			st.Notified += int(n)
+		} else {
+			st.Archived += int(n)
+		}
+		if suppressed {
+			st.Suppressed += int(n)
+		}
+		if severity == SeverityCritical && !notify {
+			st.CriticalSuppressed += int(n)
 		}
 		st.BySeverity[severity] += int(n)
 		st.ByKind[kind] += int(n)
@@ -221,40 +287,68 @@ func (r *PgRepo) Stats(ctx context.Context, f Filter) (Stats, error) {
 		return st, err
 	}
 
+	// 按来源/组件统计（降噪总览用）
+	brs, err := r.pool.Query(ctx,
+		"SELECT COALESCE(NULLIF(intel_source_name, ''), NULLIF(component, ''), source) AS k,"+
+			" count(*) AS recorded, count(*) FILTER (WHERE notify) AS notified"+
+			" FROM alert WHERE "+where+" GROUP BY k ORDER BY recorded DESC, k LIMIT 10", args...)
+	if err != nil {
+		return st, err
+	}
+	for brs.Next() {
+		var s SourceStat
+		var recorded, notified int64
+		if err := brs.Scan(&s.Key, &recorded, &notified); err != nil {
+			brs.Close()
+			return st, err
+		}
+		s.Recorded, s.Notified = int(recorded), int(notified)
+		st.BySource = append(st.BySource, s)
+	}
+	brs.Close()
+	if err := brs.Err(); err != nil {
+		return st, err
+	}
+
 	bucket := f.Bucket
 	if bucket != "hour" {
 		bucket = "day"
 	}
 	targs := append(append([]any{}, args...), bucket)
 	trs, err := r.pool.Query(ctx,
-		"SELECT date_trunc($"+strconv.Itoa(len(targs))+", last_seen) AS b, count(*) FROM alert WHERE "+
-			where+" GROUP BY b ORDER BY b", targs...)
+		"SELECT date_trunc($"+strconv.Itoa(len(targs))+", last_seen) AS b, count(*),"+
+			" count(*) FILTER (WHERE notify) FROM alert WHERE "+where+" GROUP BY b ORDER BY b", targs...)
 	if err != nil {
 		return st, err
 	}
 	defer trs.Close()
 	st.Trend = make([]TrendPoint, 0, 32)
+	st.NotifiedTrend = make([]TrendPoint, 0, 32)
 	for trs.Next() {
 		var p TrendPoint
-		var n int64
-		if err := trs.Scan(&p.TS, &n); err != nil {
+		var n, notified int64
+		if err := trs.Scan(&p.TS, &n, &notified); err != nil {
 			return st, err
 		}
 		p.TS = p.TS.UTC()
 		p.Count = int(n)
 		st.Trend = append(st.Trend, p)
+		st.NotifiedTrend = append(st.NotifiedTrend, TrendPoint{TS: p.TS, Count: int(notified)})
 	}
 	return st, trs.Err()
 }
 
-// Unread 未确认总数 + 最近 N 条。
+// Unread 未确认总数 + 最近 N 条（仅 notify=true，critical 优先）。
 func (r *PgRepo) Unread(ctx context.Context, limit int) (Unread, error) {
 	var out Unread
-	if err := r.pool.QueryRow(ctx, "SELECT count(*) FROM alert WHERE status='open'").Scan(&out.Count); err != nil {
+	if err := r.pool.QueryRow(ctx,
+		"SELECT count(*) FROM alert WHERE status='open' AND notify=true").Scan(&out.Count); err != nil {
 		return out, err
 	}
 	rows, err := r.pool.Query(ctx,
-		"SELECT "+alertColumns+" FROM alert WHERE status='open' ORDER BY last_seen DESC, id LIMIT $1", limit)
+		"SELECT "+alertColumns+" FROM alert WHERE status='open' AND notify=true"+
+			" ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END,"+
+			" last_seen DESC, id LIMIT $1", limit)
 	if err != nil {
 		return out, err
 	}
@@ -292,34 +386,55 @@ func (r *PgRepo) AckAll(ctx context.Context, actor string, at time.Time) (int, e
 	return int(tag.RowsAffected()), nil
 }
 
-// Upsert 按 dedup_key 合并：同小时窗口累加，重复扫描不回退计数。
+// upsertReopenExpr 判断已确认报警是否应重新打开（重复提醒/数量激增）。
+const upsertReopenExpr = `(alert.status='resolved') OR (alert.status='acked' AND (
+  (alert.repeat_after_sec > 0 AND EXCLUDED.last_seen >= alert.last_seen + make_interval(secs => alert.repeat_after_sec))
+  OR (alert.count > 0 AND EXCLUDED.count >= alert.count * 10)))`
+
+// Upsert 按 dedup_key 合并：稳定指纹 + 冷却/重复提醒，重复扫描不回退计数。
 func (r *PgRepo) Upsert(ctx context.Context, ev Event) (Alert, error) {
-	q := `INSERT INTO alert(dedup_key, source, kind, severity, status, title, message,
+	q := `INSERT INTO alert(dedup_key, fingerprint, source, kind, severity, status, title, message,
 		client_ip, client_mac, domain, component, intel_source, intel_source_name,
-		count, detail, first_seen, last_seen)
-		VALUES($1,$2,$3,$4,'open',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+		alert_class, notify, policy_id, group_key, count, detail, window_start,
+		notify_count, last_notified_at, suppressed_by, silence_id, decision,
+		repeat_after_sec, resolve_after_sec, first_seen, last_seen)
+		VALUES($1,$2,$3,$4,$5,'open',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
+		CASE WHEN $15 THEN 1 ELSE 0 END,
+		CASE WHEN $15 THEN now() ELSE NULL END,
+		$21,$22,$23,$24,$25,$26,$27)
 		ON CONFLICT (dedup_key) DO UPDATE SET
-		  source=EXCLUDED.source, kind=EXCLUDED.kind, severity=EXCLUDED.severity,
-		  title=EXCLUDED.title, message=EXCLUDED.message,
-		  client_ip=EXCLUDED.client_ip, client_mac=EXCLUDED.client_mac,
-		  domain=EXCLUDED.domain, component=EXCLUDED.component,
-		  intel_source=EXCLUDED.intel_source, intel_source_name=EXCLUDED.intel_source_name,
+		  fingerprint=EXCLUDED.fingerprint, source=EXCLUDED.source, kind=EXCLUDED.kind,
+		  severity=EXCLUDED.severity, title=EXCLUDED.title, message=EXCLUDED.message,
+		  client_ip=EXCLUDED.client_ip, client_mac=EXCLUDED.client_mac, domain=EXCLUDED.domain,
+		  component=EXCLUDED.component, intel_source=EXCLUDED.intel_source,
+		  intel_source_name=EXCLUDED.intel_source_name, alert_class=EXCLUDED.alert_class,
+		  policy_id=EXCLUDED.policy_id, group_key=EXCLUDED.group_key, detail=EXCLUDED.detail,
+		  decision=EXCLUDED.decision,
+		  repeat_after_sec=EXCLUDED.repeat_after_sec, resolve_after_sec=EXCLUDED.resolve_after_sec,
 		  count=CASE WHEN alert.status='resolved' THEN EXCLUDED.count
 		             ELSE GREATEST(alert.count, EXCLUDED.count) END,
-		  detail=EXCLUDED.detail,
 		  first_seen=LEAST(alert.first_seen, EXCLUDED.first_seen),
 		  last_seen=GREATEST(alert.last_seen, EXCLUDED.last_seen),
-		  status=CASE WHEN alert.status='resolved' THEN 'open' ELSE alert.status END,
-		  acked_at=CASE WHEN alert.status='resolved' THEN NULL ELSE alert.acked_at END,
-		  acked_by=CASE WHEN alert.status='resolved' THEN '' ELSE alert.acked_by END,
-		  resolved_at=CASE WHEN alert.status='resolved' THEN NULL ELSE alert.resolved_at END,
+		  status=CASE WHEN ` + upsertReopenExpr + ` THEN 'open' ELSE alert.status END,
+		  acked_at=CASE WHEN ` + upsertReopenExpr + ` THEN NULL ELSE alert.acked_at END,
+		  acked_by=CASE WHEN ` + upsertReopenExpr + ` THEN '' ELSE alert.acked_by END,
+		  resolved_at=CASE WHEN ` + upsertReopenExpr + ` THEN NULL ELSE alert.resolved_at END,
+		  notify=CASE WHEN ` + upsertReopenExpr + ` THEN EXCLUDED.notify ELSE alert.notify END,
+		  notify_count=CASE WHEN ` + upsertReopenExpr + ` AND EXCLUDED.notify
+		                    THEN alert.notify_count + 1 ELSE alert.notify_count END,
+		  last_notified_at=CASE WHEN ` + upsertReopenExpr + ` AND EXCLUDED.notify
+		                    THEN now() ELSE alert.last_notified_at END,
+		  window_start=CASE WHEN ` + upsertReopenExpr + ` THEN EXCLUDED.window_start
+		                    ELSE LEAST(alert.window_start, EXCLUDED.window_start) END,
+		  suppressed_by=EXCLUDED.suppressed_by, silence_id=EXCLUDED.silence_id,
 		  updated_at=now()
-		RETURNING ` + alertColumns
-	return scanAlert(r.pool.QueryRow(ctx, q,
-		ev.DedupKey, ev.Source, ev.Kind, ev.Severity, ev.Title, ev.Message,
-		ev.ClientIP, ev.ClientMAC, ev.Domain, ev.Component,
-		ev.IntelSource, ev.IntelSourceName, ev.Count, ev.Detail,
-		ev.FirstSeen, ev.LastSeen))
+		RETURNING ` + alertColumns + `, (last_notified_at = now()) AS just_notified`
+	return scanAlertExtra(r.pool.QueryRow(ctx, q,
+		ev.DedupKey, ev.Fingerprint, ev.Source, ev.Kind, ev.Severity, ev.Title, ev.Message,
+		ev.ClientIP, ev.ClientMAC, ev.Domain, ev.Component, ev.IntelSource, ev.IntelSourceName,
+		ev.AlertClass, ev.Notify, nilIfEmpty(ev.PolicyID), ev.GroupKey, ev.Count, ev.Detail,
+		nilIfZero(ev.WindowStart), ev.SuppressedBy, nilIfEmpty(ev.SilenceID),
+		jsonOrEmpty(ev.Decision), ev.RepeatAfterSec, ev.ResolveAfterSec, ev.FirstSeen, ev.LastSeen), true)
 }
 
 // Resolve 系统故障恢复。
@@ -333,7 +448,7 @@ func (r *PgRepo) Resolve(ctx context.Context, dedupKey string, at time.Time) (bo
 	return tag.RowsAffected() > 0, nil
 }
 
-// ResolveStaleSystem 恢复已不在快照中的系统报警。
+// ResolveStaleSystem 恢复已不在当前故障快照中的系统报警。
 func (r *PgRepo) ResolveStaleSystem(ctx context.Context, managedKinds, activeKeys []string, at time.Time) (int, error) {
 	if len(managedKinds) == 0 {
 		return 0, nil
@@ -349,6 +464,18 @@ func (r *PgRepo) ResolveStaleSystem(ctx context.Context, managedKinds, activeKey
 	return int(tag.RowsAffected()), nil
 }
 
+// AutoResolveDNS 按每条报警的 resolve_after_sec 自动恢复长时间无命中的 DNS 报警。
+func (r *PgRepo) AutoResolveDNS(ctx context.Context, now time.Time) (int, error) {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE alert SET status='resolved', resolved_at=$1, updated_at=now()
+		 WHERE source='dns' AND status <> 'resolved' AND resolve_after_sec > 0
+		   AND last_seen < $1 - make_interval(secs => resolve_after_sec)`, now)
+	if err != nil {
+		return 0, err
+	}
+	return int(tag.RowsAffected()), nil
+}
+
 // Purge 删除过期报警。
 func (r *PgRepo) Purge(ctx context.Context, before time.Time) (int, error) {
 	tag, err := r.pool.Exec(ctx, `DELETE FROM alert WHERE last_seen < $1`, before)
@@ -356,276 +483,4 @@ func (r *PgRepo) Purge(ctx context.Context, before time.Time) (int, error) {
 		return 0, err
 	}
 	return int(tag.RowsAffected()), nil
-}
-
-// ── 内存实现（开发/单测路径）──
-
-// MemRepo 内存仓储。
-type MemRepo struct {
-	mu    sync.Mutex
-	byKey map[string]Alert
-}
-
-// NewMemRepo 构造。
-func NewMemRepo() *MemRepo { return &MemRepo{byKey: map[string]Alert{}} }
-
-func (r *MemRepo) snapshot(f Filter) []Alert {
-	out := make([]Alert, 0, len(r.byKey))
-	for _, a := range r.byKey {
-		if matchFilter(a, f) {
-			out = append(out, a)
-		}
-	}
-	sortAlerts(out)
-	return out
-}
-
-// List 内存实现。
-func (r *MemRepo) List(_ context.Context, f Filter) ([]Alert, int, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	all := r.snapshot(f)
-	total := len(all)
-	start := (f.Page - 1) * f.PageSize
-	if start > total {
-		start = total
-	}
-	end := start + f.PageSize
-	if end > total {
-		end = total
-	}
-	return append([]Alert{}, all[start:end]...), total, nil
-}
-
-// Stats 内存实现。
-func (r *MemRepo) Stats(_ context.Context, f Filter) (Stats, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	all := r.snapshot(f)
-	st := Stats{BySeverity: map[string]int{}, ByKind: map[string]int{},
-		ByIntelSource: map[string]int{}, Bucket: f.Bucket}
-	doms := map[string]int{}
-	clients := map[string]int{}
-	bucket := map[string]int{}
-	loc := time.UTC
-	for _, a := range all {
-		st.Total++
-		switch a.Status {
-		case StatusOpen:
-			st.Open++
-		case StatusAcked:
-			st.Acked++
-		case StatusResolved:
-			st.Resolved++
-		}
-		st.BySeverity[a.Severity]++
-		st.ByKind[a.Kind]++
-		if a.Domain != "" {
-			doms[a.Domain] += a.Count
-		}
-		if a.ClientIP != "" {
-			clients[a.ClientIP] += a.Count
-		}
-		for _, name := range splitIntelSources(a.IntelSource, a.IntelSourceName) {
-			st.ByIntelSource[name]++
-		}
-		key := a.LastSeen.UTC().Format("2006-01-02T15")
-		if f.Bucket != "hour" {
-			key = a.LastSeen.UTC().Format("2006-01-02")
-		}
-		bucket[key]++
-	}
-	topN := func(m map[string]int) []Aggregate {
-		out := make([]Aggregate, 0, len(m))
-		for k, v := range m {
-			out = append(out, Aggregate{Key: k, Count: v})
-		}
-		sort.Slice(out, func(i, j int) bool {
-			if out[i].Count != out[j].Count {
-				return out[i].Count > out[j].Count
-			}
-			return out[i].Key < out[j].Key
-		})
-		if len(out) > 10 {
-			out = out[:10]
-		}
-		return out
-	}
-	st.TopDomains = topN(doms)
-	st.TopClients = topN(clients)
-	keys := make([]string, 0, len(bucket))
-	for k := range bucket {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		layout := "2006-01-02T15"
-		if f.Bucket != "hour" {
-			layout = "2006-01-02"
-		}
-		ts, _ := time.ParseInLocation(layout, k, loc)
-		st.Trend = append(st.Trend, TrendPoint{TS: ts, Count: bucket[k]})
-	}
-	return st, nil
-}
-
-// Unread 内存实现。
-func (r *MemRepo) Unread(_ context.Context, limit int) (Unread, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	out := Unread{Items: []Alert{}}
-	all := make([]Alert, 0, len(r.byKey))
-	for _, a := range r.byKey {
-		if a.Status == StatusOpen {
-			all = append(all, a)
-		}
-	}
-	sortAlerts(all)
-	out.Count = len(all)
-	if len(all) > limit {
-		all = all[:limit]
-	}
-	out.Items = append(out.Items, all...)
-	return out, nil
-}
-
-// Ack 内存实现。
-func (r *MemRepo) Ack(_ context.Context, ids []string, actor string, at time.Time) (int, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	want := map[string]bool{}
-	for _, id := range ids {
-		want[id] = true
-	}
-	n := 0
-	for k, a := range r.byKey {
-		if want[a.ID] && a.Status == StatusOpen {
-			t := at
-			a.Status = StatusAcked
-			a.AckedAt = &t
-			a.AckedBy = actor
-			r.byKey[k] = a
-			n++
-		}
-	}
-	return n, nil
-}
-
-// AckAll 内存实现。
-func (r *MemRepo) AckAll(_ context.Context, actor string, at time.Time) (int, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	n := 0
-	for k, a := range r.byKey {
-		if a.Status == StatusOpen {
-			t := at
-			a.Status = StatusAcked
-			a.AckedAt = &t
-			a.AckedBy = actor
-			r.byKey[k] = a
-			n++
-		}
-	}
-	return n, nil
-}
-
-// Upsert 内存实现。
-func (r *MemRepo) Upsert(_ context.Context, ev Event) (Alert, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	a, ok := r.byKey[ev.DedupKey]
-	reopened := false
-	if !ok {
-		a = Alert{
-			ID:        guuid.NewString(),
-			DedupKey:  ev.DedupKey,
-			CreatedAt: ev.FirstSeen,
-			Status:    StatusOpen,
-		}
-	} else if a.Status == StatusResolved {
-		a.Status = StatusOpen
-		a.AckedAt = nil
-		a.AckedBy = ""
-		a.ResolvedAt = nil
-		reopened = true
-	}
-	a.Source, a.Kind, a.Severity = ev.Source, ev.Kind, ev.Severity
-	a.Title, a.Message, a.Detail = ev.Title, ev.Message, ev.Detail
-	a.ClientIP, a.ClientMAC, a.Domain, a.Component = ev.ClientIP, ev.ClientMAC, ev.Domain, ev.Component
-	a.IntelSource, a.IntelSourceName = ev.IntelSource, ev.IntelSourceName
-	if ok && !reopened {
-		a.Count = maxInt(a.Count, ev.Count)
-		if ev.FirstSeen.Before(a.FirstSeen) {
-			a.FirstSeen = ev.FirstSeen
-		}
-		if ev.LastSeen.After(a.LastSeen) {
-			a.LastSeen = ev.LastSeen
-		}
-	} else {
-		a.Count = ev.Count
-		a.FirstSeen, a.LastSeen = ev.FirstSeen, ev.LastSeen
-	}
-	r.byKey[ev.DedupKey] = a
-	return a, nil
-}
-
-// Resolve 内存实现。
-func (r *MemRepo) Resolve(_ context.Context, dedupKey string, at time.Time) (bool, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	a, ok := r.byKey[dedupKey]
-	if !ok || a.Status == StatusResolved {
-		return false, nil
-	}
-	t := at
-	a.Status = StatusResolved
-	a.ResolvedAt = &t
-	r.byKey[dedupKey] = a
-	return true, nil
-}
-
-// ResolveStaleSystem 内存实现。
-func (r *MemRepo) ResolveStaleSystem(_ context.Context, managedKinds, activeKeys []string, at time.Time) (int, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	managed := map[string]bool{}
-	for _, k := range managedKinds {
-		managed[k] = true
-	}
-	active := map[string]bool{}
-	for _, k := range activeKeys {
-		active[k] = true
-	}
-	n := 0
-	for k, a := range r.byKey {
-		if a.Source == SourceSystem && a.Status != StatusResolved && managed[a.Kind] && !active[a.DedupKey] {
-			t := at
-			a.Status = StatusResolved
-			a.ResolvedAt = &t
-			r.byKey[k] = a
-			n++
-		}
-	}
-	return n, nil
-}
-
-// Purge 内存实现。
-func (r *MemRepo) Purge(_ context.Context, before time.Time) (int, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	n := 0
-	for k, a := range r.byKey {
-		if a.LastSeen.Before(before) {
-			delete(r.byKey, k)
-			n++
-		}
-	}
-	return n, nil
-}
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

@@ -3,6 +3,15 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-11-25 · 告警降噪与告警策略中心（M6-049）
+- **问题**：M6-040 把 ClickHouse 拦截记录直接当报警，DNS 去重键带小时桶、全部 warning、铃铛统计所有 open；StevenBlack 等 broad 源几分钟刷满未确认数，确认后下一小时同一域名又复活。
+- **后端**：迁移 `0054_alerting` 新增 `alert_policy/alert_silence/notification_channel/notification_delivery` 与 `alert` 治理列；策略解析 `intel_source > blocklist > kind > component > source > global`，global 仅兜底；默认 StevenBlack=info/digest/按来源聚合、ThreatFox/URLhaus=critical/notify、系统健康 critical 不可 off。
+- **降噪**：DNS 指纹稳定（去掉小时桶）+ `window_start`；`GREATEST` 合并回扫；确认后 `repeat_after` 内不重复通知，超时/激增才重开，`resolve_after` 自动恢复；broad 源按来源/客户端聚合；单源+全局每小时上限只在真实通知时扣预算，超限归档并标记 `capped`；静音/内置抑制仍落库可查。
+- **通知**：Webhook/邮件/飞书/钉钉/企业微信/Slack/Teams，HMAC 签名、SMTP、勿扰时段、min severity、测试发送与投递记录；密钥 0600 文件、DB 只存路径。
+- **前端**：新增「系统管理 → 告警与降噪」6 页签（总览/策略/聚合与抑制/静音/通道/审计），策略表单内置只读模拟；报警中心默认「仅需关注」、可切全部/归档并展示决策链；情报源卡片展示告警模式；zh/en 文案成对。
+- **验证**：`go test ./internal/...`、`go build ./...`、vue-tsc、目标文件 eslint、i18n 两门禁均通过；新增 `policy_test.go` 覆盖策略解析、聚合归档、未读过滤、冷却重开、静音、限流、模拟、密钥落盘。
+- **遗留**：真实栈 E2E/Webhook 实投未跑；`blocklist` 作用域预留；投递暂为单次同步尝试；`AckAll` 仍确认含归档的全部 open。详见 `docs/dev/M6-049-告警降噪与告警策略中心.md`。
+
 ## 2026-11-24 · 资产服务端分页/统计、pg_trgm 与仪表盘未登记 KPI（M6-048）
 - **服务端分页 + 统计**：`GET /assets` 新增 `page/pageSize`（上限 200）与 `scope`，返回 `stats{total,assigned,unassigned,owners,depts,online,offline,tagged}`；列表与统计共用同一 `assetWhere`，KPI 不随翻页跳变。
 - **在线筛选下推**：`AssetLeaseIndex` 产出的在线身份键集合（含 DUID 别名）以 `identity/mac/duid = ANY(...)` 下推 SQL，避免把全部资产拉内存再过滤。

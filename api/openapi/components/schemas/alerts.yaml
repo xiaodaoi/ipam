@@ -38,6 +38,17 @@ Alert:
     component: { type: string, description: 系统故障组件中性名（database/logstore/dhcp/dns/host...） }
     count: { type: integer, description: 窗口内事件数或连续故障次数 }
     detail: { type: string, description: 原始详情（可折叠展示） }
+    alertClass:
+      type: string
+      enum: [security_threat, policy_block, system_health, config_health, '']
+      description: 报警分类（M6-049）；空表示历史数据
+    notify: { type: boolean, description: 是否允许进入通知层（创建时策略快照） }
+    groupKey: { type: string, description: 聚合键（broad 源按来源/客户端聚合） }
+    windowStart: { type: string, format: date-time, description: 聚合窗口起点 }
+    notifyCount: { type: integer, description: 已通知次数（冷却/重复提醒） }
+    lastNotifiedAt: { type: string, format: date-time, nullable: true, description: 最近一次通知时间 }
+    suppressedBy: { type: string, description: 静音/抑制原因；空表示未被抑制 }
+    decision: { $ref: 'alerting.yaml#/AlertDecision' }
     firstSeen: { type: string, format: date-time }
     lastSeen: { type: string, format: date-time }
     ackedAt: { type: string, format: date-time, nullable: true }
@@ -70,7 +81,7 @@ AlertTrendPoint:
 
 AlertStats:
   type: object
-  required: [total, open, acked, resolved, bySeverity, byKind, byIntelSource, topDomains, topClients, trend]
+  required: [total, open, acked, resolved, bySeverity, byKind, byIntelSource, notified, archived, suppressed, topDomains, topClients, trend]
   properties:
     total: { type: integer }
     open: { type: integer, description: 未确认 }
@@ -88,6 +99,9 @@ AlertStats:
       type: object
       additionalProperties: { type: integer }
       description: 按情报来源显示名计数（仅 DNS 风险访问；未知来源不计入）
+    notified: { type: integer, description: 进入通知层的条数 }
+    archived: { type: integer, description: 仅归档（notify=false）的条数 }
+    suppressed: { type: integer, description: 被静音/抑制的条数 }
     topDomains:
       type: array
       items: { $ref: 'alerts.yaml#/AlertAggregate' }

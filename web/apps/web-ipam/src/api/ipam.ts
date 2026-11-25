@@ -303,6 +303,8 @@ export interface AlertQuery {
   severity?: string;
   status?: string;
   intelSource?: string;
+  alertClass?: string;
+  notify?: boolean;
   page?: number;
   pageSize?: number;
 }
@@ -921,3 +923,70 @@ export async function downloadLogArchive(month: string): Promise<void> {
   a.click();
   URL.revokeObjectURL(a.href);
 }
+
+// ── 告警与降噪（M6-041，system 域）──
+export type AlertingOverview = components['schemas']['AlertingOverview'];
+export type AlertPolicy = components['schemas']['AlertPolicy'];
+export type AlertPolicyCreate = components['schemas']['AlertPolicyCreate'];
+export type AlertPolicyUpdate = components['schemas']['AlertPolicyUpdate'];
+export type AlertSilence = components['schemas']['AlertSilence'];
+export type AlertSilenceCreate = components['schemas']['AlertSilenceCreate'];
+export type SilenceMatchers = components['schemas']['SilenceMatchers'];
+export type NotificationChannel = components['schemas']['NotificationChannel'];
+export type NotificationChannelCreate =
+  components['schemas']['NotificationChannelCreate'];
+export type NotificationChannelUpdate =
+  components['schemas']['NotificationChannelUpdate'];
+export type NotificationDelivery =
+  components['schemas']['NotificationDelivery'];
+export type PolicySimulationRequest =
+  components['schemas']['PolicySimulationRequest'];
+export type PolicySimulationResult =
+  components['schemas']['PolicySimulationResult'];
+export type ChannelTestResult = components['schemas']['ChannelTestResult'];
+
+export const getAlertingOverview = (q?: { from?: string; to?: string }) =>
+  req<AlertingOverview>(`/alerting/overview${qsOf((q ?? {}) as never)}`);
+
+export const listAlertPolicies = () =>
+  req<{ items: AlertPolicy[]; total?: number }>('/alerting/policies');
+export const createAlertPolicy = (b: AlertPolicyCreate) =>
+  req<AlertPolicy>('/alerting/policies', j(b));
+export const updateAlertPolicy = (id: string, b: AlertPolicyUpdate) =>
+  req<AlertPolicy>(`/alerting/policies/${id}`, patch(b));
+export const deleteAlertPolicy = (id: string) =>
+  req<undefined>(`/alerting/policies/${id}`, del);
+export const simulateAlertPolicy = (b: PolicySimulationRequest) =>
+  req<PolicySimulationResult>('/alerting/policies/simulate', j(b));
+
+export const listAlertSilences = () =>
+  req<{ items: AlertSilence[]; total?: number }>('/alerting/silences');
+export const createAlertSilence = (b: AlertSilenceCreate) =>
+  req<AlertSilence>('/alerting/silences', j(b));
+export const deleteAlertSilence = (id: string) =>
+  req<undefined>(`/alerting/silences/${id}`, del);
+
+export const listNotificationChannels = () =>
+  req<{ items: NotificationChannel[]; total?: number }>(
+    '/alerting/channels',
+  );
+export const createNotificationChannel = (b: NotificationChannelCreate) =>
+  req<NotificationChannel>('/alerting/channels', j(b));
+export const updateNotificationChannel = (
+  id: string,
+  b: NotificationChannelUpdate,
+) => req<NotificationChannel>(`/alerting/channels/${id}`, patch(b));
+export const deleteNotificationChannel = (id: string) =>
+  req<undefined>(`/alerting/channels/${id}`, del);
+export const testNotificationChannel = (id: string) =>
+  req<ChannelTestResult>(`/alerting/channels/${id}/test`, {
+    method: 'POST',
+  });
+export const listNotificationDeliveries = (q?: {
+  channelId?: string;
+  limit?: number;
+  status?: string;
+}) =>
+  req<{ items: NotificationDelivery[]; total?: number }>(
+    `/alerting/deliveries${qsOf((q ?? {}) as never)}`,
+  );

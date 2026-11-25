@@ -1327,6 +1327,7 @@ export interface paths {
          *     `q` 为不区分大小写子串，命中标题/摘要/域名/客户端地址/组件名/情报来源。
          *     `intelSource` 按情报来源 key 或显示名子串过滤（仅 DNS 风险访问）。
          *     `from`/`to` 按末次发生时间（lastSeen）过滤，缺省最近 7 天。
+         *     `notify=true` 只看进入通知层的报警；报警栏与未确认徽标始终按 notify=true 统计。
          *     排序：未确认优先，其后按 lastSeen 倒序。scope 为 logs:read。
          */
         get: operations["listAlerts"];
@@ -1367,8 +1368,9 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 未确认报警（右上角报警栏）
-         * @description 返回未确认报警总数与最近 N 条（按 lastSeen 倒序）。前端轮询该端点刷新徽标。
+         * 未确认报警（右上角报警栏，仅 notify=true）
+         * @description 返回 `status=open AND notify=true` 的报警总数与最近 N 条（critical 优先，其后按 lastSeen 倒序）。
+         *     归档（digest/silent/off）不计入徽标，但仍可在报警中心查询。前端轮询该端点刷新徽标。
          *     scope 为 logs:read。
          */
         get: operations["getAlertUnread"];
@@ -1415,6 +1417,229 @@ export interface paths {
          * @description 把所有 `open` 报警置为 `acked`（记录当前用户）。scope 为 logs:read。
          */
         post: operations["ackAllAlerts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alerting/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 降噪总览（记录/报警/通知漏斗、Top 噪声源、趋势）
+         * @description 统计最近窗口内的报警记录、进入通知层的条数、归档/抑制条数、降噪率与 Top 噪声源。
+         *     `recorded` 与 `alerts` 当前均取报警档案条数（日志明细在日志中心查询），
+         *     便于回答「为什么铃铛安静了但日志还在」。scope 为 system:read。
+         */
+        get: operations["getAlertingOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alerting/policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查询告警策略
+         * @description 返回全局/来源/类型/组件等全部策略，按作用域与优先级排序。scope 为 system:read。
+         */
+        get: operations["listAlertPolicies"];
+        put?: never;
+        /**
+         * 新增告警策略
+         * @description 新增策略；同作用域+对象唯一。scope 为 system:write。
+         */
+        post: operations["createAlertPolicy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alerting/policies/simulate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 模拟策略降噪效果
+         * @description 按候选策略回放最近窗口的报警档案，估算将通知/归档/抑制的条数与 critical 漏报数。
+         *     用于保存前评估，不影响运行态。scope 为 system:read。
+         */
+        post: operations["simulateAlertPolicy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alerting/policies/{policyId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * 删除告警策略
+         * @description 删除自定义策略；全局兜底策略不可删除。scope 为 system:write。
+         */
+        delete: operations["deleteAlertPolicy"];
+        options?: never;
+        head?: never;
+        /**
+         * 编辑/启停告警策略
+         * @description 局部更新策略字段。scope 为 system:write。
+         */
+        patch: operations["updateAlertPolicy"];
+        trace?: never;
+    };
+    "/alerting/silences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查询静音窗口
+         * @description 返回全部静音窗口及当前是否生效。scope 为 system:read。
+         */
+        get: operations["listAlertSilences"];
+        put?: never;
+        /**
+         * 创建静音窗口
+         * @description 按 matcher 静音一段时间；静音期间报警仍落库，只是不通知。scope 为 system:write。
+         */
+        post: operations["createAlertSilence"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alerting/silences/{silenceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * 撤销静音窗口
+         * @description 立即撤销指定静音。scope 为 system:write。
+         */
+        delete: operations["deleteAlertSilence"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alerting/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查询通知通道
+         * @description 返回通道配置（密钥不回显）。scope 为 system:read。
+         */
+        get: operations["listNotificationChannels"];
+        put?: never;
+        /**
+         * 新增通知通道
+         * @description 新增 Webhook/邮件/IM 通道；secret 写入 0600 文件，不入库。scope 为 system:write。
+         */
+        post: operations["createNotificationChannel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alerting/channels/{channelId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * 删除通知通道
+         * @description 删除通道及其密钥文件引用。scope 为 system:write。
+         */
+        delete: operations["deleteNotificationChannel"];
+        options?: never;
+        head?: never;
+        /**
+         * 编辑/启停通知通道
+         * @description 局部更新通道；secret 只写不回显。scope 为 system:write。
+         */
+        patch: operations["updateNotificationChannel"];
+        trace?: never;
+    };
+    "/alerting/channels/{channelId}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 发送测试通知
+         * @description 用示例报警测试通道连通性并记录最近状态。scope 为 system:write。
+         */
+        post: operations["testNotificationChannel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alerting/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查询通知投递记录
+         * @description 最近投递结果（成功/失败、错误、时间），用于排障与审计。scope 为 system:read。
+         */
+        get: operations["listNotificationDeliveries"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3990,6 +4215,30 @@ export interface components {
             count: number;
             /** @description 原始详情（可折叠展示） */
             detail?: string;
+            /**
+             * @description 报警分类（M6-049）；空表示历史数据
+             * @enum {string}
+             */
+            alertClass?: "security_threat" | "policy_block" | "system_health" | "config_health" | "";
+            /** @description 是否允许进入通知层（创建时策略快照） */
+            notify?: boolean;
+            /** @description 聚合键（broad 源按来源/客户端聚合） */
+            groupKey?: string;
+            /**
+             * Format: date-time
+             * @description 聚合窗口起点
+             */
+            windowStart?: string;
+            /** @description 已通知次数（冷却/重复提醒） */
+            notifyCount?: number;
+            /**
+             * Format: date-time
+             * @description 最近一次通知时间
+             */
+            lastNotifiedAt?: string | null;
+            /** @description 静音/抑制原因；空表示未被抑制 */
+            suppressedBy?: string;
+            decision?: components["schemas"]["AlertDecision"];
             /** Format: date-time */
             firstSeen: string;
             /** Format: date-time */
@@ -4042,6 +4291,12 @@ export interface components {
             byIntelSource: {
                 [key: string]: number;
             };
+            /** @description 进入通知层的条数 */
+            notified: number;
+            /** @description 仅归档（notify=false）的条数 */
+            archived: number;
+            /** @description 被静音/抑制的条数 */
+            suppressed: number;
             /** @description 风险域名 TopN（按命中次数） */
             topDomains: components["schemas"]["AlertAggregate"][];
             /** @description 访问风险域名的客户端地址 TopN */
@@ -4062,6 +4317,248 @@ export interface components {
         AlertAckResult: {
             /** @description 本次实际确认的条数（幂等：已确认的不重复计数） */
             acked: number;
+        };
+        /** @description 单条报警的决策链，用于回答「为什么通知 / 为什么没通知」。 */
+        AlertDecision: {
+            policyId?: string;
+            policyName?: string;
+            /** @description intel_source / kind / component / source / global */
+            matchedBy?: string;
+            /** @enum {string} */
+            severity?: "critical" | "warning" | "info";
+            notifyMode?: components["schemas"]["AlertNotifyMode"];
+            groupBy?: components["schemas"]["AlertGroupBy"];
+            notify?: boolean;
+            /** @description 抑制/静音原因；空表示未抑制 */
+            suppressedBy?: string;
+            /** @description 是否因每小时上限被合并 */
+            capped?: boolean;
+            /** @description notify / digest / silent / off */
+            final?: string;
+        };
+        /** @description 一条告警策略（数据驱动，不写死在代码里）。 */
+        AlertPolicy: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            scopeType: components["schemas"]["AlertPolicyScope"];
+            /** @description 源 key / 名单 id / kind / component；global 为空串 */
+            scopeKey: string;
+            /** @description 数字小优先（同一作用域内排序） */
+            priority: number;
+            /** @enum {string} */
+            severity: "critical" | "warning" | "info";
+            notifyMode: components["schemas"]["AlertNotifyMode"];
+            alertClass: components["schemas"]["AlertClass"];
+            groupBy: components["schemas"]["AlertGroupBy"];
+            /** @description 每小时通知上限；0=不限 */
+            maxPerHour: number;
+            /** @description 确认后重复提醒间隔（秒）；0=确认后不再提醒 */
+            repeatAfterSec: number;
+            /** @description 无新命中自动恢复时间（秒） */
+            resolveAfterSec: number;
+            enabled: boolean;
+            createdBy?: string;
+            updatedBy?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        AlertPolicyList: {
+            items: components["schemas"]["AlertPolicy"][];
+            total?: number;
+        };
+        AlertPolicyCreate: {
+            name: string;
+            scopeType: components["schemas"]["AlertPolicyScope"];
+            scopeKey?: string;
+            priority?: number;
+            /** @enum {string} */
+            severity?: "critical" | "warning" | "info";
+            notifyMode?: components["schemas"]["AlertNotifyMode"];
+            alertClass?: components["schemas"]["AlertClass"];
+            groupBy?: components["schemas"]["AlertGroupBy"];
+            maxPerHour?: number;
+            repeatAfterSec?: number;
+            resolveAfterSec?: number;
+            enabled?: boolean;
+        };
+        AlertPolicyUpdate: {
+            name?: string;
+            priority?: number;
+            /** @enum {string} */
+            severity?: "critical" | "warning" | "info";
+            notifyMode?: components["schemas"]["AlertNotifyMode"];
+            alertClass?: components["schemas"]["AlertClass"];
+            groupBy?: components["schemas"]["AlertGroupBy"];
+            maxPerHour?: number;
+            repeatAfterSec?: number;
+            resolveAfterSec?: number;
+            enabled?: boolean;
+        };
+        AlertSilence: {
+            /** Format: uuid */
+            id: string;
+            matchers: components["schemas"]["SilenceMatchers"];
+            /** Format: date-time */
+            startsAt: string;
+            /** Format: date-time */
+            endsAt: string;
+            reason: string;
+            createdBy: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** @description 当前是否生效 */
+            active?: boolean;
+        };
+        AlertSilenceCreate: {
+            matchers: components["schemas"]["SilenceMatchers"];
+            /**
+             * Format: date-time
+             * @description 缺省=立即
+             */
+            startsAt?: string;
+            /** Format: date-time */
+            endsAt: string;
+            reason: string;
+        };
+        AlertSilenceList: {
+            items: components["schemas"]["AlertSilence"][];
+            total?: number;
+        };
+        /** @description 通知通道；密钥只写不回显，服务端落 0600 文件。 */
+        NotificationChannel: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @enum {string} */
+            type: "webhook" | "email" | "feishu" | "dingtalk" | "wecom" | "slack" | "teams";
+            /** @description Webhook/IM 地址（email 时为空） */
+            url?: string;
+            smtpHost?: string;
+            smtpPort?: number;
+            smtpUser?: string;
+            smtpFrom?: string;
+            /** @description 邮件收件人列表 */
+            recipients?: string[];
+            /** @enum {string} */
+            minSeverity: "critical" | "warning" | "info";
+            /** @description 勿扰时段，如 22:00-08:00；critical 不受限 */
+            quietHours?: string;
+            enabled: boolean;
+            /** @description 是否已配置密钥（内容不回传） */
+            hasSecret: boolean;
+            /** Format: date-time */
+            lastTestAt?: string | null;
+            /** @description 最近一次测试/投递结果 */
+            lastStatus?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        NotificationChannelList: {
+            items: components["schemas"]["NotificationChannel"][];
+            total?: number;
+        };
+        NotificationChannelCreate: {
+            name: string;
+            /** @enum {string} */
+            type: "webhook" | "email" | "feishu" | "dingtalk" | "wecom" | "slack" | "teams";
+            url?: string;
+            smtpHost?: string;
+            smtpPort?: number;
+            smtpUser?: string;
+            smtpFrom?: string;
+            recipients?: string[];
+            /** @enum {string} */
+            minSeverity?: "critical" | "warning" | "info";
+            quietHours?: string;
+            enabled?: boolean;
+            /** @description 明文密钥（Webhook HMAC / SMTP 口令），写入 0600 文件后丢弃，不入库 */
+            secret?: string | null;
+        };
+        NotificationChannelUpdate: {
+            name?: string;
+            url?: string;
+            smtpHost?: string;
+            smtpPort?: number;
+            smtpUser?: string;
+            smtpFrom?: string;
+            recipients?: string[];
+            /** @enum {string} */
+            minSeverity?: "critical" | "warning" | "info";
+            quietHours?: string;
+            enabled?: boolean;
+            secret?: string | null;
+            clearSecret?: boolean;
+        };
+        NotificationDelivery: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            alertId: string;
+            /** Format: uuid */
+            channelId: string;
+            channelName: string;
+            /** @enum {string} */
+            status: "sent" | "failed";
+            attempt: number;
+            error?: string;
+            /** Format: date-time */
+            sentAt?: string;
+        };
+        NotificationDeliveryList: {
+            items: components["schemas"]["NotificationDelivery"][];
+            total?: number;
+        };
+        AlertingOverview: {
+            /** @description 窗口内报警记录数（含归档） */
+            recorded: number;
+            /** @description 生成的报警条数 */
+            alerts: number;
+            /** @description 进入通知层的条数 */
+            notified: number;
+            /** @description 仅归档条数 */
+            archived: number;
+            /** @description 被静音/抑制条数 */
+            suppressed: number;
+            open: number;
+            acked: number;
+            /** @description 降噪率 = 1 - notified/recorded */
+            noiseRatio: number;
+            /** @description 被抑制的 critical 条数（漏报护栏） */
+            criticalSuppressed: number;
+            bySeverity: {
+                [key: string]: number;
+            };
+            topSources: components["schemas"]["AlertingSourceStat"][];
+            trend: components["schemas"]["AlertingTrendPoint"][];
+            /** @description 策略总数 */
+            policies?: number;
+            /** @description 当前生效静音数 */
+            silences?: number;
+            /** @description 启用通道数 */
+            channels?: number;
+        };
+        PolicySimulationRequest: {
+            policy: components["schemas"]["AlertPolicyCreate"];
+            /** Format: date-time */
+            from?: string;
+            /** Format: date-time */
+            to?: string;
+        };
+        PolicySimulationResult: {
+            recorded: number;
+            notified: number;
+            archived: number;
+            suppressed: number;
+            criticalNotified: number;
+            criticalSuppressed: number;
+            bySeverity: {
+                [key: string]: number;
+            };
         };
         DualstackTemplate: {
             /** Format: uuid */
@@ -4720,6 +5217,54 @@ export interface components {
              * @description 本次自动降级开始时间
              */
             degradedAt?: string;
+        };
+        /**
+         * @description notify=进入通知层（铃铛/外部通道）；digest=落库归档并进入摘要，不进铃铛； silent=落库归档但不通知；off=仅保留日志，不生成报警。
+         * @enum {string}
+         */
+        AlertNotifyMode: "notify" | "digest" | "silent" | "off";
+        /**
+         * @description 聚合维度：domain=每域名一条；client=每客户端一条；source=每来源一条；none=不聚合。
+         * @enum {string}
+         */
+        AlertGroupBy: "domain" | "client" | "source" | "none";
+        AlertingSourceStat: {
+            /** @description 情报源显示名或组件名 */
+            key: string;
+            recorded: number;
+            notified: number;
+            mode: components["schemas"]["AlertNotifyMode"];
+        };
+        AlertingTrendPoint: {
+            /** Format: date-time */
+            ts: string;
+            recorded: number;
+            notified: number;
+        };
+        /**
+         * @description 策略作用域；解析优先级 intel_source > blocklist > kind > component > source > global。
+         * @enum {string}
+         */
+        AlertPolicyScope: "global" | "intel_source" | "blocklist" | "kind" | "component" | "source";
+        /**
+         * @description security_threat=需要处置的威胁；policy_block=防护策略命中（广告/跟踪器，通常无需处置）； system_health=可用性故障；config_health=配置/外部依赖健康。
+         * @enum {string}
+         */
+        AlertClass: "security_threat" | "policy_block" | "system_health" | "config_health";
+        /** @description 静音匹配条件；留空表示不限制该维度。intelSource/domain 为不区分大小写子串。 */
+        SilenceMatchers: {
+            source?: string;
+            kind?: string;
+            component?: string;
+            intelSource?: string;
+            severity?: string;
+            clientIp?: string;
+            domain?: string;
+        };
+        ChannelTestResult: {
+            ok: boolean;
+            status: string;
+            error?: string;
         };
         AuditVerifyResult: {
             /** @description 校验的记录数 */
@@ -7388,6 +7933,10 @@ export interface operations {
                 status?: "open" | "acked" | "resolved";
                 /** @description 情报来源过滤（key 或显示名子串，如 threatfox） */
                 intelSource?: string;
+                /** @description 是否只看进入通知层的报警（true=仅需关注；false=仅归档） */
+                notify?: boolean;
+                /** @description 报警分类过滤 */
+                alertClass?: "security_threat" | "policy_block" | "system_health" | "config_health";
                 page?: number;
                 pageSize?: number;
             };
@@ -7429,6 +7978,9 @@ export interface operations {
                 status?: "open" | "acked" | "resolved";
                 /** @description 情报来源过滤（key 或显示名子串） */
                 intelSource?: string;
+                /** @description 是否只看进入通知层的报警 */
+                notify?: boolean;
+                alertClass?: "security_threat" | "policy_block" | "system_health" | "config_health";
             };
             header?: never;
             path?: never;
@@ -7525,6 +8077,561 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AlertAckResult"];
                 };
+            };
+        };
+    };
+    getAlertingOverview: {
+        parameters: {
+            query?: {
+                /** @description 时间窗起点（缺省=24 小时前） */
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 总览 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertingOverview"];
+                };
+            };
+            /** @description 参数非法 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 数据库不可用 */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listAlertPolicies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 策略列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertPolicyList"];
+                };
+            };
+            /** @description 数据库不可用 */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    createAlertPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlertPolicyCreate"];
+            };
+        };
+        responses: {
+            /** @description 已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertPolicy"];
+                };
+            };
+            /** @description 参数非法 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 同作用域策略已存在 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 数据库不可用 */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    simulateAlertPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PolicySimulationRequest"];
+            };
+        };
+        responses: {
+            /** @description 模拟结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PolicySimulationResult"];
+                };
+            };
+            /** @description 参数非法 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 数据库不可用 */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteAlertPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已删除 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 全局策略不可删除 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 策略不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 数据库不可用 */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateAlertPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlertPolicyUpdate"];
+            };
+        };
+        responses: {
+            /** @description 已更新 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertPolicy"];
+                };
+            };
+            /** @description 参数非法 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 策略不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 数据库不可用 */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listAlertSilences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 静音列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertSilenceList"];
+                };
+            };
+            /** @description 数据库不可用 */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    createAlertSilence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlertSilenceCreate"];
+            };
+        };
+        responses: {
+            /** @description 已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertSilence"];
+                };
+            };
+            /** @description 参数非法（结束时间必须晚于开始时间） */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 数据库不可用 */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteAlertSilence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                silenceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已撤销 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 静音不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 数据库不可用 */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listNotificationChannels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 通道列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationChannelList"];
+                };
+            };
+            /** @description 数据库不可用 */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    createNotificationChannel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationChannelCreate"];
+            };
+        };
+        responses: {
+            /** @description 已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationChannel"];
+                };
+            };
+            /** @description 参数非法 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 数据库不可用 */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteNotificationChannel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channelId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已删除 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 通道不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 数据库不可用 */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateNotificationChannel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channelId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationChannelUpdate"];
+            };
+        };
+        responses: {
+            /** @description 已更新 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationChannel"];
+                };
+            };
+            /** @description 参数非法 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 通道不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 数据库不可用 */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    testNotificationChannel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channelId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 测试结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChannelTestResult"];
+                };
+            };
+            /** @description 通道不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 数据库不可用 */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listNotificationDeliveries: {
+        parameters: {
+            query?: {
+                channelId?: string;
+                status?: "sent" | "failed";
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 投递记录 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationDeliveryList"];
+                };
+            };
+            /** @description 参数非法 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 数据库不可用 */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

@@ -12,6 +12,7 @@ import (
 	"errors"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -61,12 +62,15 @@ const (
 var (
 	ErrBadWindow  = errors.New("时间窗非法（from 不能晚于 to，且不超过 366 天）")
 	ErrBadRequest = errors.New("请求参数非法")
+	ErrNotFound   = errors.New("记录不存在")
+	ErrConflict   = errors.New("记录已存在")
 )
 
 // Alert 一条报警记录。
 type Alert struct {
 	ID              string
 	DedupKey        string
+	Fingerprint     string
 	Source          string
 	Kind            string
 	Severity        string
@@ -79,14 +83,28 @@ type Alert struct {
 	Component       string
 	IntelSource     string
 	IntelSourceName string
+	AlertClass      string
+	Notify          bool
+	PolicyID        string
+	GroupKey        string
 	Count           int
 	Detail          string
+	WindowStart     time.Time
+	NotifyCount     int
+	LastNotifiedAt  *time.Time
+	SuppressedBy    string
+	SilenceID       string
+	Decision        string // 决策链 JSON
+	RepeatAfterSec  int
+	ResolveAfterSec int
 	FirstSeen       time.Time
 	LastSeen        time.Time
 	AckedAt         *time.Time
 	AckedBy         string
 	ResolvedAt      *time.Time
 	CreatedAt       time.Time
+	// JustNotified 仅用于采集器判断本轮是否新产生通知（不入库、不出 API）。
+	JustNotified bool
 }
 
 // Filter 列表/统计过滤条件（时间按 last_seen）。
@@ -99,6 +117,8 @@ type Filter struct {
 	Severity    string
 	Status      string
 	IntelSource string // 情报来源（key 或显示名子串）
+	AlertClass  string
+	Notify      *bool // nil=全部；true=仅需关注；false=仅归档
 	Page        int
 	PageSize    int
 	Bucket      string // 趋势桶：hour | day（Service 按窗口自动选择）
@@ -124,19 +144,32 @@ type TrendPoint struct {
 	Count int
 }
 
+// SourceStat 按来源/组件统计（降噪总览用）。
+type SourceStat struct {
+	Key      string
+	Recorded int
+	Notified int
+}
+
 // Stats 报警统计。
 type Stats struct {
-	Total         int
-	Open          int
-	Acked         int
-	Resolved      int
-	BySeverity    map[string]int
-	ByKind        map[string]int
-	ByIntelSource map[string]int // 情报来源显示名 → 报警数（仅 DNS 风险访问）
-	TopDomains    []Aggregate
-	TopClients    []Aggregate
-	Trend         []TrendPoint
-	Bucket        string // hour | day
+	Total              int
+	Open               int
+	Acked              int
+	Resolved           int
+	Notified           int
+	Archived           int
+	Suppressed         int
+	CriticalSuppressed int
+	BySeverity         map[string]int
+	ByKind             map[string]int
+	ByIntelSource      map[string]int // 情报来源显示名 → 报警数（仅 DNS 风险访问）
+	BySource           []SourceStat
+	TopDomains         []Aggregate
+	TopClients         []Aggregate
+	Trend              []TrendPoint
+	NotifiedTrend      []TrendPoint
+	Bucket             string // hour | day
 }
 
 // Unread 报警栏数据。
@@ -148,6 +181,7 @@ type Unread struct {
 // Event 采集器上报的报警事件。
 type Event struct {
 	DedupKey        string
+	Fingerprint     string
 	Source          string
 	Kind            string
 	Severity        string
@@ -159,8 +193,21 @@ type Event struct {
 	Component       string
 	IntelSource     string // 命中情报源的 key（多个用逗号分隔）
 	IntelSourceName string // 命中情报源的显示名（历史留痕）
+	AlertClass      string
+	Notify          bool
+	PolicyID        string
+	GroupKey        string
 	Count           int
 	Detail          string
+	WindowStart     time.Time
+	NotifyCount     int
+	LastNotifiedAt  time.Time
+	SuppressedBy    string
+	SilenceID       string
+	Decision        string
+	RepeatAfterSec  int
+	ResolveAfterSec int
+	MaxPerHour      int // 仅采集器限流用，不入库
 	FirstSeen       time.Time
 	LastSeen        time.Time
 }
@@ -179,15 +226,81 @@ type Repo interface {
 	Purge(ctx context.Context, before time.Time) (int, error)
 }
 
+// AdminRepo 告警治理持久化（策略/静音/通道/投递/自动恢复）。
+// PgRepo 与 MemRepo 均实现；Service 构造时自动探测，测试无需额外装配。
+type AdminRepo interface {
+	ListPolicies(ctx context.Context) ([]Policy, error)
+	CreatePolicy(ctx context.Context, p Policy) (Policy, error)
+	UpdatePolicy(ctx context.Context, p Policy) (Policy, error)
+	DeletePolicy(ctx context.Context, id string) error
+	SeedPolicies(ctx context.Context, ps []Policy) error
+
+	ListSilences(ctx context.Context) ([]Silence, error)
+	CreateSilence(ctx context.Context, s Silence) (Silence, error)
+	DeleteSilence(ctx context.Context, id string) error
+
+	ListChannels(ctx context.Context) ([]Channel, error)
+	GetChannel(ctx context.Context, id string) (Channel, bool, error)
+	CreateChannel(ctx context.Context, ch Channel) (Channel, error)
+	UpdateChannel(ctx context.Context, ch Channel) (Channel, error)
+	DeleteChannel(ctx context.Context, id string) error
+
+	CreateDelivery(ctx context.Context, d Delivery) error
+	ListDeliveries(ctx context.Context, f DeliveryFilter) ([]Delivery, int, error)
+
+	AutoResolveDNS(ctx context.Context, now time.Time) (int, error)
+}
+
 // Service 报警业务编排。
 type Service struct {
-	repo Repo
-	now  func() time.Time
+	repo  Repo
+	admin AdminRepo
+	now   func() time.Time
+
+	secretDir string
+
+	cacheMu       sync.RWMutex
+	cachePolicies []Policy
+	cacheSilences []Silence
+	cacheAt       time.Time
 }
 
 // NewService 构造。
 func NewService(repo Repo) *Service {
-	return &Service{repo: repo, now: func() time.Time { return time.Now().UTC() }}
+	s := &Service{repo: repo, now: func() time.Time { return time.Now().UTC() }}
+	if a, ok := repo.(AdminRepo); ok {
+		s.admin = a
+	}
+	return s
+}
+
+// SetAdminRepo 注入告警治理仓储（无 PG 时可缺省，策略回落到内置默认）。
+func (s *Service) SetAdminRepo(a AdminRepo) {
+	if a != nil {
+		s.admin = a
+		s.invalidatePolicyCache()
+	}
+}
+
+// SetSecretDir 设置通知通道密钥文件目录。
+func (s *Service) SetSecretDir(dir string) {
+	if dir != "" {
+		s.secretDir = dir
+	}
+}
+
+func (s *Service) invalidatePolicyCache() {
+	s.cacheMu.Lock()
+	s.cachePolicies, s.cacheSilences, s.cacheAt = nil, nil, time.Time{}
+	s.cacheMu.Unlock()
+}
+
+// EnsurePolicies 首次落库默认策略（不覆盖用户修改）。
+func (s *Service) EnsurePolicies(ctx context.Context) error {
+	if s.admin == nil {
+		return nil
+	}
+	return s.admin.SeedPolicies(ctx, DefaultPolicies())
 }
 
 // SetNow 注入时钟（单测）。
@@ -228,6 +341,9 @@ func (s *Service) Stats(ctx context.Context, f Filter) (Stats, error) {
 	if st.ByIntelSource == nil {
 		st.ByIntelSource = map[string]int{}
 	}
+	if st.BySource == nil {
+		st.BySource = []SourceStat{}
+	}
 	if st.TopDomains == nil {
 		st.TopDomains = []Aggregate{}
 	}
@@ -236,6 +352,9 @@ func (s *Service) Stats(ctx context.Context, f Filter) (Stats, error) {
 	}
 	if st.Trend == nil {
 		st.Trend = []TrendPoint{}
+	}
+	if st.NotifiedTrend == nil {
+		st.NotifiedTrend = []TrendPoint{}
 	}
 	st.Bucket = f.Bucket
 	return st, nil
@@ -283,6 +402,9 @@ func (s *Service) Report(ctx context.Context, ev Event) (Alert, error) {
 	if ev.DedupKey == "" || ev.Kind == "" {
 		return Alert{}, ErrBadRequest
 	}
+	if ev.Fingerprint == "" {
+		ev.Fingerprint = ev.DedupKey
+	}
 	if ev.Severity == "" {
 		ev.Severity = SeverityWarning
 	}
@@ -295,8 +417,23 @@ func (s *Service) Report(ctx context.Context, ev Event) (Alert, error) {
 	if ev.FirstSeen.IsZero() {
 		ev.FirstSeen = ev.LastSeen
 	}
+	if ev.WindowStart.IsZero() {
+		ev.WindowStart = ev.LastSeen.UTC().Truncate(time.Hour)
+	}
 	if ev.Count <= 0 {
 		ev.Count = 1
+	}
+	// 兼容直接调用（历史/单测）：未经过策略引擎的事件默认通知。
+	if ev.Decision == "" && ev.AlertClass == "" && ev.PolicyID == "" && ev.SuppressedBy == "" {
+		ev.Notify = true
+		ev.AlertClass = inferClass(ev.Kind, splitKeys(ev.IntelSource))
+		ev.Decision = `{"notify":true,"final":"notify","matchedBy":"direct"}`
+	}
+	if ev.RepeatAfterSec == 0 && ev.Source == SourceDNS {
+		ev.RepeatAfterSec = 86400
+	}
+	if ev.ResolveAfterSec == 0 && ev.Source == SourceDNS {
+		ev.ResolveAfterSec = 86400
 	}
 	return s.repo.Upsert(ctx, ev)
 }
@@ -372,7 +509,7 @@ func matchText(a Alert, q string) bool {
 	}
 	q = strings.ToLower(q)
 	for _, v := range []string{a.Title, a.Message, a.Domain, a.ClientIP, a.ClientMAC,
-		a.Component, a.IntelSource, a.IntelSourceName} {
+		a.Component, a.IntelSource, a.IntelSourceName, a.AlertClass} {
 		if strings.Contains(strings.ToLower(v), q) {
 			return true
 		}
@@ -397,6 +534,12 @@ func matchFilter(a Alert, f Filter) bool {
 		return false
 	}
 	if f.Status != "" && a.Status != f.Status {
+		return false
+	}
+	if f.AlertClass != "" && a.AlertClass != f.AlertClass {
+		return false
+	}
+	if f.Notify != nil && a.Notify != *f.Notify {
 		return false
 	}
 	if f.IntelSource != "" &&

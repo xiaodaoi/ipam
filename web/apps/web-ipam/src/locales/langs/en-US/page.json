@@ -57,7 +57,8 @@
     "branding": "Branding",
     "runtime": "Runtime",
     "backup": "Backup & Restore",
-    "license": "License"
+    "license": "License",
+    "alerting": "Alerting & Noise Control"
   },
   "onboarding": {
     "title": "Getting Started",

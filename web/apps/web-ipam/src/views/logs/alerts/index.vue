@@ -40,6 +40,9 @@ const presets = computed(() =>
 const route = useRoute();
 
 const preset = ref<PresetKey>('24h');
+type NotifyScope = 'all' | 'archived' | 'attention';
+const scope = ref<NotifyScope>('attention');
+const scopeOptions = ['attention', 'all', 'archived'] as const;
 const filters = reactive({
   q: '',
   source: undefined as string | undefined,
@@ -91,6 +94,22 @@ function kindLabel(v: string): string {
 }
 function componentLabel(v?: string): string {
   return v ? $t(`logs.alerts.components.${v}`) : '—';
+}
+function notifyModeLabel(v?: string): string {
+  return v ? $t(`alerting.mode.${v}`) : '—';
+}
+function classLabel(v?: string): string {
+  return v ? $t(`alerting.class.${v}`) : '—';
+}
+function scopeLabel(v?: string): string {
+  return v ? $t(`alerting.scope.${v}`) : '—';
+}
+function groupLabel(v?: string): string {
+  return v ? $t(`alerting.group.${v}`) : '—';
+}
+function boolLabel(v?: boolean): string {
+  if (v === undefined) return '—';
+  return v ? $t('alerting.common.yes') : $t('alerting.common.no');
 }
 function rowSubtitle(a: AlertRow | Record<string, any>): string {
   if (a.source === 'dns') {
@@ -145,6 +164,12 @@ function queryParams() {
     severity: filters.severity,
     status: filters.status,
     intelSource: filters.intelSource,
+    notify:
+      scope.value === 'attention'
+        ? true
+        : scope.value === 'archived'
+          ? false
+          : undefined,
   };
 }
 
@@ -190,6 +215,13 @@ function reset() {
   filters.status = undefined;
   filters.intelSource = undefined;
   preset.value = '24h';
+  scope.value = 'attention';
+  page.value = 1;
+  void load();
+}
+
+function onScope(key: NotifyScope) {
+  scope.value = key;
   page.value = 1;
   void load();
 }
@@ -339,6 +371,12 @@ const columns = computed(() => [
     width: 100,
   },
   {
+    dataIndex: 'notify',
+    key: 'notify',
+    title: $t('logs.alerts.table.notify'),
+    width: 100,
+  },
+  {
     dataIndex: 'lastSeen',
     key: 'lastSeen',
     title: $t('logs.alerts.table.lastSeen'),
@@ -475,6 +513,17 @@ onBeforeUnmount(() => timer && clearInterval(timer));
       </template>
 
       <div class="ipam-toolbar mb-3">
+        <div class="ipam-seg">
+          <button
+            v-for="s in scopeOptions"
+            :key="s"
+            type="button"
+            :data-active="scope === s"
+            @click="onScope(s)"
+          >
+            {{ $t(`logs.alerts.scope.${s}`) }}
+          </button>
+        </div>
         <div class="ipam-seg">
           <button
             v-for="p in presets"
@@ -666,7 +715,16 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             </Tag>
           </template>
           <template v-else-if="column.key === 'title'">
-            <div class="font-medium">{{ kindLabel(record.kind) }}</div>
+            <div class="font-medium">
+              {{ kindLabel(record.kind) }}
+              <Tag
+                v-if="record.notify === false"
+                color="default"
+                class="m-0 ml-1"
+              >
+                {{ $t('logs.alerts.archiveTag') }}
+              </Tag>
+            </div>
             <div class="ipam-hint">{{ rowSubtitle(record) }}</div>
           </template>
           <template v-else-if="column.key === 'source'">
@@ -705,6 +763,15 @@ onBeforeUnmount(() => timer && clearInterval(timer));
           <template v-else-if="column.key === 'status'">
             <Tag :color="STATUS_COLOR[record.status] ?? 'default'">
               {{ statusLabel(record.status) }}
+            </Tag>
+          </template>
+          <template v-else-if="column.key === 'notify'">
+            <Tag :color="record.notify ? 'green' : 'default'" class="m-0">
+              {{
+                record.notify
+                  ? $t('logs.alerts.scope.attention')
+                  : $t('logs.alerts.archiveTag')
+              }}
             </Tag>
           </template>
           <template v-else-if="column.key === 'lastSeen'">
@@ -820,6 +887,19 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             {{ statusLabel(detail.status) }}
           </Tag>
           <span class="font-medium">{{ kindLabel(detail.kind) }}</span>
+          <Tag
+            :color="detail.notify === false ? 'default' : 'green'"
+            class="m-0"
+          >
+            {{
+              detail.notify === false
+                ? $t('logs.alerts.archiveTag')
+                : $t('logs.alerts.scope.attention')
+            }}
+          </Tag>
+          <Tag v-if="detail.alertClass" color="geekblue" class="m-0">
+            {{ classLabel(detail.alertClass) }}
+          </Tag>
           <span class="ipam-toolbar__spacer"></span>
           <Button
             v-if="detail.status === 'open'"
@@ -929,6 +1009,108 @@ onBeforeUnmount(() => timer && clearInterval(timer));
             <div class="ipam-detail-item__value">
               {{ detail.detail || detail.message || '—' }}
             </div>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <div class="ipam-detail-item__label mb-2">
+            {{ $t('logs.alerts.detail.decision') }}
+          </div>
+          <div v-if="detail.decision" class="ipam-detail-grid">
+            <div class="ipam-detail-item">
+              <div class="ipam-detail-item__label">
+                {{ $t('logs.alerts.detail.policy') }}
+              </div>
+              <div class="ipam-detail-item__value">
+                {{ detail.decision.policyName || '—' }}
+              </div>
+            </div>
+            <div class="ipam-detail-item">
+              <div class="ipam-detail-item__label">
+                {{ $t('logs.alerts.detail.matchedBy') }}
+              </div>
+              <div class="ipam-detail-item__value">
+                {{ scopeLabel(detail.decision.matchedBy) }}
+              </div>
+            </div>
+            <div class="ipam-detail-item">
+              <div class="ipam-detail-item__label">
+                {{ $t('logs.alerts.detail.notifyMode') }}
+              </div>
+              <div class="ipam-detail-item__value">
+                {{ notifyModeLabel(detail.decision.notifyMode) }}
+              </div>
+            </div>
+            <div class="ipam-detail-item">
+              <div class="ipam-detail-item__label">
+                {{ $t('logs.alerts.detail.final') }}
+              </div>
+              <div class="ipam-detail-item__value">
+                {{ notifyModeLabel(detail.decision.final) }}
+              </div>
+            </div>
+            <div class="ipam-detail-item">
+              <div class="ipam-detail-item__label">
+                {{ $t('logs.alerts.detail.notify') }}
+              </div>
+              <div class="ipam-detail-item__value">
+                {{ boolLabel(detail.notify) }}
+              </div>
+            </div>
+            <div class="ipam-detail-item">
+              <div class="ipam-detail-item__label">
+                {{ $t('logs.alerts.detail.alertClass') }}
+              </div>
+              <div class="ipam-detail-item__value">
+                {{ classLabel(detail.alertClass) }}
+              </div>
+            </div>
+            <div class="ipam-detail-item">
+              <div class="ipam-detail-item__label">
+                {{ $t('logs.alerts.detail.groupBy') }}
+              </div>
+              <div class="ipam-detail-item__value">
+                {{ groupLabel(detail.decision.groupBy) }}
+              </div>
+            </div>
+            <div class="ipam-detail-item">
+              <div class="ipam-detail-item__label">
+                {{ $t('logs.alerts.detail.notifyCount') }}
+              </div>
+              <div class="ipam-detail-item__value">
+                {{ fmtInt(detail.notifyCount) }}
+              </div>
+            </div>
+            <div class="ipam-detail-item">
+              <div class="ipam-detail-item__label">
+                {{ $t('logs.alerts.detail.windowStart') }}
+              </div>
+              <div class="ipam-detail-item__value">
+                {{ fmtDateTime(detail.windowStart) }}
+              </div>
+            </div>
+            <div class="ipam-detail-item">
+              <div class="ipam-detail-item__label">
+                {{ $t('logs.alerts.detail.lastNotifiedAt') }}
+              </div>
+              <div class="ipam-detail-item__value">
+                {{ fmtDateTime(detail.lastNotifiedAt) }}
+              </div>
+            </div>
+            <div
+              v-if="detail.suppressedBy || detail.decision.suppressedBy"
+              class="ipam-detail-item ipam-detail-item--wide"
+            >
+              <div class="ipam-detail-item__label">
+                {{ $t('logs.alerts.detail.suppressedBy') }}
+              </div>
+              <div class="ipam-detail-item__value">
+                {{ detail.suppressedBy || detail.decision.suppressedBy }}
+              </div>
+            </div>
+          </div>
+          <div v-else class="ipam-hint">
+            {{ $t('logs.alerts.detail.decisionNone') }}
           </div>
         </div>
       </template>

@@ -57,7 +57,8 @@
     "branding": "站点品牌",
     "runtime": "服务与运行",
     "backup": "备份与恢复",
-    "license": "授权管理"
+    "license": "授权管理",
+    "alerting": "告警与降噪"
   },
   "onboarding": {
     "title": "首次使用向导",

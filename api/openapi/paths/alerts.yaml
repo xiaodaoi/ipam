@@ -12,6 +12,7 @@ AlertsCollection:
       `q` 为不区分大小写子串，命中标题/摘要/域名/客户端地址/组件名/情报来源。
       `intelSource` 按情报来源 key 或显示名子串过滤（仅 DNS 风险访问）。
       `from`/`to` 按末次发生时间（lastSeen）过滤，缺省最近 7 天。
+      `notify=true` 只看进入通知层的报警；报警栏与未确认徽标始终按 notify=true 统计。
       排序：未确认优先，其后按 lastSeen 倒序。scope 为 logs:read。
     security: [{ bearerAuth: [] }]
     parameters:
@@ -44,6 +45,14 @@ AlertsCollection:
         in: query
         schema: { type: string }
         description: 情报来源过滤（key 或显示名子串，如 threatfox）
+      - name: notify
+        in: query
+        schema: { type: boolean }
+        description: 是否只看进入通知层的报警（true=仅需关注；false=仅归档）
+      - name: alertClass
+        in: query
+        schema: { type: string, enum: [security_threat, policy_block, system_health, config_health] }
+        description: 报警分类过滤
       - name: page
         in: query
         schema: { type: integer, minimum: 1, default: 1 }
@@ -131,6 +140,13 @@ AlertsStats:
         in: query
         schema: { type: string }
         description: 情报来源过滤（key 或显示名子串）
+      - name: notify
+        in: query
+        schema: { type: boolean }
+        description: 是否只看进入通知层的报警
+      - name: alertClass
+        in: query
+        schema: { type: string, enum: [security_threat, policy_block, system_health, config_health] }
     responses:
       '200':
         description: 统计结果
@@ -163,9 +179,10 @@ AlertsUnread:
   get:
     operationId: getAlertUnread
     tags: [logs]
-    summary: 未确认报警（右上角报警栏）
+    summary: 未确认报警（右上角报警栏，仅 notify=true）
     description: |
-      返回未确认报警总数与最近 N 条（按 lastSeen 倒序）。前端轮询该端点刷新徽标。
+      返回 `status=open AND notify=true` 的报警总数与最近 N 条（critical 优先，其后按 lastSeen 倒序）。
+      归档（digest/silent/off）不计入徽标，但仍可在报警中心查询。前端轮询该端点刷新徽标。
       scope 为 logs:read。
     security: [{ bearerAuth: [] }]
     parameters:

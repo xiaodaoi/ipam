@@ -496,6 +496,20 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 		alertRepo = alerts.NewPgRepo(pool)
 	}
 	alertSvc := alerts.NewService(alertRepo)
+	var alertAdmin alerts.AdminRepo
+	if a, ok := alertRepo.(alerts.AdminRepo); ok {
+		alertAdmin = a
+		alertSvc.SetAdminRepo(a)
+	}
+	// M6-041：首次落库默认降噪策略；密钥目录落 0600 文件。
+	if err := alertSvc.EnsurePolicies(rootCtx); err != nil {
+		log.Printf("[alerts] ensure policies: %v", err)
+	}
+	notifySecretDir := strings.TrimSpace(os.Getenv("IPAM_NOTIFY_SECRET_DIR"))
+	if notifySecretDir == "" {
+		notifySecretDir = "/run/ipam/notify-secrets"
+	}
+	alertSvc.SetSecretDir(notifySecretDir)
 	alertH := alerts.NewHandler(alertSvc)
 	alertH.SetActorProvider(func(c *gin.Context) string {
 		_, sub, _ := platform.JWTActorFromHeader(c.GetHeader("Authorization"))
@@ -1054,6 +1068,10 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	}
 	if intelSvc != nil {
 		alertCol.SetAttributor(intelSvc)
+	}
+	if alertAdmin != nil {
+		publicURL := strings.TrimSpace(os.Getenv("IPAM_PUBLIC_URL"))
+		alertCol.SetNotifier(alerts.NewDispatcher(alertAdmin, notifySecretDir, publicURL, log.Printf))
 	}
 	go alertCol.Run(rootCtx)
 

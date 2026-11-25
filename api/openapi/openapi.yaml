@@ -35,6 +35,8 @@ tags:
     description: DNS 封禁管控（RPZ 名单/策略分组/订阅源，FR-B-11~18、D13）
   - name: logs
     description: 日志中心检索（组合过滤/TopN/QPS 曲线/CSV 导出，FR-E-04、§6）
+  - name: alerting
+    description: 告警治理（策略/聚合/静音/通知通道/投递审计，M6-049、§13.4）
   - name: dashboard
     description: 仪表盘聚合快照（一级菜单 F-01、§13.4）
   - name: dualstack
@@ -174,6 +176,26 @@ paths:
     $ref: './paths/alerts.yaml#/AlertsAck'
   /logs/alerts/ack-all:
     $ref: './paths/alerts.yaml#/AlertsAckAll'
+  /alerting/overview:
+    $ref: './paths/alerting.yaml#/AlertingOverview'
+  /alerting/policies:
+    $ref: './paths/alerting.yaml#/AlertPolicies'
+  /alerting/policies/simulate:
+    $ref: './paths/alerting.yaml#/AlertPolicySimulate'
+  /alerting/policies/{policyId}:
+    $ref: './paths/alerting.yaml#/AlertPolicyItem'
+  /alerting/silences:
+    $ref: './paths/alerting.yaml#/AlertSilences'
+  /alerting/silences/{silenceId}:
+    $ref: './paths/alerting.yaml#/AlertSilenceItem'
+  /alerting/channels:
+    $ref: './paths/alerting.yaml#/NotificationChannels'
+  /alerting/channels/{channelId}:
+    $ref: './paths/alerting.yaml#/NotificationChannelItem'
+  /alerting/channels/{channelId}/test:
+    $ref: './paths/alerting.yaml#/NotificationChannelTest'
+  /alerting/deliveries:
+    $ref: './paths/alerting.yaml#/NotificationDeliveries'
   /audits:
     $ref: './paths/audit.yaml#/AuditsCollection'
   /audits/verify:
@@ -784,6 +806,40 @@ components:
       $ref: './components/schemas/alerts.yaml#/AlertAckRequest'
     AlertAckResult:
       $ref: './components/schemas/alerts.yaml#/AlertAckResult'
+    AlertDecision:
+      $ref: './components/schemas/alerting.yaml#/AlertDecision'
+    AlertPolicy:
+      $ref: './components/schemas/alerting.yaml#/AlertPolicy'
+    AlertPolicyList:
+      $ref: './components/schemas/alerting.yaml#/AlertPolicyList'
+    AlertPolicyCreate:
+      $ref: './components/schemas/alerting.yaml#/AlertPolicyCreate'
+    AlertPolicyUpdate:
+      $ref: './components/schemas/alerting.yaml#/AlertPolicyUpdate'
+    AlertSilence:
+      $ref: './components/schemas/alerting.yaml#/AlertSilence'
+    AlertSilenceCreate:
+      $ref: './components/schemas/alerting.yaml#/AlertSilenceCreate'
+    AlertSilenceList:
+      $ref: './components/schemas/alerting.yaml#/AlertSilenceList'
+    NotificationChannel:
+      $ref: './components/schemas/alerting.yaml#/NotificationChannel'
+    NotificationChannelList:
+      $ref: './components/schemas/alerting.yaml#/NotificationChannelList'
+    NotificationChannelCreate:
+      $ref: './components/schemas/alerting.yaml#/NotificationChannelCreate'
+    NotificationChannelUpdate:
+      $ref: './components/schemas/alerting.yaml#/NotificationChannelUpdate'
+    NotificationDelivery:
+      $ref: './components/schemas/alerting.yaml#/NotificationDelivery'
+    NotificationDeliveryList:
+      $ref: './components/schemas/alerting.yaml#/NotificationDeliveryList'
+    AlertingOverview:
+      $ref: './components/schemas/alerting.yaml#/AlertingOverview'
+    PolicySimulationRequest:
+      $ref: './components/schemas/alerting.yaml#/PolicySimulationRequest'
+    PolicySimulationResult:
+      $ref: './components/schemas/alerting.yaml#/PolicySimulationResult'
   parameters:
     OrgId:
       $ref: './parameters/org.yaml#/OrgId'

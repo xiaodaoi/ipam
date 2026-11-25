@@ -83,6 +83,17 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        // M6-041：告警治理页（策略/静音/通道/审计），与日志中心报警栏解耦。
+        name: 'SystemAlerting',
+        path: '/system/alerting',
+        component: () => import('#/views/system/alerting/index.vue'),
+        meta: {
+          icon: 'lucide:bell-ring',
+          title: $t('page.system.alerting'),
+          authority: ['system:read'],
+        },
+      },
+      {
         name: 'SystemBackup',
         path: '/system/backup',
         component: () => import('#/views/system/backup/index.vue'),

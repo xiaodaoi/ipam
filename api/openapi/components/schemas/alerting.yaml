@@ -1,0 +1,310 @@
+# 告警治理契约（M6-049）
+# 覆盖策略、静音、通知通道、投递记录与降噪总览；报警中心仍复用 alerts.yaml。
+
+AlertNotifyMode:
+  type: string
+  enum: [notify, digest, silent, off]
+  description: >-
+    notify=进入通知层（铃铛/外部通道）；digest=落库归档并进入摘要，不进铃铛；
+    silent=落库归档但不通知；off=仅保留日志，不生成报警。
+
+AlertClass:
+  type: string
+  enum: [security_threat, policy_block, system_health, config_health]
+  description: >-
+    security_threat=需要处置的威胁；policy_block=防护策略命中（广告/跟踪器，通常无需处置）；
+    system_health=可用性故障；config_health=配置/外部依赖健康。
+
+AlertGroupBy:
+  type: string
+  enum: [domain, client, source, none]
+  description: 聚合维度：domain=每域名一条；client=每客户端一条；source=每来源一条；none=不聚合。
+
+AlertPolicyScope:
+  type: string
+  enum: [global, intel_source, blocklist, kind, component, source]
+  description: 策略作用域；解析优先级 intel_source > blocklist > kind > component > source > global。
+
+AlertPolicy:
+  type: object
+  description: 一条告警策略（数据驱动，不写死在代码里）。
+  required: [id, name, scopeType, scopeKey, priority, severity, notifyMode, alertClass, groupBy, maxPerHour, repeatAfterSec, resolveAfterSec, enabled]
+  properties:
+    id: { type: string, format: uuid }
+    name: { type: string }
+    scopeType: { $ref: 'alerting.yaml#/AlertPolicyScope' }
+    scopeKey: { type: string, description: 源 key / 名单 id / kind / component；global 为空串 }
+    priority: { type: integer, description: 数字小优先（同一作用域内排序） }
+    severity: { type: string, enum: [critical, warning, info] }
+    notifyMode: { $ref: 'alerting.yaml#/AlertNotifyMode' }
+    alertClass: { $ref: 'alerting.yaml#/AlertClass' }
+    groupBy: { $ref: 'alerting.yaml#/AlertGroupBy' }
+    maxPerHour: { type: integer, description: 每小时通知上限；0=不限 }
+    repeatAfterSec: { type: integer, description: 确认后重复提醒间隔（秒）；0=确认后不再提醒 }
+    resolveAfterSec: { type: integer, description: 无新命中自动恢复时间（秒） }
+    enabled: { type: boolean }
+    createdBy: { type: string }
+    updatedBy: { type: string }
+    createdAt: { type: string, format: date-time }
+    updatedAt: { type: string, format: date-time }
+
+AlertPolicyList:
+  type: object
+  required: [items]
+  properties:
+    items: { type: array, items: { $ref: 'alerting.yaml#/AlertPolicy' } }
+    total: { type: integer }
+
+AlertPolicyCreate:
+  type: object
+  required: [name, scopeType]
+  properties:
+    name: { type: string }
+    scopeType: { $ref: 'alerting.yaml#/AlertPolicyScope' }
+    scopeKey: { type: string }
+    priority: { type: integer }
+    severity: { type: string, enum: [critical, warning, info] }
+    notifyMode: { $ref: 'alerting.yaml#/AlertNotifyMode' }
+    alertClass: { $ref: 'alerting.yaml#/AlertClass' }
+    groupBy: { $ref: 'alerting.yaml#/AlertGroupBy' }
+    maxPerHour: { type: integer }
+    repeatAfterSec: { type: integer }
+    resolveAfterSec: { type: integer }
+    enabled: { type: boolean }
+
+AlertPolicyUpdate:
+  type: object
+  properties:
+    name: { type: string }
+    priority: { type: integer }
+    severity: { type: string, enum: [critical, warning, info] }
+    notifyMode: { $ref: 'alerting.yaml#/AlertNotifyMode' }
+    alertClass: { $ref: 'alerting.yaml#/AlertClass' }
+    groupBy: { $ref: 'alerting.yaml#/AlertGroupBy' }
+    maxPerHour: { type: integer }
+    repeatAfterSec: { type: integer }
+    resolveAfterSec: { type: integer }
+    enabled: { type: boolean }
+
+AlertDecision:
+  type: object
+  description: 单条报警的决策链，用于回答「为什么通知 / 为什么没通知」。
+  properties:
+    policyId: { type: string }
+    policyName: { type: string }
+    matchedBy: { type: string, description: intel_source / kind / component / source / global }
+    severity: { type: string, enum: [critical, warning, info] }
+    notifyMode: { $ref: 'alerting.yaml#/AlertNotifyMode' }
+    groupBy: { $ref: 'alerting.yaml#/AlertGroupBy' }
+    notify: { type: boolean }
+    suppressedBy: { type: string, description: 抑制/静音原因；空表示未抑制 }
+    capped: { type: boolean, description: 是否因每小时上限被合并 }
+    final: { type: string, description: notify / digest / silent / off }
+
+SilenceMatchers:
+  type: object
+  description: 静音匹配条件；留空表示不限制该维度。intelSource/domain 为不区分大小写子串。
+  properties:
+    source: { type: string }
+    kind: { type: string }
+    component: { type: string }
+    intelSource: { type: string }
+    severity: { type: string }
+    clientIp: { type: string }
+    domain: { type: string }
+
+AlertSilence:
+  type: object
+  required: [id, matchers, startsAt, endsAt, reason, createdBy]
+  properties:
+    id: { type: string, format: uuid }
+    matchers: { $ref: 'alerting.yaml#/SilenceMatchers' }
+    startsAt: { type: string, format: date-time }
+    endsAt: { type: string, format: date-time }
+    reason: { type: string }
+    createdBy: { type: string }
+    createdAt: { type: string, format: date-time }
+    active: { type: boolean, description: 当前是否生效 }
+
+AlertSilenceCreate:
+  type: object
+  required: [matchers, endsAt, reason]
+  properties:
+    matchers: { $ref: 'alerting.yaml#/SilenceMatchers' }
+    startsAt: { type: string, format: date-time, description: 缺省=立即 }
+    endsAt: { type: string, format: date-time }
+    reason: { type: string }
+
+AlertSilenceList:
+  type: object
+  required: [items]
+  properties:
+    items: { type: array, items: { $ref: 'alerting.yaml#/AlertSilence' } }
+    total: { type: integer }
+
+NotificationChannel:
+  type: object
+  description: 通知通道；密钥只写不回显，服务端落 0600 文件。
+  required: [id, name, type, minSeverity, enabled, hasSecret]
+  properties:
+    id: { type: string, format: uuid }
+    name: { type: string }
+    type:
+      type: string
+      enum: [webhook, email, feishu, dingtalk, wecom, slack, teams]
+    url: { type: string, description: Webhook/IM 地址（email 时为空） }
+    smtpHost: { type: string }
+    smtpPort: { type: integer }
+    smtpUser: { type: string }
+    smtpFrom: { type: string }
+    recipients:
+      type: array
+      items: { type: string }
+      description: 邮件收件人列表
+    minSeverity: { type: string, enum: [critical, warning, info] }
+    quietHours: { type: string, description: 勿扰时段，如 22:00-08:00；critical 不受限 }
+    enabled: { type: boolean }
+    hasSecret: { type: boolean, description: 是否已配置密钥（内容不回传） }
+    lastTestAt: { type: string, format: date-time, nullable: true }
+    lastStatus: { type: string, description: 最近一次测试/投递结果 }
+    createdAt: { type: string, format: date-time }
+    updatedAt: { type: string, format: date-time }
+
+NotificationChannelList:
+  type: object
+  required: [items]
+  properties:
+    items: { type: array, items: { $ref: 'alerting.yaml#/NotificationChannel' } }
+    total: { type: integer }
+
+NotificationChannelCreate:
+  type: object
+  required: [name, type]
+  properties:
+    name: { type: string }
+    type:
+      type: string
+      enum: [webhook, email, feishu, dingtalk, wecom, slack, teams]
+    url: { type: string }
+    smtpHost: { type: string }
+    smtpPort: { type: integer }
+    smtpUser: { type: string }
+    smtpFrom: { type: string }
+    recipients:
+      type: array
+      items: { type: string }
+    minSeverity: { type: string, enum: [critical, warning, info] }
+    quietHours: { type: string }
+    enabled: { type: boolean }
+    secret: { type: string, nullable: true, description: 明文密钥（Webhook HMAC / SMTP 口令），写入 0600 文件后丢弃，不入库 }
+
+NotificationChannelUpdate:
+  type: object
+  properties:
+    name: { type: string }
+    url: { type: string }
+    smtpHost: { type: string }
+    smtpPort: { type: integer }
+    smtpUser: { type: string }
+    smtpFrom: { type: string }
+    recipients:
+      type: array
+      items: { type: string }
+    minSeverity: { type: string, enum: [critical, warning, info] }
+    quietHours: { type: string }
+    enabled: { type: boolean }
+    secret: { type: string, nullable: true }
+    clearSecret: { type: boolean }
+
+ChannelTestResult:
+  type: object
+  required: [ok, status]
+  properties:
+    ok: { type: boolean }
+    status: { type: string }
+    error: { type: string }
+
+NotificationDelivery:
+  type: object
+  required: [id, alertId, channelId, channelName, status, attempt]
+  properties:
+    id: { type: string, format: uuid }
+    alertId: { type: string, format: uuid }
+    channelId: { type: string, format: uuid }
+    channelName: { type: string }
+    status: { type: string, enum: [sent, failed] }
+    attempt: { type: integer }
+    error: { type: string }
+    sentAt: { type: string, format: date-time }
+
+NotificationDeliveryList:
+  type: object
+  required: [items]
+  properties:
+    items: { type: array, items: { $ref: 'alerting.yaml#/NotificationDelivery' } }
+    total: { type: integer }
+
+AlertingSourceStat:
+  type: object
+  required: [key, recorded, notified, mode]
+  properties:
+    key: { type: string, description: 情报源显示名或组件名 }
+    recorded: { type: integer }
+    notified: { type: integer }
+    mode: { $ref: 'alerting.yaml#/AlertNotifyMode' }
+
+AlertingTrendPoint:
+  type: object
+  required: [ts, recorded, notified]
+  properties:
+    ts: { type: string, format: date-time }
+    recorded: { type: integer }
+    notified: { type: integer }
+
+AlertingOverview:
+  type: object
+  required: [recorded, alerts, notified, archived, suppressed, open, acked, noiseRatio, criticalSuppressed, bySeverity, topSources, trend]
+  properties:
+    recorded: { type: integer, description: 窗口内报警记录数（含归档） }
+    alerts: { type: integer, description: 生成的报警条数 }
+    notified: { type: integer, description: 进入通知层的条数 }
+    archived: { type: integer, description: 仅归档条数 }
+    suppressed: { type: integer, description: 被静音/抑制条数 }
+    open: { type: integer }
+    acked: { type: integer }
+    noiseRatio: { type: number, description: 降噪率 = 1 - notified/recorded }
+    criticalSuppressed: { type: integer, description: 被抑制的 critical 条数（漏报护栏） }
+    bySeverity:
+      type: object
+      additionalProperties: { type: integer }
+    topSources:
+      type: array
+      items: { $ref: 'alerting.yaml#/AlertingSourceStat' }
+    trend:
+      type: array
+      items: { $ref: 'alerting.yaml#/AlertingTrendPoint' }
+    policies: { type: integer, description: 策略总数 }
+    silences: { type: integer, description: 当前生效静音数 }
+    channels: { type: integer, description: 启用通道数 }
+
+PolicySimulationRequest:
+  type: object
+  required: [policy]
+  properties:
+    policy: { $ref: 'alerting.yaml#/AlertPolicyCreate' }
+    from: { type: string, format: date-time }
+    to: { type: string, format: date-time }
+
+PolicySimulationResult:
+  type: object
+  required: [recorded, notified, archived, suppressed, criticalNotified, criticalSuppressed, bySeverity]
+  properties:
+    recorded: { type: integer }
+    notified: { type: integer }
+    archived: { type: integer }
+    suppressed: { type: integer }
+    criticalNotified: { type: integer }
+    criticalSuppressed: { type: integer }
+    bySeverity:
+      type: object
+      additionalProperties: { type: integer }

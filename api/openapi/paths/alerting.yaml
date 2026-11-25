@@ -1,0 +1,406 @@
+# 告警治理端点（M6-049）
+# 配置类接口归 system 权限域；报警查看/确认仍走 /logs/alerts（logs 域）。
+
+AlertingOverview:
+  get:
+    operationId: getAlertingOverview
+    tags: [alerting]
+    summary: 降噪总览（记录/报警/通知漏斗、Top 噪声源、趋势）
+    description: |
+      统计最近窗口内的报警记录、进入通知层的条数、归档/抑制条数、降噪率与 Top 噪声源。
+      `recorded` 与 `alerts` 当前均取报警档案条数（日志明细在日志中心查询），
+      便于回答「为什么铃铛安静了但日志还在」。scope 为 system:read。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: from
+        in: query
+        schema: { type: string, format: date-time }
+        description: 时间窗起点（缺省=24 小时前）
+      - name: to
+        in: query
+        schema: { type: string, format: date-time }
+    responses:
+      '200':
+        description: 总览
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/alerting.yaml#/AlertingOverview'
+            examples:
+              ok:
+                value:
+                  recorded: 12480
+                  alerts: 1284
+                  notified: 23
+                  archived: 1261
+                  suppressed: 12
+                  open: 3
+                  acked: 20
+                  noiseRatio: 0.998
+                  criticalSuppressed: 0
+                  bySeverity: { critical: 2, warning: 21, info: 1261 }
+                  topSources:
+                    - { key: 'StevenBlack/hosts（综合聚合）', recorded: 11902, notified: 0, mode: digest }
+                    - { key: 'abuse.ch ThreatFox（C2 / 载荷投递 IOC）', recorded: 18, notified: 18, mode: notify }
+                  trend:
+                    - { ts: '2026-11-25T08:00:00Z', recorded: 620, notified: 2 }
+                    - { ts: '2026-11-25T09:00:00Z', recorded: 910, notified: 1 }
+                  policies: 12
+                  silences: 1
+                  channels: 2
+      '400':
+        description: 参数非法
+      '503':
+        description: 数据库不可用
+
+AlertPolicies:
+  get:
+    operationId: listAlertPolicies
+    tags: [alerting]
+    summary: 查询告警策略
+    description: 返回全局/来源/类型/组件等全部策略，按作用域与优先级排序。scope 为 system:read。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: 策略列表
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/alerting.yaml#/AlertPolicyList'
+            examples:
+              ok:
+                value:
+                  items:
+                    - id: '11111111-1111-1111-1111-111111111111'
+                      name: 'StevenBlack 归档'
+                      scopeType: intel_source
+                      scopeKey: stevenblack-hosts
+                      priority: 100
+                      severity: info
+                      notifyMode: digest
+                      alertClass: policy_block
+                      groupBy: source
+                      maxPerHour: 5
+                      repeatAfterSec: 86400
+                      resolveAfterSec: 86400
+                      enabled: true
+                  total: 1
+      '503':
+        description: 数据库不可用
+  post:
+    operationId: createAlertPolicy
+    tags: [alerting]
+    summary: 新增告警策略
+    description: 新增策略；同作用域+对象唯一。scope 为 system:write。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/alerting.yaml#/AlertPolicyCreate'
+    responses:
+      '201':
+        description: 已创建
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/alerting.yaml#/AlertPolicy'
+      '400':
+        description: 参数非法
+      '409':
+        description: 同作用域策略已存在
+      '503':
+        description: 数据库不可用
+
+AlertPolicyItem:
+  patch:
+    operationId: updateAlertPolicy
+    tags: [alerting]
+    summary: 编辑/启停告警策略
+    description: 局部更新策略字段。scope 为 system:write。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: policyId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/alerting.yaml#/AlertPolicyUpdate'
+    responses:
+      '200':
+        description: 已更新
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/alerting.yaml#/AlertPolicy'
+      '400':
+        description: 参数非法
+      '404':
+        description: 策略不存在
+      '503':
+        description: 数据库不可用
+  delete:
+    operationId: deleteAlertPolicy
+    tags: [alerting]
+    summary: 删除告警策略
+    description: 删除自定义策略；全局兜底策略不可删除。scope 为 system:write。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: policyId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204':
+        description: 已删除
+      '400':
+        description: 全局策略不可删除
+      '404':
+        description: 策略不存在
+      '503':
+        description: 数据库不可用
+
+AlertPolicySimulate:
+  post:
+    operationId: simulateAlertPolicy
+    tags: [alerting]
+    summary: 模拟策略降噪效果
+    description: |
+      按候选策略回放最近窗口的报警档案，估算将通知/归档/抑制的条数与 critical 漏报数。
+      用于保存前评估，不影响运行态。scope 为 system:read。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/alerting.yaml#/PolicySimulationRequest'
+    responses:
+      '200':
+        description: 模拟结果
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/alerting.yaml#/PolicySimulationResult'
+            examples:
+              ok:
+                value:
+                  recorded: 1204
+                  notified: 18
+                  archived: 1180
+                  suppressed: 6
+                  criticalNotified: 2
+                  criticalSuppressed: 0
+                  bySeverity: { critical: 2, warning: 16, info: 1186 }
+      '400':
+        description: 参数非法
+      '503':
+        description: 数据库不可用
+
+AlertSilences:
+  get:
+    operationId: listAlertSilences
+    tags: [alerting]
+    summary: 查询静音窗口
+    description: 返回全部静音窗口及当前是否生效。scope 为 system:read。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: 静音列表
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/alerting.yaml#/AlertSilenceList'
+      '503':
+        description: 数据库不可用
+  post:
+    operationId: createAlertSilence
+    tags: [alerting]
+    summary: 创建静音窗口
+    description: 按 matcher 静音一段时间；静音期间报警仍落库，只是不通知。scope 为 system:write。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/alerting.yaml#/AlertSilenceCreate'
+    responses:
+      '201':
+        description: 已创建
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/alerting.yaml#/AlertSilence'
+      '400':
+        description: 参数非法（结束时间必须晚于开始时间）
+      '503':
+        description: 数据库不可用
+
+AlertSilenceItem:
+  delete:
+    operationId: deleteAlertSilence
+    tags: [alerting]
+    summary: 撤销静音窗口
+    description: 立即撤销指定静音。scope 为 system:write。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: silenceId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204':
+        description: 已撤销
+      '404':
+        description: 静音不存在
+      '503':
+        description: 数据库不可用
+
+NotificationChannels:
+  get:
+    operationId: listNotificationChannels
+    tags: [alerting]
+    summary: 查询通知通道
+    description: 返回通道配置（密钥不回显）。scope 为 system:read。
+    security: [{ bearerAuth: [] }]
+    responses:
+      '200':
+        description: 通道列表
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/alerting.yaml#/NotificationChannelList'
+      '503':
+        description: 数据库不可用
+  post:
+    operationId: createNotificationChannel
+    tags: [alerting]
+    summary: 新增通知通道
+    description: 新增 Webhook/邮件/IM 通道；secret 写入 0600 文件，不入库。scope 为 system:write。
+    security: [{ bearerAuth: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/alerting.yaml#/NotificationChannelCreate'
+    responses:
+      '201':
+        description: 已创建
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/alerting.yaml#/NotificationChannel'
+      '400':
+        description: 参数非法
+      '503':
+        description: 数据库不可用
+
+NotificationChannelItem:
+  patch:
+    operationId: updateNotificationChannel
+    tags: [alerting]
+    summary: 编辑/启停通知通道
+    description: 局部更新通道；secret 只写不回显。scope 为 system:write。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: channelId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/alerting.yaml#/NotificationChannelUpdate'
+    responses:
+      '200':
+        description: 已更新
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/alerting.yaml#/NotificationChannel'
+      '400':
+        description: 参数非法
+      '404':
+        description: 通道不存在
+      '503':
+        description: 数据库不可用
+  delete:
+    operationId: deleteNotificationChannel
+    tags: [alerting]
+    summary: 删除通知通道
+    description: 删除通道及其密钥文件引用。scope 为 system:write。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: channelId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204':
+        description: 已删除
+      '404':
+        description: 通道不存在
+      '503':
+        description: 数据库不可用
+
+NotificationChannelTest:
+  post:
+    operationId: testNotificationChannel
+    tags: [alerting]
+    summary: 发送测试通知
+    description: 用示例报警测试通道连通性并记录最近状态。scope 为 system:write。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: channelId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: 测试结果
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/alerting.yaml#/ChannelTestResult'
+      '404':
+        description: 通道不存在
+      '503':
+        description: 数据库不可用
+
+NotificationDeliveries:
+  get:
+    operationId: listNotificationDeliveries
+    tags: [alerting]
+    summary: 查询通知投递记录
+    description: 最近投递结果（成功/失败、错误、时间），用于排障与审计。scope 为 system:read。
+    security: [{ bearerAuth: [] }]
+    parameters:
+      - name: channelId
+        in: query
+        schema: { type: string, format: uuid }
+      - name: status
+        in: query
+        schema: { type: string, enum: [sent, failed] }
+      - name: limit
+        in: query
+        schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+    responses:
+      '200':
+        description: 投递记录
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/alerting.yaml#/NotificationDeliveryList'
+      '400':
+        description: 参数非法
+      '503':
+        description: 数据库不可用

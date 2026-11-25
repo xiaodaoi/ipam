@@ -91,8 +91,16 @@ func TestDNS风险访问按小时聚合且重复扫描不重复计数(t *testing
 	if a.ClientIP != "10.61.172.10" || a.Domain != "j8.asdlot.org" {
 		t.Fatalf("客户端/域名不符: %+v", a)
 	}
-	if !strings.Contains(a.DedupKey, "2026111910") {
-		t.Fatalf("小时桶键不符: %s", a.DedupKey)
+	// M6-049：稳定指纹不再带小时桶，避免同一域名每小时新建一条报警；小时窗口记录在 window_start。
+	wantKey := "dns|domain|abusech-threatfox|10.61.172.10|j8.asdlot.org"
+	if a.DedupKey != wantKey {
+		t.Fatalf("稳定指纹不符: got %s want %s", a.DedupKey, wantKey)
+	}
+	if !a.WindowStart.Equal(time.Date(2026, 11, 19, 10, 0, 0, 0, time.UTC)) {
+		t.Fatalf("窗口起点应为小时桶，got %v", a.WindowStart)
+	}
+	if a.AlertClass != ClassSecurityThreat || !a.Notify || a.Decision == "" {
+		t.Fatalf("默认策略应判定为威胁并通知: %+v", a)
 	}
 	if attr.calls == 0 || attr.last != "j8.asdlot.org" {
 		t.Fatalf("归属应收到规范化域名，calls=%d last=%q", attr.calls, attr.last)
