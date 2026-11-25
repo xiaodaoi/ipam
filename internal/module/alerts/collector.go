@@ -265,7 +265,7 @@ func (c *Collector) CollectDNS(ctx context.Context) (int, error) {
 			IntelSourceName: intelName,
 			AlertClass:      eff.AlertClass,
 			Notify:          eff.Notify,
-			PolicyID:        eff.Policy.ID,
+			PolicyID:        eff.ID,
 			GroupKey:        groupKey,
 			Count:           g.Count,
 			Detail:          g.Category,
@@ -462,7 +462,7 @@ func (c *Collector) CollectSystem(ctx context.Context) (int, error) {
 		ev.Severity = eff.Severity
 		ev.Notify = eff.Notify
 		ev.AlertClass = eff.AlertClass
-		ev.PolicyID = eff.Policy.ID
+		ev.PolicyID = eff.ID
 		ev.GroupKey = ev.DedupKey
 		ev.SuppressedBy = eff.SuppressedBy
 		ev.SilenceID = eff.SilenceID

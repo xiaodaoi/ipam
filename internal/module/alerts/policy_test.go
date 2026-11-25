@@ -217,7 +217,7 @@ func Test静音窗口阻止通知但保留档案(t *testing.T) {
 	ev := Event{
 		DedupKey: "dns|domain|abusech-threatfox|10.0.0.7|evil.example", Source: SourceDNS, Kind: KindRiskURL,
 		Severity: eff.Severity, Title: "威胁", Domain: "evil.example", ClientIP: "10.0.0.7",
-		Notify: eff.Notify, AlertClass: eff.AlertClass, PolicyID: eff.Policy.ID,
+		Notify: eff.Notify, AlertClass: eff.AlertClass, PolicyID: eff.ID,
 		SuppressedBy: eff.SuppressedBy, SilenceID: eff.SilenceID, Decision: DecisionOf(eff),
 		LastSeen: fixedNow(),
 	}

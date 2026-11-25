@@ -482,7 +482,7 @@ func (s *Service) ResolvePolicy(ctx context.Context, in PolicyInput) EffectivePo
 // DecisionOf 构造写入报警的决策链 JSON。
 func DecisionOf(e EffectivePolicy) string {
 	d := Decision{
-		PolicyID: e.Policy.ID, PolicyName: e.Policy.Name, MatchedBy: e.MatchedBy,
+		PolicyID: e.ID, PolicyName: e.Name, MatchedBy: e.MatchedBy,
 		Severity: e.Severity, NotifyMode: e.NotifyMode, GroupBy: e.GroupBy,
 		Notify: e.Notify, SuppressedBy: e.SuppressedBy, Capped: e.Capped, Final: e.Final,
 	}
