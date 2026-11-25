@@ -115,6 +115,9 @@ func policyFromCreate(b apigen.AlertPolicyCreate) Policy {
 	}
 	if b.AlertClass != nil {
 		p.AlertClass = string(*b.AlertClass)
+	} else if b.ScopeType == apigen.AlertPolicyScopeIntelSource || b.ScopeType == apigen.AlertPolicyScopeBlocklist {
+		// 未显式指定分类时，情报源/名单类默认为安全威胁，避免被归到「策略封禁」。
+		p.AlertClass = ClassSecurityThreat
 	}
 	if b.GroupBy != nil {
 		p.GroupBy = string(*b.GroupBy)

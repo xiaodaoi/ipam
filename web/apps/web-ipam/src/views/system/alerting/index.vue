@@ -258,7 +258,7 @@ onMounted(() => void refreshAll());
 
 // ── 策略 ──
 const policyForm = reactive({
-  alertClass: 'policy_block' as string,
+  alertClass: 'security_threat' as string,
   enabled: true,
   groupBy: 'domain' as string,
   id: '',
@@ -290,7 +290,7 @@ function resetPolicyForm() {
   policyForm.priority = 100;
   policyForm.severity = 'warning';
   policyForm.notifyMode = 'notify';
-  policyForm.alertClass = 'policy_block';
+  policyForm.alertClass = 'security_threat';
   policyForm.groupBy = 'domain';
   policyForm.maxPerHour = 0;
   policyForm.repeatAfterSec = 86_400;
