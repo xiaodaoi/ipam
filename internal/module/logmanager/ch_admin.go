@@ -141,6 +141,33 @@ func (a *ChAdmin) SetTTL(ctx context.Context, days int) error {
 	return nil
 }
 
+// EnsureTTL 幂等收敛保留天数（M6-066）：读取实际 TTL，与期望不一致才 ALTER。
+// 这样 ClickHouse 晚就绪/短暂不可用后的小时级对账能自动补上，而不是只在启动时试一次。
+func (a *ChAdmin) EnsureTTL(ctx context.Context, days int) error {
+	if days < 1 || days > 3650 {
+		return fmt.Errorf("invalid retention days: %d", days)
+	}
+	var expr string
+	if err := a.conn.QueryRow(ctx,
+		`SELECT ttl_expression FROM system.tables WHERE database = ? AND name = 'logs'`,
+		a.db).Scan(&expr); err != nil {
+		return a.SetTTL(ctx, days)
+	}
+	if ttlMatchesDays(expr, days) {
+		a.setMVTTL(ctx, days)
+		return nil
+	}
+	return a.SetTTL(ctx, days)
+}
+
+// ttlMatchesDays 判断 ClickHouse 的 ttl_expression 是否已是目标天数。
+// 兼容 `INTERVAL 30 DAY` 与 `toIntervalDay(30)` 两种渲染。
+func ttlMatchesDays(expr string, days int) bool {
+	expr = strings.ReplaceAll(expr, " ", "")
+	return strings.Contains(expr, fmt.Sprintf("toIntervalDay(%d)", days)) ||
+		strings.Contains(expr, fmt.Sprintf("INTERVAL%dDAY", days))
+}
+
 // setMVTTL 让 logs_topn_hourly 的 TTL 跟随主表。物化视图内表由 ClickHouse 内部命名为
 // .inner_id.<uuid>，需动态解析；任何失败仅记录日志，不影响主表 TTL 生效。
 func (a *ChAdmin) setMVTTL(ctx context.Context, days int) {
