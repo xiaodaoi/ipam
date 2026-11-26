@@ -1,7 +1,6 @@
 package logquery
 
 import (
-	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -22,10 +21,17 @@ type Handler struct {
 	// TailPoll/TailHeartbeat SSE 节奏（默认 500ms/15s，可测注入）
 	TailPoll      time.Duration
 	TailHeartbeat time.Duration
+	// tailSem 限制并发 SSE 连接（M6-060）：每个 tail 每 500ms 查询一次，
+	// 无限连接会把 CH 连接池占满，拖垮普通检索与仪表盘。
+	tailSem chan struct{}
 }
 
+// MaxTailStreams 同时活跃的 live-tail 连接上限。
+const MaxTailStreams = 16
+
 func NewHandler(svc *Service) *Handler {
-	return &Handler{svc: svc, TailPoll: 500 * time.Millisecond, TailHeartbeat: 15 * time.Second}
+	return &Handler{svc: svc, TailPoll: 500 * time.Millisecond, TailHeartbeat: 15 * time.Second,
+		tailSem: make(chan struct{}, MaxTailStreams)}
 }
 
 // ListLogs GET /logs
@@ -186,24 +192,58 @@ func (h *Handler) ExportLogs(c *gin.Context, params apigen.ExportLogsParams) {
 	if params.OrgId != nil {
 		f.OrgID = params.OrgId.String()
 	}
-	page, err := h.svc.Query(c.Request.Context(), f)
+	limit := derefInt(params.ExportLimit, 10_000)
+	if limit <= 0 {
+		limit = 10_000
+	}
+	if limit > 50_000 {
+		limit = 50_000
+	}
+	// 流式导出：游标翻页直到达到上限，避免 MaxPage=500 的静默截断（M6-060）。
+	f.PageSize = MaxPage
+	f.Page = 0
+	ctx := c.Request.Context()
+	page, err := h.svc.Query(ctx, f)
 	if err != nil {
 		writeLogErr(c, err)
 		return
 	}
-	var buf bytes.Buffer
-	buf.WriteString("\xEF\xBB\xBF") // UTF-8 BOM（Excel 兼容）
-	w := csv.NewWriter(&buf)
+	truncated := page.Total > limit
+	c.Header("Content-Disposition", `attachment; filename="logs-`+params.From.UTC().Format("20060102")+`.csv"`)
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	if truncated {
+		c.Header("X-Truncated", "true")
+	}
+	c.Status(http.StatusOK)
+	_, _ = c.Writer.WriteString("\xEF\xBB\xBF") // UTF-8 BOM（Excel 兼容）
+	w := csv.NewWriter(c.Writer)
 	_ = w.Write([]string{"ts", "type", "severity", "client_mac", "client_ip", "sip", "domain", "rcode", "action", "category", "answer_ip", "detail"})
-	for _, r := range page.Items {
-		_ = w.Write([]string{
-			r.TS.UTC().Format(time.RFC3339Nano), r.Type, r.Severity, r.ClientMAC,
-			r.ClientIP, r.SIP, r.Domain, r.Rcode, r.Action, r.Category, r.AnswerIP, r.Detail,
-		})
+	written := 0
+	for {
+		for _, r := range page.Items {
+			if written >= limit {
+				truncated = true
+				break
+			}
+			_ = w.Write([]string{
+				r.TS.UTC().Format(time.RFC3339Nano), r.Type, r.Severity, r.ClientMAC,
+				r.ClientIP, r.SIP, r.Domain, r.Rcode, r.Action, r.Category, r.AnswerIP, r.Detail,
+			})
+			written++
+		}
+		if truncated || len(page.Items) < MaxPage || written >= limit {
+			break
+		}
+		last := page.Items[len(page.Items)-1]
+		f.Cursor = EncodeCursor(last.TS, last.ClientMAC, last.Domain)
+		next, qerr := h.svc.Query(ctx, f)
+		if qerr != nil {
+			log.Printf("[logs] 导出分页中断于 %d 行: %v", written, qerr)
+			break
+		}
+		page = next
 	}
 	w.Flush()
-	c.Header("Content-Disposition", `attachment; filename="logs-`+params.From.UTC().Format("20060102")+`.csv"`)
-	c.Data(http.StatusOK, "text/csv; charset=utf-8", buf.Bytes())
 }
 
 func toGenLogRow(r LogRow) apigen.LogRow {
@@ -336,6 +376,17 @@ func (h *Handler) serveSSE(c *gin.Context, f LogFilter, resumeKey string, poll, 
 			"https://ipam.local/problems/internal", "SSE_UNSUPPORTED", "当前连接不支持流式响应")
 		return
 	}
+	if h.tailSem != nil {
+		select {
+		case h.tailSem <- struct{}{}:
+			defer func() { <-h.tailSem }()
+		default:
+			problem.Write(c, http.StatusTooManyRequests,
+				"https://ipam.local/problems/too-many-requests", "TAIL_LIMIT",
+				"实时日志连接数已达上限，请关闭其它标签页后重试")
+			return
+		}
+	}
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("X-Accel-Buffering", "no")
@@ -359,17 +410,15 @@ func (h *Handler) serveSSE(c *gin.Context, f LogFilter, resumeKey string, poll, 
 			_, _ = c.Writer.WriteString(": ping\n\n")
 			flusher.Flush()
 		case <-pollT.C:
-			batch, err := h.svc.Query(ctx, LogFilter{
+			// 升序增量拉取：突发 >200 条时下一轮从 lastKey 继续，不丢中间事件（M6-060）。
+			rows, err := h.svc.Tail(ctx, LogFilter{
 				From: windowFrom, Type: f.Type, MAC: f.MAC, IP: f.IP, SIP: f.SIP,
 				Domain: f.Domain, Action: f.Action, Keyword: f.Keyword, OrgID: f.OrgID,
-				Cursor: "", PageSize: tailBatch,
-			})
+			}, lastKey, tailBatch)
 			if err != nil {
 				return
 			}
-			fresh := newerThan(batch.Items, lastKey)
-			for i := len(fresh) - 1; i >= 0; i-- { // 批次为 DESC，倒序即升序发射
-				row := fresh[i]
+			for _, row := range rows {
 				id := EncodeCursor(row.TS, row.ClientMAC, row.Domain)
 				payload, merr := json.Marshal(toGenLogRow(row))
 				if merr != nil {
@@ -377,10 +426,10 @@ func (h *Handler) serveSSE(c *gin.Context, f LogFilter, resumeKey string, poll, 
 				}
 				_, _ = c.Writer.WriteString("id: " + id + "\nevent: log\ndata: " + string(payload) + "\n\n")
 				lastKey = id
+				windowFrom = row.TS // 窗口随进度前移，避免每次重扫整段
 			}
-			if len(fresh) > 0 {
+			if len(rows) > 0 {
 				flusher.Flush()
-				windowFrom = fresh[0].TS // 窗口下沿滚动到最新事件，防长期重扫
 			}
 		}
 	}

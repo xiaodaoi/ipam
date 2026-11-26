@@ -41,6 +41,9 @@ type LogFilter struct {
 	Cursor   string
 	Page     int // 页码（1 起，offset 分页；与 Cursor 二选一）
 	PageSize int
+	// NoCount 跳过精确 total（M6-060）：tail/流式场景不需要 total，
+	// 而 count() 会扫全窗口，是最慢的一步。
+	NoCount bool
 }
 
 // TopQuery /logs/top 参数（TopN 域名或客户端 MAC）。
@@ -98,6 +101,9 @@ type OrgExpander interface {
 // Store 日志仓储接口。实现方保证：过滤全语义一致、分页游标确定、Total 为同条件 count。
 type Store interface {
 	Query(ctx context.Context, f LogFilter, scope OrgScope) (Page, error)
+	// Tail 增量取 afterKey 之后的事件，按 (ts, client_mac, domain) 升序。
+	// afterKey 为空表示从窗口起点开始；用于 live-tail，避免 DESC 取最新 N 条丢事件。
+	Tail(ctx context.Context, f LogFilter, scope OrgScope, afterKey string, limit int) ([]LogRow, error)
 	Top(ctx context.Context, q TopQuery, scope OrgScope) ([]TopEntry, int, error)
 	Qps(ctx context.Context, q QpsQuery, scope OrgScope) ([]QpsPoint, error)
 

@@ -365,3 +365,42 @@ func (m *MemStore) MacActivity(_ context.Context, from, to time.Time) (map[strin
 	}
 	return out, nil
 }
+
+// Tail 增量升序（M6-060）：内存实现与 CH 侧语义一致。
+func (m *MemStore) Tail(_ context.Context, f LogFilter, scope OrgScope, afterKey string, limit int) ([]LogRow, error) {
+	if limit <= 0 {
+		limit = 200
+	}
+	cts, cmac, cdom := ParseCursor(afterKey)
+	out := make([]LogRow, 0, limit)
+	for _, r := range m.rows {
+		if !matchLog(r, f, scope) {
+			continue
+		}
+		if afterKey != "" {
+			// 与 CH DateTime64(3) 对齐：游标为毫秒精度，比较也必须按毫秒，
+			// 否则同一毫秒内的高精度时间戳会被判定为“新事件”而重复推送。
+			rt, kt := r.TS.UnixMilli(), cts.UnixMilli()
+			gt := rt > kt ||
+				(rt == kt && r.ClientMAC > cmac) ||
+				(rt == kt && r.ClientMAC == cmac && r.Domain > cdom)
+			if !gt {
+				continue
+			}
+		}
+		out = append(out, r)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if !out[i].TS.Equal(out[j].TS) {
+			return out[i].TS.Before(out[j].TS)
+		}
+		if out[i].ClientMAC != out[j].ClientMAC {
+			return out[i].ClientMAC < out[j].ClientMAC
+		}
+		return out[i].Domain < out[j].Domain
+	})
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}

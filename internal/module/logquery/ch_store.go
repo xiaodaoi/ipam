@@ -216,16 +216,20 @@ func (s *ChStore) Query(ctx context.Context, f LogFilter, scope OrgScope) (Page,
 		Domain: f.Domain, Action: f.Action, AnswerIP: f.AnswerIP, Keyword: f.Keyword, Scope: scope,
 	})
 
-	countSQL := "SELECT count() FROM " + s.table() + " WHERE " + where
-	ck := countCacheKey(countSQL, args)
-	total, ok := s.cachedCount(ck)
-	if !ok {
-		var n uint64
-		if err := s.conn.QueryRow(ctx, countSQL, args...).Scan(&n); err != nil {
-			return Page{}, err
+	total := -1
+	if !f.NoCount {
+		countSQL := "SELECT count() FROM " + s.table() + " WHERE " + where
+		ck := countCacheKey(countSQL, args)
+		if n, ok := s.cachedCount(ck); ok {
+			total = n
+		} else {
+			var n uint64
+			if err := s.conn.QueryRow(ctx, countSQL, args...).Scan(&n); err != nil {
+				return Page{}, err
+			}
+			total = int(n)
+			s.storeCount(ck, total)
 		}
-		total = int(n)
-		s.storeCount(ck, total)
 	}
 
 	pageSize := f.PageSize
@@ -295,6 +299,44 @@ func countCacheKey(sql string, args []any) string {
 	}
 	sum := sha256.Sum256([]byte(b.String()))
 	return string(sum[:])
+}
+
+// Tail 增量升序查询（M6-060）：afterKey 之后的事件，避免 DESC 最新 200 条
+// 在突发时永久跳过中间事件。
+func (s *ChStore) Tail(ctx context.Context, f LogFilter, scope OrgScope, afterKey string, limit int) ([]LogRow, error) {
+	if limit <= 0 {
+		limit = 200
+	}
+	where, args := buildWhere(cond{
+		From: f.From, To: f.To, Type: f.Type, MAC: f.MAC, IP: f.IP, SIP: f.SIP,
+		Domain: f.Domain, Action: f.Action, AnswerIP: f.AnswerIP, Keyword: f.Keyword, Scope: scope,
+	})
+	cursor := ""
+	if afterKey != "" {
+		ts, mac, dom := ParseCursor(afterKey)
+		if ts.IsZero() {
+			return nil, ErrInvalidCursor
+		}
+		cursor = " AND (ts, client_mac, domain) > (?, ?, ?)"
+		args = append(args, ts.UTC(), mac, dom)
+	}
+	args = append(args, limit)
+	sql := "SELECT " + logCols + " FROM " + s.table() + " WHERE " + where + cursor +
+		" ORDER BY ts ASC, client_mac ASC, domain ASC LIMIT ?"
+	rows, err := s.conn.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := make([]LogRow, 0, limit)
+	for rows.Next() {
+		r, serr := scanLogRow(rows)
+		if serr != nil {
+			return nil, serr
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
 }
 
 func (s *ChStore) cachedCount(key string) (int, bool) {

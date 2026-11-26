@@ -16,6 +16,9 @@ const (
 	// MaxOffset 深分页上限：offset 翻页在 ClickHouse 上需扫描并丢弃前 N 行，
 	// 深翻页会放大 IO/内存。超过后要求缩小时间窗或导出 CSV。
 	MaxOffset = 10_000
+	// MaxQpsPoints 单次时序查询上限（M6-060）：31 天×1s 分桶≈268 万点，
+	// 会一次性拉进内存并 JSON 序列化，直接打爆 CH 的 1GB 内存上限。
+	MaxQpsPoints = 5000
 )
 
 var (
@@ -69,6 +72,24 @@ func (s *Service) Query(ctx context.Context, f LogFilter) (Page, error) {
 	return s.store.Query(ctx, f, scope)
 }
 
+// Tail 增量拉取 afterKey 之后的事件（升序），供 SSE live-tail 使用。
+func (s *Service) Tail(ctx context.Context, f LogFilter, afterKey string, limit int) ([]LogRow, error) {
+	if err := s.validateWindow(f.From, f.To); err != nil {
+		return nil, err
+	}
+	if f.MAC != "" {
+		f.MAC = NormalizeMAC(f.MAC)
+	}
+	if limit <= 0 || limit > MaxPage {
+		limit = 200
+	}
+	scope, err := s.expand(ctx, f.OrgID)
+	if err != nil {
+		return nil, err
+	}
+	return s.store.Tail(ctx, f, scope, afterKey, limit)
+}
+
 // Top /logs/top TopN 域名或客户端。
 func (s *Service) Top(ctx context.Context, q TopQuery) ([]TopEntry, int, error) {
 	if err := s.validateWindow(q.From, q.To); err != nil {
@@ -97,6 +118,16 @@ func (s *Service) Qps(ctx context.Context, q QpsQuery) ([]QpsPoint, error) {
 	}
 	if q.IntervalSec <= 0 {
 		q.IntervalSec = DefaultBucket
+	}
+	// 按点数上限自动放大分桶，避免无界结果集（M6-060）。
+	to := q.To
+	if to.IsZero() {
+		to = time.Now().UTC()
+	}
+	if span := to.Sub(q.From); span > 0 {
+		if min := int(span.Seconds()) / MaxQpsPoints; min > q.IntervalSec {
+			q.IntervalSec = min
+		}
 	}
 	scope, err := s.expand(ctx, q.OrgID)
 	if err != nil {
