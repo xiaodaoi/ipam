@@ -727,18 +727,27 @@ func assetWhere(q AssetQuery, args *[]any) string {
 	conds := []string{"true"}
 	if q.OrgIDs != nil {
 		// 子树展开后的节点集合；orgID 不存在时传空数组→结果为空。
-		*args = append(*args, q.OrgIDs)
-		conds = append(conds, `org_id::text = ANY($`+fmt1(len(*args))+`)`)
+		// 用 uuid[] 而非 org_id::text（M6-064）：后者会让 idx_asset_org 失效。
+		ids := make([]uuid.UUID, 0, len(q.OrgIDs))
+		for _, raw := range q.OrgIDs {
+			if id, perr := uuid.Parse(raw); perr == nil {
+				ids = append(ids, id)
+			}
+		}
+		*args = append(*args, ids)
+		conds = append(conds, `org_id = ANY($`+fmt1(len(*args))+`)`)
 	}
 	if q.Q != "" {
 		*args = append(*args, "%"+q.Q+"%")
 		n := fmt1(len(*args))
-		cond := `(coalesce(mac,'') ILIKE $` + n + ` OR coalesce(duid,'') ILIKE $` + n +
-			` OR coalesce(owner,'') ILIKE $` + n + ` OR coalesce(dept,'') ILIKE $` + n
+		// 表达式必须与 0056 的 GIN 索引一致（M6-064）：索引建在列上，
+		// 这里不要包 coalesce()，否则 pg_trgm 索引不可用。
+		cond := `(mac ILIKE $` + n + ` OR duid ILIKE $` + n +
+			` OR owner ILIKE $` + n + ` OR dept ILIKE $` + n
 		// MAC 允许省略分隔符输入：replace(mac,':','') 与压缩后的关键字比较（M6-046）。
 		if compact := compactIdentity(q.Q); len(compact) >= 4 {
 			*args = append(*args, "%"+compact+"%")
-			cond += ` OR replace(lower(coalesce(mac,'')), ':', '') LIKE $` + fmt1(len(*args))
+			cond += ` OR replace(lower(mac), ':', '') LIKE $` + fmt1(len(*args))
 		}
 		conds = append(conds, cond+`)`)
 	}
