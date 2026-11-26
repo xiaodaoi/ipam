@@ -44,6 +44,16 @@ def main() -> int:
         problems.append(f"文件仅存在于一侧: {name}")
 
     for name in sorted(set(base_files) & set(target_files)):
+        stem = Path(name).stem
+        # 约定：文件名即第一段命名空间（`page.json` -> `page.*`），
+        # JSON 内容里不得再包一层同名 key，否则运行时会被双重嵌套。
+        for lang, lang_dir in ((BASE, base_dir), (TARGET, target_dir)):
+            root = json.loads((lang_dir / name).read_text(encoding="utf-8"))
+            if isinstance(root, dict) and stem in root:
+                problems.append(
+                    f"{name}: {lang} 顶层重复命名空间 '{stem}'（文件名已是第一段，"
+                    f"内容应直接以子 key 开头）"
+                )
         base = flatten(json.loads((base_dir / name).read_text(encoding="utf-8")))
         target = flatten(json.loads((target_dir / name).read_text(encoding="utf-8")))
         for key in sorted(set(base) - set(target)):

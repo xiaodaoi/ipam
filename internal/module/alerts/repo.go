@@ -17,6 +17,11 @@ const alertColumns = `id, dedup_key, fingerprint, source, kind, severity, status
   repeat_after_sec, resolve_after_sec, first_seen, last_seen, acked_at, acked_by,
   resolved_at, created_at`
 
+// justNotifiedExpr 判断本次 upsert 是否刚刚写入过 last_notified_at。
+// 必须 COALESCE：新告警（notify=false）的 last_notified_at 为 NULL，
+// `NULL = now()` 会得到 NULL，直接扫进 bool 会报错并中断整轮采集。
+const justNotifiedExpr = `COALESCE(last_notified_at = now(), false)`
+
 // PgRepo PostgreSQL 实现（迁移 0054）。
 type PgRepo struct{ pool *pgxpool.Pool }
 
@@ -428,7 +433,7 @@ func (r *PgRepo) Upsert(ctx context.Context, ev Event) (Alert, error) {
 		                    ELSE LEAST(alert.window_start, EXCLUDED.window_start) END,
 		  suppressed_by=EXCLUDED.suppressed_by, silence_id=EXCLUDED.silence_id,
 		  updated_at=now()
-		RETURNING ` + alertColumns + `, (last_notified_at = now()) AS just_notified`
+		RETURNING ` + alertColumns + `, ` + justNotifiedExpr + ` AS just_notified`
 	return scanAlertExtra(r.pool.QueryRow(ctx, q,
 		ev.DedupKey, ev.Fingerprint, ev.Source, ev.Kind, ev.Severity, ev.Title, ev.Message,
 		ev.ClientIP, ev.ClientMAC, ev.Domain, ev.Component, ev.IntelSource, ev.IntelSourceName,

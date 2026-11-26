@@ -3,6 +3,13 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-11-26 · 告警治理真实栈冒烟：页面可见性与采集修复（M6-049）
+- **部署**：运行中控制面为旧镜像，`/openapi.json` 不含 `/alerting/*`。重新 `pnpm run build:ipam` + `scripts/sync-webui.sh` + `go build`（嵌入 dist），以派生镜像 `docker compose up -d --no-build control-plane` 更新；`0054/0055` 迁移自动应用，`/alerting/*` 与情报源 `runs/revisions` 接口上线。
+- **i18n 修复**：`langs/{zh-CN,en-US}/alerting.json` 顶层多包一层同名 `alerting`，运行时键变 `alerting.alerting.*`，页面显示原始 key。移除包裹；`scripts/check-i18n-keys.py` 新增「顶层 key 不得与文件名相同」门禁。
+- **采集修复**：`alerts/repo.go` 的 `RETURNING (last_notified_at = now())` 在新建 `notify=false` 告警（`last_notified_at IS NULL`）时返回 NULL，触发 `cannot scan NULL into *bool` 并中断整轮 DNS 采集。改为 `COALESCE(..., false)`，新增 `alerts/repo_pg_test.go`（`IPAM_TEST_PG_DSN` 门控）覆盖仅记录/首次通知/重复扫描。
+- **验证**：`go test ./...` 通过、`golangci-lint` 0 issues、i18n 三门禁通过；Playwright 真实登录 6 页签中文渲染无原始 key、策略表 15 行；采集日志恢复 `[alerts] DNS 风险访问：合并 138 组`。
+- **遗留**：仍为本地派生镜像部署方式；完整镜像重建受 unbound 源码下载网络限制；Webhook 实投待 staging 补跑。
+
 ## 2026-11-25 · 情报源运营闭环：贡献上限/版本回滚/同步观测（M6-039 P2）
 - **迁移** `0055_intel_source_governance`：`intel_source` 增加贡献上限与最近同步观测列；新增 `intel_source_revision`、`intel_source_run`。
 - **质量闸门**：同层多个源且总需求超过容量时，按 `maxSharePct`（默认 60%）限制单源贡献；单源/未超容量不截断；白名单剔除先于配额计数，并统计 `lastExcluded`。
