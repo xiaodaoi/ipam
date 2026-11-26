@@ -223,3 +223,51 @@ func TestWriteRateLimit(t *testing.T) {
 		}
 	}
 }
+
+// TestIdempotencyDoesNotCacheLargeResponse（M6-062）：大响应不缓存，
+// 避免 4096 条 × 1MiB 最坏 4GiB 常驻内存。
+func TestIdempotencyDoesNotCacheLargeResponse(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	calls := 0
+	r.Use(Idempotency(time.Hour))
+	r.POST("/api/v1/big", func(c *gin.Context) {
+		calls++
+		c.String(http.StatusOK, strings.Repeat("x", maxCacheableResponse+1))
+	})
+	send := func() {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/big", strings.NewReader(`{}`))
+		req.Header.Set("Idempotency-Key", "big-response-key")
+		r.ServeHTTP(w, req)
+		if w.Header().Get(IdempotentReplayHeader) == "true" {
+			t.Fatal("超大响应不应被缓存重放")
+		}
+	}
+	send()
+	send()
+	if calls != 2 {
+		t.Fatalf("handler 调用 %d 次，want 2（未缓存）", calls)
+	}
+}
+
+// TestIdempotencyByteBudget（M6-062）：条数未超但字节超预算时按最旧淘汰。
+func TestIdempotencyByteBudget(t *testing.T) {
+	st := newIdempotencyStore(time.Hour)
+	st.max = 4096
+	st.items = map[string]*idempotencyEntry{}
+	now := time.Now()
+	const each = 8 << 20
+	for i := 0; i < 12; i++ {
+		k := string(rune('a' + i))
+		st.items[k] = &idempotencyEntry{body: make([]byte, each), at: now.Add(time.Duration(i) * time.Second)}
+		st.bytes += each
+	}
+	st.evictLocked()
+	if st.bytes > maxIdempotencyBytes {
+		t.Fatalf("缓存字节 %d 超过预算 %d", st.bytes, maxIdempotencyBytes)
+	}
+	if len(st.items) >= 12 {
+		t.Fatal("未按字节预算淘汰")
+	}
+}

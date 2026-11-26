@@ -31,6 +31,11 @@ const (
 	minIdempotencyKeyLen      = 8
 	// maxReplayBody 单条响应快照上限：超过则放弃缓存（接口应避免超大同步响应）。
 	maxReplayBody = 1 << 20
+	// maxCacheableResponse 实际缓存阈值（M6-062）：4096 条 × 1MiB 最坏可达 4GiB，
+	// 直接把进程打成 OOM；超过 256KiB 的响应不缓存（客户端可重试）。
+	maxCacheableResponse = 256 << 10
+	// maxIdempotencyBytes 缓存总字节预算（M6-062）：超过即按最旧淘汰。
+	maxIdempotencyBytes = 64 << 20
 )
 
 // Idempotency 幂等中间件。ttl<=0 时使用默认 24h。
@@ -53,6 +58,7 @@ type idempotencyStore struct {
 	items   map[string]*idempotencyEntry
 	ttl     time.Duration
 	max     int
+	bytes   int
 	now     func() time.Time
 	sweptAt time.Time
 }
@@ -148,7 +154,7 @@ func (s *idempotencyStore) begin(scope, fp string) (*idempotencyEntry, *idempote
 		if now.Sub(e.at) <= s.ttl {
 			return nil, e
 		}
-		delete(s.items, scope)
+		s.dropLocked(scope)
 	}
 	e := &idempotencyEntry{fingerprint: fp, inFlight: true, at: now}
 	s.items[scope] = e
@@ -164,15 +170,26 @@ func (s *idempotencyStore) finish(scope, fp string, rec *recordingWriter) {
 		return
 	}
 	// 5xx 不缓存：让客户端可以重试（服务端错误通常非幂等可重放）。
-	if rec.status >= 500 || rec.overflow || len(rec.buf.Bytes()) > maxReplayBody {
-		delete(s.items, scope)
+	if rec.status >= 500 || rec.overflow || len(rec.buf.Bytes()) > maxCacheableResponse {
+		s.dropLocked(scope)
 		return
 	}
 	e.inFlight = false
 	e.status = rec.status
 	e.contentType = rec.Header().Get("Content-Type")
+	s.bytes -= len(e.body)
 	e.body = append([]byte(nil), rec.buf.Bytes()...)
+	s.bytes += len(e.body)
 	e.at = s.now()
+	s.evictLocked()
+}
+
+// dropLocked 删除条目并同步字节计数。
+func (s *idempotencyStore) dropLocked(scope string) {
+	if e, ok := s.items[scope]; ok {
+		s.bytes -= len(e.body)
+		delete(s.items, scope)
+	}
 }
 
 func (s *idempotencyStore) sweepLocked(now time.Time) {
@@ -182,27 +199,29 @@ func (s *idempotencyStore) sweepLocked(now time.Time) {
 	s.sweptAt = now
 	for k, e := range s.items {
 		if !e.inFlight && now.Sub(e.at) > s.ttl {
+			s.bytes -= len(e.body)
 			delete(s.items, k)
 		}
 	}
 }
 
 func (s *idempotencyStore) evictLocked() {
-	if len(s.items) <= s.max {
-		return
-	}
-	// 简单淘汰：优先删已完成的最旧条目（容量上限保护，非 LRU）。
-	var oldestKey string
-	var oldest time.Time
-	for k, e := range s.items {
-		if e.inFlight {
-			continue
+	// 同时受条数与总字节约束（M6-062）：只限条数时，大响应可累积到数 GiB。
+	for len(s.items) > s.max || s.bytes > maxIdempotencyBytes {
+		var oldestKey string
+		var oldest time.Time
+		for k, e := range s.items {
+			if e.inFlight {
+				continue
+			}
+			if oldestKey == "" || e.at.Before(oldest) {
+				oldestKey, oldest = k, e.at
+			}
 		}
-		if oldestKey == "" || e.at.Before(oldest) {
-			oldestKey, oldest = k, e.at
+		if oldestKey == "" {
+			return
 		}
-	}
-	if oldestKey != "" {
+		s.bytes -= len(s.items[oldestKey].body)
 		delete(s.items, oldestKey)
 	}
 }
