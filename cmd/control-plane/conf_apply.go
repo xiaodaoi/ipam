@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -27,10 +28,17 @@ type confApplier struct {
 	settings dnsmodule.SettingsRepo
 	ctl      dnsmodule.UnboundController
 	confPath string
+
+	// mu 串行化 conf/zonefile 的渲染与落盘（M6-052）：多个保存入口
+	// （settings/forward/zone/启动收敛/手动 apply）可能并发触发，
+	// 固定临时文件名会互相截断，生成「A 的前缀 + B 的尾部」的坏配置。
+	mu sync.Mutex
 }
 
 // apply 渲染→checkconf→原子落盘→reload；任一步失败返回错误且运行态不变。
 func (a *confApplier) apply(ctx context.Context) (unboundengine.ConfInput, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	in := unboundengine.ConfInput{}
 
 	// 参数段：复用 dns 域渲染函数（§12.2 单一来源）
@@ -164,17 +172,37 @@ func (a *confApplier) apply(ctx context.Context) (unboundengine.ConfInput, error
 	}
 
 	// 原子落盘（confPath 所在目录须可写）
-	tmp := a.confPath + ".candidate"
-	if err := osWrite(tmp, confText); err != nil {
-		return in, err
-	}
-	if err := osRename(tmp, a.confPath); err != nil {
+	if err := writeAtomic(a.confPath, confText); err != nil {
 		return in, err
 	}
 	if err := a.ctl.Reload(ctx); err != nil {
 		return in, err
 	}
 	return in, nil
+}
+
+// writeAtomic 唯一临时文件 + rename（同目录原子替换）。
+// 唯一临时名避免并发 apply 互相截断；权限固定 0644，供 unbound 容器读取。
+func writeAtomic(path, content string) error {
+	f, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.tmp")
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	_ = f.Close()
+	if err := osWrite(tmp, content); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := os.Chmod(tmp, 0o644); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := osRename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
 // zoneURLRoot 容器内可见的 zonefile 根（compose 将宿主 config/unbound 挂到该路径）。
@@ -199,11 +227,7 @@ func (a *confApplier) writeZonefile(zone string, records []unboundengine.ZoneRec
 		}
 	}, name) + ".zone"
 	path := filepath.Join(dir, safe)
-	tmp := path + ".candidate"
-	if err := osWrite(tmp, string(unboundengine.RenderZonefile(zone, records))); err != nil {
-		return "", err
-	}
-	if err := osRename(tmp, path); err != nil {
+	if err := writeAtomic(path, string(unboundengine.RenderZonefile(zone, records))); err != nil {
 		return "", err
 	}
 	return zoneURLRoot + "/" + safe, nil

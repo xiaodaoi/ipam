@@ -31,7 +31,23 @@ func (e ExecController) cmdArgs(args ...string) []string {
 	return args
 }
 
-func (e ExecController) run(args ...string) error {
+// execTimeout 单次 unbound-control 调用的硬超时（M6-052）。
+// unbound 进程卡死/控制 socket 不返回时，必须让调用方拿回控制权，
+// 否则 Compile 会永久持有 s.mu，导致整条 DNS 下发链路停摆。
+var execTimeout = 10 * time.Second
+
+// withExecTimeout 为没有 deadline 的 ctx 补默认预算；已有 deadline 则沿用。
+func withExecTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if _, ok := ctx.Deadline(); ok {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, execTimeout)
+}
+
+func (e ExecController) run(ctx context.Context, args ...string) error {
 	bin := e.Bin
 	if bin == "" {
 		bin = "unbound-control"
@@ -39,7 +55,13 @@ func (e ExecController) run(args ...string) error {
 	if _, err := exec.LookPath(bin); err != nil {
 		return ErrUnavailable
 	}
-	out, err := exec.Command(bin, e.cmdArgs(args...)...).CombinedOutput()
+	cctx, cancel := withExecTimeout(ctx)
+	defer cancel()
+	cmd := exec.CommandContext(cctx, bin, e.cmdArgs(args...)...)
+	// WaitDelay 兜底：ctx 取消后若子进程仍持有 stdout/stderr 管道（孙进程），
+	// 默认会一直等管道关闭；强制在 1s 后关闭并返回。
+	cmd.WaitDelay = time.Second
+	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%s %v: %v: %s", bin, args, err, out)
 	}
@@ -51,7 +73,7 @@ func (e ExecController) run(args ...string) error {
 // 未标记任何默认时回退第一条 enabled（兼容旧数据）。
 // 默认 "." 只承载公网回落，不得混入内网 DNS——否则禁用某内网域的规则后，
 // 该域仍经 "." 回落到其它内网 DNS 继续解析，禁用失效（M3-011 现场）。
-func (e ExecController) SyncForward(_ context.Context, upstreams []dns.Upstream) error {
+func (e ExecController) SyncForward(ctx context.Context, upstreams []dns.Upstream) error {
 	defs := dns.DefaultForwardUpstreams(upstreams)
 	if len(defs) == 0 {
 		return nil
@@ -75,14 +97,14 @@ func (e ExecController) SyncForward(_ context.Context, upstreams []dns.Upstream)
 	if len(args) == 2 {
 		return nil
 	}
-	return e.run(args...)
+	return e.run(ctx, args...)
 }
 
 // CheckConf 校验候选配置：候选块自包含（interface 等静态身份段归主 conf，M3-009），
 // 独立写临时文件执行 unbound-checkconf 校验语法。
 // 不得拼接 confPath 旧内容——旧区与候选区重复会触发
 // "duplicate forward zone" 误报使 apply 整体拒绝（M3-011 事故：渲染文件从未更新成功）。
-func (e ExecController) CheckConf(_ context.Context, confPath, renderedBlock string) error {
+func (e ExecController) CheckConf(ctx context.Context, confPath, renderedBlock string) error {
 	check := "unbound-checkconf"
 	if _, err := exec.LookPath(check); err != nil {
 		return ErrUnavailable
@@ -97,7 +119,11 @@ func (e ExecController) CheckConf(_ context.Context, confPath, renderedBlock str
 		return err
 	}
 	_ = tmp.Close()
-	out, err := exec.Command(check, tmp.Name()).CombinedOutput()
+	cctx, cancel := withExecTimeout(ctx)
+	defer cancel()
+	cmd := exec.CommandContext(cctx, check, tmp.Name())
+	cmd.WaitDelay = time.Second
+	out, err := cmd.CombinedOutput()
 	if err != nil {
 		_ = os.WriteFile("/tmp/ipam-checkconf-fail.conf", []byte(renderedBlock), 0o644)
 		log.Printf("[checkconf] 候选配置校验失败，已写 /tmp/ipam-checkconf-fail.conf：%s", out)
@@ -122,27 +148,27 @@ func candidateConfText(renderedBlock string) string {
 
 // Reload 全量 reload。
 func (e ExecController) Reload(ctx context.Context) error {
-	return e.run("reload")
+	return e.run(ctx, "reload")
 }
 
 // FlushZone 清空缓存（zone 空=flush 全部）。
-func (e ExecController) FlushZone(_ context.Context, zone string) error {
+func (e ExecController) FlushZone(ctx context.Context, zone string) error {
 	if zone == "" {
-		return e.run("flush")
+		return e.run(ctx, "flush")
 	}
-	return e.run("flush_zone", zone)
+	return e.run(ctx, "flush_zone", zone)
 }
 
 // AuthZoneReload 单区刷新（auth_zone_reload <zone>，不动整进程，§2.3）。
-func (e ExecController) AuthZoneReload(_ context.Context, zoneID string) error {
+func (e ExecController) AuthZoneReload(ctx context.Context, zoneID string) error {
 	if zoneID == "" {
 		return ErrUnavailable
 	}
-	return e.run("auth_zone_reload", zoneID)
+	return e.run(ctx, "auth_zone_reload", zoneID)
 }
 
 // SyncForwardRules 条件转发规则下发（每条 forward_add <domain> <addrs...>）。
-func (e ExecController) SyncForwardRules(_ context.Context, rules []dns.ForwardRule, ups []dns.Upstream) error {
+func (e ExecController) SyncForwardRules(ctx context.Context, rules []dns.ForwardRule, ups []dns.Upstream) error {
 	byID := map[string]dns.Upstream{}
 	for _, u := range ups {
 		byID[u.ID] = u
@@ -167,7 +193,7 @@ func (e ExecController) SyncForwardRules(_ context.Context, rules []dns.ForwardR
 			}
 		}
 		if len(args) > 2 {
-			if err := e.run(args...); err != nil {
+			if err := e.run(ctx, args...); err != nil {
 				return err
 			}
 		}
@@ -197,21 +223,21 @@ func DialProbe(ctx context.Context, addr string) (time.Duration, error) {
 
 // LocalZone 运行时本地域（M2-033 黑名单：local_zone static <name> → NXDOMAIN 拦截；
 // RPZ auth-zone 路线在容器 unbound 1.26 编译下不可用——auth-zone 内 rpz: yes 实测 unknown keyword）。
-func (e ExecController) LocalZone(_ context.Context, name, zoneType string) error {
-	return e.run("local_zone", name, zoneType)
+func (e ExecController) LocalZone(ctx context.Context, name, zoneType string) error {
+	return e.run(ctx, "local_zone", name, zoneType)
 }
 
 // LocalZoneRemove 移除本地域。
-func (e ExecController) LocalZoneRemove(_ context.Context, name string) error {
-	return e.run("local_zone_remove", name)
+func (e ExecController) LocalZoneRemove(ctx context.Context, name string) error {
+	return e.run(ctx, "local_zone_remove", name)
 }
 
 // LocalData 运行时本地记录（unbound-control local_data "<name> <ttl> IN <type> <rdata>"）。
-func (e ExecController) LocalData(_ context.Context, data string) error {
-	return e.run("local_data", data)
+func (e ExecController) LocalData(ctx context.Context, data string) error {
+	return e.run(ctx, "local_data", data)
 }
 
 // LocalDataRemove 移除本地记录。
-func (e ExecController) LocalDataRemove(_ context.Context, name string) error {
-	return e.run("local_data_remove", name)
+func (e ExecController) LocalDataRemove(ctx context.Context, name string) error {
+	return e.run(ctx, "local_data_remove", name)
 }

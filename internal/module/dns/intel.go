@@ -50,8 +50,13 @@ type IntelService struct {
 	mu  sync.Mutex
 	now func() time.Time
 
-	// syncMu 串行化同一进程内的同步/回滚，避免版本号并发分配冲突。
-	syncMu sync.Mutex
+	// sourceLocks 按源串行化同步/回滚（M6-058）：此前用单一全局 syncMu，
+	// 一个慢源会把所有源同步与人工操作串行拖住。
+	lockMu      sync.Mutex
+	sourceLocks map[string]*sync.Mutex
+	// backoff 失败退避：失败后延迟重试，避免持续超时的源每 5 分钟耗一次 60s 窗口。
+	backoffMu sync.Mutex
+	backoff   map[string]backoffState
 
 	// 来源归属索引（M6-040）：懒构建，源变更后整体作废。
 	attrMu sync.Mutex
@@ -61,7 +66,60 @@ type IntelService struct {
 // NewIntelService 创建编译服务；dir 为 zonefile 目录（容器内 /etc/unbound-rendered/zones/rpz）。
 func NewIntelService(dir string, ctl UnboundController, repo BlocklistRepo, store IntelRepo) *IntelService {
 	return &IntelService{dir: dir, ctl: ctl, repo: repo, store: store, now: time.Now,
-		fetch: HTTPSourceFetch, secretDir: "/run/ipam/intel-secrets"}
+		fetch: HTTPSourceFetch, secretDir: "/run/ipam/intel-secrets",
+		sourceLocks: map[string]*sync.Mutex{}, backoff: map[string]backoffState{}}
+}
+
+// sourceLock 返回该源的互斥锁（按源粒度，不同源可并行同步）。
+func (s *IntelService) sourceLock(id string) *sync.Mutex {
+	s.lockMu.Lock()
+	defer s.lockMu.Unlock()
+	if s.sourceLocks == nil {
+		s.sourceLocks = map[string]*sync.Mutex{}
+	}
+	m, ok := s.sourceLocks[id]
+	if !ok {
+		m = &sync.Mutex{}
+		s.sourceLocks[id] = m
+	}
+	return m
+}
+
+// backoffState 单源失败退避状态。
+type backoffState struct {
+	failures int
+	until    time.Time
+}
+
+// backoffUntil 返回该源最早可重试时间（零值=无退避）。
+func (s *IntelService) backoffUntil(id string) time.Time {
+	s.backoffMu.Lock()
+	defer s.backoffMu.Unlock()
+	if s.backoff == nil {
+		return time.Time{}
+	}
+	return s.backoff[id].until
+}
+
+// recordSyncResult 成功清零退避，失败按 1m→2m→4m…（上限 30m）递增。
+func (s *IntelService) recordSyncResult(id string, err error) {
+	s.backoffMu.Lock()
+	defer s.backoffMu.Unlock()
+	if s.backoff == nil {
+		s.backoff = map[string]backoffState{}
+	}
+	st := s.backoff[id]
+	if err == nil {
+		delete(s.backoff, id)
+		return
+	}
+	st.failures++
+	delay := time.Minute << (st.failures - 1)
+	if delay > 30*time.Minute || delay <= 0 {
+		delay = 30 * time.Minute
+	}
+	st.until = time.Now().Add(delay)
+	s.backoff[id] = st
 }
 
 // SetBlockPageResolver 注入提示页 IP 来源（redirect 动作用）。
@@ -228,7 +286,7 @@ func (s *IntelService) compileLocked(ctx context.Context) (IntelCompileResult, e
 		}
 		// 内容切换成功：按需清除新增/移除条目的负缓存，使封禁与解封立即生效
 		// （缓存最长 300s，不清理会出现「已下发但 dig 仍解析」）。
-		s.flushChanges(string(backup), text)
+		s.flushChanges(ctx, string(backup), text)
 		if got, gerr := s.ctl.AuthZoneSerials(ctx); gerr == nil && len(got) > 0 {
 			zs, ok := got[zone]
 			if !ok || zs != serial {
@@ -306,7 +364,7 @@ func (s *IntelService) AddWhitelist(ctx context.Context, w IntelWhitelist) (Inte
 	if cerr != nil {
 		log.Printf("[intel] 白名单已保存但编译失败: %v", cerr)
 	}
-	s.flush(name)
+	s.flush(ctx, name)
 	return saved, res, nil
 }
 
@@ -320,7 +378,7 @@ func (s *IntelService) DeleteWhitelist(ctx context.Context, id string) (IntelWhi
 	if cerr != nil {
 		log.Printf("[intel] 白名单已删除但编译失败: %v", cerr)
 	}
-	s.flush(w.Value)
+	s.flush(ctx, w.Value)
 	return w, res, nil
 }
 
@@ -330,7 +388,7 @@ const flushCap = 200
 
 // flushChanges 对比编译前后 owner，清理新增/移除条目的缓存。
 // before 为空（首轮/无旧文件）时不做全量 flush：unbound 刚加载区，缓存里没有旧答案。
-func (s *IntelService) flushChanges(before, after string) {
+func (s *IntelService) flushChanges(ctx context.Context, before, after string) {
 	if strings.TrimSpace(before) == "" {
 		return
 	}
@@ -344,16 +402,16 @@ func (s *IntelService) flushChanges(before, after string) {
 		return
 	}
 	for _, n := range names {
-		s.flush(n)
+		s.flush(ctx, n)
 	}
 }
 
 // flush 清负缓存；失败只记日志（缓存最长 300s 自然过期）。
-func (s *IntelService) flush(name string) {
+func (s *IntelService) flush(ctx context.Context, name string) {
 	if strings.TrimSpace(name) == "" {
 		return
 	}
-	if err := s.ctl.FlushZone(context.Background(), name); err != nil {
+	if err := s.ctl.FlushZone(ctx, name); err != nil {
 		log.Printf("[intel] flush_zone %s: %v", name, err)
 	}
 }

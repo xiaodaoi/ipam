@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xiaodaoi/ipam/internal/module/dns"
 )
@@ -105,5 +106,28 @@ func TestExecController_SyncForward默认池多地址(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("[%d] got=%q want=%q (all=%v)", i, got[i], want[i], got)
 		}
+	}
+}
+
+// TestExecController_卡死调用被超时截断（M6-052）：控制 socket 不返回时，
+// 必须让调用方在预算内拿回控制权，否则 Compile 会永久持锁。
+func TestExecController_卡死调用被超时截断(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "unbound-control")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\nsleep 30\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old := execTimeout
+	execTimeout = 150 * time.Millisecond
+	defer func() { execTimeout = old }()
+
+	c := ExecController{Bin: bin}
+	start := time.Now()
+	err := c.Reload(context.Background())
+	if err == nil {
+		t.Fatal("want timeout error")
+	}
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Fatalf("not bounded: %v", elapsed)
 	}
 }

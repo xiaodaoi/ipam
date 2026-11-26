@@ -2,8 +2,11 @@ package coherence
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 var b1 = Binding{
@@ -62,6 +65,8 @@ func TestDiff_增删差分幂等(t *testing.T) {
 type fakeCtl struct {
 	added, removed []string
 	failNext       bool
+	addErr         error
+	removeErr      error
 }
 
 func (f *fakeCtl) Add(line string) error {
@@ -69,12 +74,15 @@ func (f *fakeCtl) Add(line string) error {
 		f.failNext = false
 		return errors.New("boom")
 	}
+	if f.addErr != nil {
+		return f.addErr
+	}
 	f.added = append(f.added, line)
 	return nil
 }
 func (f *fakeCtl) Remove(line string) error {
 	f.removed = append(f.removed, line)
-	return nil
+	return f.removeErr
 }
 
 func TestReconciler_失败保留状态待重试(t *testing.T) {
@@ -125,5 +133,103 @@ func TestExecController_缺二进制返回Unavailable(t *testing.T) {
 	e := ExecController{Bin: "/nonexistent/unbound-control"}
 	if err := e.Add("x"); !errors.Is(err, ErrUnboundUnavailable) {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+// TestReconciler_同名删除去重（M6-052）：同一 FQDN 的 A/AAAA 是两条删除项，
+// 但 local_data_remove 按 name 删整组，重复删除会报错并中止后续 add。
+func TestReconciler_同名删除去重(t *testing.T) {
+	fc := &fakeCtl{}
+	r := NewReconciler(fc, "corp.local.")
+	if err := r.Sync([]Binding{b1}); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Sync(nil); err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, line := range fc.removed {
+		if strings.HasPrefix(line, "printer.corp.local.") {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("printer.corp.local. removed %d times, want 1: %v", n, fc.removed)
+	}
+}
+
+// TestReconciler_删除失败不阻断新增（M6-052）：一条陈旧记录删除失败
+// 不应让整份联动 DNS 停更。
+func TestReconciler_删除失败不阻断新增(t *testing.T) {
+	fc := &fakeCtl{}
+	r := NewReconciler(fc, "corp.local.")
+	if err := r.Sync([]Binding{b1}); err != nil {
+		t.Fatal(err)
+	}
+	fc.added = nil
+	b2 := b1
+	b2.IPv6 = "2406::aa:bb"
+	fc.removeErr = errors.New("remove boom")
+	if err := r.Sync([]Binding{b2}); err == nil {
+		t.Fatal("want surfaced remove error")
+	}
+	found := false
+	for _, a := range fc.added {
+		if strings.Contains(a, "2406::aa:bb") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("new record not added after remove failure: %v", fc.added)
+	}
+}
+
+// TestReconciler_定时全量重放（M6-052）：unbound 进程重启会清空 local_data，
+// 对账器需周期性丢弃 applied 强制重放。
+func TestReconciler_定时全量重放(t *testing.T) {
+	fc := &fakeCtl{}
+	r := NewReconciler(fc, "corp.local.")
+	r.replayEvery = time.Minute
+	if err := r.Sync([]Binding{b1}); err != nil {
+		t.Fatal(err)
+	}
+	before := len(fc.added)
+	if before == 0 {
+		t.Fatal("initial apply empty")
+	}
+	// 未到期：幂等不重放
+	if err := r.Sync([]Binding{b1}); err != nil {
+		t.Fatal(err)
+	}
+	if len(fc.added) != before {
+		t.Fatalf("premature replay: %d", len(fc.added))
+	}
+	// 到期：强制重放
+	r.lastReplay = time.Now().Add(-2 * time.Minute)
+	if err := r.Sync([]Binding{b1}); err != nil {
+		t.Fatal(err)
+	}
+	if len(fc.added) != before*2 {
+		t.Fatalf("replay did not re-add: got %d want %d", len(fc.added), before*2)
+	}
+}
+
+// TestExecController_卡死调用被超时截断（M6-052）。
+func TestExecController_卡死调用被超时截断(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "unbound-control")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\nsleep 30\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old := execTimeout
+	execTimeout = 150 * time.Millisecond
+	defer func() { execTimeout = old }()
+	e := ExecController{Bin: bin}
+	start := time.Now()
+	if err := e.Add("x 300 IN A 1.1.1.1"); err == nil {
+		t.Fatal("want timeout error")
+	}
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Fatalf("not bounded: %v", elapsed)
 	}
 }

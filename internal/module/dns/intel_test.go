@@ -295,7 +295,7 @@ func TestIntel_大规模变更跳过flush(t *testing.T) {
 	before, _ := rpz.Render(ZoneCustom, 1, nil)
 	after, _ := rpz.Render(ZoneCustom, 2, entries)
 	st.ctl.flushes = nil
-	st.intel.flushChanges(before, after)
+	st.intel.flushChanges(context.Background(), before, after)
 	if len(st.ctl.flushes) != 0 {
 		t.Fatalf("超上限不应逐条 flush，实际 %d 条", len(st.ctl.flushes))
 	}
