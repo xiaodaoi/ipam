@@ -2,11 +2,13 @@ package alerts
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -392,6 +394,21 @@ func (r *PgRepo) AckAll(ctx context.Context, actor string, at time.Time) (int, e
 }
 
 // upsertReopenExpr 判断已确认报警是否应重新打开（重复提醒/数量激增）。
+// upsertNoopGuard 抑制无变化回扫的整行重写（M6-057）。
+// 采集每 60s 回扫最近 2 小时，同一桶在窗口内会被重复上报约 120 次；
+// 若无条件更新 updated_at，单表每日产生数百万死元组，autovacuum 追不上。
+// 仅在「状态需重开 / 有新事件 / 计数或决策变化」时才更新。
+const upsertNoopGuard = `alert.status <> 'open'
+  OR EXCLUDED.last_seen > alert.last_seen
+  OR EXCLUDED.count > alert.count
+  OR alert.severity IS DISTINCT FROM EXCLUDED.severity
+  OR alert.notify IS DISTINCT FROM EXCLUDED.notify
+  OR alert.suppressed_by IS DISTINCT FROM EXCLUDED.suppressed_by
+  OR alert.silence_id IS DISTINCT FROM EXCLUDED.silence_id
+  OR alert.decision IS DISTINCT FROM EXCLUDED.decision
+  OR alert.title IS DISTINCT FROM EXCLUDED.title
+  OR alert.message IS DISTINCT FROM EXCLUDED.message`
+
 const upsertReopenExpr = `(alert.status='resolved') OR (alert.status='acked' AND (
   (alert.repeat_after_sec > 0 AND EXCLUDED.last_seen >= alert.last_seen + make_interval(secs => alert.repeat_after_sec))
   OR (alert.count > 0 AND EXCLUDED.count >= alert.count * 10)))`
@@ -433,13 +450,21 @@ func (r *PgRepo) Upsert(ctx context.Context, ev Event) (Alert, error) {
 		                    ELSE LEAST(alert.window_start, EXCLUDED.window_start) END,
 		  suppressed_by=EXCLUDED.suppressed_by, silence_id=EXCLUDED.silence_id,
 		  updated_at=now()
+		WHERE ` + upsertNoopGuard + `
 		RETURNING ` + alertColumns + `, ` + justNotifiedExpr + ` AS just_notified`
-	return scanAlertExtra(r.pool.QueryRow(ctx, q,
+	a, err := scanAlertExtra(r.pool.QueryRow(ctx, q,
 		ev.DedupKey, ev.Fingerprint, ev.Source, ev.Kind, ev.Severity, ev.Title, ev.Message,
 		ev.ClientIP, ev.ClientMAC, ev.Domain, ev.Component, ev.IntelSource, ev.IntelSourceName,
 		ev.AlertClass, ev.Notify, nilIfEmpty(ev.PolicyID), ev.GroupKey, ev.Count, ev.Detail,
 		nilIfZero(ev.WindowStart), ev.SuppressedBy, nilIfEmpty(ev.SilenceID),
 		jsonOrEmpty(ev.Decision), ev.RepeatAfterSec, ev.ResolveAfterSec, ev.FirstSeen, ev.LastSeen), true)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// WHERE 守卫判定「无变化」时 UPDATE 不返回行；补一次只读查询以维持接口契约。
+		return scanAlertExtra(r.pool.QueryRow(ctx,
+			`SELECT `+alertColumns+`, false AS just_notified FROM alert WHERE dedup_key=$1`,
+			ev.DedupKey), true)
+	}
+	return a, err
 }
 
 // Resolve 系统故障恢复。

@@ -247,8 +247,17 @@ type AdminRepo interface {
 
 	CreateDelivery(ctx context.Context, d Delivery) error
 	ListDeliveries(ctx context.Context, f DeliveryFilter) ([]Delivery, int, error)
+	PurgeDeliveries(ctx context.Context, before time.Time) (int, error)
 
 	AutoResolveDNS(ctx context.Context, now time.Time) (int, error)
+}
+
+// PurgeDeliveries 清理过期投递记录（保留期由调用方决定）。
+func (s *Service) PurgeDeliveries(ctx context.Context, before time.Time) (int, error) {
+	if s.admin == nil {
+		return 0, nil
+	}
+	return s.admin.PurgeDeliveries(ctx, before)
 }
 
 // Service 报警业务编排。

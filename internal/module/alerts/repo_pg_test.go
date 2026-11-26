@@ -90,3 +90,65 @@ func TestUpsertJustNotifiedNullSafe(t *testing.T) {
 		t.Fatalf("重复提醒周期内不应重复返回 JustNotified=true")
 	}
 }
+
+// TestUpsertNoopGuard 锁定 M6-057：重复回扫同一桶不得整行重写 updated_at，
+// 否则 2 小时窗口每 60s 重扫一次 = 每行每天约 1440 次无效更新。
+func TestUpsertNoopGuard(t *testing.T) {
+	dsn := os.Getenv("IPAM_TEST_PG_DSN")
+	if dsn == "" {
+		t.Skip("IPAM_TEST_PG_DSN 未设置，跳过 PostgreSQL 集成测试")
+	}
+	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("连接 PostgreSQL 失败: %v", err)
+	}
+	defer pool.Close()
+
+	repo := NewPgRepo(pool)
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	key := "test:noop-guard:" + now.Format("20060102150405.000000000")
+	_, _ = pool.Exec(ctx, `DELETE FROM alert WHERE dedup_key=$1`, key)
+	defer func() { _, _ = pool.Exec(context.Background(), `DELETE FROM alert WHERE dedup_key=$1`, key) }()
+
+	ev := Event{
+		DedupKey: key, Fingerprint: key, Source: "dns", Kind: "risk_domain",
+		Severity: "warning", Title: "t", Message: "m", AlertClass: "intel_feed",
+		Notify: false, Count: 3, FirstSeen: now, LastSeen: now, WindowStart: now,
+	}
+	if _, err := repo.Upsert(ctx, ev); err != nil {
+		t.Fatal(err)
+	}
+	var first time.Time
+	if err := pool.QueryRow(ctx, `SELECT updated_at FROM alert WHERE dedup_key=$1`, key).Scan(&first); err != nil {
+		t.Fatal(err)
+	}
+	// 同一事件重扫（last_seen/count/决策均不变）→ 不应更新
+	second, err := repo.Upsert(ctx, ev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.ID == "" {
+		t.Fatal("无更新时应回退查询到既有报警")
+	}
+	var after time.Time
+	if err := pool.QueryRow(ctx, `SELECT updated_at FROM alert WHERE dedup_key=$1`, key).Scan(&after); err != nil {
+		t.Fatal(err)
+	}
+	if !after.Equal(first) {
+		t.Fatalf("无变化回扫仍重写了 updated_at: %v -> %v", first, after)
+	}
+
+	// 计数增长 → 必须更新
+	ev.Count = 5
+	if _, err := repo.Upsert(ctx, ev); err != nil {
+		t.Fatal(err)
+	}
+	var third time.Time
+	if err := pool.QueryRow(ctx, `SELECT updated_at FROM alert WHERE dedup_key=$1`, key).Scan(&third); err != nil {
+		t.Fatal(err)
+	}
+	if !third.After(after) {
+		t.Fatal("计数增长应更新行")
+	}
+}

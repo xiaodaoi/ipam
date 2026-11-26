@@ -193,6 +193,22 @@ func (r *MemRepo) CreateDelivery(_ context.Context, d Delivery) error {
 	return nil
 }
 
+func (r *MemRepo) PurgeDeliveries(_ context.Context, before time.Time) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	kept := r.deliveries[:0]
+	removed := 0
+	for _, d := range r.deliveries {
+		if d.SentAt.Before(before) {
+			removed++
+			continue
+		}
+		kept = append(kept, d)
+	}
+	r.deliveries = kept
+	return removed, nil
+}
+
 func (r *MemRepo) ListDeliveries(_ context.Context, f DeliveryFilter) ([]Delivery, int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

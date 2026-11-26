@@ -5,17 +5,20 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/smtp"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	guuid "github.com/google/uuid"
@@ -190,8 +193,29 @@ func (s *Service) writeSecret(id, secret string) (string, error) {
 		return "", fmt.Errorf("创建通知密钥目录失败: %w", err)
 	}
 	path := filepath.Join(dir, id+".secret")
-	if err := os.WriteFile(path, []byte(secret), 0o600); err != nil {
+	// 唯一临时文件 + rename（M6-062）：直接 WriteFile 在磁盘满/并发保存时
+	// 会留下半截密钥，后续 HMAC 头为空导致通知静默失败。
+	f, err := os.CreateTemp(dir, id+".secret.*.tmp")
+	if err != nil {
+		return "", fmt.Errorf("创建通知密钥临时文件失败: %w", err)
+	}
+	tmp := f.Name()
+	if _, err := f.WriteString(secret); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmp)
 		return "", fmt.Errorf("写入通知密钥失败: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmp)
+		return "", fmt.Errorf("写入通知密钥失败: %w", err)
+	}
+	if err := os.Chmod(tmp, 0o600); err != nil {
+		_ = os.Remove(tmp)
+		return "", fmt.Errorf("设置通知密钥权限失败: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return "", fmt.Errorf("落盘通知密钥失败: %w", err)
 	}
 	return path, nil
 }
@@ -276,14 +300,13 @@ func (s *Service) UpdateChannel(ctx context.Context, id string, patch ChannelPat
 	if patch.Enabled != nil {
 		ch.Enabled = *patch.Enabled
 	}
+	oldSecret := ch.SecretFile
 	if clearSecret {
-		s.removeSecret(ch.SecretFile)
 		ch.SecretFile = ""
 	}
 	if strings.TrimSpace(secret) != "" {
-		if ch.SecretFile != "" {
-			s.removeSecret(ch.SecretFile)
-		}
+		// 先原子写入新密钥，DB 更新成功后再删旧路径（M6-062）：
+		// 先删后写会在 DB 更新失败/磁盘异常时让通道永久丢失密钥。
 		if ch.SecretFile, err = s.writeSecret(ch.ID, secret); err != nil {
 			return Channel{}, err
 		}
@@ -293,7 +316,13 @@ func (s *Service) UpdateChannel(ctx context.Context, id string, patch ChannelPat
 		return Channel{}, err
 	}
 	out, err := s.admin.UpdateChannel(ctx, ch)
-	return out, err
+	if err != nil {
+		return out, err
+	}
+	if oldSecret != "" && oldSecret != out.SecretFile {
+		s.removeSecret(oldSecret)
+	}
+	return out, nil
 }
 
 // DeleteChannel 删除通道。
@@ -308,8 +337,13 @@ func (s *Service) DeleteChannel(ctx context.Context, id string) error {
 	if !ok {
 		return ErrNotFound
 	}
+	// 先删 DB 行，成功后再删密钥文件（M6-062）：
+	// 反序在 DB 删除失败时会让仍存在的通道失去密钥。
+	if err := s.admin.DeleteChannel(ctx, id); err != nil {
+		return err
+	}
 	s.removeSecret(ch.SecretFile)
-	return s.admin.DeleteChannel(ctx, id)
+	return nil
 }
 
 // Deliveries 查询投递记录。
@@ -367,13 +401,28 @@ type Notifier interface {
 }
 
 // Dispatcher 通知分发器：按通道级别/勿扰时段发送，并记录投递结果。
+//
+// M6-056：投递必须与采集协程解耦。此前 Notify 在采集循环内同步发送，
+// 一条 SMTP 卡死就会让 DNS 采集/系统探针/自动恢复/每日清理整体停摆。
 type Dispatcher struct {
 	admin     AdminRepo
 	secretDir string
 	publicURL string
 	logf      func(format string, args ...any)
 	client    *http.Client
+
+	jobs        chan Alert
+	startOnce   sync.Once
+	sendTimeout time.Duration
+	retries     int
 }
+
+const (
+	notifyQueueSize    = 1024
+	notifyWorkers      = 2
+	defaultSendTimeout = 10 * time.Second
+	defaultRetries     = 2
+)
 
 // NewDispatcher 构造。
 func NewDispatcher(admin AdminRepo, secretDir, publicURL string, logf func(string, ...any)) *Dispatcher {
@@ -381,15 +430,39 @@ func NewDispatcher(admin AdminRepo, secretDir, publicURL string, logf func(strin
 		logf = log.Printf
 	}
 	return &Dispatcher{admin: admin, secretDir: secretDir, publicURL: strings.TrimRight(publicURL, "/"),
-		logf: logf, client: &http.Client{Timeout: 6 * time.Second}}
+		logf: logf, client: &http.Client{Timeout: 6 * time.Second},
+		jobs: make(chan Alert, notifyQueueSize), sendTimeout: defaultSendTimeout, retries: defaultRetries}
 }
 
-// Notify 异步发送；失败只记录，不影响采集循环。
-func (d *Dispatcher) Notify(ctx context.Context, a Alert) {
+// Notify 入队后立即返回；由后台 worker 带超时/重试发送。
+func (d *Dispatcher) Notify(_ context.Context, a Alert) {
 	if d == nil || d.admin == nil || !a.Notify {
 		return
 	}
-	channels, err := d.admin.ListChannels(ctx)
+	d.startOnce.Do(func() {
+		for i := 0; i < notifyWorkers; i++ {
+			go d.worker()
+		}
+	})
+	select {
+	case d.jobs <- a:
+	default:
+		// 队列满说明下游持续失败：不能阻塞采集循环，记录后丢弃（投递记录会缺行）。
+		d.logf("[alerts] 通知队列已满（%d），丢弃报警 %s", notifyQueueSize, a.ID)
+	}
+}
+
+func (d *Dispatcher) worker() {
+	for a := range d.jobs {
+		d.deliver(a)
+	}
+}
+
+// deliver 在后台上下文里发送一条报警的所有匹配通道。
+func (d *Dispatcher) deliver(a Alert) {
+	listCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	channels, err := d.admin.ListChannels(listCtx)
+	cancel()
 	if err != nil {
 		d.logf("[alerts] 读取通知通道失败: %v", err)
 		return
@@ -405,19 +478,32 @@ func (d *Dispatcher) Notify(ctx context.Context, a Alert) {
 		if a.Severity != SeverityCritical && inQuietHours(ch.QuietHours, now) {
 			continue
 		}
-		err := d.SendTo(ctx, ch, a)
-		status := "sent"
-		errText := ""
-		if err != nil {
-			status, errText = "failed", err.Error()
-			d.logf("[alerts] 通道 %s 投递失败: %v", ch.Name, err)
+		attempts := 0
+		var lastErr error
+		for attempts <= d.retries {
+			attempts++
+			sctx, scancel := context.WithTimeout(context.Background(), d.sendTimeout)
+			lastErr = d.SendTo(sctx, ch, a)
+			scancel()
+			if lastErr == nil {
+				break
+			}
+			if attempts <= d.retries {
+				// 指数退避：1s、5s（瞬时 5xx/网络抖动可自愈）
+				time.Sleep(time.Duration(1+4*(attempts-1)) * time.Second)
+			}
 		}
-		if d.admin != nil {
-			_ = d.admin.CreateDelivery(ctx, Delivery{
-				ID: guuid.NewString(), AlertID: a.ID, ChannelID: ch.ID, ChannelName: ch.Name,
-				Status: status, Attempt: 1, Error: errText, SentAt: time.Now(),
-			})
+		status, errText := "sent", ""
+		if lastErr != nil {
+			status, errText = "failed", lastErr.Error()
+			d.logf("[alerts] 通道 %s 投递失败（%d 次）: %v", ch.Name, attempts, lastErr)
 		}
+		recCtx, rcancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = d.admin.CreateDelivery(recCtx, Delivery{
+			ID: guuid.NewString(), AlertID: a.ID, ChannelID: ch.ID, ChannelName: ch.Name,
+			Status: status, Attempt: attempts, Error: errText, SentAt: time.Now(),
+		})
+		rcancel()
 	}
 }
 
@@ -426,7 +512,7 @@ func (d *Dispatcher) SendTo(ctx context.Context, ch Channel, a Alert) error {
 	secret := readSecretFile(ch.SecretFile)
 	switch ch.Type {
 	case ChannelEmail:
-		return sendEmail(ch, secret, a)
+		return sendEmail(ctx, ch, secret, a)
 	default:
 		return d.sendWebhook(ctx, ch, secret, a)
 	}
@@ -506,7 +592,7 @@ func buildPayload(kind, link string, a Alert) map[string]any {
 	}
 }
 
-func sendEmail(ch Channel, secret string, a Alert) error {
+func sendEmail(ctx context.Context, ch Channel, secret string, a Alert) error {
 	host := ch.Config.SMTPHost
 	port := ch.Config.SMTPPort
 	if port <= 0 {
@@ -527,5 +613,47 @@ func sendEmail(ch Channel, secret string, a Alert) error {
 		"Subject: " + subject + "\r\n" +
 		"MIME-Version: 1.0\r\n" +
 		"Content-Type: text/plain; charset=UTF-8\r\n\r\n" + body + "\r\n")
-	return smtp.SendMail(addr, auth, ch.Config.SMTPFrom, ch.Config.Recipients, msg)
+	// 标准库 smtp.SendMail 无超时：SMTP 主机可建连但不回包时会永久阻塞。
+	// 这里自己建连并设置 deadline，保证每次投递有界（M6-056）。
+	dialer := net.Dialer{Timeout: 10 * time.Second}
+	conn, err := dialer.DialContext(ctx, "tcp", addr)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = conn.Close() }()
+	_ = conn.SetDeadline(time.Now().Add(30 * time.Second))
+	c, err := smtp.NewClient(conn, host)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = c.Close() }()
+	if ok, _ := c.Extension("STARTTLS"); ok {
+		if err := c.StartTLS(&tls.Config{ServerName: host}); err != nil {
+			return err
+		}
+	}
+	if auth != nil {
+		if err := c.Auth(auth); err != nil {
+			return err
+		}
+	}
+	if err := c.Mail(ch.Config.SMTPFrom); err != nil {
+		return err
+	}
+	for _, rcpt := range ch.Config.Recipients {
+		if err := c.Rcpt(rcpt); err != nil {
+			return err
+		}
+	}
+	w, err := c.Data()
+	if err != nil {
+		return err
+	}
+	if _, err := w.Write(msg); err != nil {
+		return err
+	}
+	if err := w.Close(); err != nil {
+		return err
+	}
+	return c.Quit()
 }

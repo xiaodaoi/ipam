@@ -277,6 +277,15 @@ func (r *PgRepo) CreateDelivery(ctx context.Context, d Delivery) error {
 	return err
 }
 
+// PurgeDeliveries 删除早于 before 的投递记录（M6-056：无清理会无限增长）。
+func (r *PgRepo) PurgeDeliveries(ctx context.Context, before time.Time) (int, error) {
+	tag, err := r.pool.Exec(ctx, `DELETE FROM notification_delivery WHERE sent_at < $1`, before)
+	if err != nil {
+		return 0, err
+	}
+	return int(tag.RowsAffected()), nil
+}
+
 // ListDeliveries 查询投递记录。
 func (r *PgRepo) ListDeliveries(ctx context.Context, f DeliveryFilter) ([]Delivery, int, error) {
 	if f.Limit <= 0 {

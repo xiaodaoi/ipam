@@ -148,11 +148,18 @@ func (c *Collector) CollectOnce(ctx context.Context) {
 		c.logf("[alerts] 系统故障：上报 %d 项", n)
 	}
 	if c.purged.IsZero() || c.now().Sub(c.purged) >= 24*time.Hour {
-		if n, err := c.svc.Purge(ctx, c.now().Add(-Retention)); err == nil {
+		cutoff := c.now().Add(-Retention)
+		if n, err := c.svc.Purge(ctx, cutoff); err == nil {
 			c.purged = c.now()
 			if n > 0 {
 				c.logf("[alerts] 清理过期报警 %d 条", n)
 			}
+		}
+		// 投递记录与报警同保留期（M6-056）：此前只 INSERT 无 DELETE，长期无限增长。
+		if n, err := c.svc.PurgeDeliveries(ctx, cutoff); err != nil {
+			c.logf("[alerts] 清理投递记录失败：%v", err)
+		} else if n > 0 {
+			c.logf("[alerts] 清理过期投递记录 %d 条", n)
 		}
 	}
 }
