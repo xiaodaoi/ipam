@@ -3,6 +3,7 @@ package backup
 import (
 	"archive/tar"
 	"compress/gzip"
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -103,7 +104,11 @@ func (h *APIHandler) RestoreBackup(c *gin.Context, backupId openapi_types.UUID) 
 		writeErr(c, 400, "CONFIRM_REQUIRED", "恢复为危险操作，必须显式确认")
 		return
 	}
-	rec, err := h.svc.Restore(c.Request.Context(), backupId.String())
+	// 恢复可能耗时数分钟到数小时：不能绑定 HTTP 请求上下文，否则用户关闭页面/
+	// 反代超时就会在 pg_restore --clean 中途取消（M6-055）。用独立长预算后台上下文。
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
+	defer cancel()
+	rec, err := h.svc.Restore(ctx, backupId.String())
 	if err != nil {
 		writeErr(c, 500, "RESTORE_FAILED", err.Error())
 		return

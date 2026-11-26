@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -172,6 +173,9 @@ type Service struct {
 	configDirs []string
 	timeout    time.Duration
 	now        func() time.Time
+	// jobMu 串行化备份/恢复（M6-055）：恢复期间并发备份或恢复会互相踩踏
+	// （pg_dump 读到半恢复状态、两次 pg_restore 交错）。
+	jobMu sync.Mutex
 }
 
 func NewService(repo Repo, settings SettingsRepo, pg PgRunner, logs LogStore, baseDir string, configDirs []string) *Service {
@@ -221,6 +225,8 @@ func (s *Service) Create(ctx context.Context, kind, note string) (Record, error)
 }
 
 func (s *Service) execute(rec Record) {
+	s.jobMu.Lock()
+	defer s.jobMu.Unlock()
 	timeout := s.timeout
 	if timeout <= 0 {
 		timeout = DefaultTimeout
@@ -388,8 +394,11 @@ func (s *Service) archiveConfig(dst string) error {
 	return gz.Close()
 }
 
-// Restore 从备份恢复（危险操作，同步执行）。
+// Restore 从备份恢复（危险操作，需在独立后台上下文中执行）。
 func (s *Service) Restore(ctx context.Context, id string) (Record, error) {
+	// 与备份互斥（M6-055）；同时防止两次恢复交错。
+	s.jobMu.Lock()
+	defer s.jobMu.Unlock()
 	rec, ok, err := s.repo.Get(ctx, id)
 	if err != nil {
 		return Record{}, err
@@ -427,16 +436,22 @@ func (s *Service) Restore(ctx context.Context, id string) (Record, error) {
 		return finish(fmt.Errorf("postgres restore: %w", err))
 	}
 	if s.logs != nil && len(rec.Months) > 0 {
-		if err := s.logs.Reset(ctx); err != nil {
-			return finish(fmt.Errorf("clickhouse reset: %w", err))
-		}
+		// 先校验全部月份文件存在，再 TRUNCATE：否则可能清空日志后才发现缺文件，
+		// 造成不可逆的日志缺口（M6-055）。
+		files := make([]string, 0, len(rec.Months))
 		for _, m := range rec.Months {
 			file := filepath.Join(rec.Dir, "clickhouse", "logs-"+m+".parquet")
 			if _, err := os.Stat(file); err != nil {
 				return finish(fmt.Errorf("日志备份缺失 %s: %w", m, err))
 			}
+			files = append(files, file)
+		}
+		if err := s.logs.Reset(ctx); err != nil {
+			return finish(fmt.Errorf("clickhouse reset: %w", err))
+		}
+		for i, file := range files {
 			if err := s.logs.RestoreMonth(ctx, file); err != nil {
-				return finish(fmt.Errorf("clickhouse restore %s: %w", m, err))
+				return finish(fmt.Errorf("clickhouse restore %s: %w", rec.Months[i], err))
 			}
 		}
 	}

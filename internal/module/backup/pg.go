@@ -58,13 +58,20 @@ func (p *PgCommandRunner) Dump(ctx context.Context, dst string) (string, int64, 
 	return p.dump(ctx, dst)
 }
 
-func (p *PgCommandRunner) Restore(ctx context.Context, src string) error {
-	args := []string{
-		"--clean", "--if-exists", "--no-owner", "--no-privileges",
+// restoreArgs pg_restore 参数（单独暴露供单测断言原子性）。
+func (p *PgCommandRunner) restoreArgs(src string) []string {
+	return []string{
+		// --single-transaction：DROP/CREATE/COPY 同事务，失败整体回滚，
+		// 避免客户端中断或中途报错留下「表已删、数据半截」的库（M6-055）。
+		"--clean", "--if-exists", "--single-transaction",
+		"--no-owner", "--no-privileges",
 		"-h", p.host, "-p", strconv.Itoa(int(p.port)),
 		"-U", p.user, "-d", p.db, src,
 	}
-	cmd := exec.CommandContext(ctx, "pg_restore", args...)
+}
+
+func (p *PgCommandRunner) Restore(ctx context.Context, src string) error {
+	cmd := exec.CommandContext(ctx, "pg_restore", p.restoreArgs(src)...)
 	cmd.Env = append(os.Environ(), "PGPASSWORD="+p.password)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("pg_restore: %w: %s", err, out)

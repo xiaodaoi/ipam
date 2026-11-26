@@ -24,3 +24,16 @@ func TestPgDumpArgs_ExcludesMetricData(t *testing.T) {
 		t.Fatalf("不应整表排除（会丢表结构）: %s", args)
 	}
 }
+
+// TestPgRestoreArgs_SingleTransaction M6-055：恢复必须单事务，
+// 否则 --clean 之后中断会留下半恢复的数据库。
+func TestPgRestoreArgs_SingleTransaction(t *testing.T) {
+	r := &PgCommandRunner{host: "db", port: 5432, user: "ipam", db: "ipam"}
+	args := strings.Join(r.restoreArgs("/tmp/x.dump"), " ")
+	if !strings.Contains(args, "--single-transaction") {
+		t.Fatalf("pg_restore 缺少 --single-transaction: %s", args)
+	}
+	if !strings.Contains(args, "--clean") {
+		t.Fatalf("pg_restore 缺少 --clean: %s", args)
+	}
+}
