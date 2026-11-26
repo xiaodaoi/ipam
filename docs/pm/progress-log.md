@@ -3,6 +3,19 @@
 > 格式：倒序追加。每次会话收尾必须在此追加一条（对应 AGENTS.md 纪律 3-b），内容=做了什么/改动范围/验证结果/遗留事项。
 
 <!-- 新条目插入到本行下方 -->
+## 2026-11-26 · 全量稳定性审计落地：17 张任务卡（M6-052~M6-068）
+- **背景**：对部署、控制面、数据面/日志链路做只读审计，累计确认 4 个 P0 与多项长期运行故障点。本轮按批次完成代码整改并全部通过 `go test ./...`（含新增用例）与 `golangci-lint` 0 issues。
+- **交付可用性**：TLS/HTTP 双探针与 `/readyz`、数据面 healthcheck、安装脚本 TCP 端口检查与私钥权限、组件 mem/cpu 上限（M6-053/M6-068）；Kea 配置改可写卷 + 60s 周期收敛（M6-054）。
+- **数据安全**：`pg_restore --single-transaction` + 备份/恢复互斥 + 脱离请求上下文（M6-055）；迁移咨询锁与超时、PostgreSQL 探针强制 TCP（M6-063）。
+- **DNS/情报源**：unbound 下发互斥 + 唯一临时文件 + `unbound-control` 超时；coherence 对账去重/失败不阻断/定时重放（M6-052）；情报源按源锁、限并发、失败退避、32MB 显式拒绝与骤降保护（M6-058）。
+- **告警**：通知异步队列 + 超时 + 退避重试 + SMTP deadline + 投递记录保留（M6-056）；upsert 无变化守卫抑制写放大（M6-057）；密钥原子写（M6-062）。
+- **日志**：tail 升序游标增量（突发不丢）、CSV 流式导出、SSE 连接上限、QPS 点数上限（M6-060）；TTL 小时级对账与归档补偿（M6-066）；降级状态持久化（M6-067）。
+- **前端**：业务 API 统一超时/401、启用 refresh token、登出真正吊销（M6-059）；台账大网段关闭逐 IP 地图并游标拉全量（M6-065）。
+- **可观测**：`/metrics` 增加 `go_*` / `process_*`（M6-061）。
+- **其他**：资产 trgm 索引与查询表达式对齐（M6-064，迁移 0056）；投递记录级联外键（M6-068，迁移 0057）。
+- **验证**：`go build ./...`、`go test ./...`、`golangci-lint run ./...`、`vue-tsc`、`pnpm run build:ipam`、i18n 两门禁、`docker compose config -q` 全部通过。
+- **遗留**：真实 unbound/Kea 故障注入、SMTP/Webhook 实投、ClickHouse 恢复原子性、跨月归档实跑、GIN `EXPLAIN` 需 staging/目标规模验证；镜像仍为本地派生方式。
+
 ## 2026-11-26 · 告警治理真实栈冒烟：页面可见性与采集修复（M6-049）
 - **部署**：运行中控制面为旧镜像，`/openapi.json` 不含 `/alerting/*`。重新 `pnpm run build:ipam` + `scripts/sync-webui.sh` + `go build`（嵌入 dist），以派生镜像 `docker compose up -d --no-build control-plane` 更新；`0054/0055` 迁移自动应用，`/alerting/*` 与情报源 `runs/revisions` 接口上线。
 - **i18n 修复**：`langs/{zh-CN,en-US}/alerting.json` 顶层多包一层同名 `alerting`，运行时键变 `alerting.alerting.*`，页面显示原始 key。移除包裹；`scripts/check-i18n-keys.py` 新增「顶层 key 不得与文件名相同」门禁。
