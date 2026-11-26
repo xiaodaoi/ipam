@@ -23,7 +23,8 @@ fi
 
 command -v ss >/dev/null && {
   for p in ${IPAM_PORT:-8443}; do
-    ss -lun "( sport = :$p )" | grep -q "$p" && fail "端口 $p 已被占用" || ok "端口 $p 空闲"
+    # 8443 是 TCP 监听；-lun 查 UDP 会永远误报空闲（M6-053）
+    ss -ltn "( sport = :$p )" | grep -q "$p" && fail "端口 $p 已被占用" || ok "端口 $p 空闲"
   done
 }
 
@@ -70,7 +71,16 @@ if [ ! -s "$certs_dir/server.crt" ] || [ ! -s "$certs_dir/server.key" ]; then
   ok "已生成自签证书 certs/server.crt（CN=${host}）"
   warn "自签证书仅供试用；正式交付请替换为企业 CA 证书并限制私钥权限"
 fi
-chmod 644 "$certs_dir/server.crt" "$certs_dir/server.key"
+# 私钥权限：control-plane 以 uid 10001(ipam) 运行（Dockerfile USER ipam）。
+# 需要 root 才能把 key 归属给容器用户；非 root 安装回退 644 并提示（M6-053）。
+chmod 755 "$certs_dir"
+chmod 644 "$certs_dir/server.crt"
+if chown 10001:10001 "$certs_dir/server.key" 2>/dev/null; then
+  chmod 600 "$certs_dir/server.key"
+else
+  chmod 644 "$certs_dir/server.key"
+  warn "无法将 TLS 私钥归属到容器用户（需 root）；已保留 644，建议以 root 执行安装以收紧为 600"
+fi
 
 set_env IPAM_TLS_CERT "/certs/server.crt"
 set_env IPAM_TLS_KEY "/certs/server.key"
@@ -96,8 +106,12 @@ docker compose up -d --wait
 sleep 1
 port="${IPAM_PORT:-8443}"
 curl -kfsS "https://127.0.0.1:${port}/healthz" | grep -q '"status":"ok"' \
-  && ok "服务就绪：https://127.0.0.1:${port}（自签证书，浏览器需信任或继续访问）" \
-  || fail "冒烟失败，查看 docker compose logs control-plane"
+  && ok "服务存活：https://127.0.0.1:${port}（自签证书，浏览器需信任或继续访问）" \
+  || fail "存活探针失败，查看 docker compose logs control-plane"
+# 就绪探针（DB 可达）——compose 健康检查同口径，安装脚本失败要显式报错
+curl -kfsS --max-time 5 "https://127.0.0.1:${port}/readyz" >/dev/null \
+  && ok "服务就绪（/readyz 通过）" \
+  || fail "就绪探针失败（数据库不可达？），查看 docker compose logs control-plane postgresql"
 
 # 首次启动的一次性 admin 口令（文件不存在=沿用已有口令）
 if docker compose exec -T control-plane test -f /run/ipam/initial-admin-password 2>/dev/null; then

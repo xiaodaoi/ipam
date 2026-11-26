@@ -11,6 +11,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -20,6 +21,16 @@ const baselineThrough = "0009"
 
 // legacyProbeTable 基线探测表：0009 的产物，存在即认定存量库。
 const legacyProbeTable = "operation_audit"
+
+// advisoryLockKey 迁移全局咨询锁（"IPAM"），避免多副本/首装 initdb 并发 DDL。
+const advisoryLockKey int64 = 0x4950414d
+
+const (
+	// migrationStatementTimeout 单条迁移的语句预算：大表加索引/回填不应无限挂住启动。
+	migrationStatementTimeout = 30 * time.Minute
+	// migrationLockTimeout 等表锁预算：长事务持锁时快速失败并重试，而不是卡死启动。
+	migrationLockTimeout = 60 * time.Second
+)
 
 type migrationFile struct {
 	version string // 文件名去 .sql，如 0010_users（零填充前缀，字典序=时间序）
@@ -81,6 +92,22 @@ func Run(ctx context.Context, pool *pgxpool.Pool, dir string, logf func(string, 
 	if err != nil {
 		return fmt.Errorf("list %s: %w", dir, err)
 	}
+	// 全局咨询锁（M6-063）：多副本同时启动、或首装与 initdb 临时实例重叠时，
+	// 两个迁移器并发执行 DDL 会死锁/重复建对象。锁在专用连接上持有到 Run 结束。
+	lockConn, err := pool.Acquire(ctx)
+	if err != nil {
+		return fmt.Errorf("migrator lock conn: %w", err)
+	}
+	defer lockConn.Release()
+	if _, err := lockConn.Exec(ctx, `SELECT pg_advisory_lock($1)`, advisoryLockKey); err != nil {
+		return fmt.Errorf("migrator advisory lock: %w", err)
+	}
+	defer func() {
+		// 释放必须用独立上下文：调用方 ctx 可能已取消。
+		rctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, _ = lockConn.Exec(rctx, `SELECT pg_advisory_unlock($1)`, advisoryLockKey)
+	}()
 	if _, err := pool.Exec(ctx,
 		`CREATE TABLE IF NOT EXISTS schema_migrations(
 		   version text PRIMARY KEY,
@@ -152,6 +179,19 @@ func execFile(ctx context.Context, pool *pgxpool.Pool, f migrationFile) error {
 		return err
 	}
 	defer conn.Release()
+	// 会话级超时（M6-063）：失败快速返回，避免启动被一个长事务/大表 DDL 永久挂住。
+	// statement_timeout/lock_timeout 只作用于本连接，随 Release 回到池中需重置。
+	if _, err := conn.Exec(ctx, fmt.Sprintf("SET statement_timeout = %d", migrationStatementTimeout.Milliseconds())); err != nil {
+		return err
+	}
+	if _, err := conn.Exec(ctx, fmt.Sprintf("SET lock_timeout = %d", migrationLockTimeout.Milliseconds())); err != nil {
+		return err
+	}
+	defer func() {
+		rctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, _ = conn.Exec(rctx, `RESET statement_timeout; RESET lock_timeout`)
+	}()
 	_, err = conn.Conn().Exec(ctx, f.body)
 	return err
 }

@@ -22,6 +22,9 @@ services:
         max-size: "10m"
         max-file: "3"
     image: postgres:16-alpine
+    # 资源上限（M6-068）：避免单组件内存尖峰拖垮整机；可用 .env 覆盖。
+    mem_limit: ${IPAM_MEM_LIMIT_POSTGRES:-1g}
+    cpus: ${IPAM_CPU_LIMIT_POSTGRES:-2}
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-ipam}
       POSTGRES_USER: ${POSTGRES_USER:-ipam}
@@ -30,7 +33,9 @@ services:
       - pg-data:/var/lib/postgresql/data
       - ../../db/postgresql/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ipam} -d ${POSTGRES_DB:-ipam}"]
+      # 强制 TCP（-h 127.0.0.1）：initdb 的临时实例只监听 unix socket，
+      # 走 socket 会在初始化阶段就返回 0，导致控制面迁移器与 initdb 并发 DDL（M6-063）。
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-ipam} -d ${POSTGRES_DB:-ipam}"]
       interval: 5s
       timeout: 3s
       retries: 12
@@ -50,6 +55,9 @@ services:
         max-size: "10m"
         max-file: "3"
     image: ipam/control-plane:${IPAM_VERSION:-0.1.0-dev}
+    mem_limit: ${IPAM_MEM_LIMIT_CONTROL:-1g}
+    cpus: ${IPAM_CPU_LIMIT_CONTROL:-2}
+    pids_limit: ${IPAM_PIDS_LIMIT_CONTROL:-4096}
     group_add:
       - "${HOST_GID:-1000}"  # 渲染产物目录（config/unbound）组写；与宿主目录属组一致
       - "${UNBOUND_GID:-999}"  # unbound-ctl.sock 组（unbound 容器用户 gid）；M3-009
@@ -57,7 +65,7 @@ services:
       postgresql:
         condition: service_healthy
       clickhouse:
-        condition: service_started
+        condition: service_healthy
       volume-init:
         condition: service_completed_successfully
     # 探活 IPv6 上游需要 IPv6 出口；默认桥接网络为纯 IPv4（M6-036）。
@@ -70,11 +78,14 @@ services:
     cap_drop:
       - ALL
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8443/healthz >/dev/null"]
+      # install.sh 必写 TLS 证书 → 正式安装为 https；开发态为 http。
+      # 探针必须同时适配两种监听，否则 --wait 永远等不到 healthy（M6-053）。
+      # 使用 /readyz（校验 DB）而非恒 200 的 /healthz：服务不可用时不对外宣healthy。
+      test: ["CMD-SHELL", "curl -kfsS --max-time 3 https://127.0.0.1:8443/readyz >/dev/null 2>&1 || curl -fsS --max-time 3 http://127.0.0.1:8443/readyz >/dev/null"]
       interval: 10s
       timeout: 4s
       retries: 12
-      start_period: 10s
+      start_period: 20s
     environment:
       IPAM_DB_DSN: "postgres://${POSTGRES_USER:-ipam}:${POSTGRES_PASSWORD}@postgresql:5432/${POSTGRES_DB:-ipam}?sslmode=disable"
       IPAM_CH_ADDR: "clickhouse:9000"
@@ -162,6 +173,8 @@ services:
         max-size: "10m"
         max-file: "3"
     image: ipam/coherence-daemon:${IPAM_VERSION:-0.1.0-dev}
+    mem_limit: ${IPAM_MEM_LIMIT_COHERENCE:-256m}
+    cpus: ${IPAM_CPU_LIMIT_COHERENCE:-1}
     depends_on:
       postgresql:
         condition: service_healthy
@@ -190,6 +203,8 @@ services:
         max-size: "10m"
         max-file: "3"
     image: clickhouse/clickhouse-server:24.8-alpine
+    mem_limit: ${IPAM_MEM_LIMIT_CLICKHOUSE:-4g}
+    cpus: ${IPAM_CPU_LIMIT_CLICKHOUSE:-4}
     ports:
       - "127.0.0.1:${IPAM_CH_PORT:-9000}:9000"
     environment:
@@ -203,6 +218,12 @@ services:
       - ../../config/clickhouse/system-logs.xml:/etc/clickhouse-server/config.d/system-logs.xml:ro
     ulimits:
       nofile: { soft: 262144, hard: 262144 }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8123/ping >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
     restart: unless-stopped
 
   vector:
@@ -216,12 +237,14 @@ services:
         max-size: "10m"
         max-file: "3"
     image: ghcr.io/vectordotdev/vector:0.46.1-alpine
+    mem_limit: ${IPAM_MEM_LIMIT_VECTOR:-512m}
+    cpus: ${IPAM_CPU_LIMIT_VECTOR:-1}
     command: ["--config", "/etc/vector/vector.toml", "--watch-config", "--verbose"]
     environment:
       VECTOR_LOG: "debug"
     depends_on:
       clickhouse:
-        condition: service_started
+        condition: service_healthy
       kea-dhcp4:
         condition: service_started
       control-plane:
@@ -232,6 +255,13 @@ services:
       - vector-data:/var/lib/vector
       - kea-logs:/var/log/kea:ro
       - unbound-logs:/var/log/unbound:ro
+    healthcheck:
+      # prometheus_exporter 已在模板中监听 9598（模板末尾 vector_metrics sink）
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9598/metrics"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
     restart: unless-stopped
 
   unbound:
@@ -247,6 +277,8 @@ services:
     security_opt:
       - no-new-privileges:true
     image: ipam/unbound:${IPAM_VERSION:-0.1.0-dev}
+    mem_limit: ${IPAM_MEM_LIMIT_UNBOUND:-512m}
+    cpus: ${IPAM_CPU_LIMIT_UNBOUND:-2}
     # hostNetwork：DNS 服务必须看到客户端真实源 IP。桥接网络为纯 IPv4，
     # 客户端经 IPv6（如 2406::ff3）查询时 docker-proxy 会把源 NAT 成网桥网关
     # （172.18.0.1），日志来源与按源限速/ACL 全部失真——与 kea-dhcp6 同理。
@@ -259,6 +291,13 @@ services:
       - ../../config/unbound:/etc/unbound:ro
       - ../../config/unbound:/etc/unbound-rendered:ro
       - unbound-logs:/var/log/unbound
+    healthcheck:
+      # remote-control 走 /run/ipam/unbound-ctl.sock（config/unbound/unbound.conf）
+      test: ["CMD-SHELL", "unbound-control -c /etc/unbound/unbound.conf status >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
     restart: unless-stopped
 
   kea-dhcp4:
@@ -266,7 +305,9 @@ services:
       context: ../..
       dockerfile: deploy/images/kea/Dockerfile
       args: { COMPONENT: kea-dhcp4-server }
-    command: ["sh", "-c", "rm -f /run/ipam/kea4-ctrl.sock; mkdir -p /var/log/kea && exec kea-dhcp4 -c /etc/kea/kea-dhcp4.conf"]
+    # 运行态配置写命名卷（可写），启动时从只读模板播种；config-write 才能持久化，
+    # 避免「只重启 kea 容器」回退到演示网段（M6-054）。
+    command: ["sh", "-c", "mkdir -p /etc/kea /var/log/kea; [ -s /etc/kea/kea-dhcp4.conf ] || cp /etc/kea-template/kea-dhcp4.conf /etc/kea/kea-dhcp4.conf; rm -f /run/ipam/kea4-ctrl.sock; exec kea-dhcp4 -c /etc/kea/kea-dhcp4.conf"]
     # hostNetwork：与 kea-dhcp6/unbound 统一。桥接下客户端/中继经宿主 10.61.40.50:67 单播
     # 到达时由 docker-proxy 转发，源地址被 NAT 成网桥网关；hostNetwork 直接绑宿主 :67，
     # 既保留真实源地址，也避免 DHCPv4 广播在桥接网络中的可见性问题。
@@ -276,7 +317,8 @@ services:
     environment:
       IPAM_KEA4_IFACE: ${IPAM_KEA4_IFACE:-ens160}
     volumes:
-      - ../../config/kea/kea-dhcp4.conf:/etc/kea/kea-dhcp4.conf:ro
+      - kea-conf4:/etc/kea
+      - ../../config/kea/kea-dhcp4.conf:/etc/kea-template/kea-dhcp4.conf:ro
       - ipam-run:/run/ipam
       - kea-logs:/var/log/kea
       - kea-leases:/var/lib/kea
@@ -287,14 +329,15 @@ services:
       context: ../..
       dockerfile: deploy/images/kea/Dockerfile
       args: { COMPONENT: kea-dhcp6-server , APT_MIRROR: "${APT_MIRROR:-}" }
-    command: ["sh", "-c", "rm -f /run/ipam/kea6-ctrl.sock /run/ipam/kea6-ctrl.sock.lock; mkdir -p /var/log/kea && exec kea-dhcp6 -c /etc/kea/kea-dhcp6.conf"]
+    command: ["sh", "-c", "mkdir -p /etc/kea /var/log/kea; [ -s /etc/kea/kea-dhcp6.conf ] || cp /etc/kea-template/kea-dhcp6.conf /etc/kea/kea-dhcp6.conf; rm -f /run/ipam/kea6-ctrl.sock /run/ipam/kea6-ctrl.sock.lock; exec kea-dhcp6 -c /etc/kea/kea-dhcp6.conf"]
     network_mode: host
     security_opt:
       - no-new-privileges:true
     environment:
       IPAM_KEA6_IFACE: ${IPAM_KEA6_IFACE:-ens160}
     volumes:
-      - ../../config/kea/kea-dhcp6.conf:/etc/kea/kea-dhcp6.conf:ro
+      - kea-conf6:/etc/kea
+      - ../../config/kea/kea-dhcp6.conf:/etc/kea-template/kea-dhcp6.conf:ro
       - ipam-run:/run/ipam
       - kea-leases:/var/lib/kea
       - kea-logs:/var/log/kea
@@ -316,6 +359,12 @@ services:
       - ipam-run:/run/ipam
     ports:
       - "127.0.0.1:${KEA_API_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS --max-time 3 -X POST -H 'Content-Type: application/json' -d '{\"command\":\"version\"}' http://127.0.0.1:8000/ >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
     restart: unless-stopped
 
 networks:
@@ -332,6 +381,9 @@ volumes:
   ipam-run:
   kea-logs:
   kea-leases:
+  # Kea 运行态配置（config-write 落盘，容器重启后保持；M6-054）
+  kea-conf4:
+  kea-conf6:
   unbound-logs:
   ch-data:
   ch-exports:

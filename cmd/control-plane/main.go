@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -316,7 +317,12 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 	if pool != nil {
 		dhcpStore = dhcpmodule.NewPgStore(pool)
 	}
+	// dhcpApplyMu 串行化全量下发（M6-054）：子网保存内联下发与周期对账可能并发，
+	// 两份 config-set 交错会以后写覆盖前写，导致刚保存的变更丢失。
+	var dhcpApplyMu sync.Mutex
 	applyDhcpFn = func(ctx context.Context) error {
+		dhcpApplyMu.Lock()
+		defer dhcpApplyMu.Unlock()
 		if keaCmd == nil {
 			return errors.New("kea unavailable")
 		}
@@ -355,9 +361,14 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 				log.Printf("[dhcp6-apply] config-set（软失败）: %v", err)
 			}
 		}
-		// config-write：运行态落盘（Kea 重启后配置不回滚到启动文件——M2-018 诊断发现）
-		_, _ = keaCmd.Command(ctx, "config-write", "dhcp4", map[string]any{})
-		_, _ = keaCmd.Command(ctx, "config-write", "dhcp6", map[string]any{})
+		// config-write：运行态落盘（Kea 重启后配置不回滚到启动文件——M2-018 诊断发现）。
+		// 失败必须可见：配置目录不可写会让「重启 kea 即回退演示配置」长期潜伏（M6-054）。
+		if _, err := keaCmd.Command(ctx, "config-write", "dhcp4", map[string]any{}); err != nil {
+			log.Printf("[dhcp-apply] config-write dhcp4 失败（Kea 重启后将回退启动文件）: %v", err)
+		}
+		if _, err := keaCmd.Command(ctx, "config-write", "dhcp6", map[string]any{}); err != nil {
+			log.Printf("[dhcp-apply] config-write dhcp6 失败（Kea 重启后将回退启动文件）: %v", err)
+		}
 		return nil
 	}
 	// 启动 DHCP 收敛（M3-012 现场教训：kea 容器重建后运行态配置丢失，直到下次子网变更才恢复）——
@@ -376,6 +387,23 @@ func newEngine(version string, rootCtx context.Context) *gin.Engine {
 				}
 			} else {
 				log.Printf("[dhcp-apply] startup converge failed after retries: %v", err)
+			}
+		}
+	}()
+
+	// 周期对账（M6-054）：Kea 容器单独重启会回到启动文件（可能仍是演示配置）。
+	// 启动后的 6 次重试只覆盖开机窗口，运行期崩溃/升级必须靠周期全量 converge 自愈。
+	go func() {
+		t := time.NewTicker(60 * time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-rootCtx.Done():
+				return
+			case <-t.C:
+				if err := applyDhcpFn(rootCtx); err != nil {
+					log.Printf("[dhcp-apply] periodic converge: %v", err)
+				}
 			}
 		}
 	}()
