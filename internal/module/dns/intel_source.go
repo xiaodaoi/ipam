@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	guuid "github.com/google/uuid"
@@ -34,6 +35,7 @@ var (
 	ErrSourceLicenseAck   = errors.New("INTEL_SOURCE_LICENSE_UNCONFIRMED")
 	ErrSourceSecretNeeded = errors.New("INTEL_SOURCE_SECRET_REQUIRED")
 	ErrSourceEmpty        = errors.New("INTEL_SOURCE_EMPTY")
+	ErrSourceShrunk       = errors.New("INTEL_SOURCE_SHRUNK")
 	ErrSourceDupKey       = errors.New("INTEL_SOURCE_DUP")
 	// ErrRevisionNotFound 指定版本不存在。
 	ErrRevisionNotFound = errors.New("INTEL_REVISION_NOT_FOUND")
@@ -162,9 +164,14 @@ func HTTPSourceFetch(ctx context.Context, rawURL, header, secret string) (string
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("http %d", resp.StatusCode)
 	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
+	const maxSourceBody = 32 << 20
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxSourceBody+1))
 	if err != nil {
 		return "", scrubSecret(err, secret)
+	}
+	if len(body) > maxSourceBody {
+		// 静默截断会写入不完整清单并导致「大幅缩水」，必须显式失败（M6-058）。
+		return "", fmt.Errorf("响应正文超过 %d MB 上限，已拒绝（避免截断写入不完整清单）", maxSourceBody>>20)
 	}
 	return string(body), nil
 }
@@ -494,8 +501,9 @@ func (s *IntelService) SyncSource(ctx context.Context, id string) (IntelSource, 
 
 // SyncSourceWithTrigger 与 SyncSource 相同，但记录触发来源（manual/schedule/enable）。
 func (s *IntelService) SyncSourceWithTrigger(ctx context.Context, id, trigger string) (IntelSource, error) {
-	s.syncMu.Lock()
-	defer s.syncMu.Unlock()
+	mu := s.sourceLock(id)
+	mu.Lock()
+	defer mu.Unlock()
 	src, ok, err := s.store.GetSource(ctx, id)
 	if err != nil {
 		return IntelSource{}, err
@@ -517,6 +525,7 @@ func (s *IntelService) SyncSourceWithTrigger(ctx context.Context, id, trigger st
 	now := s.now().UTC()
 	durationMs := int(time.Since(started).Milliseconds())
 	if ferr != nil {
+		s.recordSyncResult(src.ID, ferr)
 		src.LastSyncAt = &now
 		src.LastStatus = "failed"
 		src.LastError = ferr.Error()
@@ -528,6 +537,7 @@ func (s *IntelService) SyncSourceWithTrigger(ctx context.Context, id, trigger st
 	}
 	domains := ParseFeedDomains(body)
 	if len(domains) == 0 {
+		s.recordSyncResult(src.ID, ErrSourceEmpty)
 		src.LastSyncAt = &now
 		src.LastStatus = "failed"
 		src.LastError = "拉取成功但解析到 0 条（上游格式可能已变更）"
@@ -539,6 +549,20 @@ func (s *IntelService) SyncSourceWithTrigger(ctx context.Context, id, trigger st
 	}
 	cachePath := s.SourceDomainPath(src.Key)
 	old, _ := readDomainCache(cachePath)
+	// 骤降保护（M6-058）：上游被劫持/返回错误页/格式变更时，可能解析出
+	// 少量“看起来合法”的条目。低于上一版 30% 视为异常，保留上一版。
+	if len(old) >= 50 && len(domains)*100 < len(old)*30 {
+		msg := fmt.Sprintf("疑似上游异常：条数骤降 %d → %d（低于上一版 30%%），已保留上一版", len(old), len(domains))
+		s.recordSyncResult(src.ID, ErrSourceShrunk)
+		src.LastSyncAt = &now
+		src.LastStatus = "failed"
+		src.LastError = msg
+		src.LastDurationMs = durationMs
+		_ = s.store.UpdateSourceStats(ctx, src.ID, src.Entries, 0, 0, 0, durationMs, now, "failed", msg)
+		s.recordRun(ctx, IntelSourceRun{SourceID: src.ID, StartedAt: now, DurationMs: durationMs,
+			Status: "failed", Trigger: trigger, Entries: src.Entries, Error: msg})
+		return src, ErrSourceShrunk
+	}
 	added, removed := diffDomains(old, domains)
 	excluded := countExcluded(domains, s.activeWhitelistSet(ctx))
 	if err := writeDomainCache(cachePath, domains); err != nil {
@@ -572,6 +596,7 @@ func (s *IntelService) SyncSourceWithTrigger(ctx context.Context, id, trigger st
 	if _, cerr := s.Compile(ctx); cerr != nil {
 		log.Printf("[intel] 源 %s 同步后编译失败：%v", src.Key, cerr)
 	}
+	s.recordSyncResult(src.ID, nil)
 	return src, nil
 }
 
@@ -609,8 +634,9 @@ func (s *IntelService) saveRevision(ctx context.Context, src IntelSource, domain
 
 // RollbackRevision 将指定版本写回当前缓存并重编译（原版本保留，可再次回滚）。
 func (s *IntelService) RollbackRevision(ctx context.Context, id string, revision int) (IntelSource, error) {
-	s.syncMu.Lock()
-	defer s.syncMu.Unlock()
+	mu := s.sourceLock(id)
+	mu.Lock()
+	defer mu.Unlock()
 	src, ok, err := s.store.GetSource(ctx, id)
 	if err != nil {
 		return IntelSource{}, err
@@ -779,28 +805,56 @@ func (s *IntelService) SyncDueSources(ctx context.Context) int {
 		return 0
 	}
 	now := s.now()
-	okCount := 0
+	type dueSource struct{ id, key string }
+	due := make([]dueSource, 0, len(list))
 	for _, src := range list {
 		if !src.Enabled || src.URL == "" {
 			continue
 		}
-		due := src.LastSyncAt == nil
-		if !due {
+		isDue := src.LastSyncAt == nil
+		if !isDue {
 			interval := time.Duration(src.UpdateInterval) * time.Second
 			if interval <= 0 {
 				interval = 6 * time.Hour
 			}
-			due = now.Sub(*src.LastSyncAt) >= interval
+			isDue = now.Sub(*src.LastSyncAt) >= interval
 		}
-		if !due {
+		if !isDue {
 			continue
 		}
-		if _, serr := s.SyncSourceWithTrigger(ctx, src.ID, "schedule"); serr != nil {
-			log.Printf("[intel] 源 %s 同步失败：%v", src.Key, serr)
-			continue
+		if until := s.backoffUntil(src.ID); !until.IsZero() && now.Before(until) {
+			continue // 失败退避中
 		}
-		okCount++
+		due = append(due, dueSource{id: src.ID, key: src.Key})
 	}
+	if len(due) == 0 {
+		return 0
+	}
+	// 限并发 2：上游带宽/内存可控，同时避免一个慢源拖住其余源（M6-058）。
+	sem := make(chan struct{}, 2)
+	var (
+		wg      sync.WaitGroup
+		mu      sync.Mutex
+		okCount int
+	)
+	for _, d := range due {
+		wg.Add(1)
+		go func(d dueSource) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			sctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
+			defer cancel()
+			if _, serr := s.SyncSourceWithTrigger(sctx, d.id, "schedule"); serr != nil {
+				log.Printf("[intel] 源 %s 同步失败：%v", d.key, serr)
+				return
+			}
+			mu.Lock()
+			okCount++
+			mu.Unlock()
+		}(d)
+	}
+	wg.Wait()
 	return okCount
 }
 

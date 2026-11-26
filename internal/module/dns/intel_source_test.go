@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // M6-039：情报源解析、启用校验、同步回退、分层编译与容量截断。
@@ -463,4 +464,131 @@ func TestIntelSource_URL内嵌密钥同样要求先填密钥(t *testing.T) {
 	if !got.Enabled || !got.HasSecret || got.Entries != 1 {
 		t.Fatalf("启用结果不符: enabled=%v hasSecret=%v entries=%d", got.Enabled, got.HasSecret, got.Entries)
 	}
+}
+
+// TestIntelSource_骤降保护（M6-058）：上游被劫持/返回错误页时解析出的少量条目
+// 不得覆盖上一版（否则封禁能力静默失效）。
+func TestIntelSource_骤降保护(t *testing.T) {
+	st := newIntelStack(t)
+	st.intel.SetSecretDir(t.TempDir())
+	ctx := context.Background()
+	src, err := st.intel.CreateSource(ctx, IntelSource{
+		Name: "保护源", URL: "https://feed.example/list.txt", Layer: "hot",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	enabled := true
+	many := make([]string, 0, 100)
+	for i := 0; i < 100; i++ {
+		many = append(many, fmt.Sprintf("host%d.example.com", i))
+	}
+	st.intel.SetSourceFetcher(func(context.Context, string, string, string) (string, error) {
+		return strings.Join(many, "\n"), nil
+	})
+	if _, err := st.intel.UpdateSource(ctx, src.ID, SourceUpdate{Enabled: &enabled, AckLicense: true}); err != nil {
+		t.Fatal(err)
+	}
+	cache := st.intel.SourceDomainPath(src.Key)
+	before, err := os.ReadFile(cache)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 骤降到 5 条 → 拒绝写入
+	few := strings.Join(many[:5], "\n")
+	st.intel.SetSourceFetcher(func(context.Context, string, string, string) (string, error) {
+		return few, nil
+	})
+	if _, err := st.intel.SyncSource(ctx, src.ID); !errors.Is(err, ErrSourceShrunk) {
+		t.Fatalf("want ErrSourceShrunk, got %v", err)
+	}
+	after, err := os.ReadFile(cache)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(before) {
+		t.Fatal("骤降保护失效：上一版缓存被覆盖")
+	}
+}
+
+// TestIntelSource_失败退避递增并成功清零（M6-058）。
+func TestIntelSource_失败退避递增并成功清零(t *testing.T) {
+	st := newIntelStack(t)
+	s := st.intel
+	s.recordSyncResult("src-1", errors.New("boom"))
+	u1 := s.backoffUntil("src-1")
+	if u1.IsZero() {
+		t.Fatal("首次失败应设置退避")
+	}
+	s.recordSyncResult("src-1", errors.New("boom"))
+	u2 := s.backoffUntil("src-1")
+	if !u2.After(u1) {
+		t.Fatalf("退避未递增: %v -> %v", u1, u2)
+	}
+	s.recordSyncResult("src-1", nil)
+	if until := s.backoffUntil("src-1"); !until.IsZero() {
+		t.Fatalf("成功后应清零退避，得到 %v", until)
+	}
+}
+
+// TestIntelSource_按源加锁互不阻塞（M6-058）：全局 syncMu 会让一个慢源
+// 阻塞所有源同步与人工操作。
+func TestIntelSource_按源加锁互不阻塞(t *testing.T) {
+	st := newIntelStack(t)
+	st.intel.SetSecretDir(t.TempDir())
+	ctx := context.Background()
+	slow, err := st.intel.CreateSource(ctx, IntelSource{Name: "慢源", URL: "https://feed.example/slow.txt", Layer: "hot"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fast, err := st.intel.CreateSource(ctx, IntelSource{Name: "快源", URL: "https://feed.example/fast.txt", Layer: "hot"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	enabled := true
+	// 先正常启用（启用会同步一次，不能用阻塞 fetcher）
+	st.intel.SetSourceFetcher(func(context.Context, string, string, string) (string, error) {
+		return "ok.example.com", nil
+	})
+	if _, err := st.intel.UpdateSource(ctx, slow.ID, SourceUpdate{Enabled: &enabled, AckLicense: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.intel.UpdateSource(ctx, fast.ID, SourceUpdate{Enabled: &enabled, AckLicense: true}); err != nil {
+		t.Fatal(err)
+	}
+
+	release := make(chan struct{})
+	entered := make(chan struct{}, 1)
+	st.intel.SetSourceFetcher(func(_ context.Context, rawURL, _, _ string) (string, error) {
+		if strings.Contains(rawURL, "slow") {
+			select {
+			case entered <- struct{}{}:
+			default:
+			}
+			<-release
+			return "slow.example.com", nil
+		}
+		return "fast.example.com", nil
+	})
+
+	slowDone := make(chan struct{})
+	go func() {
+		defer close(slowDone)
+		_, _ = st.intel.SyncSource(context.Background(), slow.ID)
+	}()
+	select {
+	case <-entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("慢源未进入拉取阶段")
+	}
+
+	// 慢源锁已持有且卡在 fetcher；快源必须在独立锁上完成。
+	fctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if _, err := st.intel.SyncSource(fctx, fast.ID); err != nil {
+		t.Fatalf("快源同步被慢源阻塞: %v", err)
+	}
+	close(release)
+	<-slowDone
 }
