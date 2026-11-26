@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -93,6 +94,8 @@ func (h *MetricsHandler) Serve(c *gin.Context) {
 	fmt.Fprintf(&b, "ipam_build_info{version=%q} 1\n", h.src.Version)
 	fmt.Fprintf(&b, "# HELP ipam_uptime_seconds 控制面运行时长（秒）\n# TYPE ipam_uptime_seconds gauge\n")
 	fmt.Fprintf(&b, "ipam_uptime_seconds %.0f\n", time.Since(h.started).Seconds())
+
+	appendRuntimeMetrics(&b, h.started)
 
 	h.mu.Lock()
 	reqKeys := make([]string, 0, len(h.reqs))
@@ -231,4 +234,61 @@ func (h *MetricsHandler) Serve(c *gin.Context) {
 
 	c.Header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 	c.String(http.StatusOK, b.String())
+}
+
+// appendRuntimeMetrics 暴露 Go 运行时/进程指标（M6-061）。
+// 此前 /metrics 只有手写业务指标，goroutine 泄漏、堆增长、FD 耗尽都无法提前发现。
+func appendRuntimeMetrics(b *strings.Builder, started time.Time) {
+	fmt.Fprintf(b, "# HELP go_info Go 运行时版本信息\n# TYPE go_info gauge\n")
+	fmt.Fprintf(b, "go_info{version=%q} 1\n", runtime.Version())
+	fmt.Fprintf(b, "# HELP go_goroutines 当前 goroutine 数\n# TYPE go_goroutines gauge\n")
+	fmt.Fprintf(b, "go_goroutines %d\n", runtime.NumGoroutine())
+
+	var ms runtime.MemStats
+	runtime.ReadMemStats(&ms)
+	fmt.Fprintf(b, "# HELP go_memstats_alloc_bytes 已分配且在用的堆字节数\n# TYPE go_memstats_alloc_bytes gauge\n")
+	fmt.Fprintf(b, "go_memstats_alloc_bytes %d\n", ms.Alloc)
+	fmt.Fprintf(b, "# HELP go_memstats_heap_alloc_bytes 堆已分配字节数\n# TYPE go_memstats_heap_alloc_bytes gauge\n")
+	fmt.Fprintf(b, "go_memstats_heap_alloc_bytes %d\n", ms.HeapAlloc)
+	fmt.Fprintf(b, "# HELP go_memstats_heap_inuse_bytes 堆已使用字节数\n# TYPE go_memstats_heap_inuse_bytes gauge\n")
+	fmt.Fprintf(b, "go_memstats_heap_inuse_bytes %d\n", ms.HeapInuse)
+	fmt.Fprintf(b, "# HELP go_memstats_heap_objects 堆对象数\n# TYPE go_memstats_heap_objects gauge\n")
+	fmt.Fprintf(b, "go_memstats_heap_objects %d\n", ms.HeapObjects)
+	fmt.Fprintf(b, "# HELP go_memstats_sys_bytes 向系统申请的内存字节数\n# TYPE go_memstats_sys_bytes gauge\n")
+	fmt.Fprintf(b, "go_memstats_sys_bytes %d\n", ms.Sys)
+	fmt.Fprintf(b, "# HELP go_gc_cycles_total GC 循环次数\n# TYPE go_gc_cycles_total counter\n")
+	fmt.Fprintf(b, "go_gc_cycles_total %d\n", ms.NumGC)
+	fmt.Fprintf(b, "# HELP go_gc_pause_seconds_total GC 暂停总时长（秒）\n# TYPE go_gc_pause_seconds_total counter\n")
+	fmt.Fprintf(b, "go_gc_pause_seconds_total %.6f\n", float64(ms.PauseTotalNs)/1e9)
+
+	fmt.Fprintf(b, "# HELP process_start_time_seconds 进程启动时间（Unix 秒）\n# TYPE process_start_time_seconds gauge\n")
+	fmt.Fprintf(b, "process_start_time_seconds %d\n", started.Unix())
+	if fds, err := os.ReadDir("/proc/self/fd"); err == nil {
+		fmt.Fprintf(b, "# HELP process_open_fds 当前打开的文件描述符数\n# TYPE process_open_fds gauge\n")
+		fmt.Fprintf(b, "process_open_fds %d\n", len(fds))
+	}
+	if rss, ok := readRSSBytes(); ok {
+		fmt.Fprintf(b, "# HELP process_resident_memory_bytes 常驻内存字节数\n# TYPE process_resident_memory_bytes gauge\n")
+		fmt.Fprintf(b, "process_resident_memory_bytes %d\n", rss)
+	}
+}
+
+// readRSSBytes 从 /proc/self/statm 读取 RSS（页数 × 页大小）。
+func readRSSBytes() (uint64, bool) {
+	raw, err := os.ReadFile("/proc/self/statm")
+	if err != nil {
+		return 0, false
+	}
+	fields := strings.Fields(string(raw))
+	if len(fields) < 2 {
+		return 0, false
+	}
+	var pages uint64
+	for _, c := range fields[1] {
+		if c < '0' || c > '9' {
+			return 0, false
+		}
+		pages = pages*10 + uint64(c-'0')
+	}
+	return pages * uint64(os.Getpagesize()), true
 }

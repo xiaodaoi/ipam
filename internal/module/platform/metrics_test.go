@@ -43,6 +43,11 @@ func TestMetricsHandler(t *testing.T) {
 		`ipam_component_up{component="postgres"} 1`,
 		`ipam_component_up{component="clickhouse"} 0`,
 		"ipam_uptime_seconds",
+		"go_goroutines ",
+		"go_memstats_heap_inuse_bytes ",
+		"go_gc_cycles_total ",
+		"process_start_time_seconds ",
+		"process_open_fds ",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("missing %q in metrics:\n%s", want, body)
