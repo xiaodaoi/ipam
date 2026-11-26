@@ -1,5 +1,6 @@
 import type { components } from './schema';
 
+import { preferences } from '@vben/preferences';
 import { useAccessStore } from '@vben/stores';
 
 /**
@@ -20,14 +21,54 @@ export type IgnoredTerminal = components['schemas']['IgnoredTerminal'];
 export type LedgerMetaUpsert = components['schemas']['LedgerMetaUpsert'];
 
 const BASE = (import.meta.env.VITE_GLOB_API_URL as string) || '/api/v1';
+const REQUEST_TIMEOUT_MS = 15_000;
+
+// 401 统一处理（M6-059）：清空令牌并弹登录过期，避免 24h 后整站静默失败。
+function handleUnauthorized() {
+  const accessStore = useAccessStore();
+  accessStore.setAccessToken(null);
+  if (
+    preferences.app.loginExpiredMode === 'modal' &&
+    accessStore.isAccessChecked
+  ) {
+    accessStore.setLoginExpired(true);
+  }
+}
+
+/**
+ * 统一鉴权/超时 fetch：所有业务 API（含下载与 SSE）共用，避免裸 fetch。
+ * timeoutMs=0 用于 SSE 等长连接。
+ */
+async function apiFetch(
+  path: string,
+  init?: RequestInit,
+  timeoutMs = REQUEST_TIMEOUT_MS,
+): Promise<Response> {
+  const headers = new Headers(init?.headers);
+  const token = useAccessStore().accessToken;
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  headers.set('Accept-Language', preferences.app.locale);
+  if (!headers.has('Content-Type') && init?.body) {
+    headers.set('Content-Type', 'application/json');
+  }
+  const ctrl = new AbortController();
+  const timer =
+    timeoutMs > 0 ? setTimeout(() => ctrl.abort(), timeoutMs) : undefined;
+  try {
+    const res = await fetch(`${BASE}${path}`, {
+      ...init,
+      headers,
+      signal: init?.signal ?? ctrl.signal,
+    });
+    if (res.status === 401) handleUnauthorized();
+    return res;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  // 与 request.ts 同构：请求期取 accessStore（pinia 已装），携带 bearer
-  const token = useAccessStore().accessToken;
-  const headers = new Headers(init?.headers);
-  headers.set('Content-Type', 'application/json');
-  if (token) headers.set('Authorization', `Bearer ${token}`);
-  const res = await fetch(`${BASE}${path}`, { ...init, headers });
+  const res = await apiFetch(path, init);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(
@@ -366,15 +407,10 @@ export function openLogTail(
   const ctrl = new AbortController();
   void (async () => {
     try {
-      const token = useAccessStore().accessToken;
-      const headers: Record<string, string> = {};
-      if (token) headers.Authorization = `Bearer ${token}`;
-      const res = await fetch(
-        `${BASE}/logs/tail${qs.size > 0 ? `?${qs}` : ''}`,
-        {
-          headers,
-          signal: ctrl.signal,
-        },
+      const res = await apiFetch(
+        `/logs/tail${qs.size > 0 ? `?${qs}` : ''}`,
+        { signal: ctrl.signal },
+        0,
       );
       if (!res.ok || !res.body) {
         handlers.onError?.(new Event('error'));
@@ -597,12 +633,7 @@ export const installBuiltinPack = (key: string) =>
   req<Blocklist>(`/dns/blocklists/builtin/${key}/install`, j({}));
 
 export async function exportBlocklistCsv(id: string): Promise<void> {
-  const token = useAccessStore().accessToken;
-  const headers: Record<string, string> = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${BASE}/dns/blocklists/${id}/entries/export`, {
-    headers,
-  });
+  const res = await apiFetch(`/dns/blocklists/${id}/entries/export`, {}, 60_000);
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { detail?: string };
     throw new Error(body.detail || `HTTP ${res.status}`);

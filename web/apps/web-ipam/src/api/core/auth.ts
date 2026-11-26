@@ -1,3 +1,5 @@
+import { useAccessStore } from '@vben/stores';
+
 import { baseRequestClient, requestClient } from '#/api/request';
 
 export namespace AuthApi {
@@ -101,8 +103,12 @@ export async function logoutAllApi() {
  * 退出登录
  */
 export async function logoutApi() {
-  return baseRequestClient.post('/auth/logout', {
-    withCredentials: true,
+  // 必须走 requestClient：baseRequestClient 不带 Authorization，
+  // 后端 LogoutAuth 拿不到令牌就不会把会话加入黑名单（M6-059），
+  // 结果是点「退出」后 JWT 仍可用到到期。同时提交 refreshToken 一并吊销。
+  const accessStore = useAccessStore();
+  return requestClient.post<undefined>('/auth/logout', {
+    refreshToken: accessStore.refreshToken,
   });
 }
 

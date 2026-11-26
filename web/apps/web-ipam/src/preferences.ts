@@ -20,6 +20,9 @@ export const overridesPreferences = defineOverridesPreferences({
   app: {
     // 商业版默认头像走本地资源，避免内网离线环境出现外链请求
     defaultAvatar: '/avatar.svg',
+    // 上游默认 false：access token 到期（默认 24h）后整站静默 401。
+    // 后端已提供 /auth/refresh 降级刷新路径（M5-032），这里启用（M6-059）。
+    enableRefreshToken: true,
     name: import.meta.env.VITE_APP_TITLE,
     // 上游默认 /analytics 为演示页，本项目无此路由：登录后与根路径重定向均落 404。
     // 指向真实首页（后端 /user/info 的 homePath 同值），保证根路径/守卫回落不再命中空路由。
