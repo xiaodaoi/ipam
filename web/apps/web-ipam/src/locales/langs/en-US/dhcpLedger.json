@@ -115,7 +115,8 @@
       "remark": "Note",
       "leaseStart": "Lease start",
       "leaseEnd": "Lease end"
-    }
+    },
+    "mapTooLarge": "This subnet has more than 4096 addresses; the per-IP map is disabled to keep the page responsive. Use the list filters or CSV export below."
   },
   "v6": {
     "title": "IPv6 Address Ledger",

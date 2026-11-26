@@ -115,7 +115,8 @@
       "remark": "备注",
       "leaseStart": "租约开始",
       "leaseEnd": "租约结束"
-    }
+    },
+    "mapTooLarge": "该网段地址数超过 4096，逐 IP 地图已关闭以避免页面卡顿；请使用下方列表筛选或导出 CSV。"
   },
   "v6": {
     "title": "IPv6 地址台账",

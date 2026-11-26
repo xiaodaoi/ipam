@@ -8,6 +8,7 @@ import { useVbenModal } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
 import {
+  Alert,
   Button,
   Card,
   Input,
@@ -89,6 +90,10 @@ interface MapCell {
 const cells = ref<MapCell[]>([]);
 const onlineRows = ref<Partial<LedgerRow>[]>([]);
 const mapLoading = ref(false);
+// 地图按整网段生成格子（M6-065）：/16 有 65534 个对象，/12 直接冻结/OOM。
+// 超过阈值时不渲染逐 IP 地图，提示改用列表/CSV。
+const MAP_MAX_HOSTS = 4096;
+const mapTooLarge = ref(false);
 const currentSubnet = computed(() =>
   v4Subnets.value.find((s) => s.cidr === selectedCidr.value),
 );
@@ -165,27 +170,49 @@ async function loadMap() {
   mapLoading.value = true;
   try {
     const { network, hostCount } = parseCidr(sub.cidr);
-    // 1) 生成全量格子（网络/广播/未规划）
+    mapTooLarge.value = hostCount > MAP_MAX_HOSTS;
+    // 1) 生成全量格子（网络/广播/未规划）；超大网段不生成，避免主线程冻结。
     const grid: MapCell[] = [];
-    for (let n = 0; n < hostCount; n++) {
-      const ip = intToIp(network + n);
-      grid.push({
-        ip,
-        host: n,
-        status:
-          n === 0 ? 'network' : n === hostCount - 1 ? 'broadcast' : 'available',
-        overlays: [],
-      });
+    if (!mapTooLarge.value) {
+      for (let n = 0; n < hostCount; n++) {
+        const ip = intToIp(network + n);
+        grid.push({
+          ip,
+          host: n,
+          status:
+            n === 0
+              ? 'network'
+              : n === hostCount - 1
+                ? 'broadcast'
+                : 'available',
+          overlays: [],
+        });
+      }
     }
-    // 2) 覆盖台账状态（按 host 定位）
-    const page = await listLedger({
-      subnetId: sub.id,
-      family: 4,
-      pageSize: 500,
-    });
-    onlineRows.value = (page.items ?? []).filter((r) => r.state === 'online');
+    // 2) 覆盖台账状态（按 host 定位）。游标分页拉全量，避免只取 500 行后
+    //    其余地址被误显示为 available（M6-065）。
+    const rows: LedgerRow[] = [];
+    let cursor: string | undefined;
+    let guard = 0;
+    do {
+      const page = await listLedger({
+        subnetId: sub.id,
+        family: 4,
+        pageSize: 500,
+        cursor,
+      });
+      rows.push(...(page.items ?? []));
+      cursor = page.nextCursor || undefined;
+      guard += 1;
+    } while (
+      cursor &&
+      guard < 20 &&
+      (mapTooLarge.value ? rows.length < 500 : rows.length < hostCount)
+    );
+    onlineRows.value = rows.filter((r) => r.state === 'online');
     nowTs.value = Date.now();
-    for (const row of page.items ?? []) {
+    for (const row of rows) {
+      if (mapTooLarge.value) break;
       const host = ipToInt(row.address) - network;
       if (host < 0 || host >= hostCount) continue;
       const { status, overlays } = mapState(row.state);
@@ -699,7 +726,13 @@ function exportLedgerCsv() {
             <span class="ipam-hint">{{ $t('dhcpLedger.v4.bulkHint') }}</span>
           </div>
 
+          <Alert v-if="mapTooLarge" type="warning" show-icon class="mb-3">
+            <template #message>
+              {{ $t('dhcpLedger.v4.mapTooLarge') }}
+            </template>
+          </Alert>
           <IpPlanMap
+            v-else
             :cidr="selectedCidr"
             :ips="cells"
             :subnets="v4Subnets.map((s) => ({ cidr: s.cidr, name: s.name }))"
