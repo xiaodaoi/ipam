@@ -308,3 +308,39 @@ func readFile(t *testing.T, path string) string {
 	}
 	return string(b)
 }
+
+// TestAutoSamplingStatePersistsAcrossRestart（M6-067）：降级状态必须持久化，
+// 否则 control-plane 重启会立即恢复全量写入，磁盘紧张时可能被打满。
+func TestAutoSamplingStatePersistsAcrossRestart(t *testing.T) {
+	ctx := context.Background()
+	svc, out := newTestServiceWith(t, Settings{
+		SyslogMode: "tcp", SamplingMode: "all", SampleRate: 10,
+		WebhookEnabled: true, WebhookURL: "https://siem/hook",
+	})
+	if err := svc.Apply(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.SetAutoSampling(ctx, "errors"); err != nil {
+		t.Fatal(err)
+	}
+	// 模拟重启：同一 repo 与输出路径新建 Service
+	repo := NewMemRepo()
+	repo.s = Settings{SyslogMode: "tcp", SamplingMode: "all", SampleRate: 10,
+		WebhookEnabled: true, WebhookURL: "https://siem/hook"}
+	svc2 := NewService(repo, svc.template, out)
+	if err := svc2.Apply(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !svc2.Status().Degraded {
+		t.Fatal("重启后未恢复降级状态")
+	}
+	if got := readFile(t, out); !chHas(got, "rate = 10") {
+		t.Fatalf("重启后应保持 1/10 抽样:\n%s", got)
+	}
+	if err := svc2.SetAutoSampling(ctx, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(out + ".auto-state"); !os.IsNotExist(err) {
+		t.Fatalf("恢复正常后应清除状态文件: %v", err)
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -97,11 +98,49 @@ func (s *Service) Get(ctx context.Context) (Settings, error) { return s.repo.Get
 func (s *Service) Apply(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// 降级状态持久化（M6-067）：只存内存时，control-plane 重启会立刻恢复全量
+	// 写入，磁盘紧张时可能被打满。启动优先沿用上次状态，再由水位复核。
+	if s.autoMode == "" {
+		s.autoMode = s.loadAutoStateLocked()
+		if s.autoMode != "" {
+			s.degradedAt = time.Now().UTC()
+		}
+	}
 	st, err := s.repo.Get(ctx)
 	if err != nil {
 		return err
 	}
 	return s.renderLocked(st, s.autoMode)
+}
+
+func (s *Service) autoStatePath() string { return s.output + ".auto-state" }
+
+// loadAutoStateLocked 读取上次降级模式；不存在/非法返回空（正常）。
+func (s *Service) loadAutoStateLocked() string {
+	raw, err := os.ReadFile(s.autoStatePath())
+	if err != nil {
+		return ""
+	}
+	mode := strings.TrimSpace(string(raw))
+	switch mode {
+	case "sample", "errors", "all":
+		return mode
+	default:
+		return ""
+	}
+}
+
+// saveAutoStateLocked 持久化/清除降级状态（失败仅记日志，不阻断渲染）。
+func (s *Service) saveAutoStateLocked(mode string) {
+	if mode == "" {
+		if err := os.Remove(s.autoStatePath()); err != nil && !os.IsNotExist(err) {
+			log.Printf("[log-export] 清除降级状态失败: %v", err)
+		}
+		return
+	}
+	if err := os.WriteFile(s.autoStatePath(), []byte(mode), 0o644); err != nil {
+		log.Printf("[log-export] 持久化降级状态失败: %v", err)
+	}
 }
 
 func (s *Service) Save(ctx context.Context, st Settings) (Settings, error) {
@@ -142,6 +181,7 @@ func (s *Service) SetAutoSampling(ctx context.Context, mode string) error {
 	} else {
 		s.degradedAt = time.Now().UTC()
 	}
+	s.saveAutoStateLocked(mode)
 	return nil
 }
 
@@ -221,11 +261,27 @@ func (s *Service) renderLocked(st Settings, autoMode string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	tmp := s.output + ".tmp"
-	if err := os.WriteFile(tmp, []byte(out), 0o644); err != nil {
+	// 唯一临时文件（M6-067）：多副本共享卷时固定 .tmp 会互相覆盖。
+	f, err := os.CreateTemp(dir, filepath.Base(s.output)+".*.tmp")
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	if _, err := f.WriteString(out); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := os.Chmod(tmp, 0o644); err != nil {
+		_ = os.Remove(tmp)
 		return err
 	}
 	if err := os.Rename(tmp, s.output); err != nil {
+		_ = os.Remove(tmp)
 		return err
 	}
 	s.effectiveMode = st.SamplingMode
